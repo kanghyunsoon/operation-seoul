@@ -4,90 +4,91 @@
       <h2>📍 작전 지도: 덕수궁 중명전</h2>
       <p>목표 지점에 도달하여 단서를 확보하십시오.</p>
     </div>
-
     <div id="map" style="width: 100%; height: 550px; border-radius: 12px; border: 2px solid #00ffcc;"></div>
   </div>
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue'; // ref 추가
 import axios from 'axios';
 
-const initMap = (missions) => {
-  const container = document.getElementById('map');
-  const options = {
-    // 백엔드에서 온 첫 번째 미션의 좌표를 중심으로 설정, 없으면 시청역 기준
-    center: new window.kakao.maps.LatLng(
-        missions[0]?.targetLat || 37.5642,
-        missions[0]?.targetLng || 126.9733
-    ),
-    level: 3
-  };
-  const map = new window.kakao.maps.Map(container, options);
+const missions = ref([]); // 미션 데이터 담을 공간
+const appKey = import.meta.env.VITE_KAKAO_MAP_KEY;
 
-  missions.forEach(mission => {
-    // 백엔드 필드명(targetLat, targetLng) 사용
+// 1. DB에서 미션 정보 가져오기
+const fetchMissions = async (map) => {
+  try {
+    // 경로에 /v1 추가 확인
+    const response = await axios.get('http://localhost:8080/api/v1/missions');
+    missions.value = response.data;
+
+    if (missions.value.length > 0) {
+      displayMarkers(map, missions.value);
+    }
+  } catch (error) {
+    console.error("데이터 로딩 실패:", error);
+  }
+};
+
+// 2. 지도에 마커 뿌리기
+const displayMarkers = (map, missionList) => {
+  missionList.forEach((mission) => {
     const markerPosition = new window.kakao.maps.LatLng(mission.targetLat, mission.targetLng);
     const marker = new window.kakao.maps.Marker({
-      position: markerPosition
+      position: markerPosition,
+      map: map
     });
-    marker.setMap(map);
+
+    // 인포윈도우 설정
+    const iwContent = `
+      <div style="padding:10px; color:#333; width:200px;">
+        <strong style="font-size:14px;">${mission.title}</strong><br>
+        <small>정답 키워드: ${mission.answerKeyword}</small>
+      </div>`;
 
     const infowindow = new window.kakao.maps.InfoWindow({
-      content: `<div style="padding:10px; color:black; font-family: sans-serif;">
-                  <strong style="color:#2c3e50;">${mission.title}</strong><br>
-                  <span style="font-size:12px;">단서: ${mission.visionKeyword}</span>
-                </div>`
+      content: iwContent,
+      removable: true
     });
 
     window.kakao.maps.event.addListener(marker, 'click', () => {
       infowindow.open(map, marker);
     });
+
+    // 첫 번째 미션 위치로 지도 중심 이동 (중명전으로 이동)
+    map.setCenter(markerPosition);
   });
 };
 
-onMounted(async () => {
-  // 카카오 맵 라이브러리가 로드될 때까지 체크
-  const checkKakao = setInterval(async () => {
-    if (window.kakao && window.kakao.maps) {
-      clearInterval(checkKakao);
+onMounted(() => {
+  // 카카오맵 스크립트 로드
+  const script = document.createElement('script');
+  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`;
 
-      try {
-        // 백엔드 API에서 미션 리스트 가져오기 [cite: 5]
-        const response = await axios.get('http://localhost:8080/api/v1/missions');
-        const missions = response.data;
+  script.onload = () => {
+    window.kakao.maps.load(() => {
+      const container = document.getElementById('map');
+      const options = {
+        center: new window.kakao.maps.LatLng(37.5642, 126.9733), // 기본 중명전 좌표
+        level: 3
+      };
+      const map = new window.kakao.maps.Map(container, options);
 
-        window.kakao.maps.load(() => {
-          initMap(missions);
-        });
-      } catch (error) {
-        console.error("데이터 로드 실패:", error);
-        window.kakao.maps.load(() => initMap([]));
-      }
-    }
-  }, 100);
+      // 지도 객체가 생성된 후 DB 데이터를 가져옵니다.
+      fetchMissions(map);
+    });
+  };
+  document.head.appendChild(script);
 });
 </script>
 
 <style scoped>
+/* 기존 스타일 유지 */
 .map-container {
   padding: 20px;
   background-color: #1a1a1a;
   min-height: 100vh;
   color: #00ffcc;
-  font-family: 'Pretendard', sans-serif;
 }
-.header {
-  margin-bottom: 20px;
-  text-align: center;
-}
-.header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  letter-spacing: 2px;
-}
-.header p {
-  font-size: 0.9rem;
-  opacity: 0.8;
-}
+.header { text-align: center; margin-bottom: 20px; }
 </style>
