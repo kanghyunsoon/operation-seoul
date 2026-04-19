@@ -27,7 +27,7 @@ public class GeminiAiService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
-    // 1. 최종 정답 검증기 (기존과 동일)
+    // 1. 최종 정답 검증기
     public boolean verifyFinalAnswer(Long missionId, String userAnswer) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String answerKeyword = mission.getAnswerKeyword();
@@ -37,7 +37,7 @@ public class GeminiAiService {
         return cleanUserAnswer.contains(cleanAnswerKeyword);
     }
 
-    // 2. ⚡️ 진짜(Real) 실시간 스트리밍 대사 생성기 (새로 추가됨!)
+    // 2. 실시간 스트리밍 대사 생성기
     public ResponseBodyEmitter streamNarration(boolean isCorrect) {
         // 프론트엔드로 데이터를 쏴줄 파이프라인 생성 (타임아웃 60초)
         ResponseBodyEmitter emitter = new ResponseBodyEmitter(60000L);
@@ -74,7 +74,7 @@ public class GeminiAiService {
                                             .path("content").path("parts").get(0)
                                             .path("text").asText();
 
-                                    // 프론트엔드(Vue)로 0.1초만에 한 글자 발사!
+                                    // 프론트엔드(Vue)로 한글자 전송
                                     emitter.send(textChunk);
                                 }
                             }

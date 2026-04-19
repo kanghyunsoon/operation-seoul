@@ -6,8 +6,8 @@ import lombok.Setter;
 
 /**
  * [Entity: 개별 미션(장소) 테이블]
- * 용도: 현실 세계의 특정 좌표(위경도)와 정답 키워드를 품고 있는 마스터 데이터입니다.
- * 호출: MissionRepository를 통해 DB에서 꺼내지며, ValidationService에서 계산용으로 쓰입니다.
+ * 용도: 현실 세계의 특정 좌표(위경도)와 정답 키워드를 품고 있는 마스터 데이터
+ * 호출: MissionRepository를 통해 DB에서 꺼내지며, ValidationService에서 계산용으로 쓰임
  */
 @Entity
 @Getter @Setter

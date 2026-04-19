@@ -50,7 +50,7 @@ const currentMission = ref(null);
 const currentSessionId = ref(null);
 const gameStatus = ref('LOCKED'); // 상태: LOCKED -> ARRIVED -> PHOTO_VERIFIED -> CLEARED
 const chatHistory = ref([]);
-const userInput = ref(''); // 채팅 입력 변수 통일
+const userInput = ref(''); // 채팅 입력 변수
 
 // 1. 지도 렌더링 및 마커 표시
 const fetchMissions = async (map) => {
@@ -88,19 +88,17 @@ const forceArrival = async () => {
   }
 };
 
-// ⌨️ 프론트엔드 전용 타자기 효과 함수 (🚨 버그 수정: index로 직접 접근)
+// 프론트엔드 전용 타자기 효과 함수 (사진 인증 선톡용)
 const typeWriter = (fullText, messageIndex) => {
   let i = 0;
-  chatHistory.value[messageIndex].text = ''; // 빈칸으로 시작
-  const speed = 50; // 0.05초마다 한 글자
+  chatHistory.value[messageIndex].text = '';
+  const speed = 50;
 
   const typing = setInterval(() => {
     if (i < fullText.length) {
-      // 🚨 핵심: Proxy 배열에 직접 접근해서 글자를 더해야 Vue가 실시간으로 화면을 그립니다!
       chatHistory.value[messageIndex].text += fullText.charAt(i);
       i++;
 
-      // 스크롤 맨 아래로 유지
       const chatContainer = document.querySelector('.chat-history');
       if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
     } else {
@@ -109,7 +107,7 @@ const typeWriter = (fullText, messageIndex) => {
   }, speed);
 };
 
-// 3. 사진 업로드 (Vision AI 연동) 및 AI 선톡 발사!
+// 3. 사진 업로드 및 AI 선톡
 const uploadImage = async (event) => {
   const file = event.target.files[0];
   if (!file || !currentSessionId.value) return;
@@ -123,13 +121,11 @@ const uploadImage = async (event) => {
       headers: { "Content-Type": "multipart/form-data" }
     });
 
-    gameStatus.value = 'PHOTO_VERIFIED'; // 채팅창 엶
+    gameStatus.value = 'PHOTO_VERIFIED';
 
-    // AI 빈 말풍선 넣고 그 위치(index) 기억하기
     chatHistory.value.push({ sender: 'ai', text: '' });
     const aiMessageIndex = chatHistory.value.length - 1;
 
-    // 화면 멈춤 없이 바로 타자기 효과 발동!
     typeWriter("현장 도착을 확인했다 요원. 주위를 둘러보고 암호를 입력하라.", aiMessageIndex);
 
   } catch (error) {
@@ -137,8 +133,7 @@ const uploadImage = async (event) => {
   }
 };
 
-// 4. 채팅 전송 (진짜 실시간 스트리밍 - SSE 방식)
-// 4. 채팅 전송 (진짜 실시간 스트리밍 - 무조건 타다다닥 나오게 수정)
+// 4. 채팅 전송 버퍼 타자기 + 로딩 연출 추가
 const sendChat = async () => {
   if (!userInput.value.trim() || !currentSessionId.value) return;
 
@@ -146,9 +141,38 @@ const sendChat = async () => {
   chatHistory.value.push({ sender: 'user', text: question });
   userInput.value = '';
 
-  // 1. AI 말풍선을 미리 추가 (초기값 빈칸)
-  const aiMessageIndex = chatHistory.value.length;
-  chatHistory.value.push({ sender: 'ai', text: '' });
+  // 1. AI 말풍선을 만들 때 처음부터 '📡 암호화 수신 중...'을 박아두기.
+  chatHistory.value.push({ sender: 'ai', text: '📡 암호화 수신 중...' });
+  const aiMessageIndex = chatHistory.value.length - 1;
+
+  let fullTextBuffer = "";
+  let displayIndex = 0;
+  let isStreamDone = false;
+  let isFirstChar = true; // 첫 글자가 찍혔는지 확인
+
+  const typingInterval = setInterval(() => {
+    if (displayIndex < fullTextBuffer.length) {
+
+      // 2. 서버에서 진짜 첫 글자가 도착해서 찍히기 직전, 가짜 메시지를 제거
+      if (isFirstChar) {
+        chatHistory.value[aiMessageIndex].text = '';
+        isFirstChar = false; // 스위치를 꺼서 다음부턴 안 지워지게 함
+      }
+
+      chatHistory.value[aiMessageIndex].text += fullTextBuffer.charAt(displayIndex);
+      displayIndex++;
+
+      const chatContainer = document.querySelector('.chat-history');
+      if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    } else if (isStreamDone && displayIndex === fullTextBuffer.length) {
+      clearInterval(typingInterval);
+
+      if(fullTextBuffer.includes("훌륭하다")) {
+        setTimeout(() => { gameStatus.value = 'CLEARED'; }, 2000);
+      }
+    }
+  }, 50);
 
   try {
     const response = await fetch(`http://localhost:8080/api/v1/sessions/${currentSessionId.value}/chat/stream`, {
@@ -157,41 +181,28 @@ const sendChat = async () => {
       body: JSON.stringify({ userAnswer: question })
     });
 
+    if (!response.ok) throw new Error("네트워크 응답 에러");
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-
-      // 🚨 핵심 포인트:
-      // 단순히 .text += chunk 를 하면 Vue가 감지를 못할 때가 있습니다.
-      // 객체 자체를 새로 할당해서 Vue가 "어! 데이터 바뀌었네? 화면 그려야지!"라고 강제로 인식하게 만듭니다.
-      const currentText = chatHistory.value[aiMessageIndex].text;
-      chatHistory.value[aiMessageIndex] = {
-        ...chatHistory.value[aiMessageIndex],
-        text: currentText + chunk
-      };
-
-      // 스크롤 제어
-      const chatContainer = document.querySelector('.chat-history');
-      if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-
-    // 최종 정답 체크 및 클리어 처리
-    if (chatHistory.value[aiMessageIndex].text.includes("훌륭하다")) {
-      setTimeout(() => { gameStatus.value = 'CLEARED'; }, 1500);
+      if (done) {
+        isStreamDone = true;
+        break;
+      }
+      fullTextBuffer += decoder.decode(value, { stream: true });
     }
 
   } catch (error) {
-    console.error("스트리밍 실패:", error);
-    chatHistory.value[aiMessageIndex].text = "본부 통신 두절. 재입력 바람.";
+    console.error("스트리밍 전송 실패:", error);
+    isStreamDone = true;
+    fullTextBuffer = "본부와의 통신 상태가 고르지 않다. 다시 입력하라.";
   }
 };
 
-// 🗺️ 카카오 맵 초기화
+// 카카오 맵 초기화
 onMounted(() => {
   const script = document.createElement('script');
   script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`;

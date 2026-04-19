@@ -7,8 +7,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * [Service: GPS 검증 심판]
- * 용도: 유저의 GPS 좌표가 조작되지 않고 실제로 반경 안에 들어왔는지 수학적으로 검증합니다.
- * 호출: LocationController의 checkArrival() API에서 유저 좌표를 넘겨주며 호출합니다.
+ * 용도: 유저의 GPS 좌표가 조작되지 않고 실제로 반경 안에 들어왔는지 수학적으로 검증
+ * 호출: LocationController의 checkArrival() API에서 유저 좌표를 넘겨주며 호출
  */
 @Service
 @RequiredArgsConstructor

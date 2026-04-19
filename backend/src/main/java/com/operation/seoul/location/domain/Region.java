@@ -9,8 +9,8 @@ import lombok.Setter;
 
 /**
  * [Entity: 지역/지자체 테이블]
- * 용도: 전국 확장을 위해 미션들을 그룹화하는 최상위 폴더 역할입니다.
- * 호출: RegionRepository에서 DB 조회 시 이 객체 형태로 데이터를 퍼옵니다.
+ * 용도: 전국 확장을 위해 미션들을 그룹화하는 최상위 폴더 역할
+ * 호출: RegionRepository에서 DB 조회 시 이 객체 형태로 데이터를 퍼옴
  */
 @Entity // JPA가 이 클래스를 보고 'region' 테이블을 만듭니다.
 @Getter @Setter

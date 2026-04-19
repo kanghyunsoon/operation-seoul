@@ -1,66 +1,55 @@
-# 🕵️‍♂️ Operation: SEOUL (리얼월드 방탈출 AI 프로젝트)
+# 🕵️‍♂️ Operation: SEOUL (리얼월드 AI 방탈출 플랫폼)
 
-> **"도심 속 명소가 거대한 방탈출 무대가 된다."** > 위치 기반(GPS) 인증과 Vision AI, LLM을 활용한 게이미피케이션 지역 관광 활성화 플랫폼입니다.
+> **"도심 속 명소가 거대한 방탈출 무대가 된다."**
+> 한국관광공사 TourAPI와 Google AI(Vision, LLM)를 결합한 위치 기반(LBS) 게이미피케이션 관광 활성화 서비스입니다.
 
 <br>
 
-## 📌 1. 프로젝트 아키텍처 (System Architecture)
+## 📌 1. 시스템 아키텍처 (System Architecture)
 
-프론트엔드와 백엔드를 완전히 분리하고, 외부 AI/공공데이터 API를 적극 활용하는 제로 코스트(Zero-Cost) 프로토타입 아키텍처입니다.
+본 프로젝트는 실시간 데이터 처리와 외부 지능형 API 연동을 위한 **비동기 스트리밍 구조**를 채택하고 있습니다.
 
 ```mermaid
 graph TD
-    subgraph Client [현장 요원 - App/Web]
-        V[Vue.js App]
-        PWA[PWA / UI]
-        GPS[GPS/BLE 추적]
+    subgraph "현장 요원 (Client - Vue.js 3)"
+        V[UI/UX Engine]
+        B[Typing Buffer System]
+        G[GPS & Camera Control]
     end
 
-    subgraph Server [본부 - API Server]
-        SB[Spring Boot]
-        Auth[OAuth 2.0]
-        Logic[Mission/Hint Logic]
+    subgraph "작전 본부 (Server - Spring Boot 3)"
+        SB[API Server]
+        SSE[SSE Stream Handler]
+        MF[Mission Factory]
     end
 
-    subgraph Database [AWS RDS]
-        MySQL[(MySQL)]
+    subgraph "데이터 보관소 (Database)"
+        MySQL[(MySQL 8.0)]
     end
 
-    subgraph External_APIs [외부 정보망]
-        Map[Kakao/Naver Maps]
-        Vision[Google Vision API]
-        LLM[Gemini API]
-        Tour[한국관광공사 TourAPI]
+    subgraph "외부 정보망 (External APIs)"
+        Map[Kakao Maps API]
+        Tour[TourAPI 4.0]
+        Vision[Google Vision AI]
+        Gemini[Google Gemini 1.5]
     end
 
-    V <-->|REST API| SB
-    SB <-->|JPA| MySQL
-    V -->|지도 요청| Map
-    SB -->|현판 OCR 검증| Vision
-    SB -->|1~5 단답형 분류기| LLM
-    SB -->|명소 팩트체크| Tour
+    V <-->|REST API & SSE| SB
+    SB <-->|JPA/Hibernate| MySQL
+    V -->|지도 렌더링| Map
+    SB -->|Content Scrapping| Tour
+    SB -->|OCR Analysis| Vision
+    SB -->|AI Narration| Gemini
 ```
 
 <br>
 
-## 📊 2. 핵심 도메인 모델 (Class Diagram)
+## 🧩 2. 핵심 도메인 모델 (Core Domain Model)
 
-향후 지자체 확장(B2G)을 고려한 다중 지역(Region) 기반의 DB 설계입니다. 모든 API 통신 변수명은 `camelCase`를 표준으로 합니다.
+데이터 간의 관계와 게임 상태 관리 로직을 시각화한 클래스 구조입니다.
 
 ```mermaid
 classDiagram
-    class User {
-        +Long id
-        +String providerId
-        +String nickname
-        +Integer clearCount
-    }
-
-    class Region {
-        +Long id
-        +String name
-    }
-
     class Mission {
         +Long id
         +Long regionId
@@ -70,100 +59,83 @@ classDiagram
         +String visionKeyword
         +String answerKeyword
     }
-
-    class Hint {
-        +Long id
-        +Long missionId
-        +Integer requiredMinutes
-        +String content
-    }
-
     class GameSession {
         +Long id
         +Long userId
         +Long missionId
-        +Enum status
-        +Integer questionCount
-        +LocalDateTime startedAt
+        +GameStatus status
+        +String extractedLog
+    }
+    class GameStatus {
+        <<enumeration>>
+        LOCKED
+        ARRIVED
+        PHOTO_VERIFIED
+        CLEARED
     }
 
-    Region "1" -- "N" Mission : contains
-    Mission "1" -- "N" Hint : has
-    User "1" -- "N" GameSession : plays
-    Mission "1" -- "N" GameSession : recorded in
+    Mission "1" -- "N" GameSession : 관찰
 ```
 
 <br>
 
-## 📂 3. 프로젝트 계층 구조 (Directory Structure)
+## 🏗 3. 프로젝트 계층 구조 (Layer Structure)
 
-본 프로젝트는 두 명의 백엔드 개발자가 도메인별 수직 분할(Vertical Slicing) 방식으로 협업하기 위해 Mono-repo 구조를 채택했습니다.
+기능별로 분리된 클린 아키텍처 폴더 구조입니다.
 
 ```text
-Operation-Seoul/
-├── frontend/ (Vue.js)
-│   ├── src/
-│   │   ├── api/          # 백엔드 호출 (Axios)
-│   │   ├── components/   # UI 컴포넌트 (타이핑 애니메이션 등)
-│   │   ├── views/        # 화면 (지도뷰, 카메라뷰, 채팅뷰)
-│   │   └── store/        # 상태 관리 (세션, 유저 정보)
-│
-└── backend/ (Spring Boot)
-    ├── src/main/java/com/operation/seoul/
-    │   ├── controller/   # API 엔드포인트
-    │   ├── service/      # 비즈니스 로직 및 외부 AI 연동
-    │   ├── domain/       # JPA Entity 클래스
-    │   ├── dto/          # 계층 간 데이터 교환 객체
-    │   ├── repository/   # DB CRUD 로직
-    │   └── util/         # GPS 검증 및 보안(Anti-Abuse) 모듈
+operation-seoul
+├── backend (Spring Boot)
+│   ├── src/main/java/com/operation/seoul
+│   │   ├── game (게임 로직)
+│   │   │   ├── controller (SSE/REST API)
+│   │   │   ├── service (Vision/Gemini 연동)
+│   │   │   └── domain (Session 관리)
+│   │   └── location (위치 정보)
+│   │       ├── controller (TourAPI 연동)
+│   │       └── domain (Mission 관리)
+│   └── build.gradle
+└── frontend (Vue.js 3)
+    ├── src
+    │   ├── components (UI/UX)
+    │   ├── views (MapView.vue - 핵심 화면)
+    │   └── store (Pinia - 상태 관리)
+    └── vite.config.js
 ```
 
 <br>
 
-## 🤝 4. 업무 분담 및 협업 규칙
+## 🤝 4. 업무 분담 및 협업 규칙 (Collaboration)
 
-* **[도메인 A] 지리 & 미션 데이터 (담당: 지리교육과 팀원)**
-  * 프론트엔드: 지도 API 연동, 마커 렌더링, 위치 추적.
-  * 백엔드: `Region`, `Mission` 도메인 CRUD, 한국관광공사 TourAPI 연동 및 데이터 파이프라인.
-* **[도메인 B] 게임 코어 & AI (담당: 질문자님)**
-  * 프론트엔드: 카메라 제어, 타이머 시스템, 바다거북 스프 채팅 UI.
-  * 백엔드: `GameSession` 제어, Google Vision API(OCR) 검증, Gemini API 통신(1~5 단답형 분류기).
+```mermaid
+pie title 업무 분담 비중
+    "Frontend & LBS (UI/UX)" : 50
+    "Backend & AI (API/Pipeline)" : 50
+```
 
-**Git 협업 수칙 (GitHub Flow)**
-1. `main` 브랜치는 항상 실행 가능한 상태를 유지합니다.
-2. 기능 개발 시 반드시 `feature/기능명` 브랜치를 생성하여 작업합니다.
-3. 코드 병합은 상호 **Pull Request (PR) 및 코드 리뷰** 승인 후 진행합니다.
+### 🌿 Git 협업 수칙 (GitHub Flow)
+- **main**: 상시 배포 가능한 안정적인 최신본 유지
+- **feature/기능명**: 새로운 기능 개발 브랜치 (예: `feature/ai-streaming`)
+- **Commit Convention**: 
+  - `feat:` (기능), `fix:` (버그), `docs:` (문서), `refactor:` (개선)
 
 <br>
 
 ## 🛠 5. 기술 스택 (Tech Stack)
 
-### 📱 Frontend
-* **Framework:** Vue.js 3 (Composition API)
-* **PWA:** Vite PWA Plugin (모바일 앱 환경 구축)
-* **State Management:** Pinia (세션 및 유저 상태 관리)
-* **HTTP Client:** Axios
+| 구분 | 기술 스택 |
+| :--- | :--- |
+| **Frontend** | Vue 3, Pinia, Axios, Kakao Maps API |
+| **Backend** | Java 17, Spring Boot 3.x, Spring Data JPA |
+| **Database** | MySQL 8.0 |
+| **AI Engine** | Gemini 1.5 Flash (LLM), Google Cloud Vision (OCR) |
+| **Data** | 한국관광공사 TourAPI 4.0 |
 
-### ⚙️ Backend
-* **Language:** Java 17
-* **Framework:** Spring Boot 3.x
-* **ORM:** Spring Data JPA
-* **Security:** Spring Security (OAuth 2.0 소셜 로그인)
-* **Build Tool:** Gradle
+<br>
 
-### 🗄️ Database & Infrastructure
-* **RDBMS:** MySQL
-* **Cloud Hosting:** AWS EC2 (t2.micro - Free Tier)
-* **Database Hosting:** AWS RDS (db.t3.micro - Free Tier)
+## 🔒 6. 기술적 해결 과제 (Key Highlights)
 
-### 🌐 External APIs (Open API & AI)
-* **Vision AI:** Google Cloud Vision API (현판/안내판 OCR 텍스트 추출)
-* **LLM (동적 추리):** Google Gemini API (1~5 단답형 분류기)
-* **Map & LBS:** Kakao Maps API / Naver Maps API
-* **Public Data:** 한국관광공사 TourAPI (명소 상세 정보 및 팩트체크용)
-
-### 🤝 DevOps & Collaboration
-* **Version Control:** Git
-* **Repository & CI/CD:** GitHub (GitHub Flow 전략 사용)
-* **Project Management:** GitHub Projects (Kanban Board), Issues, Pull Requests
-* **API Docs & Testing:** Postman, Swagger (Springdoc OpenAPI)
+1. **[SSE 스트리밍]**: `ResponseBodyEmitter`를 활용하여 AI 응답 대기 시간을 혁신적으로 단축
+2. **[타자기 버퍼]**: 프론트엔드 자체 버퍼 로직으로 네트워크 끊김 없는 0.05초 타자기 연출 구현
+3. **[하이브리드 인증]**: GPS 좌표와 실시간 OCR 사진 인증을 결합하여 어뷰징 원천 차단
+4. **[Mission Factory]**: TourAPI 데이터를 기반으로 AI가 미션 스토리를 자동 생성하는 파이프라인 구축

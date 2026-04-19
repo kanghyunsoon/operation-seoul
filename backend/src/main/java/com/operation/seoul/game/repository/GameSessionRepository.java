@@ -7,7 +7,7 @@ import java.util.Optional;
 
 /**
  * [Repository: GameSession DB 접근]
- * 용도: 게임 세션 테이블에서 데이터를 생성, 조회, 수정합니다.
+ * 용도: 게임 세션 테이블에서 데이터를 생성, 조회, 수정
  */
 public interface GameSessionRepository extends JpaRepository<GameSession, Long> {
 

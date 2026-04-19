@@ -76,7 +76,7 @@ public class GameSessionController {
      */
     /**
      * [API 3] 최종 정답 제출 및 AI 실시간 스트리밍 대화
-     * 용도: 한 글자씩 생성되는 지휘관의 대사를 실시간으로 프론트엔드에 전달합니다.
+     * 용도: 한 글자씩 생성되는 지휘관의 대사를 실시간으로 프론트엔드에 전달
      */
     @PostMapping("/{sessionId}/chat/stream") // 주소를 /chat/stream으로 변경하여 명시성을 높임
     public ResponseBodyEmitter streamAnswer(
@@ -96,7 +96,7 @@ public class GameSessionController {
         }
 
         // 4. 🔥 핵심: 한 글자씩 쏴주는 스트리밍 서비스 호출 (ResponseBodyEmitter 반환)
-        // GeminiAiService에 우리가 미리 만들어둔 streamNarration을 호출합니다.
+        // GeminiAiService에 우리가 미리 만들어둔 streamNarration을 호출
         return geminiAiService.streamNarration(isCorrect);
     }
 }

@@ -33,7 +33,8 @@ public class VisionAiService {
 //        System.out.println("⚠️ 결제 이슈로 인해 가짜 인증 텍스트를 반환합니다.");
 //        return "이곳은 덕수궁 중명전 입니다."; // DB의 visionKeyword에 맞춰서 작성
 //    }
-    // 1. 찐(Real) Google Vision API 통신
+
+    // 1. Google Vision API 통신
     public String extractTextFromImage(MultipartFile image) {
         try {
             // 1. 이미지를 Base64 문자열로 변환
@@ -79,7 +80,7 @@ public class VisionAiService {
             throw new RuntimeException("AI 이미지 분석에 실패했습니다.");
         }
     }
-    // 2. 키워드 검증기 (기존과 동일)
+    // 2. 키워드 검증기
     public boolean validateKeyword(Long missionId, String extractedText) {
         Mission mission = missionRepository.findById(missionId)
                 .orElseThrow(() -> new IllegalArgumentException("미션 오류!"));
@@ -87,11 +88,11 @@ public class VisionAiService {
         String targetKeyword = mission.getVisionKeyword();
         if(targetKeyword == null || targetKeyword.isEmpty()) return true;
 
-        // ✨ 수정 포인트: 사진에서 읽은 글자와 정답 키워드 모두 공백/줄바꿈을 제거하고 비교합니다.
+        // 수정 포인트: 사진에서 읽은 글자와 정답 키워드 모두 공백/줄바꿈을 제거하고 비교
         String cleanExtractedText = extractedText.replace(" ", "").replace("\n", "").toLowerCase();
         String cleanTargetKeyword = targetKeyword.replace(" ", "").toLowerCase();
 
-        // 로그를 찍어서 실제로 AI가 무엇을 읽었는지 서버 콘솔에서 확인하세요.
+        // 로그를 찍어서 실제로 AI가 무엇을 읽었는지 서버 콘솔에서 확인
         System.out.println("🧐 AI가 읽은 텍스트(공백제거): " + cleanExtractedText);
         System.out.println("🎯 목표 키워드(공백제거): " + cleanTargetKeyword);
 

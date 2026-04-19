@@ -9,8 +9,8 @@ import java.util.List;
 
 /**
  * [Service: 미션 데이터 관리 반장]
- * 용도: DB에서 단순히 데이터를 꺼내서 컨트롤러로 전달하는 역할을 합니다.
- * 호출: LocationController에서 지도를 그릴 때 호출합니다.
+ * 용도: DB에서 단순히 데이터를 꺼내서 컨트롤러로 전달하는 역할
+ * 호출: LocationController에서 지도를 그릴 때 호출
  */
 @Service
 @RequiredArgsConstructor
