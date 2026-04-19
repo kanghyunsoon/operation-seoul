@@ -38,7 +38,10 @@ public class GeminiAiService {
     // 2. 찐(Real) Gemini API 대사 생성기
     public String generateNarration(boolean isCorrect) {
         // 구글 Gemini API 엔드포인트
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
+
+        // v1beta가 아니라 v1으로, 그리고 모델명을 gemini-1.5-flash로 정확히 지정합니다.
+        // v1beta 주소를 쓰되 모델명을 gemini-1.5-flash로 명확히 타격합니다.
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey;
 
         // AI에게 내릴 명령(Prompt) 세팅
         String prompt = isCorrect ?
@@ -56,18 +59,22 @@ public class GeminiAiService {
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
         try {
-            // 진짜 구글 서버로 POST 요청 발사!
-            ResponseEntity<JsonNode> response = restTemplate.postForEntity(url, request, JsonNode.class);
+            // 1. 구글 서버로 POST 요청 (JsonNode 대신 Map.class 사용)
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
 
-            // 구글이 준 복잡한 JSON 응답에서 딱 텍스트 대사만 파싱해서 빼오기
-            return response.getBody()
-                    .path("candidates").get(0)
-                    .path("content")
-                    .path("parts").get(0)
-                    .path("text").asText();
+            // 2. Map을 이용해 구글의 응답에서 텍스트만 쏙 빼오기
+            List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
+            Map<String, Object> contentMap = (Map<String, Object>) candidates.get(0).get("content");
+            List<Map<String, Object>> parts = (List<Map<String, Object>>) contentMap.get("parts");
+
+            String aiMessage = (String) parts.get(0).get("text");
+            System.out.println("🤖 지휘관의 통신: " + aiMessage); // 콘솔에서 확인용
+
+            return aiMessage;
+
         } catch (Exception e) {
             System.err.println("Gemini API 호출 에러: " + e.getMessage());
-            return "통신 상태가 고르지 않다. 요원, 다시 한번 말해달라."; // 실패 시 예외 처리 대사
+            return "통신 상태가 고르지 않다. 요원, 다시 한번 말해달라.";
         }
     }
 }
