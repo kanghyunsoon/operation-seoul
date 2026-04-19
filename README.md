@@ -139,7 +139,7 @@ operation-seoul
   * [Backend] TourAPI 연동 및 데이터 파이프라인(Mission Factory) 구축, Region/Mission CRUD API 개발.
   * [Frontend] Kakao Maps API 연동, 동적 마커 렌더링, HTML5 Geolocation 기반 실시간 GPS 위치 추적 UI 구현.
 * **팀원 B (AI & Game Core Domain 담당):**
-  * [Backend] Google Vision API(OCR) 이미지 판독, Gemini 1.5 비동기 스트리밍(SSE) 서버 구축, GameSession 상태 머신 제어.
+  * [Backend] Google Vision API(OCR) 이미지 판독, Gemini 2.5 비동기 스트리밍(SSE) 서버 구축, GameSession 상태 머신 제어.
   * [Frontend] 카메라 스캐너 연동, SSE 데이터 수신 및 자체 타이핑 버퍼(Typing Buffer) 시스템 구현, 채팅 UI/UX 최적화.
 
 ### 🌿 Git 협업 수칙 (GitHub Flow)
