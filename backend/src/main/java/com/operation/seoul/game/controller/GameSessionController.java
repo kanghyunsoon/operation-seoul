@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 @RestController
 @RequestMapping("/api/v1/sessions")
@@ -73,27 +74,30 @@ public class GameSessionController {
      * [API 3] 최종 정답 제출 및 AI 채팅 대화
      * 용도: 타자기 효과용 텍스트를 검증하고 미션을 "CLEARED" 처리.
      */
-    @PostMapping("/{sessionId}/chat")
-    public ResponseEntity<String> submitAnswer(
+    /**
+     * [API 3] 최종 정답 제출 및 AI 실시간 스트리밍 대화
+     * 용도: 한 글자씩 생성되는 지휘관의 대사를 실시간으로 프론트엔드에 전달합니다.
+     */
+    @PostMapping("/{sessionId}/chat/stream") // 주소를 /chat/stream으로 변경하여 명시성을 높임
+    public ResponseBodyEmitter streamAnswer(
             @PathVariable Long sessionId,
             @RequestBody ChatRequest request) {
 
+        // 1. DB에서 세션 정보 가져오기
         GameSession session = sessionRepository.findById(sessionId).orElseThrow();
 
-        // 1. 서비스 호출: 정답 확인
+        // 2. 서비스 호출: 정답 확인 (이 로직은 동기적으로 빠르게 처리)
         boolean isCorrect = geminiAiService.verifyFinalAnswer(session.getMissionId(), request.getUserAnswer());
 
-        // 2. 서비스 호출: AI 대사 생성
-        String aiResponse = geminiAiService.generateNarration(isCorrect);
-
-        // 3. 정답이면 게임 클리어 처리
+        // 3. 정답이면 DB 상태 업데이트
         if (isCorrect) {
             session.setStatus("CLEARED");
             sessionRepository.save(session);
         }
 
-        // 생성된 타자기용 대사를 프론트로 전송
-        return ResponseEntity.ok(aiResponse);
+        // 4. 🔥 핵심: 한 글자씩 쏴주는 스트리밍 서비스 호출 (ResponseBodyEmitter 반환)
+        // GeminiAiService에 우리가 미리 만들어둔 streamNarration을 호출합니다.
+        return geminiAiService.streamNarration(isCorrect);
     }
 }
 
