@@ -95,9 +95,9 @@ public class GameSessionController {
             sessionRepository.save(session);
         }
 
-        // 4. 🔥 핵심: 한 글자씩 쏴주는 스트리밍 서비스 호출 (ResponseBodyEmitter 반환)
+        // 4. 핵심: 한 글자씩 쏴주는 스트리밍 서비스 호출 (ResponseBodyEmitter 반환)
         // GeminiAiService에 우리가 미리 만들어둔 streamNarration을 호출
-        return geminiAiService.streamNarration(isCorrect);
+        return geminiAiService.streamNarration(session.getMissionId(), request.getUserAnswer(), isCorrect);
     }
 }
 
