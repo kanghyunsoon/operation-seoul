@@ -15,7 +15,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * [Service: 사진 인식 및 검증 엔진]
+ * [Service: 사진 인식 및 현장 인증 검증 엔진]
+ * - 역할: Google Vision API 연동 및 사진 속 키워드 일치 여부 판별
  */
 @Service
 @RequiredArgsConstructor
@@ -24,51 +25,51 @@ public class VisionAiService {
     private final MissionRepository missionRepository;
     private final RestTemplate restTemplate = new RestTemplate();
 
+    /** Google Cloud Platform에서 발급받은 API Key (application.yml 설정값) */
     @Value("${google.vision.key}")
     private String visionApiKey;
 
-    //test
-//    public String extractTextFromImage(MultipartFile image) {
-//        // 실제 구글 서버 호출 코드를 잠시 주석 처리하고, 테스트용 텍스트를 바로 리턴합니다.
-//        System.out.println("⚠️ 결제 이슈로 인해 가짜 인증 텍스트를 반환합니다.");
-//        return "이곳은 덕수궁 중명전 입니다."; // DB의 visionKeyword에 맞춰서 작성
-//    }
-
-    // 1. Google Vision API 통신
+    /**
+     * [기능: 이미지 내 텍스트 추출]
+     * - 수행 내용: MultipartFile 형태의 이미지를 Google Vision API로 전송하여 OCR 결과 반환
+     * - 매개 변수: MultipartFile image (유저가 촬영하여 업로드한 사진)
+     * - 반환 값: String (추출된 전체 텍스트 데이터)
+     */
     public String extractTextFromImage(MultipartFile image) {
         try {
-            // 1. 이미지를 Base64 문자열로 변환
+            // 1. 이미지를 Base64 문자열로 인코딩 (JSON 전송 규격)
             String base64Image = Base64.getEncoder().encodeToString(image.getBytes());
 
-            // 2. 구글 Vision API URL 세팅
+            // 2. Google Vision API 엔드포인트 설정 (API Key 포함)
             String url = "https://vision.googleapis.com/v1/images:annotate?key=" + visionApiKey;
 
-            // 3. 구글이 요구하는 형태의 JSON 바디 만들기 (Map 사용)
+            // 3. API 요청 바디 구성 (Map을 이용한 JSON 구조화)
             Map<String, Object> imageMap = Map.of("content", base64Image);
-            Map<String, Object> featureMap = Map.of("type", "TEXT_DETECTION"); // 글자 인식 모드
+            Map<String, Object> featureMap = Map.of("type", "TEXT_DETECTION"); // 텍스트 감지 모드 설정
             Map<String, Object> requestMap = Map.of(
                     "image", imageMap,
                     "features", List.of(featureMap)
             );
             Map<String, Object> requestBody = Map.of("requests", List.of(requestMap));
 
-            // 4. HTTP 헤더 및 엔티티(요청 객체) 생성! 여기서 httpEntity가 확실하게 만들어집니다.
+            // 4. HTTP 헤더 설정 및 엔티티 생성 (Content-Type: JSON)
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(requestBody, headers);
 
-            // 5. 구글 비전 서버로 POST 요청 (JsonNode 대신 Map 사용)
+            // 5. RestTemplate을 이용한 외부 API(Google) POST 요청 실행
             ResponseEntity<Map> response = restTemplate.postForEntity(url, httpEntity, Map.class);
 
-            // 6. 구글의 응답에서 텍스트 정보만 안전하게 빼오기
+            // 6. 응답 데이터 파싱 및 방어 로직 수행
             List<Map<String, Object>> responses = (List<Map<String, Object>>) response.getBody().get("responses");
 
-            // 사진에 글자가 아예 없는 경우 방어 로직
+            // 결과값이 없거나 텍스트 정보가 감지되지 않은 경우 빈 값 반환
             if (responses == null || responses.isEmpty() || !responses.get(0).containsKey("textAnnotations")) {
                 System.out.println("⚠️ 사진에서 글자를 찾지 못했습니다.");
                 return "";
             }
 
+            // 전체 텍스트 덩어리 추출 (textAnnotations의 0번 인덱스가 전체 텍스트 요약본)
             List<Map<String, Object>> textAnnotations = (List<Map<String, Object>>) responses.get(0).get("textAnnotations");
             String extractedText = (String) textAnnotations.get(0).get("description");
 
@@ -80,22 +81,31 @@ public class VisionAiService {
             throw new RuntimeException("AI 이미지 분석에 실패했습니다.");
         }
     }
-    // 2. 키워드 검증기
+
+    /**
+     * [기능: 추출 텍스트 기반 미션 장소 검증]
+     * - 수행 내용: 사진에서 읽은 텍스트에 미션별 목표 키워드가 포함되어 있는지 확인
+     * - 매개 변수: Long missionId (검증 대상 미션 번호), String extractedText (AI가 읽은 문자열)
+     * - 반환 값: boolean (검증 성공 시 true)
+     */
     public boolean validateKeyword(Long missionId, String extractedText) {
+        // 1. 미션 정보 조회 및 예외 처리
         Mission mission = missionRepository.findById(missionId)
                 .orElseThrow(() -> new IllegalArgumentException("미션 오류!"));
 
+        // 2. 목표 키워드 획득 (키워드가 설정되지 않은 미션은 즉시 승인 처리)
         String targetKeyword = mission.getVisionKeyword();
         if(targetKeyword == null || targetKeyword.isEmpty()) return true;
 
-        // 수정 포인트: 사진에서 읽은 글자와 정답 키워드 모두 공백/줄바꿈을 제거하고 비교
+        // 3. 데이터 전처리 (공백 및 줄바꿈 제거, 소문자 치환으로 비교 유연성 확보)
         String cleanExtractedText = extractedText.replace(" ", "").replace("\n", "").toLowerCase();
         String cleanTargetKeyword = targetKeyword.replace(" ", "").toLowerCase();
 
-        // 로그를 찍어서 실제로 AI가 무엇을 읽었는지 서버 콘솔에서 확인
+        // 4. 로깅 (디버깅용: AI 인식 텍스트와 정답 데이터 비교 출력)
         System.out.println("🧐 AI가 읽은 텍스트(공백제거): " + cleanExtractedText);
         System.out.println("🎯 목표 키워드(공백제거): " + cleanTargetKeyword);
 
+        // 5. 포함 여부 검사 (부분 일치 허용)
         return cleanExtractedText.contains(cleanTargetKeyword);
     }
 }

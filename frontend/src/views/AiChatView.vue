@@ -48,32 +48,48 @@
 </template>
 
 <script setup>
-// TODO :  ?가 들어간것만 질문으로 파악하지 않고 문맥상으로 파악하던지 하게 바꿔라
+/**
+ * 비즈니스 로직 및 상태 관리 스크립트
+ * 특징: Composition API 활용 및 실시간 스트리밍 통신 구현
+ */
 import { ref, onMounted, nextTick, computed } from 'vue';
 import { useRoute } from 'vue-router';
 
+// 경로 매개변수로부터 게임 세션 식별자 추출
 const route = useRoute();
 const sessionId = ref(route.params.sessionId);
-const chatHistory = ref([]);
-const userInput = ref('');
-const isWaiting = ref(false);
-const questionCount = ref(0); // 🚀 질문 횟수 카운트
-const chatContainer = ref(null);
 
-// 간단한 질문 판별 (물음표가 포함되면 질문으로 간주)
+// 상태 변수 정의
+const chatHistory = ref([]);    // 대화 내역 배열
+const userInput = ref('');       // 사용자 입력값
+const isWaiting = ref(false);    // 통신 대기 상태 여부
+const questionCount = ref(0);    // 누적 질문 횟수
+const chatContainer = ref(null); // DOM 조작을 위한 채팅창 참조
+
+// 간단한 질문 판별 (물음표 존재 시 질문으로 처리)
+// TODO: 향후 문맥 분석 로직으로 고도화 필요
 const isQuestion = computed(() => userInput.value.includes('?'));
 
+/**
+ * 채팅창 최하단 자동 스크롤 함수
+ * DOM 업데이트 완료 후 실행 보장
+ */
 const scrollToBottom = async () => {
   await nextTick();
   if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
 };
 
+/**
+ * 메시지 전송 및 AI 응답 수신 메인 로직
+ * 프로세스: 입력 검증 -> 화면 반영 -> 스트리밍 API 호출 -> 타자기 효과 출력
+ */
 const sendMessage = async () => {
   if (!userInput.value.trim() || isWaiting.value) return;
 
   const text = userInput.value;
   chatHistory.value.push({ sender: 'user', text: text });
 
+  // 질문 형식인 경우 카운트 증가
   if (text.includes('?')) {
     questionCount.value++;
   }
@@ -83,6 +99,7 @@ const sendMessage = async () => {
   scrollToBottom();
 
   try {
+    // 백엔드 AI 스트리밍 엔드포인트 호출
     const response = await fetch(`http://localhost:8080/api/v1/sessions/${sessionId.value}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -91,6 +108,7 @@ const sendMessage = async () => {
 
     if (!response.ok) throw new Error("서버 응답 오류");
 
+    // 스트림 데이터 읽기 처리
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
 
@@ -107,14 +125,17 @@ const sendMessage = async () => {
         isFirstChunk = false;
       }
 
+      // 청크 단위 데이터를 텍스트로 변환 후 타자기 효과 적용
       const chunk = decoder.decode(value, { stream: true });
       for (let char of chunk) {
         chatHistory.value[aiMessageIndex].text += char;
+        // 한 글자당 20ms 지연으로 타자기 느낌 구현
         await new Promise(r => setTimeout(r, 20));
         scrollToBottom();
       }
     }
 
+    // 특정 질문 횟수 도달 시 시스템 경고 메시지 삽입
     if (questionCount.value === 10) {
       chatHistory.value.push({
         sender: 'ai',
@@ -127,12 +148,16 @@ const sendMessage = async () => {
     chatHistory.value.push({ sender: 'ai', text: '통신 상태 불량. 다시 질문하라.' });
     scrollToBottom();
   } finally {
-    // 🚀 방탄 로직: 에러가 나든 정상 종료되든 무조건 대기 상태를 해제하여 화면 먹통을 막습니다!
+    // 통신 종료 또는 에러 발생 시 무조건 대기 상태 해제 (화면 잠금 방지)
     isWaiting.value = false;
   }
 };
+
+/**
+ * 컴포넌트 마운트 시 초기 실행
+ * 작전 개시 메시지 출력으로 게임 시작 알림
+ */
 onMounted(() => {
-  // 처음 입장 시 대사 수정
   chatHistory.value.push({
     sender: 'ai',
     text: '작전 지역 진입을 확인했다. 수집한 단서를 이용해 질문하면 본부 데이터베이스를 통해 지원하겠다. 단, 적들의 도청 위험이 있어 조력 횟수는 20회로 제한한다. 최종 암호를 입력하라.'
@@ -141,6 +166,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* CSS 스타일 정의: 사이버펑크/암호화 채널 테마 디자인 */
 .chat-viewport {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; flex-direction: column;
