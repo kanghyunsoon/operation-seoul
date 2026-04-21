@@ -1,12 +1,8 @@
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
+import { createApp } from 'vue';
+import App from './App.vue';
+import router from './router'; // 위에서 만든 라우터 가져오기
 
-import App from './App.vue'
-import router from './router'
+const app = createApp(App);
 
-const app = createApp(App)
-
-app.use(createPinia())
-app.use(router)
-
-app.mount('#app')
+app.use(router); // 라우터 사용 설정
+app.mount('#app');

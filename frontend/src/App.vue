@@ -1,24 +1,12 @@
 <template>
-  <header>
-    <nav class="top-nav">
-      <h2>🕵️‍♂️ Operation: SEOUL</h2>
-      <div class="links">
-        <RouterLink to="/">지도 보기</RouterLink>
-        <RouterLink to="/chat">AI 통신</RouterLink>
-      </div>
-    </nav>
-  </header>
-  <main>
-    <RouterView />
-  </main>
+  <router-view />
 </template>
 
 <style>
-body { margin: 0; background-color: #121212; font-family: sans-serif; }
-.top-nav {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 0 20px; background-color: #1a1a1a; color: white; border-bottom: 2px solid #333;
+/* 전역 스타일: 배경을 검정색으로 통일해서 끊김 없는 몰입감 제공 */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #050505;
 }
-.links a { color: #00ffcc; margin-left: 20px; text-decoration: none; font-weight: bold; }
-.links a:hover { color: white; }
 </style>

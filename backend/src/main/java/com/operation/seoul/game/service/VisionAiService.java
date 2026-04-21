@@ -29,12 +29,10 @@ public class VisionAiService {
     @Value("${google.vision.key}")
     private String visionApiKey;
 
-    /**
-     * [기능: 이미지 내 텍스트 추출]
-     * - 수행 내용: MultipartFile 형태의 이미지를 Google Vision API로 전송하여 OCR 결과 반환
-     * - 매개 변수: MultipartFile image (유저가 촬영하여 업로드한 사진)
-     * - 반환 값: String (추출된 전체 텍스트 데이터)
-     */
+    /**[기능: 이미지 내 텍스트 추출]
+     - 수행 내용: MultipartFile 형태의 이미지를 Google Vision API로 전송하여 OCR 결과 반환
+     - 매개 변수: MultipartFile image (유저가 촬영하여 업로드한 사진)
+     - 반환 값: String (추출된 전체 텍스트 데이터)  */
     public String extractTextFromImage(MultipartFile image) {
         try {
             // 1. 이미지를 Base64 문자열로 인코딩 (JSON 전송 규격)
@@ -82,12 +80,10 @@ public class VisionAiService {
         }
     }
 
-    /**
-     * [기능: 추출 텍스트 기반 미션 장소 검증]
-     * - 수행 내용: 사진에서 읽은 텍스트에 미션별 목표 키워드가 포함되어 있는지 확인
-     * - 매개 변수: Long missionId (검증 대상 미션 번호), String extractedText (AI가 읽은 문자열)
-     * - 반환 값: boolean (검증 성공 시 true)
-     */
+    /**[기능: 추출 텍스트 기반 미션 장소 검증]
+     - 수행 내용: 사진에서 읽은 텍스트에 미션별 목표 키워드가 포함되어 있는지 확인
+     - 매개 변수: Long missionId (검증 대상 미션 번호), String extractedText (AI가 읽은 문자열)
+     - 반환 값: boolean (검증 성공 시 true)  */
     public boolean validateKeyword(Long missionId, String extractedText) {
         // 1. 미션 정보 조회 및 예외 처리
         Mission mission = missionRepository.findById(missionId)

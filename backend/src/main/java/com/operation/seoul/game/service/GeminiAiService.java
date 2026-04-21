@@ -14,10 +14,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-/**
- * [Service: AI 지휘관 연동 및 정답 검증 서비스]
- * - 역할: Gemini API를 통한 실시간 대화 및 미션 클리어 정답 체크
- */
+/**[Service: AI 지휘관 연동 및 정답 검증 서비스]
+ - 역할: Gemini API를 통한 실시간 대화 및 미션 클리어 정답 체크 */
 @Service
 @RequiredArgsConstructor
 public class GeminiAiService {
@@ -29,13 +27,11 @@ public class GeminiAiService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
-    /**
-     * [기능: 최종 정답 키워드 일치 여부 판별]
-     * - 수행 내용: 사용자의 답변에 DB 정답 키워드가 포함되어 있는지 확인
-     * - 검증 기준: 공백 제거 및 영문 소문자 변환 후 포함 관계 비교
-     * - 매개 변수: Long missionId (미션 ID), String userAnswer (사용자 입력 답변)
-     * - 반환 값: boolean (정답 시 true)
-     */
+    /**[기능: 최종 정답 키워드 일치 여부 판별]
+     - 수행 내용: 사용자의 답변에 DB 정답 키워드가 포함되어 있는지 확인
+     - 검증 기준: 공백 제거 및 영문 소문자 변환 후 포함 관계 비교
+     - 매개 변수: Long missionId (미션 ID), String userAnswer (사용자 입력 답변)
+     - 반환 값: boolean (정답 시 true)  */
     public boolean verifyFinalAnswer(Long missionId, String userAnswer) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String answerKeyword = mission.getAnswerKeyword();
@@ -50,15 +46,13 @@ public class GeminiAiService {
         return cleanUserAnswer.contains(cleanAnswerKeyword);
     }
 
-    /**
-     * [기능: 지휘관 대사 실시간 스트리밍 전송]
-     * - 수행 내용: Gemini API를 호출하여 상황별 지휘관 대사를 스트리밍 방식으로 프론트에 전송
-     * - 매개 변수:
-     * 1. Long missionId (미션 ID)
-     * 2. String userAnswer (사용자 질문 내용)
-     * 3. boolean isCorrect (정답 여부)
-     * - 반환 값: ResponseBodyEmitter (비동기 데이터 스트리밍 객체)
-     */
+    /**[기능: 지휘관 대사 실시간 스트리밍 전송]
+     - 수행 내용: Gemini API를 호출하여 상황별 지휘관 대사를 스트리밍 방식으로 프론트에 전송
+     - 매개 변수:
+     1. Long missionId (미션 ID)
+     2. String userAnswer (사용자 질문 내용)
+     3. boolean isCorrect (정답 여부)
+     - 반환 값: ResponseBodyEmitter (비동기 데이터 스트리밍 객체)  */
     public ResponseBodyEmitter streamNarration(Long missionId, String userAnswer, boolean isCorrect) {
         // 60초 타임아웃 설정으로 에미터 초기화
         ResponseBodyEmitter emitter = new ResponseBodyEmitter(60000L);
@@ -127,7 +121,7 @@ public class GeminiAiService {
                         response.body().forEach(line -> System.err.println("거부 사유: " + line));
 
                         try {
-                            emitter.send("본부 통신망에 알 수 없는 노이즈가 발생했다. 질문을 바꿔서 다시 시도하라.");
+                            emitter.send("본부 통신망에 간섭 전파가 발생했다. 잠시 후 다시 시도하라.");
                             emitter.complete();
                         } catch (Exception ignored) {}
                         return;

@@ -48,10 +48,8 @@
 </template>
 
 <script setup>
-/**
- * 비즈니스 로직 및 상태 관리 스크립트
- * 특징: Composition API 활용 및 실시간 스트리밍 통신 구현
- */
+/** 비즈니스 로직 및 상태 관리 스크립트
+ 특징: Composition API 활용 및 실시간 스트리밍 통신 구현 */
 import { ref, onMounted, nextTick, computed } from 'vue';
 import { useRoute } from 'vue-router';
 
@@ -70,19 +68,15 @@ const chatContainer = ref(null); // DOM 조작을 위한 채팅창 참조
 // TODO: 향후 문맥 분석 로직으로 고도화 필요
 const isQuestion = computed(() => userInput.value.includes('?'));
 
-/**
- * 채팅창 최하단 자동 스크롤 함수
- * DOM 업데이트 완료 후 실행 보장
- */
+/**채팅창 최하단 자동 스크롤 함수
+ DOM 업데이트 완료 후 실행 보장 */
 const scrollToBottom = async () => {
   await nextTick();
   if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
 };
 
-/**
- * 메시지 전송 및 AI 응답 수신 메인 로직
- * 프로세스: 입력 검증 -> 화면 반영 -> 스트리밍 API 호출 -> 타자기 효과 출력
- */
+/**메시지 전송 및 AI 응답 수신 메인 로직
+ 프로세스: 입력 검증 -> 화면 반영 -> 스트리밍 API 호출 -> 타자기 효과 출력 */
 const sendMessage = async () => {
   if (!userInput.value.trim() || isWaiting.value) return;
 
@@ -153,10 +147,8 @@ const sendMessage = async () => {
   }
 };
 
-/**
- * 컴포넌트 마운트 시 초기 실행
- * 작전 개시 메시지 출력으로 게임 시작 알림
- */
+/**컴포넌트 마운트 시 초기 실행
+ 작전 개시 메시지 출력으로 게임 시작 알림 */
 onMounted(() => {
   chatHistory.value.push({
     sender: 'ai',

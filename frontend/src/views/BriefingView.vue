@@ -2,112 +2,212 @@
   <div class="briefing-container">
     <div class="monitor-overlay"></div>
 
-    <div class="text-area">
-      <span class="cmd-label">COMMANDER:</span>
-      <p class="typewriter">{{ displayedText }}<span class="cursor">_</span></p>
-    </div>
+    <div class="terminal-box">
+      <header class="terminal-header">
+        <span class="status-indicator">📡 보안 채널 연결됨...</span>
+        <h1 class="top-secret">🔒 TOP SECRET: OPERATION SEOUL</h1>
+      </header>
 
-    <button v-if="isFinished" @click="goToMap" class="mission-btn">
-      확인. 작전 지역으로 이동한다.
-    </button>
+      <div class="text-area">
+        <span class="cmd-label">COMMANDER:</span>
+
+        <p v-if="isFetching" class="typewriter blink-text">데이터 암호화 수신 중...</p>
+
+        <p v-else class="typewriter" v-html="displayedText"></p>
+
+        <span class="cursor" v-if="!isFinished && !isFetching">_</span>
+      </div>
+
+      <button v-if="isFinished" @click="goToMap" class="mission-btn">
+        [ 요원 확인 완료. 작전 지역으로 이동한다 ]
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup>
-/**
- * 연출 제어 및 화면 전환 로직
- * 특징: setInterval 기반의 텍스트 애니메이션 및 상태 기반 UI 전환
- */
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import axios from 'axios';
 
-// 정적 데이터 정의: 연출에 사용될 전체 스토리 텍스트
-const fullText = "작전 지역 '중명전' 진입을 확인했다. 이곳은 고종 황제가 을사늑약의 부당함을 알리기 위해 헤이그 특사를 파견했던 비밀 거점이다. 요원, 현판의 암호를 해독하고 작전의 실마리를 찾아라.";
+const router = useRouter();
+const displayedText = ref('');
+const isFinished = ref(false);
+const isFetching = ref(true); // API 통신 상태
+let fullText = '';            // DB에서 받아올 원본 텍스트
 
-// 반응형 상태 관리
-const displayedText = ref(''); // 화면에 실제 출력 중인 텍스트
-const isFinished = ref(false); // 타자기 연출 완료 여부
-const router = useRouter();    // 라우터 인스턴스
+// 백엔드에서 브리핑 텍스트 가져오기
+const fetchBriefing = async () => {
+  try {
+    const response = await axios.get('http://localhost:8080/api/v1/regions/1');
 
-/**
- * 타자기 연출 실행 함수
- * 기능: 50ms마다 문자열 인덱스를 증가시키며 한 글자씩 출력 배열에 추가
- */
+    // response.data.briefing -> response.data.description
+    fullText = response.data.description;
+
+    if (!fullText) {
+      fullText = "데이터는 수신되었으나 내용이 비어 있습니다. 본부와 교신을 재시도하십시오.";
+    }
+
+    isFetching.value = false;
+    typeText();
+  } catch (error) {
+    console.error("브리핑 데이터 로드 실패", error);
+    fullText = "통신 상태 불량. 즉시 정동길로 이동하여 단서를 확보하라.";
+    isFetching.value = false;
+    typeText();
+  }
+};
+
 const typeText = () => {
   let i = 0;
   const interval = setInterval(() => {
-    if (i < fullText.length) {
-      // 순차적으로 문자 추가
-      displayedText.value += fullText[i];
-      i++;
+    // HTML 태그 깨짐 방지 파서
+    if (fullText.substring(i, i + 4) === '<br>') {
+      displayedText.value += '<br>'; i += 4;
+    } else if (fullText.substring(i, i + 3) === '<b>') {
+      displayedText.value += '<b>'; i += 3;
+    } else if (fullText.substring(i, i + 4) === '</b>') {
+      displayedText.value += '</b>'; i += 4;
     } else {
-      // 모든 텍스트 출력 시 인터벌 종료 및 버튼 활성화 상태 전환
+      displayedText.value += fullText[i]; i++;
+    }
+
+    if (i >= fullText.length) {
       clearInterval(interval);
       isFinished.value = true;
     }
-  }, 50);
+  }, 40);
 };
 
-/**
- * 생명주기 훅: 마운트 시점
- * 컴포넌트 로드 즉시 타자기 연출 시작
- */
-onMounted(() => typeText());
-
-/**
- * 화면 전환 함수
- * 기능: 작전 지역 확인 버튼 클릭 시 지도 화면으로 라우팅
- */
 const goToMap = () => router.push('/map');
+
+onMounted(() => {
+  // 컴포넌트가 마운트되면 가장 먼저 백엔드에 데이터를 요청
+  fetchBriefing();
+});
 </script>
-
 <style scoped>
-/* 연출 디자인: 블랙 테마 및 네온 그린 텍스트 조합 */
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+/* 전체 배경: 화면 전체를 중앙 정렬 베이스로 설정 */
 .briefing-container {
-  background: #000;
+  background: #050505;
   height: 100vh;
-  padding: 40px;
-  font-family: 'Courier New', monospace;
-  color: #00ffcc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px; /* 화면 끝과의 최소 여백 */
+  font-family: 'Share Tech Mono', monospace;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-/* 발신자 라벨 디자인: 경고의 의미를 담은 레드 컬러 적용 */
-.cmd-label {
-  font-weight: bold;
-  display: block;
-  margin-bottom: 10px;
+/* 옛날 모니터 지지직거리는 오버레이 효과 */
+.monitor-overlay {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+  linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 255, 0, 0.03));
+  background-size: 100% 3px, 2px 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* 보더 박스: 중앙에 위치하며 적당한 크기 유지 */
+.terminal-box {
+  background: rgba(15, 15, 15, 0.95);
+  border: 2px solid #333; /* 뚜렷한 테두리 */
+  border-radius: 12px;
+  width: 100%;
+  max-width: 800px; /* 너무 퍼지지 않게 적당히 제한 */
+  height: 85vh; /* 화면 높이의 85% 정도 차지 */
+  display: flex;
+  flex-direction: column;
+  padding: 30px; /* 내부 패딩 */
+  box-shadow: 0 0 40px rgba(0, 255, 204, 0.05);
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.terminal-header {
+  border-bottom: 1px solid #222;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+}
+
+.top-secret {
   color: #ff4444;
+  font-size: 1.6rem;
+  margin: 5px 0;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
 }
 
-/* 텍스트 행간 및 크기 설정 */
+.status-indicator { color: #666; font-size: 0.8rem; }
+
+/* 핵심: 내부 텍스트 영역만 스크롤됨 */
+.text-area {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 10px;
+  margin-bottom: 15px;
+}
+
+/* 커스텀 스크롤바 디자인 */
+.text-area::-webkit-scrollbar { width: 4px; }
+.text-area::-webkit-scrollbar-track { background: #0a0a0a; }
+.text-area::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 10px; }
+
 .typewriter {
-  line-height: 1.8;
-  font-size: 1.2rem;
-}
-
-/* 커서 깜빡임 애니메이션 정의 */
-.cursor {
-  animation: blink 1s infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-/* 미션 진입 버튼 스타일링: 테두리 중심의 모던 디자인 및 호버 연출 */
-.mission-btn {
-  margin-top: 50px;
-  background: none;
-  border: 1px solid #00ffcc;
   color: #00ffcc;
-  padding: 15px 30px;
+  font-size: 1.2rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+
+.typewriter :deep(b) {
+  color: #fff;
+  text-shadow: 0 0 8px #00ffcc;
+}
+
+/* 하단 버튼 영역 */
+.action-btn-wrapper {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid #222;
+}
+
+.mission-btn {
+  background: rgba(0, 255, 204, 0.05);
+  color: #00ffcc;
+  border: 1px solid #00ffcc;
+  padding: 18px;
+  width: 100%;
+  font-size: 1.1rem;
+  font-weight: bold;
   cursor: pointer;
-  transition: 0.3s;
+  transition: all 0.2s ease;
+  border-radius: 6px;
 }
 
 .mission-btn:hover {
   background: #00ffcc;
   color: #000;
+  box-shadow: 0 0 20px #00ffcc;
+}
+
+.cursor { animation: blink 1s infinite; color: #00ffcc; font-weight: bold; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* 📱 모바일 반응형: 화면이 작아지면 더 꽉 차게 조절 */
+@media (max-width: 768px) {
+  .terminal-box {
+    height: 95vh;
+    padding: 20px;
+  }
+  .top-secret { font-size: 1.3rem; }
+  .typewriter { font-size: 1.05rem; }
 }
 </style>
