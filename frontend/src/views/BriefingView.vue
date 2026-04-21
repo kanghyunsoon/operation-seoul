@@ -18,6 +18,10 @@
         <span class="cursor" v-if="!isFinished && !isFetching">_</span>
       </div>
 
+      <button v-if="!isFinished && !isFetching" @click="skipTyping" class="mission-btn" style="color: #ffaa00; border-color: #ffaa00;">
+        ⏩ [ 브리핑 스킵 ]
+      </button>
+
       <button v-if="isFinished" @click="goToMap" class="mission-btn">
         [ 요원 확인 완료. 작전 지역으로 이동한다 ]
       </button>
@@ -35,6 +39,7 @@ const displayedText = ref('');
 const isFinished = ref(false);
 const isFetching = ref(true); // API 통신 상태
 let fullText = '';            // DB에서 받아올 원본 텍스트
+let intervalId = null;        // ★ 추가: 스킵할 때 타이머를 끄기 위한 변수
 
 // 백엔드에서 브리핑 텍스트 가져오기
 const fetchBriefing = async () => {
@@ -60,7 +65,7 @@ const fetchBriefing = async () => {
 
 const typeText = () => {
   let i = 0;
-  const interval = setInterval(() => {
+  intervalId = setInterval(() => { // ★ 수정: const interval 대신 intervalId 사용
     // HTML 태그 깨짐 방지 파서
     if (fullText.substring(i, i + 4) === '<br>') {
       displayedText.value += '<br>'; i += 4;
@@ -73,10 +78,17 @@ const typeText = () => {
     }
 
     if (i >= fullText.length) {
-      clearInterval(interval);
+      clearInterval(intervalId); // ★ 수정
       isFinished.value = true;
     }
   }, 40);
+};
+
+// ★ 추가: 스킵 기능 함수
+const skipTyping = () => {
+  if (intervalId) clearInterval(intervalId); // 치고 있던 타자기 즉시 멈춤
+  displayedText.value = fullText;            // 텍스트 한방에 다 띄움
+  isFinished.value = true;                   // 완료 상태로 바꿔서 다음버튼 띄움
 };
 
 const goToMap = () => router.push('/map');
