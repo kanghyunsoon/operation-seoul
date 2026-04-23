@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { useSessionStore } from '@/store/sessionStore';
+import { useSessionStore } from '@/stores/sessionStore';
 
 // 1. 기본 Axios 인스턴스 생성
 const apiClient = axios.create({

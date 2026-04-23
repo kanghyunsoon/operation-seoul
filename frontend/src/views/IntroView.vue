@@ -97,21 +97,21 @@ const handleSubmit = async () => {
 
       // 임시 테스트용 데이터
       const mockToken = 'cyber-jwt-token-12345';
-      const mockUser = { id: 1, email: email.value, nickname: '요원X' };
+      const mockUser = {id: 1, email: email.value, nickname: '요원X'};
 
-      sessionStore.login({ token: mockToken, user: mockUser });
+      sessionStore.login({
+        token: 'cyber-jwt-token',
+        user: {id: 1, email: email.value, nickname: '요원X'}
+      });
 
-      alert('요원 인증 완료. 작전 브리핑을 시작합니다.');
-      router.push({ name: 'Briefing' });
-    } else {
-      // TODO: 실제 백엔드 회원가입 API 연동
-      alert('요원 등록이 완료되었습니다. 로그인해주세요.');
-      isLoginMode.value = true;
+      // ✅ 여기서 목적지를 Home으로 변경!
+      alert('요원 인증 완료. HQ 터미널에 접속합니다.');
+      router.push({name: 'Home'});
     }
-  } catch (error) {
-    alert('시스템 접근 거부: 정보를 다시 확인하십시오.');
-    console.error(error);
-  }
+  }catch (error) {
+      alert('시스템 접근 거부: 정보를 다시 확인하십시오.');
+      console.error(error);
+    }
 };
 </script>
 
