@@ -1,0 +1,21 @@
+{
+  "name": "operation-seoul",
+  "version": "1.0.0",
+  "description": "> **\"도심 속 명소가 거대한 방탈출 무대가 된다.\"**\r > 한국관광공사 TourAPI와 Google AI(Vision, LLM)를 결합한 위치 기반(LBS) 게이미피케이션 관광 활성화 서비스입니다.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KangHSoon/operation-seoul.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/KangHSoon/operation-seoul/issues"
+  },
+  "homepage": "https://github.com/KangHSoon/operation-seoul#readme"
+}
