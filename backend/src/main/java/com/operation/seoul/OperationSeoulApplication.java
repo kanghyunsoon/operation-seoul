@@ -8,5 +8,5 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class OperationSeoulApplication {
     public static void main(String[] args) {
         SpringApplication.run(OperationSeoulApplication.class, args);
-    }
+   }
 }

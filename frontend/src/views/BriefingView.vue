@@ -15,14 +15,22 @@
 
         <p v-else class="typewriter" v-html="displayedText"></p>
 
-        <span class="cursor" v-if="!isFinished && !isFetching">_</span>
+        <span class="cursor" v-if="isTyping">_</span>
       </div>
 
-      <button v-if="!isFinished && !isFetching" @click="skipTyping" class="mission-btn" style="color: #ffaa00; border-color: #ffaa00;">
+      <button
+          v-if="isTyping"
+          @click="skipTyping"
+          class="mission-btn skip-btn"
+      >
         ⏩ [ 브리핑 스킵 ]
       </button>
 
-      <button v-if="isFinished" @click="goToMap" class="mission-btn">
+      <button
+          v-if="isFinished"
+          @click="goToMap"
+          class="mission-btn"
+      >
         [ 요원 확인 완료. 작전 지역으로 이동한다 ]
       </button>
     </div>
@@ -33,88 +41,64 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+// 컴포저블 불러오기
+import { useTypingBuffer } from '@/composables/useTypingBuffer';
 
 const router = useRouter();
-const displayedText = ref('');
-const isFinished = ref(false);
-const isFetching = ref(true); // API 통신 상태
-let fullText = '';            // DB에서 받아올 원본 텍스트
-let intervalId = null;        // ★ 추가: 스킵할 때 타이머를 끄기 위한 변수
+const isFetching = ref(true);
 
-// 백엔드에서 브리핑 텍스트 가져오기
+// 타자기 컴포저블 초기화 (속도 40ms 설정)
+const {
+  displayedText,
+  isTyping,
+  isFinished,
+  addChunk,
+  finishTyping,
+  skipTyping
+} = useTypingBuffer(40);
+
 const fetchBriefing = async () => {
   try {
     const response = await axios.get('http://localhost:8080/api/v1/regions/1');
-
-    // response.data.briefing -> response.data.description
-    fullText = response.data.description;
-
-    if (!fullText) {
-      fullText = "데이터는 수신되었으나 내용이 비어 있습니다. 본부와 교신을 재시도하십시오.";
-    }
+    const fullText = response.data.description || "데이터가 비어 있습니다.";
 
     isFetching.value = false;
-    typeText();
+
+    // 1. 받은 텍스트를 버퍼 큐에 추가
+    addChunk(fullText);
+    // 2. 데이터 전송 완료 신호 (큐가 비면 종료 처리)
+    finishTyping();
+
   } catch (error) {
     console.error("브리핑 데이터 로드 실패", error);
-    fullText = "통신 상태 불량. 즉시 정동길로 이동하여 단서를 확보하라.";
     isFetching.value = false;
-    typeText();
+    addChunk("통신 상태 불량. 즉시 정동길로 이동하여 단서를 확보하라.");
+    finishTyping();
   }
-};
-
-const typeText = () => {
-  let i = 0;
-  intervalId = setInterval(() => { // ★ 수정: const interval 대신 intervalId 사용
-    // HTML 태그 깨짐 방지 파서
-    if (fullText.substring(i, i + 4) === '<br>') {
-      displayedText.value += '<br>'; i += 4;
-    } else if (fullText.substring(i, i + 3) === '<b>') {
-      displayedText.value += '<b>'; i += 3;
-    } else if (fullText.substring(i, i + 4) === '</b>') {
-      displayedText.value += '</b>'; i += 4;
-    } else {
-      displayedText.value += fullText[i]; i++;
-    }
-
-    if (i >= fullText.length) {
-      clearInterval(intervalId); // ★ 수정
-      isFinished.value = true;
-    }
-  }, 40);
-};
-
-// ★ 추가: 스킵 기능 함수
-const skipTyping = () => {
-  if (intervalId) clearInterval(intervalId); // 치고 있던 타자기 즉시 멈춤
-  displayedText.value = fullText;            // 텍스트 한방에 다 띄움
-  isFinished.value = true;                   // 완료 상태로 바꿔서 다음버튼 띄움
 };
 
 const goToMap = () => router.push('/map');
 
 onMounted(() => {
-  // 컴포넌트가 마운트되면 가장 먼저 백엔드에 데이터를 요청
   fetchBriefing();
 });
 </script>
+
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
-/* 전체 배경: 화면 전체를 중앙 정렬 베이스로 설정 */
 .briefing-container {
   background: #050505;
   height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px; /* 화면 끝과의 최소 여백 */
+  padding: 20px;
   font-family: 'Share Tech Mono', monospace;
   box-sizing: border-box;
   overflow: hidden;
 }
 
-/* 옛날 모니터 지지직거리는 오버레이 효과 */
 .monitor-overlay {
   position: absolute;
   top: 0; left: 0; width: 100%; height: 100%;
@@ -125,17 +109,16 @@ onMounted(() => {
   z-index: 10;
 }
 
-/* 보더 박스: 중앙에 위치하며 적당한 크기 유지 */
 .terminal-box {
   background: rgba(15, 15, 15, 0.95);
-  border: 2px solid #333; /* 뚜렷한 테두리 */
+  border: 2px solid #333;
   border-radius: 12px;
   width: 100%;
-  max-width: 800px; /* 너무 퍼지지 않게 적당히 제한 */
-  height: 85vh; /* 화면 높이의 85% 정도 차지 */
+  max-width: 800px;
+  height: 85vh;
   display: flex;
   flex-direction: column;
-  padding: 30px; /* 내부 패딩 */
+  padding: 30px;
   box-shadow: 0 0 40px rgba(0, 255, 204, 0.05);
   position: relative;
   z-index: 2;
@@ -158,7 +141,6 @@ onMounted(() => {
 
 .status-indicator { color: #666; font-size: 0.8rem; }
 
-/* 핵심: 내부 텍스트 영역만 스크롤됨 */
 .text-area {
   flex: 1;
   overflow-y: auto;
@@ -166,7 +148,6 @@ onMounted(() => {
   margin-bottom: 15px;
 }
 
-/* 커스텀 스크롤바 디자인 */
 .text-area::-webkit-scrollbar { width: 4px; }
 .text-area::-webkit-scrollbar-track { background: #0a0a0a; }
 .text-area::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 10px; }
@@ -184,13 +165,6 @@ onMounted(() => {
   text-shadow: 0 0 8px #00ffcc;
 }
 
-/* 하단 버튼 영역 */
-.action-btn-wrapper {
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid #222;
-}
-
 .mission-btn {
   background: rgba(0, 255, 204, 0.05);
   color: #00ffcc;
@@ -202,6 +176,7 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   border-radius: 6px;
+  margin-top: 10px;
 }
 
 .mission-btn:hover {
@@ -210,10 +185,23 @@ onMounted(() => {
   box-shadow: 0 0 20px #00ffcc;
 }
 
+.skip-btn {
+  color: #ffaa00;
+  border-color: #ffaa00;
+  background: rgba(255, 170, 0, 0.05);
+}
+
+.skip-btn:hover {
+  background: #ffaa00;
+  color: #000;
+  box-shadow: 0 0 20px #ffaa00;
+}
+
 .cursor { animation: blink 1s infinite; color: #00ffcc; font-weight: bold; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-/* 📱 모바일 반응형: 화면이 작아지면 더 꽉 차게 조절 */
+.blink-text { animation: blink 0.5s infinite; }
+
 @media (max-width: 768px) {
   .terminal-box {
     height: 95vh;
