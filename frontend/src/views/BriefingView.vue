@@ -28,7 +28,7 @@
             <h3>[ 작전 브리핑 ]</h3>
             <p class="description">
               요원, 해당 구역에 진입하여 목표물을 스캔하라.
-              작전명 <strong>[{{ missionData.title }}]</strong>의 핵심 단서는 반경 {{ missionData.radiusInMeters || 30 }}m 내에 존재한다.
+              작전명 <strong>[{{ missionData.title }}]</strong>의 핵심 단서는 목적지 근방 반경 {{ missionData.radiusInMeters || 30 }}m 내에 존재한다.
             </p>
 
             <div class="meta-info">
