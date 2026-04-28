@@ -156,7 +156,7 @@ operation-seoul
 | **Backend** | Java 17 & Spring Boot 3.x | 최신 문법 활용 및 안정적인 서버 아키텍처 |
 | | Spring Data JPA | 객체 지향적 데이터 접근 및 유지보수 용이성 |
 | | Spring Security & JWT | Stateless 기반의 안전한 REST API 인증/인가 체계 구축 |
-| **Database** | MySQL 8.0 (AWS RDS) | 공간 데이터(Spatial Data) 확장성과 트랜잭션 무결성 보장 |
+| **Database** | MySQL 8.0 (Aiven - 개발, AWS RDS-배포)[예정] | 공간 데이터(Spatial Data) 확장성과 트랜잭션 무결성 보장 |
 | **AI Engine** | Google Gemini 1.5 Flash (LLM) | 빠른 응답 속도(Latency)와 문맥 파악 능력을 통한 실시간 대화 연출 |
 | | Google Cloud Vision (OCR) | 현장 구조물/텍스트를 판독하여 어뷰징을 방지하는 OCR 검증 |
 | **Data & API**| 한국관광공사 TourAPI 4.0 | 공공데이터 기반 초기 지역/명소 데이터 시딩 |
