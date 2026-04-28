@@ -91,27 +91,41 @@ const toggleMode = () => {
 const handleSubmit = async () => {
   try {
     if (isLoginMode.value) {
-      // TODO: 실제 백엔드 API 연동
-      // const response = await apiClient.post('/auth/login', { email: email.value, password: password.value });
-      // const { token, user } = response.data;
-
-      // 임시 테스트용 데이터
-      const mockToken = 'cyber-jwt-token-12345';
-      const mockUser = {id: 1, email: email.value, nickname: '요원X'};
-
-      sessionStore.login({
-        token: 'cyber-jwt-token',
-        user: {id: 1, email: email.value, nickname: '요원X'}
+      // 🟢 [로그인 모드]
+      const response = await apiClient.post('/auth/login', {
+        email: email.value,
+        password: password.value
       });
 
-      // ✅ 여기서 목적지를 Home으로 변경!
+      // 백엔드에서 받은 토큰과 유저 정보를 Pinia 스토어에 저장
+      sessionStore.login({
+        token: response.data.token,
+        user: response.data.user
+      });
+
       alert('요원 인증 완료. HQ 터미널에 접속합니다.');
       router.push({name: 'Home'});
+
+    } else {
+      // 🔵 [회원가입 모드] (새로 추가된 부분!)
+      const response = await apiClient.post('/auth/register', {
+        email: email.value,
+        password: password.value,
+        nickname: nickname.value
+      });
+
+      alert('신규 요원 등록이 완료되었습니다. 이제 로그인해주십시오.');
+      toggleMode(); // 가입 성공 시 다시 로그인 화면으로 부드럽게 자동 전환
     }
-  }catch (error) {
-      alert('시스템 접근 거부: 정보를 다시 확인하십시오.');
+  } catch (error) {
+      // 에러 발생 시 모드에 따라 알림 다르게 표시
+      if (isLoginMode.value) {
+        alert('시스템 접근 거부: 등록되지 않은 요원이거나 암호가 틀렸습니다.');
+      } else {
+        alert('등록 실패: 이미 사용 중인 이메일이거나 서버 오류입니다.');
+      }
       console.error(error);
-    }
+  }
 };
 </script>
 
