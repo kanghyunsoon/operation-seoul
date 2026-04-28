@@ -54,18 +54,20 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach((to, from, next) => {
+// src/router/index.js 내부 하단
+
+router.beforeEach((to, from) => {
   const sessionStore = useSessionStore();
 
   if (to.meta.requiresAuth && !sessionStore.isLoggedIn) {
     alert('로그인이 필요한 서비스입니다.');
-    next({ name: 'Intro' });
+    return { name: 'Intro' }; // 👈 next() 대신 return 사용
   } else if (to.name === 'Intro' && sessionStore.isLoggedIn) {
-    // ✅ 로그인 상태에서 인트로 접근 시 무조건 'Home'으로!
-    next({ name: 'Home' });
-  } else {
-    next();
+    // 로그인 상태에서 인트로 접근 시 무조건 'Home'으로!
+    return { name: 'Home' }; // 👈 next() 대신 return 사용
   }
+
+  return true; // 👈 그 외의 경우는 정상적인 이동 허용
 });
 
 export default router;

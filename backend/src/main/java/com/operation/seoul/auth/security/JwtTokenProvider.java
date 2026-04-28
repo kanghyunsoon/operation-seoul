@@ -8,9 +8,9 @@ import javax.crypto.SecretKey;
 
 @Component
 public class JwtTokenProvider {
-    // 실제 서비스에서는 환경변수로 관리 권장
+    // 훈련용 임시 키 (실제 배포 시엔 환경변수 처리 권장)
     private final SecretKey key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-    private final long validityInMilliseconds = 3600000 * 24; // 24시간
+    private final long validityInMilliseconds = 3600000 * 24; // 24시간 유효
 
     public String createToken(String email) {
         Claims claims = Jwts.claims().setSubject(email);

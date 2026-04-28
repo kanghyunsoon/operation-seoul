@@ -69,7 +69,7 @@ const fetchRegions = async () => {
   try {
     loading.value = true;
     // GET /api/regions (팀원 A가 구현할 API 엔드포인트 가정)
-    const response = await apiClient.get('/regions');
+    const response = await apiClient.get('/v1/regions');
     regions.value = response.data;
   } catch (error) {
     console.error("데이터 로드 실패:", error);

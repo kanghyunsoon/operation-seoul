@@ -71,7 +71,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore.js';
 // 실제 백엔드 연동 시 사용할 API 인스턴스
-// import apiClient from '@/api/axiosInstance';
+import apiClient from '@/api/axiosInstance';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
@@ -92,7 +92,7 @@ const handleSubmit = async () => {
   try {
     if (isLoginMode.value) {
       // 🟢 [로그인 모드]
-      const response = await apiClient.post('/auth/login', {
+      const response = await apiClient.post('/v1/auth/login', {
         email: email.value,
         password: password.value
       });
@@ -108,7 +108,7 @@ const handleSubmit = async () => {
 
     } else {
       // 🔵 [회원가입 모드] (새로 추가된 부분!)
-      const response = await apiClient.post('/auth/register', {
+      const response = await apiClient.post('/v1/auth/register', {
         email: email.value,
         password: password.value,
         nickname: nickname.value

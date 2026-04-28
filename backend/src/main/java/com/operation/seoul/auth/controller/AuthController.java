@@ -13,28 +13,29 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:5173") // 임시진행
 public class AuthController {
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final BCryptPasswordEncoder passwordEncoder;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody UserDto dto) {
+    public ResponseEntity<?> register(@RequestBody AuthRequest dto) {
         User user = User.builder()
-                .email(dto.email)
-                .password(passwordEncoder.encode(dto.password)) // 암호화 필수!
-                .nickname(dto.nickname)
+                .email(dto.getEmail())
+                .password(passwordEncoder.encode(dto.getPassword()))
+                .nickname(dto.getNickname())
                 .build();
         userRepository.save(user);
         return ResponseEntity.ok("요원 등록 완료");
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody UserDto dto) {
-        User user = userRepository.findByEmail(dto.email)
+    public ResponseEntity<?> login(@RequestBody AuthRequest dto) {
+        User user = userRepository.findByEmail(dto.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("미등록 요원"));
 
-        if(!passwordEncoder.matches(dto.password, user.getPassword())) {
+        if(!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("비밀번호 불일치");
         }
 
@@ -46,7 +47,7 @@ public class AuthController {
     }
 
     @Data
-    static class UserDto {
+    static class AuthRequest {
         private String email;
         private String password;
         private String nickname;

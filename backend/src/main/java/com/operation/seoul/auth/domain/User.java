@@ -14,11 +14,11 @@ public class User {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String email; // 로그인 아이디
+    private String email; // 로그인 아이디(이메일)
 
     @Column(nullable = false)
     private String password; // 암호화된 비밀번호
 
     @Column(nullable = false)
-    private String nickname; // 작전용 코드네임
+    private String nickname; // 작전 코드네임
 }
