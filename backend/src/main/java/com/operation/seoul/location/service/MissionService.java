@@ -26,4 +26,9 @@ public class MissionService {
     public List<Mission> getMissionsByRegion(Long regionId) {
         return missionRepository.findByRegionId(regionId);
     }
+
+    public Mission getMissionById(Long missionId) {
+        return missionRepository.findById(missionId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 작전 정보가 없습니다. ID: " + missionId));
+    }
 }

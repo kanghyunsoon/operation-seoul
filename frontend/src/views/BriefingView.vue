@@ -1,213 +1,173 @@
 <template>
   <div class="briefing-container">
-    <div class="monitor-overlay"></div>
+    <div v-if="isLoading" class="loading-wrapper">
+      <div class="radar"></div>
+      <p class="loading-text">1급 기밀 문서를 복호화 중입니다...</p>
+    </div>
 
-    <div class="terminal-box">
-      <header class="terminal-header">
-        <span class="status-indicator">📡 보안 채널 연결됨...</span>
-        <h1 class="top-secret">🔒 TOP SECRET: OPERATION SEOUL</h1>
-      </header>
+    <div v-else-if="missionData" class="content-wrapper">
+      <div class="glass-panel">
+        <header class="header">
+          <div class="status-line">
+            <span class="id-tag">SEC_CODE: #00{{ missionData.id }}</span>
+            <span class="auth-status">보안 등급: TOP SECRET</span>
+          </div>
+          <h1 class="mission-title">{{ missionData.title }}</h1>
+        </header>
 
-      <div class="text-area">
-        <span class="cmd-label">COMMANDER:</span>
+        <main class="briefing-main">
+          <div class="video-placeholder">
+            <div class="scan-line"></div>
+            <p class="intel-text">위성 데이터 수신 완료</p>
+            <div class="target-coord">
+              LAT: {{ missionData.targetLat }} | LNG: {{ missionData.targetLng }}
+            </div>
+          </div>
 
-        <p v-if="isFetching" class="typewriter blink-text">데이터 암호화 수신 중...</p>
+          <section class="intel-section">
+            <h3>[ 작전 브리핑 ]</h3>
+            <p class="description">
+              요원, 해당 구역에 진입하여 목표물을 스캔하라.
+              작전명 <strong>[{{ missionData.title }}]</strong>의 핵심 단서는 반경 {{ missionData.radiusInMeters || 30 }}m 내에 존재한다.
+            </p>
 
-        <p v-else class="typewriter" v-html="displayedText"></p>
+            <div class="meta-info">
+              <div class="info-item">
+                <label>현장 인증 타겟</label>
+                <span class="highlight-text">{{ missionData.visionKeyword || '비공개' }}</span>
+              </div>
+            </div>
+          </section>
 
-        <span class="cursor" v-if="isTyping">_</span>
+          <div class="btn-group">
+            <button @click="startDeployment" class="start-btn">현장 투입 (DEPLOY)</button>
+            <button @click="goBack" class="back-btn">뒤로 가기</button>
+          </div>
+        </main>
       </div>
-
-      <button
-          v-if="isTyping"
-          @click="skipTyping"
-          class="mission-btn skip-btn"
-      >
-        ⏩ [ 브리핑 스킵 ]
-      </button>
-
-      <button
-          v-if="isFinished"
-          @click="goToMap"
-          class="mission-btn"
-      >
-        [ 요원 확인 완료. 작전 지역으로 이동한다 ]
-      </button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import axios from 'axios';
-// 컴포저블 불러오기
-import { useTypingBuffer } from '@/composables/useTypingBuffer';
+import { useRoute, useRouter } from 'vue-router';
+import apiClient from '@/api/axiosInstance';
 
+const route = useRoute();
 const router = useRouter();
-const isFetching = ref(true);
 
-// 타자기 컴포저블 초기화 (속도 40ms 설정)
-const {
-  displayedText,
-  isTyping,
-  isFinished,
-  addChunk,
-  finishTyping,
-  skipTyping
-} = useTypingBuffer(40);
+const missionData = ref(null);
+const isLoading = ref(true);
 
-const fetchBriefing = async () => {
-  try {
-    const response = await axios.get('http://localhost:8080/api/v1/regions/1');
-    const fullText = response.data.description || "데이터가 비어 있습니다.";
+onMounted(async () => {
+  const missionId = route.query.missionId;
 
-    isFetching.value = false;
-
-    // 1. 받은 텍스트를 버퍼 큐에 추가
-    addChunk(fullText);
-    // 2. 데이터 전송 완료 신호 (큐가 비면 종료 처리)
-    finishTyping();
-
-  } catch (error) {
-    console.error("브리핑 데이터 로드 실패", error);
-    isFetching.value = false;
-    addChunk("통신 상태 불량. 즉시 정동길로 이동하여 단서를 확보하라.");
-    finishTyping();
+  if (!missionId) {
+    alert('잘못된 접근입니다.');
+    router.push('/home');
+    return;
   }
+
+  try {
+    // 📡 팀원 A가 생성한 단일 미션 조회 API 호출
+    const response = await apiClient.get(`/v1/missions/${missionId}`);
+    missionData.value = response.data;
+  } catch (error) {
+    console.error("데이터 로드 실패:", error);
+    alert('기밀 데이터를 불러오지 못했습니다. 본부 통신 상태를 확인하세요.');
+    router.push('/home');
+  } finally {
+    isLoading.value = false;
+  }
+});
+
+const startDeployment = () => {
+  // 실제 맵 화면으로 이동 (임시 세션 시작 로직은 나중에 맵뷰에 통합 가능)
+  router.push({ name: 'Map', query: { missionId: route.query.missionId } });
 };
 
-const goToMap = () => router.push('/map');
-
-onMounted(() => {
-  fetchBriefing();
-});
+const goBack = () => {
+  router.push('/home');
+};
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
 
 .briefing-container {
-  background: #050505;
-  height: 100vh;
+  min-height: 100vh;
+  background-color: #0b0f19;
+  color: #e2e8f0;
+  font-family: 'Noto Sans KR', sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 20px;
-  font-family: 'Share Tech Mono', monospace;
-  box-sizing: border-box;
-  overflow: hidden;
 }
 
-.monitor-overlay {
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
-  linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 255, 0, 0.03));
-  background-size: 100% 3px, 2px 100%;
-  pointer-events: none;
-  z-index: 10;
-}
+.content-wrapper { width: 100%; max-width: 650px; }
 
-.terminal-box {
-  background: rgba(15, 15, 15, 0.95);
-  border: 2px solid #333;
+/* 글래스모피즘 패널 */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(6, 182, 212, 0.3);
   border-radius: 12px;
-  width: 100%;
-  max-width: 800px;
-  height: 85vh;
-  display: flex;
-  flex-direction: column;
   padding: 30px;
-  box-shadow: 0 0 40px rgba(0, 255, 204, 0.05);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.header { margin-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 15px; }
+.status-line { display: flex; justify-content: space-between; font-size: 0.8rem; color: #f59e0b; margin-bottom: 10px; font-weight: bold; }
+.mission-title { font-size: 1.8rem; margin: 0; color: #fff; text-shadow: 0 0 10px rgba(6, 182, 212, 0.5); }
+
+/* 영상/위성 Placeholder */
+.video-placeholder {
+  width: 100%; height: 200px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  border-radius: 8px;
   position: relative;
-  z-index: 2;
-  box-sizing: border-box;
-}
-
-.terminal-header {
-  border-bottom: 1px solid #222;
+  overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   margin-bottom: 20px;
-  padding-bottom: 10px;
 }
 
-.top-secret {
-  color: #ff4444;
-  font-size: 1.6rem;
-  margin: 5px 0;
-  letter-spacing: 2px;
-  text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+.scan-line {
+  position: absolute; width: 100%; height: 2px;
+  background: rgba(6, 182, 212, 0.5);
+  box-shadow: 0 0 10px #06b6d4;
+  animation: scan 2.5s linear infinite;
 }
+@keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
 
-.status-indicator { color: #666; font-size: 0.8rem; }
+.intel-text { color: #06b6d4; margin-bottom: 5px; font-weight: bold; letter-spacing: 2px; }
+.target-coord { font-family: monospace; color: #94a3b8; font-size: 0.9rem; }
 
-.text-area {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 10px;
-  margin-bottom: 15px;
+.intel-section { background: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+.intel-section h3 { color: #06b6d4; margin: 0 0 10px 0; font-size: 1rem; }
+.description { line-height: 1.6; color: #cbd5e1; font-size: 0.95rem; margin-bottom: 15px; }
+.info-item { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px dashed rgba(255,255,255,0.1); }
+.highlight-text { color: #f59e0b; font-weight: bold; }
+
+/* 버튼 그룹 */
+.btn-group { display: flex; gap: 15px; }
+.start-btn {
+  flex: 2; padding: 15px; border-radius: 8px; border: none;
+  background: #06b6d4; color: #000; font-weight: 700; cursor: pointer; transition: 0.3s;
 }
-
-.text-area::-webkit-scrollbar { width: 4px; }
-.text-area::-webkit-scrollbar-track { background: #0a0a0a; }
-.text-area::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 10px; }
-
-.typewriter {
-  color: #00ffcc;
-  font-size: 1.2rem;
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-break: keep-all;
+.start-btn:hover { background: #0891b2; transform: translateY(-2px); }
+.back-btn {
+  flex: 1; padding: 15px; border-radius: 8px;
+  background: transparent; border: 1px solid #64748b; color: #94a3b8; cursor: pointer; transition: 0.3s;
 }
+.back-btn:hover { border-color: #fff; color: #fff; }
 
-.typewriter :deep(b) {
-  color: #fff;
-  text-shadow: 0 0 8px #00ffcc;
-}
-
-.mission-btn {
-  background: rgba(0, 255, 204, 0.05);
-  color: #00ffcc;
-  border: 1px solid #00ffcc;
-  padding: 18px;
-  width: 100%;
-  font-size: 1.1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-radius: 6px;
-  margin-top: 10px;
-}
-
-.mission-btn:hover {
-  background: #00ffcc;
-  color: #000;
-  box-shadow: 0 0 20px #00ffcc;
-}
-
-.skip-btn {
-  color: #ffaa00;
-  border-color: #ffaa00;
-  background: rgba(255, 170, 0, 0.05);
-}
-
-.skip-btn:hover {
-  background: #ffaa00;
-  color: #000;
-  box-shadow: 0 0 20px #ffaa00;
-}
-
-.cursor { animation: blink 1s infinite; color: #00ffcc; font-weight: bold; }
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-
-.blink-text { animation: blink 0.5s infinite; }
-
-@media (max-width: 768px) {
-  .terminal-box {
-    height: 95vh;
-    padding: 20px;
-  }
-  .top-secret { font-size: 1.3rem; }
-  .typewriter { font-size: 1.05rem; }
-}
+/* 로딩 화면 */
+.loading-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.radar { width: 50px; height: 50px; border: 2px solid #06b6d4; border-radius: 50%; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+.loading-text { margin-top: 20px; color: #06b6d4; font-family: monospace; letter-spacing: 1px; }
 </style>

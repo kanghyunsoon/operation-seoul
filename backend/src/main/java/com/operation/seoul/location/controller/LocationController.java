@@ -31,6 +31,12 @@ public class LocationController {
         return missionService.getMissionsByRegion(regionId);
     }
 
+    @GetMapping("/missions/{missionId}")
+    public ResponseEntity<Mission> getMissionDetail(@PathVariable Long missionId) {
+        Mission mission = missionService.getMissionById(missionId);
+        return ResponseEntity.ok(mission);
+    }
+
     /**[기능: 미션 장소 도착 여부 검증]
      - 수행 내용: 유저의 현재 좌표와 미션 목적지 좌표를 비교하여 반경 내 도착 여부 판별
      - 매개 변수:
@@ -48,6 +54,7 @@ public class LocationController {
         );
         return ResponseEntity.ok(isArrived);
     }
+
 }
 
 /**
