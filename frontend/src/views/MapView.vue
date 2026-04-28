@@ -6,7 +6,7 @@
           <span class="light red blink"></span>
           <span class="light green"></span>
         </div>
-        <h2>📍 작전 구역: 정동길의 비밀</h2>
+        <h2>📍 작전 구역: {{ currentMission?.title || '데이터 수신 중...' }}</h2>
         <div class="battery">BAT 87%</div>
       </header>
 
@@ -18,7 +18,7 @@
 
       <div class="control-panel">
         <div class="info-screen">
-          <p class="tgt-text">TGT: 중명전(重明殿)</p>
+          <p class="tgt-text">TGT: {{ currentMission?.title || '분석중...' }}</p>
           <p class="distance">DIST: {{ isArrived ? '0' : distance }}m</p>
           <p class="status-text" :class="{ 'ready': isArrived }">
             {{ isArrived ? '> SIGNAL_LOCKED: 현장 도착 완료!' : '> 이동 중 (TRACKING...)' }}
@@ -44,100 +44,137 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
-import { useRouter } from 'vue-router';
-import CameraScanner from '@/components/CameraScanner.vue'; // 스캐너 컴포넌트 임포트 복구!
+import { useRoute, useRouter } from 'vue-router';
+import apiClient from '@/api/axiosInstance'; // 🚨 403 에러 방지를 위해 토큰이 담기는 apiClient 사용
+import CameraScanner from '@/components/CameraScanner.vue';
 
+const route = useRoute();
 const router = useRouter();
-const missions = ref([]);
+
 const currentMission = ref(null);
 const gameStatus = ref('LOCKED');
 const currentSessionId = ref(null);
 
 const isArrived = ref(false);
 const isScannerOpen = ref(false);
-const distance = ref(100);
+const distance = ref(9999);
 
 const collectedHints = ref(0);
 const requiredHints = ref(3);
 let mapInstance = null;
 
-const initMap = (missionData) => {
+// GPS 실패 시 사용할 임의 위치 (서울 시청)
+const fallbackLocation = { lat: 37.5665, lng: 126.9780 };
+const userLocation = ref({ ...fallbackLocation });
+
+// 1. GPS 위치 획득 (try-catch 및 Timeout 대응)
+const fetchUserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      console.warn('GPS 미지원 기기. 임의 위치 적용');
+      userLocation.value = { ...fallbackLocation };
+      resolve();
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        userLocation.value = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        resolve();
+      },
+      (err) => {
+        console.warn('GPS 권한 거부 또는 실패. 임의 위치 적용', err);
+        userLocation.value = { ...fallbackLocation };
+        resolve();
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  });
+};
+
+// 2. 맵 초기화 및 마커 렌더링
+const initMap = () => {
+  if (!currentMission.value) return;
+
   const container = document.getElementById('map');
-  const userPos = new window.kakao.maps.LatLng(37.5665, 126.9780);
+  const userPos = new window.kakao.maps.LatLng(userLocation.value.lat, userLocation.value.lng);
+  const targetPos = new window.kakao.maps.LatLng(currentMission.value.targetLat, currentMission.value.targetLng);
 
-  if (!mapInstance) {
-    mapInstance = new window.kakao.maps.Map(container, { center: userPos, level: 4 });
-  } else {
-    mapInstance = new window.kakao.maps.Map(container, { center: userPos, level: 4 });
-  }
+  mapInstance = new window.kakao.maps.Map(container, { center: userPos, level: 4 });
+  mapInstance.setMapTypeId(window.kakao.maps.MapTypeId.HYBRID);
 
-  const map = mapInstance;
-  map.setMapTypeId(window.kakao.maps.MapTypeId.HYBRID);
-
+  // 마커 아이콘 설정
   const blueIcon = new window.kakao.maps.MarkerImage('https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png', new window.kakao.maps.Size(24, 35));
   const redIcon = new window.kakao.maps.MarkerImage('https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_red.png', new window.kakao.maps.Size(32, 32));
 
-  new window.kakao.maps.Marker({ position: userPos, image: blueIcon, map: map, title: '요원 위치' });
+  // 본인 위치 마커
+  new window.kakao.maps.Marker({ position: userPos, image: blueIcon, map: mapInstance, title: '요원 위치' });
 
+  // 목적지 마커
+  const targetMarker = new window.kakao.maps.Marker({ position: targetPos, image: redIcon, map: mapInstance });
+
+  // 📝 목적지 마커 클릭 시 정보창(미션명) 표시
+  const iwContent = `<div style="padding:10px; color:#000; font-size:12px; width:200px; font-weight:bold;">
+                      <strong style="color:#ff4444;">[작전 목표]</strong><br/>${currentMission.value.title}
+                    </div>`;
+  const infowindow = new window.kakao.maps.InfoWindow({ content: iwContent, removable: true });
+  window.kakao.maps.event.addListener(targetMarker, 'click', () => { infowindow.open(mapInstance, targetMarker); });
+
+  // 지도 범위 재설정 (내 위치와 타겟이 모두 보이게)
   const bounds = new window.kakao.maps.LatLngBounds();
   bounds.extend(userPos);
+  bounds.extend(targetPos);
+  setTimeout(() => mapInstance.setBounds(bounds), 100);
 
-  missionData.forEach(m => {
-    if (m.isFinal && collectedHints.value < requiredHints.value) return;
-
-    const targetPos = new window.kakao.maps.LatLng(m.targetLat, m.targetLng);
-    const marker = new window.kakao.maps.Marker({ position: targetPos, image: redIcon, map: map });
-
-    let iwContent = `<div style="padding:10px; color:#000; font-size:12px; width:200px;"><strong style="color:#ff4444;">[작전 목표]</strong><br/>${m.title}</div>`;
-    if(m.isFinal) {
-      iwContent = `<div style="padding:10px; color:#000; font-size:12px; width:200px; border: 2px solid red;"><strong style="color:red;">🚨 [최종 비밀 목적지 발견!]</strong><br/>${m.title}</div>`;
-    }
-
-    const infowindow = new window.kakao.maps.InfoWindow({ content: iwContent, removable: true });
-    window.kakao.maps.event.addListener(marker, 'click', () => { infowindow.open(map, marker); });
-
-    bounds.extend(targetPos);
-    if (m.id === 1) currentMission.value = m;
-  });
-
-  if (missionData.length > 0) setTimeout(() => map.setBounds(bounds), 100);
+  // 폴리라인으로 직선 거리 계산
+  const polyline = new window.kakao.maps.Polyline({ path: [userPos, targetPos] });
+  distance.value = Math.floor(polyline.getLength());
 };
 
-const fetchMissions = async () => {
+// 3. 데이터 로딩 메인 로직
+const loadMissionAndMap = async () => {
+  const missionId = route.query.missionId;
+  if (!missionId) {
+    alert('작전 코드가 손실되었습니다.');
+    router.push('/home');
+    return;
+  }
+
   try {
-    const response = await axios.get('http://localhost:8080/api/v1/regions/1/missions');
-    missions.value = response.data;
-    initMap(missions.value);
+    // 동적 데이터 수신
+    const response = await apiClient.get(`/v1/missions/${missionId}`);
+    currentMission.value = response.data;
+
+    // GPS 위치 수신 후 지도 그리기
+    await fetchUserLocation();
+    initMap();
   } catch (error) {
     console.error("데이터 로드 실패", error);
-    initMap([]);
+    alert("작전 지역 데이터 수신에 실패했습니다.");
+    router.push('/home');
   }
 };
 
+// 4. 강제 도착 처리 (기존 로직 유지, ID만 동적 할당)
 const forceArrival = async () => {
-  try {
-    const response = await axios.post(`http://localhost:8080/api/v1/sessions/start/1`);
-    currentSessionId.value = response.data;
-    gameStatus.value = 'ARRIVED';
-    isArrived.value = true; // 거리 0 처리용
-    distance.value = 0;
+  if (!currentMission.value) return;
 
-    collectedHints.value++;
-    if(collectedHints.value >= requiredHints.value) {
-      alert("🚨 모든 단서를 모았습니다! 지도에 숨겨진 최종 목적지가 나타납니다.");
-      initMap(missions.value);
-    }
+  try {
+    const response = await apiClient.post(`/v1/sessions/start/${currentMission.value.id}`);
+    currentSessionId.value = response.data.id || response.data; // 서버 응답 형태에 따라 유연하게 대처
+    gameStatus.value = 'ARRIVED';
+    isArrived.value = true;
+    distance.value = 0;
   } catch (error) {
     console.error("세션 시작 실패", error);
+    alert("본부 통신 실패. 다시 시도하십시오.");
   }
 };
 
-// 💡 캡처된 Base64 데이터를 File로 변환하여 요원님의 Vision API 로 전송
+// 5. 이미지 업로드 로직 (기존 유지, axios만 apiClient로 교체)
 const uploadImage = async (imageDataUrl) => {
   isScannerOpen.value = false;
 
-  // Base64 -> Blob -> File 변환 과정
   const res = await fetch(imageDataUrl);
   const blob = await res.blob();
   const file = new File([blob], "clue.jpg", { type: "image/jpeg" });
@@ -146,12 +183,10 @@ const uploadImage = async (imageDataUrl) => {
   formData.append("image", file);
 
   try {
-    // 1. 백엔드 비전 API로 검증 (요원님 원본 로직)
-    await axios.post(`http://localhost:8080/api/v1/sessions/${currentSessionId.value}/vision`, formData, {
+    await apiClient.post(`/v1/sessions/${currentSessionId.value}/vision`, formData, {
       headers: { "Content-Type": "multipart/form-data" }
     });
 
-    // 2. 검증 성공 시에만 세션 스토리지에 이미지 담고 채팅방 이동
     sessionStorage.setItem('capturedImage', imageDataUrl);
     router.push(`/chat/${currentSessionId.value}`);
   } catch (error) {
@@ -160,14 +195,20 @@ const uploadImage = async (imageDataUrl) => {
 };
 
 onMounted(() => {
-  const script = document.createElement('script');
-  script.src = `//dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=${import.meta.env.VITE_KAKAO_MAP_KEY}`;
-  script.onload = () => window.kakao.maps.load(() => fetchMissions());
-  document.head.appendChild(script);
+  // 카카오맵 스크립트 중복 방지 및 안전 로드
+  if (window.kakao && window.kakao.maps) {
+    loadMissionAndMap();
+  } else {
+    const script = document.createElement('script');
+    script.src = `//dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=${import.meta.env.VITE_KAKAO_MAP_KEY}`;
+    script.onload = () => window.kakao.maps.load(() => loadMissionAndMap());
+    document.head.appendChild(script);
+  }
 });
 </script>
 
 <style scoped>
+/* 요원님의 기존 스타일 완벽 보존 */
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 .tactical-fullscreen {
