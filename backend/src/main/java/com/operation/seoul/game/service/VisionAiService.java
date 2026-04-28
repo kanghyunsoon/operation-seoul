@@ -1,6 +1,5 @@
 package com.operation.seoul.game.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.repository.MissionRepository;
 import lombok.RequiredArgsConstructor;

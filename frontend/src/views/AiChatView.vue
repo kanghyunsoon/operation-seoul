@@ -4,6 +4,8 @@
     <div class="scanlines"></div>
 
     <header class="hud-header">
+      <button @click="goBackToMap" class="btn-back">[ ⬅ MAP ]</button>
+
       <div class="header-glitch" data-text="HQ_SECURE_UPLINK">HQ_SECURE_UPLINK</div>
       <div class="sys-metrics">
         <span class="metric">ENC_KEY: AES-256</span>
@@ -74,7 +76,7 @@
     </footer>
 
     <div v-if="isScannerOpen" class="scanner-modal">
-      <CameraScanner @capture="handleManualCapture" />
+      <CameraScanner @capture="handleManualCapture" @close="isScannerOpen = false" />
       <button @click="isScannerOpen = false" class="btn-abort">ABORT_LINK</button>
     </div>
   </div>
@@ -82,12 +84,13 @@
 
 <script setup>
 import { ref, onMounted, nextTick, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import CameraScanner from '@/components/CameraScanner.vue';
 import { useTypingBuffer } from '@/composables/useTypingBuffer';
 
 const route = useRoute();
+const router = useRouter(); // 💡 맵 복귀를 위해 라우터 추가
 const sessionId = ref(route.params.sessionId);
 
 const chatHistory = ref([]);
@@ -100,6 +103,12 @@ const isScannerOpen = ref(false);
 
 const isFinalAnswer = computed(() => !userInput.value.includes('?'));
 const { displayedText, isTyping, isFinished, addChunk, finishTyping, reset } = useTypingBuffer(30);
+
+// 💡 추가됨: 맵뷰로 복귀하는 로직
+const goBackToMap = () => {
+  const regionId = route.query.regionId || 1;
+  router.push({ name: 'Map', query: { regionId: regionId } });
+};
 
 const scrollToBottom = async () => {
   await nextTick();
@@ -281,6 +290,15 @@ const requestGeminiStream = async (textMessage) => {
   border-bottom: 1px solid rgba(8, 189, 186, 0.25);
   display: flex; justify-content: space-between; align-items: center;
 }
+
+/* 💡 추가됨: 뒤로가기 버튼 스타일 (요원님 테마색 준수) */
+.btn-back {
+  background: rgba(8, 189, 186, 0.1); border: 1px solid #08bdba;
+  color: #08bdba; padding: 5px 10px; font-family: inherit; font-size: 0.8rem;
+  font-weight: bold; cursor: pointer; border-radius: 3px; transition: 0.2s;
+}
+.btn-back:hover { background: #08bdba; color: #000; box-shadow: 0 0 8px #08bdba; }
+
 .header-glitch { font-size: 1.2rem; font-weight: bold; color: #80cbc4; letter-spacing: 2px; }
 .sys-metrics { display: flex; gap: 15px; font-size: 0.8rem; color: #4dd0e1; opacity: 0.7; }
 .sys-metrics .highlight { color: #08bdba; font-weight: bold; opacity: 1; text-shadow: 0 0 8px rgba(8,189,186,0.4); }
@@ -302,7 +320,7 @@ const requestGeminiStream = async (textMessage) => {
 .hud-body::-webkit-scrollbar-track { background: transparent; }
 .hud-body::-webkit-scrollbar-thumb { background: rgba(8, 189, 186, 0.2); }
 
-/* 💡 말풍선 최대 너비를 52% 로 제한 (절반 살짝 넘게) */
+/* 말풍선 */
 .message-block { width: 100%; display: flex; flex-direction: column; max-width: 52%; }
 .message-block.user { align-self: flex-end; align-items: flex-end; }
 .message-block.ai { align-self: flex-start; align-items: flex-start; }
@@ -311,7 +329,6 @@ const requestGeminiStream = async (textMessage) => {
 .user .msg-meta { color: #cfd8dc; flex-direction: row-reverse; }
 .ai .msg-meta { color: #80cbc4; }
 
-/* 세련된 다크 시안 톤 프레임 */
 .content-frame {
   position: relative;
   padding: 16px 20px;
@@ -351,9 +368,7 @@ const requestGeminiStream = async (textMessage) => {
   border-top: 1px solid rgba(8, 189, 186, 0.2);
 }
 
-.terminal-interface {
-  display: flex; align-items: center; gap: 15px;
-}
+.terminal-interface { display: flex; align-items: center; gap: 15px; }
 
 .btn-scan {
   background: rgba(8, 189, 186, 0.05); border: 1px solid rgba(8, 189, 186, 0.3);

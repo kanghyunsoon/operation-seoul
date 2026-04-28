@@ -1,4 +1,10 @@
-# 🕵️‍♂️ Operation: SEOUL (리얼월드 AI 방탈출 플랫폼)
+# 🕵️‍♂️ Operation: SEOUL - AI 기반 몰입형 야외 방탈출
+
+![Vue.js](https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vue.js&logoColor=4FC08D)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=google&logoColor=white)
+![Kakao Map API](https://img.shields.io/badge/Kakao_Map-FFCD00?style=for-the-badge&logo=kakao&logoColor=black)
 
 > "도심 속 명소가 거대한 방탈출 무대가 된다."
 > 한국관광공사 TourAPI와 KAKAO mapsAPI, Google AI(Vision, LLM)를 결합한 위치 기반(LBS) 게이미피케이션 관광 활성화 서비스입니다.
