@@ -1,176 +1,250 @@
 <template>
-  <div class="home-container">
-    <div class="dashboard">
-      <header class="header">
-        <h1 class="welcome-text">HQ TERMINAL: ACTIVE</h1>
-        <p v-if="userInfo" class="agent-info">AGENT: {{ userInfo.nickname }} [ONLINE]</p>
+  <div class="dashboard-container">
+    <div class="bg-glow blob-1"></div>
+    <div class="bg-glow blob-2"></div>
+
+    <div class="content-wrapper">
+      <header class="dashboard-header">
+        <div class="title-group">
+          <h1 class="title">OPERATION<span class="highlight">: SEOUL</span></h1>
+          <p class="subtitle">작전 목록 데이터베이스 접근 중...</p>
+        </div>
+        <div class="user-panel">
+          <span class="agent-name">요원 [ {{ sessionStore.userInfo?.nickname || 'UNKNOWN' }} ]</span>
+          <button @click="handleLogout" class="logout-btn">로그아웃</button>
+        </div>
       </header>
 
-      <section class="mission-section">
-        <h2 class="section-title">> AVAILABLE OPERATIONS (작전 지역)</h2>
+      <main class="mission-grid">
+        <div
+          v-for="mission in mockMissions"
+          :key="mission.id"
+          class="glass-card"
+          :class="{ 'analyzing': !mission.isReady }"
+          @click="handleMissionClick(mission)"
+        >
+          <div class="card-header">
+            <span v-if="mission.isReady" :class="['status-badge', mission.status.toLowerCase()]">
+              {{ mission.status === 'ACTIVE' ? '진행 가능' : mission.status === 'LOCKED' ? '해금 필요' : '작전 완료' }}
+            </span>
+            <span v-else class="status-badge analyzing-badge">데이터 분석 중</span>
 
-        <div v-if="loading" class="status-msg">지형 데이터를 분석 중입니다...</div>
+            <span :class="['diff-badge', mission.difficulty.toLowerCase()]">
+              난이도: {{ mission.difficulty }}
+            </span>
+          </div>
 
-        <div v-else-if="regions.length === 0" class="status-msg"> 현재 사용 가능한 작전 구역이 없습니다.</div>
+          <h2 class="mission-title">{{ mission.title }}</h2>
+          <p class="mission-desc">{{ mission.description }}</p>
 
-        <div v-else class="region-list">
-          <div v-for="region in regions" :key="region.id" class="region-card">
-            <div class="region-header">
-              <span class="region-id">#ID-0{{ region.id }}</span>
-              <h3>{{ region.name }}</h3>
-            </div>
-            <p class="region-desc">{{ region.description }}</p>
-
-            <div class="mission-list">
-              <div
-                  v-for="mission in region.missions || defaultMissions"
-                  :key="mission.id"
-                  class="mission-item"
-                  @click="selectMission(mission, region.name)"
-              >
-                <span class="status-dot"></span>
-                <div class="mission-info">
-                  <span class="mission-title">{{ mission.title }}</span>
-                  <span class="mission-diff">{{ mission.difficulty || 'Normal' }}</span>
-                </div>
-                <button class="select-btn">START</button>
-              </div>
-            </div>
+          <div class="card-footer">
+            <span class="location-tag">📍 {{ mission.location }}</span>
+            <span class="enter-text">{{ mission.isReady ? '작전 브리핑 ➔' : '접근 제한' }}</span>
           </div>
         </div>
-      </section>
+      </main>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useSessionStore } from '@/stores/sessionStore.js';
-import apiClient from '@/api/axiosInstance'; // 앞서 만든 axios 인스턴스
+import { useSessionStore } from '@/stores/sessionStore';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
-const userInfo = computed(() => sessionStore.userInfo);
 
-const regions = ref([]);
-const loading = ref(true);
-
-// 만약 DB의 Mission 테이블이 비어있을 경우를 대비한 템플릿 데이터
-const defaultMissions = [
-  { id: 1, title: "오퍼레이션: 서울 (프롤로그)", difficulty: "Easy" }
-];
-
-/**
- * 서버에서 지역 정보를 불러옵니다.
- * 현재 DB의 id: 1 데이터를 타겟팅합니다.
- */
-const fetchRegions = async () => {
-  try {
-    loading.value = true;
-    // GET /api/regions (팀원 A가 구현할 API 엔드포인트 가정)
-    const response = await apiClient.get('/v1/regions');
-    regions.value = response.data;
-  } catch (error) {
-    console.error("데이터 로드 실패:", error);
-    // 테스트를 위해 API 오류 시에도 id:1 더미 데이터를 수동 주입 (서버 미구동 대비)
-    regions.value = [{
-      id: 1,
-      name: "서울 종로구",
-      description: "고궁의 비밀과 현대의 암호가 공존하는 구역",
-      missions: null // 미션이 아직 없다면 defaultMissions 사용
-    }];
-  } finally {
-    loading.value = false;
+// 임시 미션 데이터 (각자 고유한 id와 isReady 상태를 가짐)
+const mockMissions = ref([
+  {
+    id: 1,
+    title: '중명전의 비밀',
+    description: '덕수궁 돌담길에 숨겨진 제국의 마지막 문서를 확보하라.',
+    difficulty: 'NORMAL',
+    location: '서울 정동길',
+    status: 'ACTIVE',
+    isReady: true // 데이터 있음 (접근 가능)
+  },
+  {
+    id: 2,
+    title: '광화문 아티팩트',
+    description: '경복궁 앞 광장에 흩어진 암호화된 유물을 스캔하여 해독하라.',
+    difficulty: 'HARD',
+    location: '서울 광화문',
+    status: 'ACTIVE',
+    isReady: false // 데이터 없음 (분석 중)
+  },
+  {
+    id: 3,
+    title: '남산 타워의 그림자',
+    description: '남산 송신탑에 접근하여 적의 통신망을 교란하라.',
+    difficulty: 'EASY',
+    location: '서울 남산',
+    status: 'CLEARED',
+    isReady: false // 데이터 없음 (분석 중)
   }
+]);
+
+// 🚨 미션 클릭 시 사전 검증 로직
+const handleMissionClick = (mission) => {
+  if (!mission.isReady) {
+    // 데이터가 없는 경우 알림창 표시 후 이동 차단
+    alert(`[접근 거부] 요원님, 섹터 #${mission.id}은(는) 현재 본부에서 분석 중인 사건입니다. 정보가 확보될 때까지 대기하십시오.`);
+    return;
+  }
+
+  if (mission.status === 'LOCKED') {
+    alert('이 작전은 아직 해금되지 않았습니다. 이전 작전을 먼저 완수하십시오.');
+    return;
+  }
+
+  // 🟢 접근 가능한 경우에만 브리핑 화면으로 실제 missionId를 전달
+  router.push({ name: 'Briefing', query: { missionId: mission.id } });
 };
 
-const selectMission = (mission, regionName) => {
-  if (confirm(`[${regionName} - ${mission.title}] 작전을 시작하시겠습니까?`)) {
-    // 📌 미션 ID를 가지고 브리핑 뷰로 이동
-    router.push({
-      name: 'Briefing',
-      query: { missionId: mission.id }
-    });
-  }
+// 로그아웃 로직
+const handleLogout = () => {
+  sessionStore.logout();
+  router.push({ name: 'Intro' });
 };
-
-onMounted(() => {
-  fetchRegions();
-});
 </script>
 
 <style scoped>
-/* 이전 스타일 유지 및 보강 */
-.home-container {
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+
+.dashboard-container {
   min-height: 100vh;
   background-color: #0b0f19;
-  color: #06b6d4;
-  padding: 20px;
-  display: flex;
-  justify-content: center;
   font-family: 'Noto Sans KR', sans-serif;
+  color: #e2e8f0;
+  position: relative;
+  overflow: hidden;
+  padding: 40px 20px;
 }
 
-.dashboard {
-  width: 100%;
-  max-width: 600px;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid #1e293b;
-  border-radius: 16px;
-  padding: 30px;
-  backdrop-filter: blur(10px);
+/* 배경 빛 번짐 효과 */
+.bg-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  z-index: 0;
+  opacity: 0.5;
+}
+.blob-1 { width: 400px; height: 400px; background: #06b6d4; top: -100px; left: -100px; }
+.blob-2 { width: 500px; height: 500px; background: #3b82f6; bottom: -150px; right: -100px; }
+
+.content-wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
-.header { border-bottom: 1px solid rgba(6, 182, 212, 0.3); margin-bottom: 30px; padding-bottom: 15px; }
-.welcome-text { font-size: 1.4rem; letter-spacing: 2px; color: #fff; }
-.agent-info { color: #94a3b8; font-size: 0.85rem; margin-top: 5px; }
-
-.status-msg { text-align: center; padding: 40px; color: #64748b; font-style: italic; }
-
-.region-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-.region-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.region-id { font-size: 0.7rem; background: #06b6d4; color: #0b0f19; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-.region-card h3 { margin: 0; color: #fff; font-size: 1.1rem; }
-.region-desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin-bottom: 20px; }
-
-.mission-item {
+/* 헤더 스타일 */
+.dashboard-header {
   display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 20px;
+}
+
+.title { font-size: 2rem; font-weight: 700; margin: 0 0 5px 0; color: #fff; }
+.highlight { color: #06b6d4; }
+.subtitle { font-size: 0.9rem; color: #94a3b8; margin: 0; }
+
+.user-panel { display: flex; align-items: center; gap: 20px; }
+.agent-name { color: #06b6d4; font-weight: 500; font-size: 0.9rem; }
+.logout-btn {
+  background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444;
+  padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s;
+}
+.logout-btn:hover { background: #ef4444; color: #fff; }
+
+/* 미션 카드 그리드 */
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 25px;
+}
+
+/* 글래스모피즘 카드 기본 스타일 */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  cursor: pointer;
+  transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.glass-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(6, 182, 212, 0.5);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(6, 182, 212, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* 🚨 분석 중인 카드의 비활성화 스타일 */
+.glass-card.analyzing {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.glass-card.analyzing:hover {
+  transform: none; /* 애니메이션 제거 */
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 15px;
+}
+
+.status-badge, .diff-badge {
+  font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+}
+
+/* 상태별 색상 */
+.active { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+.locked { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+.cleared { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+/* 분석 중 상태 배지 색상 */
+.analyzing-badge {
+  background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* 난이도별 색상 */
+.easy { color: #10b981; }
+.normal { color: #f59e0b; }
+.hard { color: #ef4444; }
+
+.mission-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0 0 10px 0; }
+.mission-desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin: 0 0 20px 0; flex-grow: 1; }
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: 12px 15px;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
+  margin-top: auto;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.mission-item:hover {
-  background: rgba(6, 182, 212, 0.1);
-  border-color: #06b6d4;
-  transform: translateX(5px);
-}
-
-.status-dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; margin-right: 15px; box-shadow: 0 0 8px #22c55e; }
-.mission-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.mission-title { font-size: 0.9rem; color: #e2e8f0; font-weight: 500; }
-.mission-diff { font-size: 0.7rem; color: #64748b; text-transform: uppercase; }
-
-.select-btn {
-  background: transparent;
-  border: 1px solid #06b6d4;
-  color: #06b6d4;
-  padding: 5px 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  border-radius: 4px;
-  cursor: pointer;
-}
+.location-tag { font-size: 0.8rem; color: #cbd5e1; }
+.enter-text { font-size: 0.8rem; color: #06b6d4; font-weight: 700; opacity: 0; transition: opacity 0.3s; }
+.glass-card:hover .enter-text { opacity: 1; }
+/* 비활성화된 카드는 호버 시 글씨가 나타나지 않음 */
+.glass-card.analyzing:hover .enter-text { opacity: 0; }
 </style>
