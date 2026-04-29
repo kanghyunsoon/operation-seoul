@@ -15,6 +15,37 @@
         </div>
       </header>
 
+      <div v-if="isAdmin" class="admin-panel">
+              <button @click="showAdminModal = true" class="admin-generate-btn">
+                [ ⚠️ 지휘부 권한: 신규 구역 AI 스캔 및 작전 수립 ]
+              </button>
+            </div>
+
+            <div v-if="showAdminModal" class="admin-modal-overlay">
+              <div class="admin-modal-content">
+                <h3>🤖 AI 자동 작전 수립 시스템</h3>
+                <p>TourAPI와 Gemini를 가동하여 주변 명소 기반 스토리를 생성합니다.</p>
+
+                <div class="input-group">
+                  <label>지역 ID (Region ID)</label>
+                  <input type="number" v-model="adminForm.regionId" />
+                </div>
+                <div class="input-group">
+                  <label>기준 위도 (Latitude)</label>
+                  <input type="number" step="0.000001" v-model="adminForm.lat" />
+                </div>
+                <div class="input-group">
+                  <label>기준 경도 (Longitude)</label>
+                  <input type="number" step="0.000001" v-model="adminForm.lng" />
+                </div>
+
+                <button @click="generateMissionByAi" class="execute-btn" :disabled="isGenerating">
+                  {{ isGenerating ? 'AI가 스토리를 작성 중입니다 (약 5~10초)...' : '스캔 및 미션 생성 실행' }}
+                </button>
+                <button @click="showAdminModal = false" class="close-btn" :disabled="isGenerating">취소</button>
+              </div>
+            </div>
+
       <main class="mission-grid">
         <div
             v-for="mission in missions"
@@ -47,12 +78,11 @@
     </div>
   </div>
 </template>
-
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue'; // 🚨 computed 추가됨!
 import { useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore';
-import apiClient from '@/api/axiosInstance'; // 📡 실시간 통신용
+import apiClient from '@/api/axiosInstance';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
@@ -60,27 +90,66 @@ const sessionStore = useSessionStore();
 // 💡 템플릿과 연동되는 반응형 작전 리스트
 const missions = ref([]);
 
+// 1. 관리자 권한 확인 (테스트용으로 닉네임이 admin이거나 이메일이 admin@seoul.go.kr 이면 관리자로 인식)
+const isAdmin = computed(() => {
+  const user = sessionStore.userInfo;
+  return user && (user.nickname === 'admin' || user.email === 'admin@seoul.go.kr');
+});
+
+// 2. 모달 상태 및 폼 데이터 (기본값: 서울 시청/덕수궁 부근 좌표)
+const showAdminModal = ref(false);
+const isGenerating = ref(false);
+const adminForm = ref({
+  regionId: 1,
+  lat: 37.5658,
+  lng: 126.9751
+});
+
+// 3. AI 미션 생성 백엔드 API 호출
+const generateMissionByAi = async () => {
+  isGenerating.value = true;
+  try {
+    // 백엔드의 AdminMissionController 호출
+    const response = await apiClient.post('/v1/admin/missions/generate', null, {
+      params: {
+        regionId: adminForm.value.regionId,
+        lat: adminForm.value.lat,
+        lng: adminForm.value.lng
+      }
+    });
+
+    alert(`[SYSTEM] ${response.data}`);
+    showAdminModal.value = false;
+
+    // 미션 목록 새로고침
+    fetchMissions();
+
+  } catch (error) {
+    console.error(error);
+    alert('작전 수립에 실패했습니다. 백엔드 로그를 확인하세요.');
+  } finally {
+    isGenerating.value = false;
+  }
+};
+
 /**
  * [함수: 실시간 작전 데이터 로드]
- * - 앱 시작 시 본부(백엔드)로부터 실제 데이터를 가져와 요원님의 UI 규격에 맞게 할당합니다.
  */
 const fetchMissions = async () => {
   try {
     const response = await apiClient.get('/v1/regions');
 
-    // 백엔드 데이터를 요원님의 고퀄리티 UI 규격으로 즉시 매핑
     missions.value = response.data.map(region => ({
       id: region.id,
       title: region.name,
-      description: region.description, // 여기에 포함된 <br>은 v-html이 처리합니다.
+      description: region.description,
       difficulty: 'NORMAL',
       location: '현장 작전 구역',
       status: 'ACTIVE',
-      isReady: true // DB에 있는 데이터는 즉시 접근 가능하도록 설정
+      isReady: true
     }));
   } catch (error) {
     console.error('[시스템 오류] 데이터 동기화 실패. 예비 서버로 전환합니다.', error);
-    // 🚨 통신 실패 시 요원님의 기존 스타일이 깨지지 않게 예비용 mock 데이터를 띄웁니다.
     missions.value = [
       { id: 1, title: '중명전의 비밀', description: 'DB 연결 확인 중...', difficulty: 'NORMAL', location: '서울 정동길', status: 'ACTIVE', isReady: true }
     ];
@@ -91,16 +160,11 @@ onMounted(() => {
   fetchMissions();
 });
 
-/**
- * [함수: 작전 섹터 진입 로직]
- * - 클릭 시 브리핑 뷰(BriefingView)로 실제 missionId를 전송합니다.
- */
 const handleMissionClick = (mission) => {
   if (!mission.isReady) {
     alert(`[접근 거부] 분석 중인 섹터입니다.`);
     return;
   }
-  // 🟢 브리핑 화면으로 즉시 연결
   router.push({ name: 'Briefing', query: { missionId: mission.id } });
 };
 
@@ -109,6 +173,7 @@ const handleLogout = () => {
   router.push({ name: 'Intro' });
 };
 </script>
+
 
 <style scoped>
 /* 🚨 요원님의 멋진 글래스모피즘 스타일 원본 그대로입니다. (수정 금지 명령 준수) */
@@ -162,4 +227,45 @@ const handleLogout = () => {
 .location-tag { font-size: 0.8rem; color: #cbd5e1; }
 .enter-text { font-size: 0.8rem; color: #06b6d4; font-weight: 700; opacity: 0; transition: opacity 0.3s; }
 .glass-card:hover .enter-text { opacity: 1; }
+
+/* 관리자 패널 및 버튼 스타일 */
+.admin-panel {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.admin-generate-btn {
+  background: rgba(255, 68, 68, 0.1);
+  color: #ff4444;
+  border: 2px dashed #ff4444;
+  padding: 12px 20px;
+  font-size: 1rem;
+  font-weight: bold;
+  font-family: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.admin-generate-btn:hover {
+  background: #ff4444;
+  color: #fff;
+  box-shadow: 0 0 15px #ff4444;
+}
+
+/* 관리자 모달 스타일 */
+.admin-modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; z-index: 9999;
+}
+.admin-modal-content {
+  background: #111; border: 2px solid #ff4444; padding: 25px;
+  border-radius: 12px; width: 90%; max-width: 450px; color: #fff;
+}
+.admin-modal-content h3 { color: #ff4444; margin-top: 0; border-bottom: 1px solid #ff4444; padding-bottom: 10px;}
+.input-group { margin-bottom: 15px; text-align: left; }
+.input-group label { display: block; font-size: 0.85rem; color: #aaa; margin-bottom: 5px; }
+.input-group input { width: 100%; padding: 8px; background: #222; border: 1px solid #555; color: #00ffcc; font-family: inherit; border-radius: 4px; box-sizing: border-box; }
+.execute-btn { width: 100%; padding: 12px; background: #ff4444; color: #fff; border: none; font-weight: bold; font-family: inherit; border-radius: 6px; cursor: pointer; margin-bottom: 10px; }
+.execute-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
+.close-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #aaa; color: #aaa; font-family: inherit; border-radius: 6px; cursor: pointer; }
+
 </style>

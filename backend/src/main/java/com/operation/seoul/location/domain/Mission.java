@@ -25,6 +25,9 @@ public class Mission {
      사용자 화면 및 안내 가이드에 표시될 공식 명칭  */
     private String title;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     /**목표 지점 위도
      EPSG:4326(WGS84) 표준 좌표계 기준의 위도 값 */
     private Double targetLat;
