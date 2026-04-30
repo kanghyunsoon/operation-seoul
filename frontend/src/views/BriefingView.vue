@@ -1,7 +1,6 @@
 <template>
   <div class="briefing-container">
     <div class="scanlines"></div>
-
     <div class="terminal-box">
       <div class="terminal-header">
         <div class="dot-group">
@@ -9,12 +8,12 @@
           <span class="dot yellow"></span>
           <span class="dot green"></span>
         </div>
-        <span class="title">SECURE_CHANNEL_ESTABLISHED // SEC-{{ missionId }}</span>
+        <span class="title">SECURE_CHANNEL_ESTABLISHED // REGION-{{ regionId }}</span>
       </div>
 
       <div class="terminal-body">
         <p class="system-text">> INCOMING TRANSMISSION...</p>
-        <p class="system-text">> DECRYPTING MISSION DATA [ SECTOR: {{ missionId }} ]</p>
+        <p class="system-text">> DECRYPTING MISSION DATA [ SECTOR: {{ regionName }} ]</p>
         <div class="divider"></div>
 
         <div class="message-area">
@@ -37,69 +36,61 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import apiClient from '@/api/axiosInstance';
 
 const route = useRoute();
 const router = useRouter();
 
-// 💡 홈 뷰에서 넘겨준 쿼리 파라미터(missionId)를 안전하게 받아옵니다.
-// 값이 없을 경우를 대비해 'UNKNOWN' 기본값을 줍니다.
-const missionId = route.query.missionId || 'UNKNOWN';
-
-// 타이핑 효과를 위한 로컬 상태
+// 동적 할당용 변수
+const regionId = route.query.regionId || 2;
+const regionName = ref('LOADING...');
+const fullText = ref('');
 const displayedText = ref('');
 const isFinished = ref(false);
 let typingInterval = null;
-let currentIndex = 0;
 
-// 📡 본부(AI) 브리핑 스크립트 (추후 백엔드 Gemini API 연동 시 이 부분을 교체)
-const fullMessage = `요원, 접속을 환영한다.
-
-당신이 선택한 구역(섹터 ${missionId})에 얽힌 역사적 진실이 적들에 의해 훼손될 위기에 처했다.
-본부는 이 지역 주변에 3개의 핵심 단서를 암호화하여 숨겨두었다.
-
-당신의 첫 번째 임무는 현장으로 즉시 이동하여 스캐너(카메라)로 주변 사물의 글자를 스캔하고 단서를 회수하는 것이다.
-3개의 단서를 모두 모으면, 최종 목적지의 위치와 진짜 임무가 해금될 것이다.
-
-본부의 통신 지원은 여기까지다. 행운을 빈다.`;
-
-// [기능: 한 글자씩 출력하는 타자기 효과]
-const typeText = () => {
-  if (currentIndex < fullMessage.length) {
-    displayedText.value += fullMessage.charAt(currentIndex);
-    currentIndex++;
-  } else {
-    clearInterval(typingInterval);
-    isFinished.value = true;
+onMounted(async () => {
+  try {
+    const response = await apiClient.get(`/v1/regions/${regionId}`);
+    regionName.value = response.data.name;
+    // 🚨 핵심 수정: <br> 태그를 타자기 효과가 인식할 수 있는 실제 줄바꿈(\n)으로 치환
+    fullText.value = response.data.description.replace(/<br\s*\/?>/gi, '\n');
+    startTyping();
+  } catch (error) {
+    console.error("데이터 로드 실패:", error);
+    fullText.value = "본부와의 통신이 원활하지 않습니다. 다시 시도하십시오.";
+    startTyping();
   }
+});
+
+const startTyping = () => {
+  let i = 0;
+  typingInterval = setInterval(() => {
+    if (i < fullText.value.length) {
+      displayedText.value += fullText.value[i];
+      i++;
+    } else {
+      completeTyping();
+    }
+  }, 50);
 };
 
-// [기능: 스킵 버튼 - 즉시 전체 텍스트 출력]
 const skipTyping = () => {
-  if (typingInterval) clearInterval(typingInterval);
-  displayedText.value = fullMessage;
+  clearInterval(typingInterval);
+  displayedText.value = fullText.value;
+  completeTyping();
+};
+
+const completeTyping = () => {
   isFinished.value = true;
+  clearInterval(typingInterval);
 };
 
-// [기능: 맵 뷰로 이동]
 const startMission = () => {
-  console.log(`[시스템] 현장 투입. 맵 뷰(MapView)로 이동합니다. Region ID: ${missionId}`);
-  // 💡 다음 화면인 지도로 넘어갈 때도 어떤 지역인지 ID를 넘겨줍니다.
-  router.push({ name: 'Map', query: { regionId: missionId } });
+  router.push({ name: 'Map', query: { regionId: regionId } });
 };
-
-// 화면이 켜지면 1초 대기 후 타자기 효과 시작
-onMounted(() => {
-  setTimeout(() => {
-    typingInterval = setInterval(typeText, 40); // 40ms 속도
-  }, 1000);
-});
-
-// 컴포넌트가 파괴될 때 메모리 누수 방지
-onUnmounted(() => {
-  if (typingInterval) clearInterval(typingInterval);
-});
 </script>
 
 <style scoped>

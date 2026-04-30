@@ -1,76 +1,91 @@
 package com.operation.seoul.game.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper; // 이거 임포트 확인
 import com.operation.seoul.game.service.GeminiAiService;
 import com.operation.seoul.game.service.TourApiService;
 import com.operation.seoul.location.domain.Mission;
+import com.operation.seoul.location.domain.Region;
 import com.operation.seoul.location.repository.MissionRepository;
+import com.operation.seoul.location.repository.RegionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/admin/missions")
-@RequiredArgsConstructor
 @CrossOrigin(origins = "http://localhost:5173")
+@RequiredArgsConstructor
 public class AdminMissionController {
 
     private final TourApiService tourApiService;
     private final GeminiAiService geminiAiService;
+    private final RegionRepository regionRepository;
     private final MissionRepository missionRepository;
+
+    // 💡 변경됨: 스프링에게 의존성 주입을 맡기지 않고 직접 객체를 생성해서 에러 원천 차단
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * [관리자 기능: AI 자동 미션 생성 및 저장]
-     * @param regionId 미션을 추가할 지역 ID
-     * @param lat 기준 위도
-     * @param lng 기준 경도
-     */
     @PostMapping("/generate")
-    public ResponseEntity<String> generateAndSaveMission(
-            @RequestParam Long regionId,
+    public ResponseEntity<String> generateMissionByAi(
+            @RequestParam(required = false) Long regionId,
             @RequestParam double lat,
             @RequestParam double lng) {
 
+        log.info("🤖 AI 작전 수립 파이프라인 가동 시작... 기준 좌표: lat={}, lng={}", lat, lng);
+
         try {
-            // 1. TourAPI를 통해 주변 명소 5개 확보 (반경 1km)
-            List<Map<String, String>> spots = tourApiService.getNearbyTouristSpots(lng, lat, 1000);
-            if (spots.isEmpty()) return ResponseEntity.badRequest().body("주변에 활용할 명소가 없습니다.");
+            // 1. 장소 데이터 수집 (요원님의 실제 메서드 사용)
+            List<Map<String, String>> spots = tourApiService.getNearbyTouristSpots(lng, lat, 2000);
 
-            // 2. Gemini에게 명소 리스트를 던져서 스파이 미션 스크립트 생성 요청
-            String aiJsonResponse = geminiAiService.generateDynamicMission(spots);
+            if (spots == null || spots.isEmpty()) {
+                return ResponseEntity.badRequest().body("주변 반경에 관광지 데이터가 없습니다. 좌표를 변경해주세요.");
+            }
 
-            // 3. AI가 준 JSON 문자열을 자바 객체로 파싱
-            JsonNode missionNode = objectMapper.readTree(aiJsonResponse);
-            String targetName = missionNode.path("targetName").asText();
+            // 2. Gemini AI에게 스토리 및 JSON 생성 요청
+            String jsonResponse = geminiAiService.generateDynamicMissions(spots);
+            log.info("📩 AI가 작성한 작전 기획안: {}", jsonResponse);
 
-            // 4. AI가 선택한 장소의 실제 좌표를 spots 리스트에서 찾기
-            Map<String, String> selectedSpot = spots.stream()
-                    .filter(s -> s.get("title").contains(targetName) || targetName.contains(s.get("title")))
-                    .findFirst()
-                    .orElse(spots.get(0)); // 못 찾으면 첫 번째 장소로 폴백
+            if (jsonResponse == null || jsonResponse.isEmpty()) {
+                return ResponseEntity.internalServerError().body("AI 응답을 받지 못했습니다.");
+            }
 
-            // 5. Mission 엔티티 생성 및 DB 저장
-            Mission newMission = new Mission();
-            newMission.setRegionId(regionId);
-            newMission.setTitle(missionNode.path("title").asText());
-            newMission.setDescription(missionNode.path("description").asText());
-            newMission.setVisionKeyword(missionNode.path("visionKeyword").asText());
-            newMission.setAnswerKeyword(missionNode.path("answerKeyword").asText());
-            newMission.setTargetLat(Double.parseDouble(selectedSpot.get("mapY")));
-            newMission.setTargetLng(Double.parseDouble(selectedSpot.get("mapX")));
-            newMission.setRadiusInMeters(50.0); // 기본 50m 반경
-            newMission.setFinal(false); // 일단 일반 미션으로 생성
+            // 3. JSON 파싱
+            JsonNode root = objectMapper.readTree(jsonResponse);
 
-            missionRepository.save(newMission);
+            // 4. Region 테이블에 새 작전 구역(카드) 저장
+            Region newRegion = new Region();
+            newRegion.setName(root.path("regionName").asText("알 수 없는 작전"));
+            newRegion.setDescription(root.path("regionDescription").asText("스토리 브리핑 대기 중..."));
+            Region savedRegion = regionRepository.save(newRegion);
 
-            return ResponseEntity.ok("성공적으로 ' " + newMission.getTitle() + " ' 작전이 수립되었습니다!");
+            // 5. Mission 테이블에 마커 저장 및 Region 연동
+            JsonNode missionsNode = root.path("missions");
+            if (missionsNode.isArray()) {
+                for (JsonNode mNode : missionsNode) {
+                    Mission mission = new Mission();
+                    mission.setRegionId(savedRegion.getId());
+                    mission.setTitle(mNode.path("title").asText());
+                    mission.setTargetLat(mNode.path("lat").asDouble());
+                    mission.setTargetLng(mNode.path("lng").asDouble());
+                    mission.setVisionKeyword(mNode.path("visionKeyword").asText());
+                    mission.setFinal(mNode.path("isFinal").asBoolean(false));
+                    mission.setRadiusInMeters(50.0);
+
+                    missionRepository.save(mission);
+                }
+            }
+
+            log.info("✅ 데이터베이스 적재 완료. 작전명: {}", savedRegion.getName());
+            return ResponseEntity.ok("AI 작전 생성 완료! [" + savedRegion.getName() + "] 카드가 DB에 등록되었습니다.");
 
         } catch (Exception e) {
+            log.error("🚨 AI 미션 생성 중 오류 발생: ", e);
             return ResponseEntity.internalServerError().body("작전 수립 실패: " + e.getMessage());
         }
     }
