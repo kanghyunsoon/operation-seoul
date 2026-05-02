@@ -16,35 +16,49 @@
       </header>
 
       <div v-if="isAdmin" class="admin-panel">
-              <button @click="showAdminModal = true" class="admin-generate-btn">
-                [ ⚠️ 지휘부 권한: 신규 구역 AI 스캔 및 작전 수립 ]
-              </button>
-            </div>
+        <button @click="showAdminModal = true" class="admin-generate-btn">
+          [ ⚠️ 지휘부 권한: 신규 구역 AI 스캔 및 작전 수립 ]
+        </button>
+      </div>
 
-            <div v-if="showAdminModal" class="admin-modal-overlay">
-              <div class="admin-modal-content">
-                <h3>🤖 AI 자동 작전 수립 시스템</h3>
-                <p>TourAPI와 Gemini를 가동하여 주변 명소 기반 스토리를 생성합니다.</p>
+      <div v-if="showAdminModal" class="admin-modal-overlay">
+        <div class="admin-modal-content">
+          <h3>🤖 AI 자동 작전 수립 시스템</h3>
+          <p>TourAPI와 Gemini를 가동하여 주변 명소 기반 스토리를 생성합니다.</p>
 
-                <div class="input-group">
-                  <label>지역 ID (Region ID)</label>
-                  <input type="number" v-model="adminForm.regionId" />
-                </div>
-                <div class="input-group">
-                  <label>기준 위도 (Latitude)</label>
-                  <input type="number" step="0.000001" v-model="adminForm.lat" />
-                </div>
-                <div class="input-group">
-                  <label>기준 경도 (Longitude)</label>
-                  <input type="number" step="0.000001" v-model="adminForm.lng" />
-                </div>
+          <div class="input-group">
+            <label>기준 위도 (Latitude)</label>
+            <input type="number" step="0.000001" v-model="adminForm.lat" />
+          </div>
+          <div class="input-group">
+            <label>기준 경도 (Longitude)</label>
+            <input type="number" step="0.000001" v-model="adminForm.lng" />
+          </div>
 
-                <button @click="generateMissionByAi" class="execute-btn" :disabled="isGenerating">
-                  {{ isGenerating ? 'AI가 스토리를 작성 중입니다 (약 5~10초)...' : '스캔 및 미션 생성 실행' }}
-                </button>
-                <button @click="showAdminModal = false" class="close-btn" :disabled="isGenerating">취소</button>
+          <button @click="fetchCandidates" class="execute-btn" :disabled="isScanning || isGenerating">
+            {{ isScanning ? '주변 반경 스캔 중...' : '1단계: 주변 명소 스캔 (TourAPI)' }}
+          </button>
+
+          <div v-if="candidates.length > 0" class="candidate-list">
+            <label style="display: block; font-size: 0.85rem; color: #aaa; margin-top:15px; margin-bottom: 5px;">작전 목표 장소를 선택하십시오</label>
+            <div class="candidate-scroll-area">
+              <div v-for="spot in candidates" :key="spot.title"
+                   class="spot-item"
+                   :class="{ 'spot-selected': selectedSpot === spot }"
+                   @click="selectedSpot = spot">
+                <strong>{{ spot.title }}</strong>
+                <span>{{ spot.address }}</span>
               </div>
             </div>
+          </div>
+
+          <button v-if="selectedSpot" @click="generateMissionByAi" class="execute-btn" :disabled="isGenerating" style="margin-top: 15px; background: #00ffcc; color: #000;">
+            {{ isGenerating ? 'AI가 스토리를 작성 중입니다 (약 5~10초)...' : '2단계: [' + selectedSpot.title + '] 작전 수립' }}
+          </button>
+
+          <button @click="closeAdminModal" class="close-btn" :disabled="isGenerating" style="margin-top: 10px;">취소</button>
+        </div>
+      </div>
 
       <main class="mission-grid">
         <div
@@ -55,18 +69,23 @@
             @click="handleMissionClick(mission)"
         >
           <div class="card-header">
-            <span v-if="mission.isReady" :class="['status-badge', mission.status.toLowerCase()]">
-              {{ mission.status === 'ACTIVE' ? '진행 가능' : mission.status === 'LOCKED' ? '해금 필요' : '작전 완료' }}
-            </span>
-            <span v-else class="status-badge analyzing-badge">데이터 분석 중</span>
+            <div style="display: flex; gap: 8px;">
+              <span v-if="mission.isReady" :class="['status-badge', mission.status.toLowerCase()]">
+                {{ mission.status === 'ACTIVE' ? '진행 가능' : mission.status === 'LOCKED' ? '해금 필요' : '작전 완료' }}
+              </span>
+              <span v-else class="status-badge analyzing-badge">데이터 분석 중</span>
 
-            <span :class="['diff-badge', mission.difficulty.toLowerCase()]">
-              난이도: {{ mission.difficulty }}
-            </span>
+              <span :class="['diff-badge', mission.difficulty.toLowerCase()]">
+                난이도: {{ mission.difficulty }}
+              </span>
+            </div>
+
+            <button v-if="isAdmin" @click.stop="deleteRegion(mission.id, mission.title)" class="delete-btn" title="작전 파기">
+              ✖
+            </button>
           </div>
 
           <h2 class="mission-title">{{ mission.title }}</h2>
-
           <p class="mission-desc" v-html="mission.description"></p>
 
           <div class="card-footer">
@@ -78,8 +97,9 @@
     </div>
   </div>
 </template>
+
 <script setup>
-import { ref, onMounted, computed } from 'vue'; // 🚨 computed 추가됨!
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore';
 import apiClient from '@/api/axiosInstance';
@@ -87,41 +107,61 @@ import apiClient from '@/api/axiosInstance';
 const router = useRouter();
 const sessionStore = useSessionStore();
 
-// 💡 템플릿과 연동되는 반응형 작전 리스트
 const missions = ref([]);
 
-// 1. 관리자 권한 확인 (테스트용으로 닉네임이 admin이거나 이메일이 admin@seoul.go.kr 이면 관리자로 인식)
 const isAdmin = computed(() => {
   const user = sessionStore.userInfo;
   return user && (user.nickname === 'admin' || user.email === 'admin@seoul.go.kr');
 });
 
-// 2. 모달 상태 및 폼 데이터 (기본값: 서울 시청/덕수궁 부근 좌표)
 const showAdminModal = ref(false);
 const isGenerating = ref(false);
-const adminForm = ref({
-  regionId: 1,
-  lat: 37.5658,
-  lng: 126.9751
-});
+const isScanning = ref(false);
 
-// 3. AI 미션 생성 백엔드 API 호출
+const adminForm = ref({ lat: 37.5658, lng: 126.9751 });
+
+const candidates = ref([]);
+const selectedSpot = ref(null);
+
+const closeAdminModal = () => {
+  showAdminModal.value = false;
+  candidates.value = [];
+  selectedSpot.value = null;
+};
+
+const fetchCandidates = async () => {
+  isScanning.value = true;
+  candidates.value = [];
+  selectedSpot.value = null;
+
+  try {
+    const response = await apiClient.get('/v1/admin/missions/candidates', {
+      params: { lat: adminForm.value.lat, lng: adminForm.value.lng }
+    });
+    candidates.value = response.data;
+  } catch (error) {
+    console.error(error);
+    alert("스캔 실패: 주변에 가용한 역사적 장소가 없거나 서버 오류입니다.");
+  } finally {
+    isScanning.value = false;
+  }
+};
+
 const generateMissionByAi = async () => {
+  if (!selectedSpot.value) return;
+
   isGenerating.value = true;
   try {
-    // 백엔드의 AdminMissionController 호출
-    const response = await apiClient.post('/v1/admin/missions/generate', null, {
-      params: {
-        regionId: adminForm.value.regionId,
-        lat: adminForm.value.lat,
-        lng: adminForm.value.lng
-      }
-    });
+    const payload = {
+      title: selectedSpot.value.title,
+      lat: selectedSpot.value.mapY,
+      lng: selectedSpot.value.mapX,
+      address: selectedSpot.value.address
+    };
 
-    alert(`[SYSTEM] ${response.data}`);
-    showAdminModal.value = false;
-
-    // 미션 목록 새로고침
+    const response = await apiClient.post('/v1/admin/missions/generate-selected', payload);
+    alert(`[SYSTEM] 작전 생성 완료: ${response.data.regionName}`);
+    closeAdminModal();
     fetchMissions();
 
   } catch (error) {
@@ -132,13 +172,23 @@ const generateMissionByAi = async () => {
   }
 };
 
-/**
- * [함수: 실시간 작전 데이터 로드]
- */
+// 💡 추가된 삭제 함수
+const deleteRegion = async (regionId, title) => {
+  if (!confirm(`[경고] '${title}' 작전을 데이터베이스에서 영구 파기하시겠습니까?`)) return;
+
+  try {
+    await apiClient.delete(`/v1/admin/missions/regions/${regionId}`);
+    alert('[SYSTEM] 작전이 안전하게 파기되었습니다.');
+    fetchMissions(); // 카드 목록 갱신
+  } catch (error) {
+    console.error(error);
+    alert('작전 파기 통신 실패. 본부에 문의하십시오.');
+  }
+};
+
 const fetchMissions = async () => {
   try {
     const response = await apiClient.get('/v1/regions');
-
     missions.value = response.data.map(region => ({
       id: region.id,
       title: region.name,
@@ -165,7 +215,8 @@ const handleMissionClick = (mission) => {
     alert(`[접근 거부] 분석 중인 섹터입니다.`);
     return;
   }
-  router.push({ name: 'Briefing', query: { missionId: mission.id } });
+  // BriefingView가 알아들을 수 있도록 regionId 로 이름을 변경
+  router.push({ name: 'Briefing', query: { regionId: mission.id } });
 };
 
 const handleLogout = () => {
@@ -174,9 +225,8 @@ const handleLogout = () => {
 };
 </script>
 
-
 <style scoped>
-/* 🚨 요원님의 멋진 글래스모피즘 스타일 원본 그대로입니다. (수정 금지 명령 준수) */
+/* 🚨 요원님의 멋진 글래스모피즘 스타일 원본 그대로 유지 */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
 
 .dashboard-container {
@@ -212,7 +262,9 @@ const handleLogout = () => {
 .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 24px; cursor: pointer; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column; height: 100%; }
 .glass-card:hover { transform: translateY(-5px); border-color: rgba(6, 182, 212, 0.5); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(6, 182, 212, 0.2); background: rgba(255, 255, 255, 0.05); }
 .glass-card.analyzing { opacity: 0.6; cursor: not-allowed; }
-.card-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+
+/* 💡 카드 헤더 레이아웃 조정 (삭제 버튼과 균형) */
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
 .status-badge, .diff-badge { font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
 .active { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
 .locked { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
@@ -221,6 +273,24 @@ const handleLogout = () => {
 .easy { color: #10b981; }
 .normal { color: #f59e0b; }
 .hard { color: #ef4444; }
+
+/* 💡 삭제 버튼용 신규 스타일 (테마 호환) */
+.delete-btn {
+  background: transparent;
+  border: none;
+  color: rgba(239, 68, 68, 0.6);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+  line-height: 1;
+}
+.delete-btn:hover {
+  color: #ef4444;
+  transform: scale(1.2) rotate(90deg);
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+}
+
 .mission-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0 0 10px 0; }
 .mission-desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin: 0 0 20px 0; flex-grow: 1; }
 .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.05); }
@@ -228,44 +298,25 @@ const handleLogout = () => {
 .enter-text { font-size: 0.8rem; color: #06b6d4; font-weight: 700; opacity: 0; transition: opacity 0.3s; }
 .glass-card:hover .enter-text { opacity: 1; }
 
-/* 관리자 패널 및 버튼 스타일 */
-.admin-panel {
-  text-align: center;
-  margin-bottom: 20px;
-}
-.admin-generate-btn {
-  background: rgba(255, 68, 68, 0.1);
-  color: #ff4444;
-  border: 2px dashed #ff4444;
-  padding: 12px 20px;
-  font-size: 1rem;
-  font-weight: bold;
-  font-family: inherit;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-.admin-generate-btn:hover {
-  background: #ff4444;
-  color: #fff;
-  box-shadow: 0 0 15px #ff4444;
-}
+.admin-panel { text-align: center; margin-bottom: 20px; }
+.admin-generate-btn { background: rgba(255, 68, 68, 0.1); color: #ff4444; border: 2px dashed #ff4444; padding: 12px 20px; font-size: 1rem; font-weight: bold; font-family: inherit; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; }
+.admin-generate-btn:hover { background: #ff4444; color: #fff; box-shadow: 0 0 15px #ff4444; }
 
-/* 관리자 모달 스타일 */
-.admin-modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-  background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; z-index: 9999;
-}
-.admin-modal-content {
-  background: #111; border: 2px solid #ff4444; padding: 25px;
-  border-radius: 12px; width: 90%; max-width: 450px; color: #fff;
-}
+.admin-modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+.admin-modal-content { background: #111; border: 2px solid #ff4444; padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; color: #fff; }
 .admin-modal-content h3 { color: #ff4444; margin-top: 0; border-bottom: 1px solid #ff4444; padding-bottom: 10px;}
 .input-group { margin-bottom: 15px; text-align: left; }
 .input-group label { display: block; font-size: 0.85rem; color: #aaa; margin-bottom: 5px; }
 .input-group input { width: 100%; padding: 8px; background: #222; border: 1px solid #555; color: #00ffcc; font-family: inherit; border-radius: 4px; box-sizing: border-box; }
-.execute-btn { width: 100%; padding: 12px; background: #ff4444; color: #fff; border: none; font-weight: bold; font-family: inherit; border-radius: 6px; cursor: pointer; margin-bottom: 10px; }
+.execute-btn { width: 100%; padding: 12px; background: #ff4444; color: #fff; border: none; font-weight: bold; font-family: inherit; border-radius: 6px; cursor: pointer; }
 .execute-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
 .close-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #aaa; color: #aaa; font-family: inherit; border-radius: 6px; cursor: pointer; }
 
+.candidate-scroll-area { max-height: 150px; overflow-y: auto; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; }
+.spot-item { padding: 10px; border-bottom: 1px solid #333; cursor: pointer; transition: background 0.2s; }
+.spot-item:last-child { border-bottom: none; }
+.spot-item:hover { background: #2a2a2a; }
+.spot-selected { background: rgba(0, 255, 204, 0.15) !important; border-left: 3px solid #00ffcc; }
+.spot-item strong { display: block; color: #eee; font-size: 0.9rem; margin-bottom: 3px; }
+.spot-item span { display: block; color: #777; font-size: 0.75rem; }
 </style>

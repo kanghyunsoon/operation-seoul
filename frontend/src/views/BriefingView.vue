@@ -44,12 +44,14 @@ const route = useRoute();
 const router = useRouter();
 
 // 동적 할당용 변수
-const regionId = route.query.regionId || 2;
+const regionId = route.query.regionId || 1;
 const regionName = ref('LOADING...');
 const fullText = ref('');
 const displayedText = ref('');
 const isFinished = ref(false);
 let typingInterval = null;
+
+
 
 onMounted(async () => {
   try {

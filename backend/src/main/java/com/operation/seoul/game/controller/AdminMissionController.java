@@ -1,20 +1,19 @@
 package com.operation.seoul.game.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper; // 이거 임포트 확인
-import com.operation.seoul.game.service.GeminiAiService;
+import com.operation.seoul.game.service.MissionFactory;
 import com.operation.seoul.game.service.TourApiService;
 import com.operation.seoul.location.domain.Mission;
-import com.operation.seoul.location.domain.Region;
 import com.operation.seoul.location.repository.MissionRepository;
 import com.operation.seoul.location.repository.RegionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -24,69 +23,65 @@ import java.util.Map;
 public class AdminMissionController {
 
     private final TourApiService tourApiService;
-    private final GeminiAiService geminiAiService;
+    private final MissionFactory missionFactory;
     private final RegionRepository regionRepository;
     private final MissionRepository missionRepository;
 
-    // 💡 변경됨: 스프링에게 의존성 주입을 맡기지 않고 직접 객체를 생성해서 에러 원천 차단
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @PostMapping("/generate")
-    public ResponseEntity<String> generateMissionByAi(
-            @RequestParam(required = false) Long regionId,
-            @RequestParam double lat,
-            @RequestParam double lng) {
-
-        log.info("🤖 AI 작전 수립 파이프라인 가동 시작... 기준 좌표: lat={}, lng={}", lat, lng);
-
+    /**
+     * 1단계: 관리자 화면에서 특정 좌표 주변의 역사적/관광 목적지 후보 스캔
+     */
+    @GetMapping("/candidates")
+    public ResponseEntity<?> getTourCandidates(@RequestParam double lat, @RequestParam double lng) {
+        log.info("🔍 주변 관광지 스캔 시작... lat={}, lng={}", lat, lng);
         try {
-            // 1. 장소 데이터 수집 (요원님의 실제 메서드 사용)
             List<Map<String, String>> spots = tourApiService.getNearbyTouristSpots(lng, lat, 2000);
-
-            if (spots == null || spots.isEmpty()) {
-                return ResponseEntity.badRequest().body("주변 반경에 관광지 데이터가 없습니다. 좌표를 변경해주세요.");
+            if (spots.isEmpty()) {
+                return ResponseEntity.badRequest().body("주변에 가용 가능한 작전지가 없습니다.");
             }
-
-            // 2. Gemini AI에게 스토리 및 JSON 생성 요청
-            String jsonResponse = geminiAiService.generateDynamicMissions(spots);
-            log.info("📩 AI가 작성한 작전 기획안: {}", jsonResponse);
-
-            if (jsonResponse == null || jsonResponse.isEmpty()) {
-                return ResponseEntity.internalServerError().body("AI 응답을 받지 못했습니다.");
-            }
-
-            // 3. JSON 파싱
-            JsonNode root = objectMapper.readTree(jsonResponse);
-
-            // 4. Region 테이블에 새 작전 구역(카드) 저장
-            Region newRegion = new Region();
-            newRegion.setName(root.path("regionName").asText("알 수 없는 작전"));
-            newRegion.setDescription(root.path("regionDescription").asText("스토리 브리핑 대기 중..."));
-            Region savedRegion = regionRepository.save(newRegion);
-
-            // 5. Mission 테이블에 마커 저장 및 Region 연동
-            JsonNode missionsNode = root.path("missions");
-            if (missionsNode.isArray()) {
-                for (JsonNode mNode : missionsNode) {
-                    Mission mission = new Mission();
-                    mission.setRegionId(savedRegion.getId());
-                    mission.setTitle(mNode.path("title").asText());
-                    mission.setTargetLat(mNode.path("lat").asDouble());
-                    mission.setTargetLng(mNode.path("lng").asDouble());
-                    mission.setVisionKeyword(mNode.path("visionKeyword").asText());
-                    mission.setFinal(mNode.path("isFinal").asBoolean(false));
-                    mission.setRadiusInMeters(50.0);
-
-                    missionRepository.save(mission);
-                }
-            }
-
-            log.info("✅ 데이터베이스 적재 완료. 작전명: {}", savedRegion.getName());
-            return ResponseEntity.ok("AI 작전 생성 완료! [" + savedRegion.getName() + "] 카드가 DB에 등록되었습니다.");
-
+            return ResponseEntity.ok(spots);
         } catch (Exception e) {
-            log.error("🚨 AI 미션 생성 중 오류 발생: ", e);
+            log.error("후보지 스캔 실패", e);
+            return ResponseEntity.internalServerError().body("후보지 스캔 실패: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 2단계: 선택된 장소를 최종 목적지로 삼아 카카오API + 제미나이 시나리오 생성 후 DB 저장
+     */
+    @PostMapping("/generate-selected")
+    public ResponseEntity<?> generateFromSelectedSpot(@RequestBody Map<String, Object> spotData) {
+        log.info("🎯 선택된 목적지 기반 작전 수립 개시: {}", spotData.get("title"));
+        try {
+            Map<String, Object> result = missionFactory.createAiMission(spotData);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("🚨 작전 생성 실패", e);
             return ResponseEntity.internalServerError().body("작전 수립 실패: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 3단계: 💡 관리자 권한으로 특정 작전(Region) 및 하위 미션 영구 삭제
+     */
+    @DeleteMapping("/regions/{regionId}")
+    @Transactional
+    public ResponseEntity<?> deleteRegion(@PathVariable Long regionId) {
+        log.info("🗑️ 작전 파기 명령 수신. Region ID: {}", regionId);
+        try {
+            // 1. 해당 Region에 종속된 Mission들을 찾아 먼저 삭제 (무결성 유지)
+            List<Mission> missionsToDelete = missionRepository.findAll().stream()
+                    .filter(m -> m.getRegionId().equals(regionId))
+                    .collect(Collectors.toList());
+            missionRepository.deleteAll(missionsToDelete);
+
+            // 2. 부모 Region 삭제
+            regionRepository.deleteById(regionId);
+
+            log.info("✅ 작전 데이터 영구 삭제 완료.");
+            return ResponseEntity.ok(Map.of("message", "삭제 성공"));
+        } catch (Exception e) {
+            log.error("🚨 작전 삭제 실패", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "삭제 실패: " + e.getMessage()));
         }
     }
 }
