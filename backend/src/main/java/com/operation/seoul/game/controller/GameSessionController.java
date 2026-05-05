@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
-/**[Controller: 게임 세션 상태 제어]
- - 역할: 유저의 게임 진행 단계별 상태 관리 및 AI 인터페이스 연동 */
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/sessions")
 @CrossOrigin(origins = "http://localhost:5173")
@@ -23,91 +23,66 @@ public class GameSessionController {
     private final VisionAiService visionAiService;
     private final GeminiAiService geminiAiService;
 
-    /**[API 1: 미션 시작 및 세션 초기화]
-     - 수행 내용: Location 모듈의 위치 인증 성공 시 호출되며, 게임 진행을 위한 세션 데이터를 생성함
-     - 상태 변경: "ARRIVED" (현장 도착 완료)
-     - 매개 변수: Long missionId (진행할 미션 번호)
-     - 반환 값: ResponseEntity<Long> (생성 또는 갱신된 세션 ID)  */
-    @PostMapping("/start/{missionId}")
-    public ResponseEntity<Long> startGameSession(@PathVariable Long missionId) {
-        Long userId = 1L; // 프로토타입용 고정 유저 식별자
-
-        // 기존 진행 이력 확인 후 신규 세션 생성 또는 기존 세션 획득
-        GameSession session = sessionRepository.findByUserIdAndMissionId(userId, missionId)
-                .orElse(new GameSession());
-
-        session.setUserId(userId);
-        session.setMissionId(missionId);
-        session.setStatus("ARRIVED"); // 상태값 설정을 통한 진행 단계 기록
-
-        sessionRepository.save(session);
-
-        return ResponseEntity.ok(session.getId());
-    }
-
-    /**[API 2: 사진 인증 및 시각 지능 검증]
-     - 수행 내용: 업로드된 이미지에서 텍스트를 추출하여 미션 정답 키워드와 비교함
-     - 상태 변경: 인증 성공 시 "PHOTO_VERIFIED"
-     - 매개 변수:
-     1. Long sessionId (현재 게임 세션 번호)
-     2. MultipartFile image (유저가 촬영한 증거 사진)
-     - 반환 값: ResponseEntity<String> (인증 결과 메시지)  */
-    @PostMapping("/{sessionId}/vision")
-    public ResponseEntity<String> verifyVision(
-            @PathVariable Long sessionId,
+    @PostMapping("/{missionId}/vision")
+    public ResponseEntity<?> verifyVision(
+            @PathVariable Long missionId,
             @RequestParam("image") MultipartFile image) {
 
-        GameSession session = sessionRepository.findById(sessionId).orElseThrow();
+        Long tempUserId = 1L; // 🚨 추후 JWT 적용 시 로그인한 유저 ID로 교체
 
-        // 1. Vision AI 서비스를 통한 이미지 내 텍스트 추출
-        String extractedText = visionAiService.extractTextFromImage(image);
-        session.setExtractedLog(extractedText); // 분석 로그 DB 기록
+        // 1. 유저 ID와 미션 ID로 세션을 조회하고, 없으면 새로 만듭니다. (500 에러 방지)
+        GameSession session = sessionRepository.findByUserIdAndMissionId(tempUserId, missionId)
+                .orElseGet(() -> {
+                    GameSession newSession = new GameSession();
+                    newSession.setUserId(tempUserId);
+                    newSession.setMissionId(missionId);
+                    newSession.setStatus("ARRIVED");
+                    return sessionRepository.save(newSession);
+                });
 
-        // 2. 추출된 텍스트 기반 키워드 매칭 검증
-        boolean isPassed = visionAiService.validateKeyword(session.getMissionId(), extractedText);
+        // 2. Vision AI + Gemini 지능형 판독 실행
+        boolean isSuccess = visionAiService.validateKeyword(missionId, image);
 
-        if (isPassed) {
+        if (isSuccess) {
+            // 3. 인증 성공 시 상태 업데이트
             session.setStatus("PHOTO_VERIFIED");
             sessionRepository.save(session);
-            return ResponseEntity.ok("인증 성공! AI 채팅 채널을 엽니다.");
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "인증 성공! 본부와의 보안 통신망이 확보되었습니다.",
+                    "status", "PHOTO_VERIFIED"
+            ));
         } else {
-            return ResponseEntity.badRequest().body("안내판의 글귀가 잘 보이지 않습니다. 다시 촬영해주세요.");
+            return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "message", "목표 단서를 식별할 수 없습니다. 프레임에 정확히 담아주십시오."
+            ));
         }
     }
 
-    /**[API 3: 최종 정답 검증 및 AI 실시간 대화 스트리밍]
-     - 수행 내용: 유저의 답변을 검증하고, Gemini AI를 통해 실시간 피드백을 전달함
-     - 상태 변경: 정답 시 "CLEARED" (최종 클리어)
-     - 매개 변수:
-     1. Long sessionId (현재 게임 세션 번호)
-     2. ChatRequest request (유저가 입력한 정답 문자열)
-     - 반환 값: ResponseBodyEmitter (실시간 텍스트 스트리밍 객체)  */
-    @PostMapping("/{sessionId}/chat/stream")
+    @PostMapping("/{missionId}/chat/stream")
     public ResponseBodyEmitter streamAnswer(
-            @PathVariable Long sessionId,
+            @PathVariable Long missionId,
             @RequestBody ChatRequest request) {
 
-        // 1. 세션 데이터 조회
-        GameSession session = sessionRepository.findById(sessionId).orElseThrow();
+        Long tempUserId = 1L;
 
-        // 2. GeminiAiService를 통한 최종 정답 여부 판별
-        boolean isCorrect = geminiAiService.verifyFinalAnswer(session.getMissionId(), request.getUserAnswer());
+        GameSession session = sessionRepository.findByUserIdAndMissionId(tempUserId, missionId)
+                .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다. 스캔 인증을 먼저 진행하십시오."));
 
-        // 3. 정답 일치 시 해당 세션을 완료 상태로 전환
+        boolean isCorrect = geminiAiService.verifyFinalAnswer(missionId, request.getUserAnswer());
+
         if (isCorrect) {
             session.setStatus("CLEARED");
             sessionRepository.save(session);
         }
 
-        // 4. 비동기 스트리밍 방식으로 지휘관의 대사 전송 (타자기 효과 지원)
-        return geminiAiService.streamNarration(session.getMissionId(), request.getUserAnswer(), isCorrect);
+        return geminiAiService.streamNarration(missionId, request.getUserAnswer(), isCorrect);
     }
-}
 
-/**[DTO: 채팅 요청 데이터 규격]
- - 용도: 프론트엔드에서 제출한 유저 답변 전달 */
-@Data
-class ChatRequest {
-    /** 사용자가 입력한 최종 정답 키워드 또는 질문 */
-    private String userAnswer;
+    @Data
+    static class ChatRequest {
+        private String userAnswer;
+    }
 }
