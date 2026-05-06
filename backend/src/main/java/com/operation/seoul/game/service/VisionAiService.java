@@ -37,49 +37,46 @@ public class VisionAiService {
 
             // 1. Google Vision API로 사진에서 데이터(글자+사물) 추출
             String extractedData = getLabelsFromVision(image);
-            System.out.println("🧐 본부 수신 데이터(Vision API): " + extractedData);
+            System.out.println("🧐 Vision API 추출 라벨: " + extractedData);
 
-            // 2. Gemini AI에게 "추출된 데이터가 정답과 일치하는지" 판단 요청
+            // 2. Gemini를 이용한 의미론적 비교 (403 에러 안 나게 수정됨)
             return judgeMatchWithGemini(extractedData, targetKeyword);
 
         } catch (Exception e) {
-            System.err.println("🚨 분석 엔진 가동 실패: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
 
-    // Google Vision API 호출 로직 (라벨 및 텍스트 동시 추출)
     private String getLabelsFromVision(MultipartFile image) throws Exception {
-        String base64Image = Base64.getEncoder().encodeToString(image.getBytes());
         String url = "https://vision.googleapis.com/v1/images:annotate?key=" + visionApiKey;
+        String base64Image = Base64.getEncoder().encodeToString(image.getBytes());
 
-        Map<String, Object> request = Map.of("requests", List.of(Map.of(
-                "image", Map.of("content", base64Image),
-                "features", List.of(
-                        Map.of("type", "TEXT_DETECTION"),
-                        Map.of("type", "LABEL_DETECTION")
-                )
-        )));
+        Map<String, Object> imageReq = Map.of("content", base64Image);
+        Map<String, Object> feature = Map.of("type", "LABEL_DETECTION", "maxResults", 10);
+        Map<String, Object> request = Map.of("image", imageReq, "features", List.of(feature));
+        Map<String, Object> body = Map.of("requests", List.of(request));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
         JsonNode root = objectMapper.readTree(response.getBody());
-        JsonNode res = root.path("responses").get(0);
+        JsonNode labelsNode = root.path("responses").get(0).path("labelAnnotations");
 
         StringBuilder sb = new StringBuilder();
-        res.path("textAnnotations").forEach(n -> sb.append(n.path("description").asText()).append(" "));
-        res.path("labelAnnotations").forEach(n -> sb.append(n.path("description").asText()).append(" "));
-
+        if (labelsNode.isArray()) {
+            for (JsonNode label : labelsNode) {
+                sb.append(label.path("description").asText()).append(", ");
+            }
+        }
         return sb.toString().toLowerCase();
     }
 
-    // Gemini AI를 이용한 의미론적(Semantic) 판독 로직
+    // 🚨 Gemini 403 에러 해결: 헤더로 API 키 전달하도록 수정!
     private boolean judgeMatchWithGemini(String labels, String target) throws Exception {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey;
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
 
         String prompt = String.format(
                 "당신은 '오퍼레이션 서울'의 작전 통제 AI입니다. 요원이 현장에서 찍은 사진의 분석 키워드들을 보고, 목표 사물과 일치하는지 판단하세요.\n\n" +
@@ -93,14 +90,14 @@ public class VisionAiService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+        headers.set("x-goog-api-key", geminiApiKey.trim()); // 🔑 HTTP Header로 API 키 전송
 
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
-        String aiAnswer = objectMapper.readTree(response.getBody())
-                .path("candidates").get(0).path("content").path("parts").get(0).path("text").asText().trim();
+        JsonNode root = objectMapper.readTree(response.getBody());
+        String aiAnswer = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText().trim();
 
-        System.out.println("🤖 Gemini의 최종 판독: " + aiAnswer);
         return aiAnswer.equalsIgnoreCase("TRUE");
     }
 }

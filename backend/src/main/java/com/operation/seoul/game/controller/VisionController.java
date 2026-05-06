@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.util.Map;
 
 @RestController
@@ -16,8 +17,11 @@ public class VisionController {
     private final VisionAiService visionAiService;
 
     @PostMapping("/{missionId}/vision")
-    public ResponseEntity<?> verifyVision(@PathVariable Long missionId, @RequestParam("image") MultipartFile image) {
-        // 🚨 가짜(Mock) 데이터를 제거하고 실제 Vision API 서비스로 이미지를 넘깁니다.
+    public ResponseEntity<?> verifyVision(
+            @PathVariable Long missionId,
+            @RequestParam("image") MultipartFile image) {
+
+        // 🚨 의존성 수정 완료: String 가짜 데이터 대신, 바뀐 메서드에 맞게 진짜 MultipartFile 이미지를 넘깁니다.
         boolean isSuccess = visionAiService.validateKeyword(missionId, image);
 
         if (isSuccess) {

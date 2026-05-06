@@ -152,15 +152,14 @@ const generateMissionByAi = async () => {
 
   isGenerating.value = true;
   try {
-    const payload = {
-      title: selectedSpot.value.title,
-      lat: selectedSpot.value.mapY,
-      lng: selectedSpot.value.mapX,
-      address: selectedSpot.value.address
-    };
+    // 🚨 팩트체크: AI가 경유지를 짤 수 있도록 '최종 목적지'와 '후보지 리스트'를 모두 보냅니다!
+    const response = await apiClient.post('/v1/admin/missions/generate-selected', {
+      targetSpot: selectedSpot.value,
+      candidateSpots: candidates.value
+    });
 
-    const response = await apiClient.post('/v1/admin/missions/generate-selected', payload);
-    alert(`[SYSTEM] 작전 생성 완료: ${response.data.regionName}`);
+    alert(`[SYSTEM] ${response.data}`);
+
     closeAdminModal();
     fetchMissions();
 
