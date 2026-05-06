@@ -28,29 +28,32 @@ public class GameSessionController {
             @PathVariable Long missionId,
             @RequestParam("image") MultipartFile image) {
 
-        Long tempUserId = 1L; // 🚨 추후 JWT 적용 시 로그인한 유저 ID로 교체
-
-        // 1. 세션이 없으면 생성 (500 에러 방지)
-        GameSession session = sessionRepository.findByUserIdAndMissionId(tempUserId, missionId)
-                .orElseGet(() -> {
-                    GameSession newSession = new GameSession();
-                    newSession.setUserId(tempUserId);
-                    newSession.setMissionId(missionId);
-                    newSession.setStatus("ARRIVED");
-                    return sessionRepository.save(newSession);
-                });
-
-        // 2. 실제 Vision AI 서비스 호출 (MultipartFile 그대로 전달)
         boolean isSuccess = visionAiService.validateKeyword(missionId, image);
 
         if (isSuccess) {
-            session.setStatus("PHOTO_VERIFIED");
+            // 👇 [핵심 추가] 비전 판독에 성공하면 DB에 클리어 도장을 찍어줍니다!
+            Long tempUserId = 1L; // (추후 로그인 토큰 연동 시 변경)
+
+            GameSession session = sessionRepository.findByUserIdAndMissionId(tempUserId, missionId)
+                    .orElseGet(() -> {
+                        GameSession newSession = new GameSession();
+                        newSession.setUserId(tempUserId);
+                        newSession.setMissionId(missionId);
+                        return newSession;
+                    });
+
+            // 만약 미션 정보(Mission 엔티티)를 조회해서 분기할 수 있다면 가장 좋습니다.
+            // 일반 힌트 미션 -> "CLEARED" 처리 (단서 해금)
+            // 최종 목적지 미션 -> "PHOTO_VERIFIED" 처리 (채팅 해금 대기)
+
+            // 임시로 무조건 일반 미션으로 간주하여 "CLEARED"로 업데이트하려면 아래처럼 박아줍니다.
+            session.setStatus("CLEARED");
             sessionRepository.save(session);
+            // 👆 여기까지 추가 및 수정
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "인증 성공! 본부와의 보안 통신망이 확보되었습니다.",
-                    "status", "PHOTO_VERIFIED"
+                    "message", "인증 성공! 단서가 해금되었습니다." // 메시지도 상황에 맞게 수정
             ));
         } else {
             return ResponseEntity.ok(Map.of(
