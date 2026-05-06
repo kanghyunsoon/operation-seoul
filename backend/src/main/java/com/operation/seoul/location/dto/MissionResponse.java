@@ -12,23 +12,27 @@ public class MissionResponse {
     private Double targetLat;
     private Double targetLng;
     private String visionKeyword;
-    private String answer; // 🚨 [추가] 요원에게 노출될 실제 단서 (answerKeyword)
     private boolean isFinal;
     private boolean isUnlocked;
     private String sessionStatus;
+    private String clue; // 💡 획득한 단서 필드 추가
 
     public static MissionResponse of(Mission mission, String sessionStatus, boolean isUnlocked) {
         boolean shouldHideLocation = mission.isFinal() && !isUnlocked;
+
+        // 💡 핵심: 미션이 클리어(CLEARED)된 경우에만 DB의 answerKeyword(저장된 단서)를 송출
+        String acquiredClue = "CLEARED".equals(sessionStatus) ? mission.getAnswerKeyword() : null;
+
         return MissionResponse.builder()
                 .id(mission.getId())
                 .title(mission.getTitle())
                 .targetLat(shouldHideLocation ? null : mission.getTargetLat())
                 .targetLng(shouldHideLocation ? null : mission.getTargetLng())
                 .visionKeyword(mission.getVisionKeyword())
-                .answer(mission.getAnswerKeyword()) // 🚨 [수정] DB의 정답 키워드를 힌트로 맵핑
                 .isFinal(mission.isFinal())
                 .isUnlocked(isUnlocked)
                 .sessionStatus(sessionStatus)
+                .clue(acquiredClue)
                 .build();
     }
 }
