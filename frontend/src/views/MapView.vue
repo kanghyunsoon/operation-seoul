@@ -44,12 +44,18 @@
           [ MANUAL_OVERRIDE : 강제 도착 ]
         </button>
 
+        <div v-if="isArrived && (!currentMission?.isFinal)" class="target-guide">
+          📸 촬영 목표: <span class="highlight">{{ currentMission?.visionKeyword }}</span>
+        </div>
         <button v-if="isArrived && (!currentMission?.isFinal)" @click="isScannerOpen = true" class="capture-btn">
-          [ 📸 현장 단서 스캐너 가동 ]
+          [ 스캐너 가동 ]
         </button>
 
+        <div v-if="isArrived && currentMission?.isFinal" class="target-guide">
+          📸 촬영 목표: <span class="highlight">{{ currentMission?.visionKeyword }}</span>
+        </div>
         <button v-if="isArrived && currentMission?.isFinal" @click="isScannerOpen = true" class="capture-btn final-btn">
-          [ 📸 목적지 진입 인증 (스캔) ]
+          [ 목적지 진입 인증 스캔 ]
         </button>
       </div>
     </div>
@@ -65,7 +71,7 @@
         <ul v-if="clearedMissions.length > 0">
           <li v-for="m in clearedMissions" :key="m.id">
             📍 {{ m.title }} <br>
-            <span class="highlight">[단서]: {{ m.answer }}</span>
+            <span class="highlight">[단서]: {{ m.clue }}</span>
           </li>
         </ul>
         <p v-else class="no-hints">아직 획득한 단서가 없습니다.</p>
@@ -87,18 +93,18 @@ const router = useRouter();
 const mapContainer = ref(null);
 
 const regionName = ref('조회 중...');
-const isArrived = ref(false); 
-const currentTargetName = ref('타겟 미지정 (마커를 선택하세요)'); // 💡 초기 상태 안내 텍스트
+const isArrived = ref(false);
+const currentTargetName = ref('타겟 미지정 (마커를 선택하세요)');
 const targetDistance = ref(0);
 const finalDistance = ref(999);
 const showHintModal = ref(false);
 const isScannerOpen = ref(false);
 const collectedHints = ref(0);
 const requiredHints = ref(3);
+
 const currentMission = ref(null);
 const clearedMissions = ref([]);
 
-// 🚨 현재 요원의 위경도를 실시간으로 저장할 변수 (마커 클릭 시 즉시 거리 계산용)
 const currentLat = ref(null);
 const currentLng = ref(null);
 
@@ -106,10 +112,12 @@ const regionId = route.query.regionId || 1;
 const missions = ref([]);
 let map = null;
 let userMarker = null;
-let activeInfoOverlay = null;
 let gpsWatcherId = null;
+let markerOverlays = [];
 
-// 두 좌표 간 거리 계산 (단위: 미터)
+// 🚨 말풍선(오버레이) 객체를 하나만 유지하기 위한 변수
+let activeTooltipOverlay = null;
+
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371e3;
   const p1 = lat1 * Math.PI / 180;
@@ -121,13 +129,125 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return Math.floor(R * c);
 };
 
-// 📍 GPS 추적 시스템 가동
-const startGpsTracking = () => {
-  // 🚨 임시 GPS 가동 함수
-  const executeFakeGpsFallback = () => {
-    console.log("🚨 임시 GPS 가동: 요원 위치를 강제 배치합니다.");
+// 미클리어 마커 클릭
+const handleMissionClick = (mission) => {
+  // 열려있는 말풍선 닫기
+  if (activeTooltipOverlay) {
+    activeTooltipOverlay.setMap(null);
+    activeTooltipOverlay = null;
+  }
 
-    // 타겟이 있으면 그 근처, 없으면 1번 미션 기준, 그것도 없으면 기본 서울 좌표
+  currentMission.value = mission;
+  currentTargetName.value = mission.title;
+
+  if (currentLat.value !== null && currentLng.value !== null) {
+    targetDistance.value = calculateDistance(
+      currentLat.value,
+      currentLng.value,
+      mission.targetLat,
+      mission.targetLng
+    );
+    isArrived.value = targetDistance.value <= 50;
+  } else {
+    targetDistance.value = 999;
+    isArrived.value = false;
+  }
+};
+
+// 🚨 클리어된 마커 클릭 시 말풍선 토글 함수
+const toggleTooltip = (mission, latLng) => {
+  // 이미 열려있고, 같은 미션 마커를 눌렀다면 닫기
+  if (activeTooltipOverlay && activeTooltipOverlay.getTitle() === mission.id.toString()) {
+    activeTooltipOverlay.setMap(null);
+    activeTooltipOverlay = null;
+    return;
+  }
+
+  // 다른 곳이 열려있으면 먼저 닫기
+  if (activeTooltipOverlay) {
+    activeTooltipOverlay.setMap(null);
+  }
+
+  // 말풍선 DOM 생성
+  const content = document.createElement('div');
+  content.className = 'marker-tooltip';
+  content.innerHTML = `
+    <h4>${mission.title}</h4>
+    <p>${mission.clue}</p>
+  `;
+
+  // 닫기 버튼 또는 말풍선 자체 클릭 시 닫히게 설정
+  content.onclick = () => {
+    if (activeTooltipOverlay) activeTooltipOverlay.setMap(null);
+    activeTooltipOverlay = null;
+  };
+
+  // 마커 위에 띄울 새 오버레이 생성 (yAnchor를 조절하여 마커 위로 올림)
+  activeTooltipOverlay = new window.kakao.maps.CustomOverlay({
+    map: map,
+    position: latLng,
+    content: content,
+    yAnchor: 2.2, // 숫자가 커질수록 오버레이가 위로 올라감 (마커와 겹치지 않게 조절)
+    zIndex: 10
+  });
+
+  // 식별용 타이틀 강제 주입 (토글 로직용)
+  activeTooltipOverlay.getTitle = () => mission.id.toString();
+};
+
+
+const loadMissionsData = async () => {
+  try {
+    const misRes = await apiClient.get(`/v1/regions/${regionId}/missions`);
+    missions.value = misRes.data;
+
+    markerOverlays.forEach(overlay => overlay.setMap(null));
+    markerOverlays = [];
+
+    // 데이터 갱신 시 기존 말풍선 초기화
+    if (activeTooltipOverlay) {
+      activeTooltipOverlay.setMap(null);
+      activeTooltipOverlay = null;
+    }
+
+    clearedMissions.value = missions.value.filter(m => m.sessionStatus === 'CLEARED');
+    collectedHints.value = clearedMissions.value.length;
+
+    missions.value.forEach((mission) => {
+      const isCleared = mission.sessionStatus === 'CLEARED';
+
+      const content = document.createElement('div');
+      content.className = isCleared ? 'custom-marker cleared' : (mission.isFinal ? 'custom-marker final' : 'custom-marker');
+
+      const position = new window.kakao.maps.LatLng(mission.targetLat, mission.targetLng);
+
+      content.onclick = () => {
+        if (isCleared) {
+           toggleTooltip(mission, position);
+        } else {
+          handleMissionClick(mission);
+        }
+      };
+
+      const customOverlay = new window.kakao.maps.CustomOverlay({
+        map: map,
+        position: position,
+        content: content,
+        yAnchor: 1,
+        xAnchor: 0.5,
+        zIndex: 2
+      });
+
+      markerOverlays.push(customOverlay);
+    });
+
+  } catch (error) {
+    console.error("미션 데이터 갱신 중 오류:", error);
+  }
+};
+
+const startGpsTracking = () => {
+  const executeFakeGpsFallback = () => {
     let baseLat = 37.5665;
     let baseLng = 126.9780;
 
@@ -143,7 +263,6 @@ const startGpsTracking = () => {
     const fakeLng = baseLng - 0.0003;
     const fakePosition = new window.kakao.maps.LatLng(fakeLat, fakeLng);
 
-    // 즉시 계산을 위해 상태 저장
     currentLat.value = fakeLat;
     currentLng.value = fakeLng;
 
@@ -163,30 +282,19 @@ const startGpsTracking = () => {
       userMarker.setPosition(fakePosition);
     }
 
-    // 현재 선택된 타겟이 있을 때만 거리 계산 적용
     if (currentMission.value && currentMission.value.targetLat) {
       targetDistance.value = calculateDistance(fakeLat, fakeLng, currentMission.value.targetLat, currentMission.value.targetLng);
       isArrived.value = targetDistance.value <= 50;
     }
-
     map.setCenter(fakePosition);
   };
 
   if (navigator.geolocation) {
-    console.log("📡 GPS 위성 링크 활성화 시도 중...");
-
-    const options = {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 5000
-    };
-
     gpsWatcherId = navigator.geolocation.watchPosition((position) => {
       const lat = position.coords.latitude;
       const lng = position.coords.longitude;
       const locPosition = new window.kakao.maps.LatLng(lat, lng);
 
-      // 실시간 위치 전역 저장
       currentLat.value = lat;
       currentLng.value = lng;
 
@@ -206,33 +314,23 @@ const startGpsTracking = () => {
         userMarker.setPosition(locPosition);
       }
 
-      // 타겟이 지정되어 있을 때만 거리 및 도착 여부 검사
       if (currentMission.value && currentMission.value.targetLat) {
         targetDistance.value = calculateDistance(lat, lng, currentMission.value.targetLat, currentMission.value.targetLng);
         isArrived.value = targetDistance.value <= 50;
       }
     }, (error) => {
-      console.error("🚨 GPS 신호 유실 또는 권한 거부:", error.message);
-      alert("GPS 신호를 잡을 수 없거나 권한이 없습니다. 테스트용 임시 좌표를 가동합니다.");
       executeFakeGpsFallback();
-    }, options);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
   } else {
-    alert("이 브라우저는 GPS 위치 추적을 지원하지 않습니다. 임시 좌표를 가동합니다.");
     executeFakeGpsFallback();
   }
 };
 
 onMounted(() => {
-  if (!window.kakao || !window.kakao.maps) {
-    console.error("🚨 Kakao Maps API 로드 실패. index.html의 키를 확인하세요.");
-    return;
-  }
+  if (!window.kakao || !window.kakao.maps) return;
 
   window.kakao.maps.load(async () => {
-    const options = {
-      center: new window.kakao.maps.LatLng(37.5665, 126.9780),
-      level: 4
-    };
+    const options = { center: new window.kakao.maps.LatLng(37.5665, 126.9780), level: 4 };
     map = new window.kakao.maps.Map(mapContainer.value, options);
     map.setMapTypeId(window.kakao.maps.MapTypeId.HYBRID);
 
@@ -240,89 +338,14 @@ onMounted(() => {
       const regRes = await apiClient.get(`/v1/regions/${regionId}`);
       regionName.value = regRes.data.name;
 
-      const misRes = await apiClient.get(`/v1/regions/${regionId}/missions`);
-      missions.value = misRes.data;
+      await loadMissionsData();
 
       if (missions.value.length > 0) {
-        // 💡 초기 진입 시 타겟을 잡지 않고 지도의 중심만 첫 미션으로 이동시킴
-        currentMission.value = null;
         map.setCenter(new window.kakao.maps.LatLng(missions.value[0].targetLat, missions.value[0].targetLng));
-
-        missions.value.forEach((m, idx) => {
-          if (!m.targetLat || !m.targetLng) return;
-
-          const position = new window.kakao.maps.LatLng(m.targetLat, m.targetLng);
-          const content = document.createElement('div');
-          content.className = 'custom-marker';
-
-          if (m.sessionStatus === 'CLEARED') content.classList.add('cleared');
-          if (m.isFinal) content.classList.add('final-target');
-
-          content.innerHTML = `
-            <div class="marker-core"></div>
-            <div class="marker-ring"></div>
-            <div class="marker-label">${m.isFinal ? 'TGT' : idx + 1}</div>
-          `;
-
-          // 🚨 [핵심 수정] 마커 클릭 시 타겟 활성화 및 토글 해제 기능
-          content.addEventListener('click', () => {
-
-            // 1️⃣ 이미 선택된 타겟 마커를 다시 클릭한 경우 -> 선택 해제 (Toggle OFF)
-            if (currentMission.value && currentMission.value.id === m.id) {
-              if (activeInfoOverlay) {
-                activeInfoOverlay.setMap(null);
-                activeInfoOverlay = null;
-              }
-              currentMission.value = null;
-              currentTargetName.value = '타겟 미지정 (마커를 선택하세요)';
-              targetDistance.value = 0;
-              isArrived.value = false;
-              return; // 함수 조기 종료
-            }
-
-            // 2️⃣ 새로운 마커를 클릭한 경우 -> 타겟 변경 (Toggle ON)
-            if (activeInfoOverlay) activeInfoOverlay.setMap(null); // 다른 오버레이 닫기
-
-            currentMission.value = m;
-            currentTargetName.value = m.title;
-
-            // GPS 데이터가 파악된 상태라면 클릭 즉시 거리 계산하여 하단 패널에 반영
-            if (currentLat.value !== null && currentLng.value !== null) {
-              targetDistance.value = calculateDistance(currentLat.value, currentLng.value, m.targetLat, m.targetLng);
-              isArrived.value = targetDistance.value <= 50;
-            } else {
-              targetDistance.value = 0;
-            }
-
-            const infoContent = document.createElement('div');
-            infoContent.className = 'info-overlay-content';
-            infoContent.innerHTML = `
-              <div class="title">${m.title}</div>
-              <div class="desc">${m.visionKeyword ? '목표 단서: ' + m.visionKeyword : '최종 목적지'}</div>
-              <div class="status ${m.sessionStatus || 'ACTIVE'}">${m.isFinal ? '[ FINAL TARGET ]' : (m.sessionStatus === 'CLEARED' ? '[ CLEARED ]' : '진행 대기')}</div>
-            `;
-
-            activeInfoOverlay = new window.kakao.maps.CustomOverlay({
-              map: map,
-              position: position,
-              content: infoContent,
-              yAnchor: 1.5
-            });
-          });
-
-          new window.kakao.maps.CustomOverlay({
-            map: map,
-            position: position,
-            content: content,
-            yAnchor: 1
-          });
-        });
       }
-
       startGpsTracking();
 
     } catch (error) {
-      console.error("데이터 로드 중 오류 발생:", error);
       currentTargetName.value = '데이터 수신 실패';
     }
   });
@@ -343,18 +366,13 @@ const goToChat = () => {
 };
 
 const forceArrival = () => {
-  if(!currentMission.value) {
-    alert("타겟을 먼저 선택해주십시오.");
-    return;
-  }
+  if(!currentMission.value) return;
   isArrived.value = true;
 };
 
-// 📸 카메라 스캔 파일 전송
 const uploadImage = async (imageFile) => {
   let finalFile = imageFile;
 
-  // 🚨 [수정됨] CameraScanner가 Base64(텍스트 URL)로 사진을 넘길 경우 강제로 File 객체 변환
   if (typeof imageFile === 'string' && imageFile.startsWith('data:image')) {
     try {
       const arr = imageFile.split(',');
@@ -362,39 +380,37 @@ const uploadImage = async (imageFile) => {
       const bstr = atob(arr[1]);
       let n = bstr.length;
       const u8arr = new Uint8Array(n);
-      while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-      }
+      while (n--) { u8arr[n] = bstr.charCodeAt(n); }
       finalFile = new File([u8arr], 'capture.png', { type: mime });
     } catch (e) {
-      alert("이미지 변환 중 오류가 발생했습니다.");
       return;
     }
   }
 
-  if (!finalFile || !(finalFile instanceof File)) {
-      alert("이미지 파일 획득에 실패했습니다. 다시 촬영해 주십시오.");
-      return;
-  }
+  if (!finalFile || !(finalFile instanceof File)) return;
 
   try {
     const formData = new FormData();
     formData.append('image', finalFile);
 
-   const response = await apiClient.post(`/v1/sessions/${currentMission.value.id}/vision`, formData, {
-     headers: {
-       'Content-Type': 'multipart/form-data'
-     }
-   });
+    const response = await apiClient.post(`/v1/sessions/${currentMission.value.id}/vision`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
 
     if (response.data.success) {
-       alert(`[분석 성공] 단서를 찾았습니다! 목표 확인 완료.`);
-       collectedHints.value++;
+      alert(`[분석 성공] 단서를 찾았습니다! 목표 확인 완료.`);
+
+      await loadMissionsData();
+
+      currentMission.value = null;
+      currentTargetName.value = '타겟 미지정 (마커를 선택하세요)';
+      isArrived.value = false;
+      targetDistance.value = 0;
+
     } else {
        alert("[분석 실패] 목표물을 정확히 프레임에 담아주십시오.");
     }
   } catch (error) {
-    console.error("🚨 비전 AI 통신 오류:", error);
     alert("본부와의 통신 연결이 원활하지 않습니다.");
   } finally {
     isScannerOpen.value = false;
@@ -449,12 +465,16 @@ const uploadImage = async (imageFile) => {
 .status-text { margin: 0 0 10px 0; color: #ffaa00; font-size: 0.9rem; }
 .status-text.ready { color: #00ffcc; font-weight: bold; }
 
+/* 🚨 타겟 안내 문구 CSS */
+.target-guide { margin-bottom: 8px; font-size: 0.9rem; color: #bbb; }
+.target-guide .highlight { color: #ffaa00; font-weight: bold; }
+
 .override-btn { width: 100%; padding: 15px; background: transparent; color: #ffaa00; border: 1px solid #ffaa00; font-family: inherit; font-weight: bold; border-radius: 4px; cursor: pointer; }
 .override-btn:hover { background: rgba(255, 170, 0, 0.2); }
 
-.capture-btn { width: 100%; padding: 15px; background: rgba(0, 255, 204, 0.1); color: #00ffcc; border: 1px solid #00ffcc; font-family: inherit; font-weight: bold; border-radius: 4px; cursor: pointer; text-align: center; box-sizing: border-box; }
+.capture-btn { width: 100%; padding: 12px; background: rgba(0, 255, 204, 0.1); color: #00ffcc; border: 1px solid #00ffcc; font-family: inherit; font-weight: bold; border-radius: 4px; cursor: pointer; text-align: center; box-sizing: border-box; }
 .capture-btn:hover { background: #00ffcc; color: #000; box-shadow: 0 0 15px #00ffcc; }
-.final-btn { border-color: #ff4444 !important; color: #ff4444 !important; background: rgba(255, 68, 68, 0.1) !important; margin-top: 10px; }
+.final-btn { border-color: #ff4444 !important; color: #ff4444 !important; background: rgba(255, 68, 68, 0.1) !important; margin-top: 5px; }
 .final-btn:hover { background: #ff4444 !important; color: #fff !important; box-shadow: 0 0 15px #ff4444 !important; }
 
 .scanner-modal { position: fixed; inset: 0; z-index: 1000; background: #000; }
@@ -486,37 +506,69 @@ const uploadImage = async (imageFile) => {
 }
 .floating-chat-btn:hover { background: #00ffcc; color: #000; box-shadow: 0 0 20px rgba(0, 255, 204, 0.8); }
 
-:deep(.info-overlay-content) {
-  background: rgba(0, 15, 30, 0.95); border: 1px solid #00ffcc; border-radius: 6px;
-  padding: 10px 15px; color: #fff; text-align: center;
-  font-family: 'Share Tech Mono', monospace;
-  box-shadow: 0 0 15px rgba(0,255,204,0.5); pointer-events: none; width: 180px;
-}
-:deep(.info-overlay-content .title) { font-size: 0.9rem; font-weight: bold; border-bottom: 1px solid #00ffcc; margin-bottom: 5px; padding-bottom: 5px; }
-:deep(.info-overlay-content .desc) { font-size: 0.75rem; color: #aaa; margin-bottom: 5px; }
-:deep(.info-overlay-content .status.CLEARED) { color: #888; }
-:deep(.info-overlay-content .status.ACTIVE) { color: #ffaa00; }
-:deep(.info-overlay-content .highlight) { color: #00ffcc; font-weight: bold; text-decoration: underline; }
-
 :deep(.custom-marker) { width: 24px; height: 24px; background-color: rgba(0, 255, 204, 0.8); border: 2px solid #000; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 0 10px #00ffcc; cursor: pointer; position: relative; top: -24px; left: -12px; }
-:deep(.custom-marker.cleared) { background-color: #555; border-color: #00ffcc; box-shadow: none; }
+:deep(.custom-marker.cleared) { background-color: #8fa3a3; border: 2px solid #fff; box-shadow: 0 0 5px rgba(255, 255, 255, 0.5); opacity: 0.95; }
 :deep(.custom-marker.final) { background-color: #ff4444; box-shadow: 0 0 15px #ff4444; }
 
-/* 🚨 내 위치(GPS) 마커 CSS 스타일 보강 */
-:deep(.custom-marker.user) { 
-  width: 16px; 
-  height: 16px; 
-  background-color: #ff007a; 
-  border-radius: 50%; 
-  border: 2px solid #fff; 
-  box-shadow: 0 0 15px #ff007a; 
-  transform: translate(-50%, -50%); /* 정확히 정중앙에 위치하도록 수정 */
-  position: absolute; /* position 속성 추가 */
-  animation: pulse-gps 4s infinite; 
+:deep(.custom-marker.user) {
+  width: 16px;
+  height: 16px;
+  background-color: #ff007a;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 15px #ff007a;
+  transform: translate(-50%, -50%);
+  position: absolute;
+  animation: pulse-gps 4s infinite;
 }
-@keyframes pulse-gps { 
-  0% { box-shadow: 0 0 0 0 rgba(255, 0, 122, 0.7); } 
-  70% { box-shadow: 0 0 0 15px rgba(255, 0, 122, 0); } 
-  100% { box-shadow: 0 0 0 0 rgba(255, 0, 122, 0); } 
+
+/* 🚨 마커 말풍선 전용 CSS */
+:deep(.marker-tooltip) {
+  /* 배경은 어두운 남색 계열로 유지, 테두리와 폰트 색상을 변경해 가독성을 높입니다. */
+  background: rgba(10, 20, 30, 0.95);
+  border: 1px solid #00ffcc;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: white;
+  text-align: center;
+  cursor: pointer;
+  /* 최소 너비는 유지하되, 텍스트가 길면 자동으로 줄바꿈 되도록 최대 너비 제한 */
+  min-width: 200px;
+  max-width: 300px;
+  white-space: normal;
+  box-shadow: 0 4px 15px rgba(0, 255, 204, 0.5);
+  position: relative;
+  font-family: 'Share Tech Mono', monospace;
+  /* 말풍선이 항상 마커 바로 위 중앙에 뜨도록 위치 조정 */
+  bottom: -100px;
+}
+
+:deep(.marker-tooltip h4) {
+  margin: 0 0 6px 0;
+  color: #00ffcc;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(0, 255, 204, 0.3);
+  padding-bottom: 4px;
+}
+
+:deep(.marker-tooltip p) {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #f0f0f0;
+  line-height: 1.3;
+}
+
+/* 말풍선 꼬리표 (아래쪽 뾰족한 삼각형 모양) */
+:deep(.marker-tooltip::after) {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 46%;
+  transform: translateX(-50%);
+  border-width: 8px 8px 0;
+  border-style: solid;
+  border-color: rgba(10, 20, 30, 0.95) transparent transparent transparent;
+  /* 꼬리표에도 네온 효과를 살짝 줌 */
+  filter: drop-shadow(0 2px 2px rgba(0,255,204,0.4));
 }
 </style>

@@ -2,76 +2,54 @@ package com.operation.seoul.game.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * [Service: 한국관광공사 TourAPI 연동]
- * - 역할: 특정 좌표(위도, 경도)를 기준으로 주변의 관광지(명소) 정보를 수집합니다.
- * - 수집된 데이터는 이후 Gemini AI에게 전달되어 스파이 미션 스토리를 생성하는 기초 데이터가 됩니다.
- */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class TourApiService {
 
-    // application.properties에 세팅한 인코딩 키 주입
     @Value("${tourapi.key}")
     private String tourApiKey;
 
-    private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
+    @Value("${kakao.rest.api.key}")
+    private String kakaoRestApiKey;
 
-    public TourApiService() {
-        this.restTemplate = new RestTemplate();
-        this.objectMapper = new ObjectMapper();
-    }
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 특정 좌표 기준 반경(radius) 내의 관광지 목록을 가져옵니다.
-     *
-     * @param mapX   경도 (Longitude)
-     * @param mapY   위도 (Latitude)
-     * @param radius 검색 반경 (미터 단위, 예: 2000)
-     * @return 관광지 명칭, 주소, 좌표가 담긴 맵의 리스트
+     * [역사적 장소 수집] TourAPI 호출 (ContentType 12: 관광지)
+     * 역할: 최종 목적지가 될 스토리가 있는 장소를 가져옵니다.
      */
-    public List<Map<String, String>> getNearbyTouristSpots(double mapX, double mapY, int radius) {
+    public List<Map<String, String>> fetchHistoricalPlaces(double lat, double lng, int radius) {
         List<Map<String, String>> spots = new ArrayList<>();
-
         try {
-            // 1. 키의 앞뒤 공백을 제거합니다 (f4d333... 확인 완료!)
-            String safeKey = tourApiKey.trim();
+            // TourAPI URL 구성 (contentTypeId=12 관광지 고정)
+            String urlString = String.format(
+                    "https://apis.data.go.kr/B551011/KorService1/locationBasedList1?serviceKey=%s&numOfRows=20&MobileOS=ETC&MobileApp=OperationSeoul&_type=json&mapX=%f&mapY=%f&radius=%d&contentTypeId=12",
+                    tourApiKey, lng, lat, radius
+            );
 
-            // 2. URL을 통째로 조립합니다. (V2 / List2 적용)
-            // 💡 주의: 키에 특수문자가 없으므로 인코딩 과정 없이 바로 꽂아 넣습니다.
-            StringBuilder urlBuilder = new StringBuilder("https://apis.data.go.kr/B551011/KorService2/locationBasedList2");
-            urlBuilder.append("?serviceKey=").append(safeKey);
-            urlBuilder.append("&numOfRows=5");
-            urlBuilder.append("&pageNo=1");
-            urlBuilder.append("&MobileOS=ETC");
-            urlBuilder.append("&MobileApp=OperationSeoul");
-            urlBuilder.append("&_type=json");
-            urlBuilder.append("&mapX=").append(mapX);
-            urlBuilder.append("&mapY=").append(mapY);
-            urlBuilder.append("&radius=").append(radius);
-            urlBuilder.append("&contentTypeId=12");
-
-            // 3. String을 URI 객체로 변환 (중복 인코딩 방지)
-            URI uri = new URI(urlBuilder.toString());
-
-            System.out.println("🚀 [최종 요청 주소]: " + uri);
-
-            // 4. 통신 실행
+            URI uri = new URI(urlString);
             ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
 
-            // JSON 파싱 (이후 로직은 동일)
             JsonNode root = objectMapper.readTree(response.getBody());
             JsonNode items = root.path("response").path("body").path("items").path("item");
 
@@ -82,14 +60,56 @@ public class TourApiService {
                     spot.put("address", item.path("addr1").asText());
                     spot.put("mapX", item.path("mapx").asText());
                     spot.put("mapY", item.path("mapy").asText());
+                    spot.put("source", "TourAPI"); // 출처 명시
                     spots.add(spot);
                 }
             }
         } catch (Exception e) {
-            // 401 에러가 난다면 주소를 복사해서 브라우저에 직접 붙여넣어 볼 수 있도록 로그를 남깁니다.
-            System.err.println("🚨 TourAPI 오류: " + e.getMessage());
+            log.error("🚨 TourAPI 오류: {}", e.getMessage());
         }
+        return spots;
+    }
 
+    /**
+     * [골목 상권/사물 수집] Kakao Local API 호출
+     * 역할: 역사적 목적지 주변에 있는 카페, 서점 등 다채로운 경유지 후보를 가져옵니다.
+     */
+    public List<Map<String, String>> fetchNearbyLocalPOIs(double lat, double lng, int radius, String keyword) {
+        List<Map<String, String>> spots = new ArrayList<>();
+        try {
+            String encodedKeyword = URLEncoder.encode(keyword, StandardCharsets.UTF_8.toString());
+
+            String urlString = String.format(
+                    "https://dapi.kakao.com/v2/local/search/keyword.json?query=%s&y=%f&x=%f&radius=%d&sort=distance",
+                    encodedKeyword, lat, lng, radius
+            );
+            URI uri = new URI(urlString);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "KakaoAK " + kakaoRestApiKey);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(uri, HttpMethod.GET, entity, String.class);
+
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode documents = root.path("documents");
+
+            if (documents.isArray()) {
+                for (JsonNode doc : documents) {
+                    Map<String, String> spot = new HashMap<>();
+                    spot.put("title", doc.path("place_name").asText());
+                    spot.put("address", doc.path("road_address_name").asText());
+                    spot.put("mapX", doc.path("x").asText());
+                    spot.put("mapY", doc.path("y").asText());
+                    spot.put("category", doc.path("category_name").asText()); // AI가 참고할 카테고리 정보
+                    spot.put("source", "KakaoAPI"); // 출처 명시
+                    spots.add(spot);
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("🚨 카카오 로컬 API 오류: {}", e.getMessage());
+        }
         return spots;
     }
 }
