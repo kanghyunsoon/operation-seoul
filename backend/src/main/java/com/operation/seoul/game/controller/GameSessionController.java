@@ -30,7 +30,7 @@ public class GameSessionController {
 
         Long tempUserId = 1L; // 🚨 추후 JWT 적용 시 로그인한 유저 ID로 교체
 
-        // 1. 유저 ID와 미션 ID로 세션을 조회하고, 없으면 새로 만듭니다. (500 에러 방지)
+        // 1. 세션이 없으면 생성 (500 에러 방지)
         GameSession session = sessionRepository.findByUserIdAndMissionId(tempUserId, missionId)
                 .orElseGet(() -> {
                     GameSession newSession = new GameSession();
@@ -40,11 +40,10 @@ public class GameSessionController {
                     return sessionRepository.save(newSession);
                 });
 
-        // 2. Vision AI + Gemini 지능형 판독 실행
+        // 2. 실제 Vision AI 서비스 호출 (MultipartFile 그대로 전달)
         boolean isSuccess = visionAiService.validateKeyword(missionId, image);
 
         if (isSuccess) {
-            // 3. 인증 성공 시 상태 업데이트
             session.setStatus("PHOTO_VERIFIED");
             sessionRepository.save(session);
 
@@ -81,8 +80,9 @@ public class GameSessionController {
         return geminiAiService.streamNarration(missionId, request.getUserAnswer(), isCorrect);
     }
 
+    // 🚨 컴파일 및 JSON 파싱 에러 방지를 위해 반드시 public static class 로 선언!
     @Data
-    static class ChatRequest {
+    public static class ChatRequest {
         private String userAnswer;
     }
 }
