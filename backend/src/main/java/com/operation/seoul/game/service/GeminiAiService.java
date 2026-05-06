@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.repository.MissionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GeminiAiService {
@@ -33,6 +35,13 @@ public class GeminiAiService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
+    // 🚨 수칙 2번 준수: 최신 모델명으로 고정
+    private static final String GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
+
+    /**
+     * [개선] AI 기반 정답 검증 로직
+     * 단순 contains 비교가 아니라 유저 대답의 '의미'를 파악하여 정답을 유연하게 인정합니다.
+     */
     public boolean verifyFinalAnswer(Long missionId, String userAnswer) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String answerKeyword = mission.getAnswerKeyword();
@@ -41,74 +50,98 @@ public class GeminiAiService {
             return false;
         }
 
-        String cleanUserAnswer = userAnswer.replace(" ", "").toLowerCase();
-        String cleanAnswerKeyword = answerKeyword.replace(" ", "").toLowerCase();
-        return cleanUserAnswer.contains(cleanAnswerKeyword);
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent";
+
+        String prompt = String.format(
+                "너는 보안 정답 검증 시스템이다. 아래 정답 키워드와 요원의 대답을 비교해라.\n" +
+                        "정답 키워드: '%s'\n" +
+                        "요원의 대답: '%s'\n" +
+                        "요원이 정답의 핵심 의미를 맞췄다면 오직 'TRUE', 틀렸다면 'FALSE'라고만 답해라.",
+                answerKeyword, userAnswer
+        );
+
+        Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-goog-api-key", geminiApiKey.trim());
+
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            String result = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText().trim();
+            return result.equalsIgnoreCase("TRUE");
+        } catch (Exception e) {
+            log.error("🚨 정답 AI 검증 실패 (단순 비교로 전환): {}", e.getMessage());
+            // API 통신 에러 시, 기존의 안전한 단순 문자열 비교 방식으로 폴백(Fallback) 처리
+            return userAnswer.replace(" ", "").toLowerCase().contains(answerKeyword.replace(" ", "").toLowerCase());
+        }
     }
 
+    /**
+     * [개선] SSE 스트리밍 지문 생성 로직
+     * 프론트엔드의 EventSource 규격(data: 내용\n\n)을 준수하도록 포맷팅을 수정했습니다.
+     */
     public ResponseBodyEmitter streamNarration(Long missionId, String userAnswer, boolean isCorrect) {
         ResponseBodyEmitter emitter = new ResponseBodyEmitter(60000L);
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:streamGenerateContent?alt=sse";
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":streamGenerateContent?alt=sse";
 
         Mission mission = missionRepository.findById(missionId).orElseThrow();
-        String answerKeyword = mission.getAnswerKeyword();
-        String safeKeyword = (answerKeyword != null && !answerKeyword.isEmpty()) ? answerKeyword : "비밀 암호";
-
+        String safeUserAnswer = userAnswer != null ? userAnswer.replace("\"", "'").replace("\n", " ") : "";
         String prompt;
+
         if (isCorrect) {
-            prompt = "너는 본부 AI 지휘관이다. 요원이 암호(" + safeKeyword + ")를 정확히 맞췄다. '임무 완료! 훌륭하다 요원.'으로 시작하는 짧고 강렬한 칭찬 대사를 해라.";
+            prompt = String.format("너는 본부 AI 지휘관이다. 요원이 정답을 맞췄다. '%s' 장소의 역사적 의의를 섞어 짧고 강렬한 칭찬 대사를 해라.", mission.getTitle());
         } else {
-            String safeUserAnswer = userAnswer.replace("\"", "'").replace("\n", " ");
-            prompt = String.format(
-                    "너는 작전을 지휘하는 '본부 AI 지휘관'이다. 요원이 질문을 던졌다. 정답 키워드는 [%s]이다. 4가지 문장 중 하나로만 극도로 짧게 대답하라. 1. 그렇다. 2. 아니다. 잘못된 접근이다. 3. 작전과 무관하다. 4. 예리하다. 그것이 핵심 단서다. 요원의 통신: %s",
-                    safeKeyword, safeUserAnswer
-            );
+            prompt = String.format("너는 본부 AI 지휘관이다. 요원이 오답(%s)을 제출했다. 단호하게 꾸짖고 다시 시도하라고 명령해라. 짧게 2문장 내외.", safeUserAnswer);
         }
 
-        String requestBody;
         try {
-            Map<String, Object> textPart = Map.of("text", prompt);
-            Map<String, Object> parts = Map.of("parts", List.of(textPart));
-            Map<String, Object> bodyMap = new HashMap<>();
-            bodyMap.put("contents", List.of(parts));
-            requestBody = objectMapper.writeValueAsString(bodyMap);
-        } catch (Exception e) {
-            throw new RuntimeException("JSON 조립 실패", e);
-        }
+            Map<String, Object> bodyMap = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
+            String requestBody = objectMapper.writeValueAsString(bodyMap);
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Content-Type", "application/json")
-                .header("x-goog-api-key", geminiApiKey.trim())
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .header("x-goog-api-key", geminiApiKey.trim())
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
 
-        HttpClient.newHttpClient().sendAsync(request, HttpResponse.BodyHandlers.ofLines())
-                .thenAccept(response -> {
-                    response.body().forEach(line -> {
-                        try {
-                            if (line.startsWith("data: ")) {
-                                String data = line.substring(6);
-                                if (!data.equals("[DONE]")) {
-                                    JsonNode node = objectMapper.readTree(data);
-                                    JsonNode candidates = node.path("candidates");
-                                    if (!candidates.isMissingNode() && candidates.isArray() && candidates.size() > 0) {
-                                        String textChunk = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
-                                        emitter.send(textChunk);
+            HttpClient.newHttpClient().sendAsync(request, HttpResponse.BodyHandlers.ofLines())
+                    .thenAccept(response -> {
+                        response.body().forEach(line -> {
+                            try {
+                                if (line.startsWith("data: ")) {
+                                    String data = line.substring(6);
+                                    if (!data.equals("[DONE]")) {
+                                        JsonNode node = objectMapper.readTree(data);
+                                        JsonNode candidates = node.path("candidates");
+                                        if (!candidates.isMissingNode() && candidates.isArray() && candidates.size() > 0) {
+                                            String textChunk = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
+                                            // 프론트엔드 수신을 위해 표준 SSE 포맷으로 전송
+                                            emitter.send("data: " + textChunk + "\n\n");
+                                        }
                                     }
                                 }
-                            }
-                        } catch (Exception e) {}
+                            } catch (Exception ignored) {}
+                        });
+                        try {
+                            emitter.send("data: [DONE]\n\n");
+                            emitter.complete();
+                        } catch (Exception ignored) {}
                     });
-                    emitter.complete();
-                });
+        } catch (Exception e) {
+            log.error("🚨 SSE 전송 설정 실패: ", e);
+            emitter.completeWithError(e);
+        }
         return emitter;
     }
 
+    /**
+     * [유지] 기존 동적 미션 생성 로직 (누락 복구)
+     * 프롬프트: visionKeyword에 대한 강력한 제약 및 예시 포함
+     */
     public String generateDynamicMissions(List<Map<String, String>> spots) {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
-
-        // 👇 프롬프트 수정: visionKeyword에 대한 강력한 제약 및 예시 추가
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent";
         String prompt = "너는 'Operation: SEOUL' 작전 본부의 특수 AI 통제관이다. " +
                 "다음 제공된 실제 장소 데이터를 바탕으로 비밀요원이 수행할 방탈출 작전을 기획해라.\n\n" +
                 "[수집된 장소 데이터]: " + spots.toString() + "\n\n" +
@@ -135,43 +168,14 @@ public class GeminiAiService {
                 "  ]\n" +
                 "}";
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", geminiApiKey.trim());
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-        try {
-            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-            String rawBody = response.getBody();
-
-            if (rawBody == null) return null;
-
-            rawBody = rawBody.trim();
-            if (rawBody.startsWith("data:")) {
-                rawBody = rawBody.substring(5).trim();
-            }
-
-            JsonNode root = objectMapper.readTree(rawBody);
-            JsonNode candidates = root.path("candidates");
-
-            if (!candidates.isMissingNode() && candidates.isArray() && candidates.size() > 0) {
-                String aiResponseText = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
-                return aiResponseText.replace("```json", "").replace("```", "").trim();
-            }
-        } catch (Exception e) {
-            System.err.println("🚨 Gemini 미션 생성 통신 실패: " + e.getMessage());
-        }
-        return null;
+        return callGeminiStandard(url, prompt);
     }
 
+    /**
+     * [유지] 기존 목적지 기반 코스 생성 로직 (누락 복구 및 기존 파라미터 타입 유지)
+     */
     public String generateCourseWithTarget(Map<String, Object> targetSpot, List<Map<String, Object>> candidateSpots) {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
-
-        // 👇 프롬프트 수정: 다양한 장소 선택 유도 및 visionKeyword 제약 추가
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent";
         String prompt = "당신은 지역 상권 활성화를 위한 야외 방탈출 'Operation: SEOUL'의 작전 설계자입니다.\n" +
                 "제공된 주변 장소 리스트에서 최종 목적지인 [" + targetSpot.get("title") + "]를 포함해 총 4곳의 동선을 짜주세요.\n\n" +
                 "🚨 [미션 설계 핵심 원칙]\n" +
@@ -208,27 +212,21 @@ public class GeminiAiService {
                 "  ]\n" +
                 "}";
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
+        return callGeminiStandard(url, prompt);
+    }
 
+    /**
+     * 공통 API 호출 헬퍼 메서드 (중복 코드 제거)
+     */
+    private String callGeminiStandard(String url, String prompt) {
+        Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("x-goog-api-key", geminiApiKey.trim());
 
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
         try {
-            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-            String rawBody = response.getBody();
-
-            if (rawBody == null) return null;
-
-            rawBody = rawBody.trim();
-            if (rawBody.startsWith("data:")) {
-                rawBody = rawBody.substring(5).trim();
-            }
-
-            JsonNode root = objectMapper.readTree(rawBody);
+            ResponseEntity<String> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
             JsonNode candidates = root.path("candidates");
 
             if (!candidates.isMissingNode() && candidates.isArray() && candidates.size() > 0) {
@@ -236,7 +234,7 @@ public class GeminiAiService {
                 return aiResponseText.replace("```json", "").replace("```", "").trim();
             }
         } catch (Exception e) {
-            System.err.println("🚨 Gemini 미션 생성 통신 실패: " + e.getMessage());
+            log.error("🚨 Gemini API 생성 통신 실패: {}", e.getMessage());
         }
         return null;
     }
