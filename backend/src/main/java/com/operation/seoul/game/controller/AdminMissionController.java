@@ -17,8 +17,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -43,7 +45,9 @@ public class AdminMissionController {
      * 1. 후보지 조회: TourAPI를 이용해 "역사적 장소(메인 목적지)" 후보만 검색하여 반환합니다.
      */
     @GetMapping("/candidates")
-    public ResponseEntity<?> getHistoricalCandidates(@RequestParam double lat, @RequestParam double lng) {
+    public ResponseEntity<?> getHistoricalCandidates(@RequestParam double lat,
+                                                     @RequestParam double lng,
+                                                     @RequestParam(defaultValue = "2000") int radius) {
         log.info("📍 역사적 메인 목적지 후보 검색 요청: lat={}, lng={}", lat, lng);
         try {
             List<Map<String, String>> historicalSites = tourApiService.fetchHistoricalPlaces(lat, lng, 2000);
@@ -89,8 +93,14 @@ public class AdminMissionController {
                     .limit(15)
                     .toList();
 
+            // 🚨 [타입 변환 로직 추가] GeminiAiService가 Map<String, Object>를 요구하므로 맞춰서 변환합니다.
+            Map<String, Object> targetSpotObj = new HashMap<>(targetSpot);
+            List<Map<String, Object>> subSpotsObj = subSpots.stream()
+                    .map(spot -> new HashMap<String, Object>(spot))
+                    .collect(Collectors.toList());
+
             // AI에게 최종 목적지(역사적 장소)와 경유지 후보군(골목 상권)을 함께 전달하여 스토리를 짜도록 지시합니다.
-            String aiRawResponse = geminiAiService.generateCourseWithTarget(targetSpot, subSpots);
+            String aiRawResponse = geminiAiService.generateCourseWithTarget(targetSpotObj, subSpotsObj);
             if (aiRawResponse == null || aiRawResponse.isBlank()) return ResponseEntity.internalServerError().body("AI 응답 없음");
 
             // JSON 파싱 및 DB 저장
