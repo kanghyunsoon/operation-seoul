@@ -19,7 +19,7 @@
         </button>
 
         <div v-if="collectedHints >= 1" class="coord-overlay top-right" :class="{ 'final-dist-blink': isArrived }">
-          최종 TGT DIST: {{ finalDistance }}m
+          최종 TGT DIST: {{ finalDistance }}
         </div>
 
         <div class="floating-chat-btn" @click="goToChat">
@@ -44,18 +44,26 @@
           [ MANUAL_OVERRIDE : 강제 도착 ]
         </button>
 
-        <div v-if="isArrived && (!currentMission?.isFinal)" class="target-guide">
+        <div v-if="isArrived && !(currentMission?.isFinal || currentMission?.final)" class="target-guide">
           📸 촬영 목표: <span class="highlight">{{ currentMission?.visionKeyword }}</span>
         </div>
-        <button v-if="isArrived && (!currentMission?.isFinal)" @click="isScannerOpen = true" class="capture-btn">
+        <button v-if="isArrived && !(currentMission?.isFinal || currentMission?.final)" @click="isScannerOpen = true" class="capture-btn">
           [ 스캐너 가동 ]
         </button>
 
-        <div v-if="isArrived && currentMission?.isFinal" class="target-guide">
+        <div v-if="isArrived && (currentMission?.isFinal || currentMission?.final)" class="target-guide">
           📸 촬영 목표: <span class="highlight">{{ currentMission?.visionKeyword }}</span>
         </div>
-        <button v-if="isArrived && currentMission?.isFinal" @click="isScannerOpen = true" class="capture-btn final-btn">
+        <button v-if="isArrived && (currentMission?.isFinal || currentMission?.final)" @click="isScannerOpen = true" class="capture-btn final-btn">
           [ 목적지 진입 인증 스캔 ]
+        </button>
+
+        <button
+          v-if="currentMission && (currentMission.isFinal || currentMission.final) && (currentMission.isUnlocked || currentMission.unlocked)"
+          @click="drawTmapRoute(currentMission)"
+          class="tmap-nav-btn"
+        >
+          🗺️ 작전지 경로 재탐색
         </button>
       </div>
     </div>
@@ -78,7 +86,6 @@
         <button class="close-btn" @click="showHintModal = false">닫기</button>
       </div>
     </div>
-
   </div>
 </template>
 
@@ -95,13 +102,12 @@ const mapContainer = ref(null);
 
 const sessionStore = useSessionStore();
 const isAdmin = computed(() => sessionStore.userInfo?.isAdmin || false);
-const userId = computed(() => sessionStore.userId); // 🚨 유저 ID getter 사용
+const userId = computed(() => sessionStore.userId);
 
 const regionName = ref('조회 중...');
 const isArrived = ref(false);
 const currentTargetName = ref('타겟 미지정 (마커를 선택하세요)');
 const targetDistance = ref(0);
-const finalDistance = ref(999);
 const showHintModal = ref(false);
 const isScannerOpen = ref(false);
 const collectedHints = ref(0);
@@ -121,7 +127,11 @@ let gpsWatcherId = null;
 let markerOverlays = [];
 let activeTooltipOverlay = null;
 
+let polylineOverlay = null;
+const isNavLaunched = ref(false);
+
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
   const R = 6371e3;
   const p1 = lat1 * Math.PI / 180;
   const p2 = lat2 * Math.PI / 180;
@@ -130,6 +140,109 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.floor(R * c);
+};
+
+// 🟢 백엔드/프론트 통신(isFinal -> final) 버그 원천 차단 헬퍼 함수
+const getIsFinal = (m) => m && (m.isFinal === true || m.final === true);
+const getIsUnlocked = (m) => m && (m.isUnlocked === true || m.unlocked === true);
+
+// 🟢 [완벽 복구] 힌트 1개부터 최종 거리 추적
+const finalDistance = computed(() => {
+  const fMission = missions.value.find(m => getIsFinal(m));
+
+  if (!fMission || fMission.targetLat == null || currentLat.value === null || currentLng.value === null) {
+    return '---';
+  }
+  return calculateDistance(currentLat.value, currentLng.value, fMission.targetLat, fMission.targetLng) + 'm';
+});
+
+// 🗺️ 카카오맵 위에 Tmap 도보 경로(Polyline) 그리기 로직 (직선 & 네온 스타일)
+const drawTmapRoute = async (mission) => {
+  if (!currentLat.value || !currentLng.value || !mission.targetLat || !mission.targetLng) return;
+
+  if (polylineOverlay) {
+    polylineOverlay.setMap(null);
+    polylineOverlay = null;
+  }
+
+  try {
+    const tmapAppKey = import.meta.env.VITE_TMAP_APP_KEY || '';
+    const url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json';
+
+    const payload = {
+      startX: currentLng.value.toString(),
+      startY: currentLat.value.toString(),
+      endX: mission.targetLng.toString(),
+      endY: mission.targetLat.toString(),
+      reqCoordType: "WGS84GEO",
+      resCoordType: "WGS84GEO",
+      startName: "현재위치",
+      endName: "작전지"
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'appKey': tmapAppKey
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tmap API 통신 에러: ${response.status}`);
+    }
+    const data = await response.json();
+
+    const linePath = [];
+    data.features.forEach(feature => {
+      if (feature.geometry.type === "LineString") {
+        feature.geometry.coordinates.forEach(coord => {
+          linePath.push(new window.kakao.maps.LatLng(coord[1], coord[0]));
+        });
+      }
+    });
+
+    // 🟢 [수정] 메인 네비게이션 선을 더 예쁜 반투명 네온 직선으로 변경
+    polylineOverlay = new window.kakao.maps.Polyline({
+      path: linePath,
+      strokeWeight: 7,            // 두께를 살짝 도톰하게
+      strokeColor: '#f229b3',     // 스파이 테마의 네온 시안 컬러
+      strokeOpacity: 0.6,         // 반투명하게 설정하여 지도를 너무 가리지 않게
+      strokeStyle: 'solid'        // 짜치던 점선(shortdash)을 직선(solid)으로 변경!
+    });
+    polylineOverlay.setMap(map);
+    console.log("🚀 Tmap 도보 경로 탐색 완료");
+
+  } catch (error) {
+    console.error("🚨 Tmap 경로 통신 실패! 비상용 레이더(직선)를 그립니다.", error);
+    const fallbackPath = [
+      new window.kakao.maps.LatLng(currentLat.value, currentLng.value),
+      new window.kakao.maps.LatLng(mission.targetLat, mission.targetLng)
+    ];
+
+    // 🔴 [수정] 통신 실패 시 나타나는 비상용 선도 예쁜 반투명 레드 직선으로 변경
+    polylineOverlay = new window.kakao.maps.Polyline({
+      path: fallbackPath,
+      strokeWeight: 7,
+      strokeColor: '#ff003c',     // 위험을 알리는 네온 레드
+      strokeOpacity: 0.6,         // 반투명 설정
+      strokeStyle: 'solid'        // 직선
+    });
+    polylineOverlay.setMap(map);
+    alert("Tmap 통신망에 간섭이 발생했습니다. 보조 레이더망(직선 경로)을 가동합니다.");
+  }
+};
+
+// 🟢 [완벽 복구] 힌트를 모두 모으면 즉시 네비게이션 자동 실행
+const checkAndDrawNavigation = () => {
+  const fMission = missions.value.find(m => getIsFinal(m));
+
+  if (fMission && getIsUnlocked(fMission) && currentLat.value !== null && currentLng.value !== null && !isNavLaunched.value) {
+    isNavLaunched.value = true;
+    alert("🚨 모든 단서를 모았습니다! 최종 목적지의 위치가 해독되어 맵에 표시됩니다.");
+    drawTmapRoute(fMission);
+  }
 };
 
 const handleMissionClick = (mission) => {
@@ -190,7 +303,6 @@ const toggleTooltip = (mission, latLng) => {
 
 const loadMissionsData = async () => {
   try {
-    // 🚨 내 계정의 클리어 정보만 가져오도록 userId 파라미터 추가
     const misRes = await apiClient.get(`/v1/regions/${regionId}/missions`, {
       params: { userId: userId.value }
     });
@@ -208,9 +320,17 @@ const loadMissionsData = async () => {
     collectedHints.value = clearedMissions.value.length;
 
     missions.value.forEach((mission) => {
+      const isFinalFlag = getIsFinal(mission);
+      const isUnlockedFlag = getIsUnlocked(mission);
+
+      // 🚨 최종 목적지인데 아직 해금 안 됐다면 맵에 핀을 절대 그리지 않음!
+      if (isFinalFlag && !isUnlockedFlag) return;
+
       const isCleared = mission.sessionStatus === 'CLEARED';
       const content = document.createElement('div');
-      content.className = isCleared ? 'custom-marker cleared' : (mission.isFinal ? 'custom-marker final' : 'custom-marker');
+
+      // 🟢 드디어 최종 목적지가 붉은 핀으로 나타납니다!
+      content.className = isCleared ? 'custom-marker cleared' : (isFinalFlag ? 'custom-marker final' : 'custom-marker');
 
       const position = new window.kakao.maps.LatLng(mission.targetLat, mission.targetLng);
 
@@ -233,6 +353,10 @@ const loadMissionsData = async () => {
 
       markerOverlays.push(customOverlay);
     });
+
+    // 맵 데이터 로드 시점에도 조건이 맞으면 네비게이션 작동
+    checkAndDrawNavigation();
+
   } catch (error) {
     console.error("미션 데이터 갱신 중 오류:", error);
   }
@@ -278,8 +402,12 @@ const startGpsTracking = () => {
       targetDistance.value = calculateDistance(fakeLat, fakeLng, currentMission.value.targetLat, currentMission.value.targetLng);
       isArrived.value = targetDistance.value <= 50;
     }
+
     map.setCenter(fakePosition);
+    checkAndDrawNavigation();
   };
+
+  executeFakeGpsFallback();
 
   if (navigator.geolocation) {
     gpsWatcherId = navigator.geolocation.watchPosition((position) => {
@@ -310,11 +438,20 @@ const startGpsTracking = () => {
         targetDistance.value = calculateDistance(lat, lng, currentMission.value.targetLat, currentMission.value.targetLng);
         isArrived.value = targetDistance.value <= 50;
       }
+
+      // 내 위치 갱신 후, 선이 그려져있다면 업데이트, 안 그려져있고 조건 맞으면 그림
+      const fMission = missions.value.find(m => getIsFinal(m));
+      if (fMission && getIsUnlocked(fMission)) {
+        if (polylineOverlay) {
+          drawTmapRoute(fMission);
+        } else {
+          checkAndDrawNavigation();
+        }
+      }
+
     }, (error) => {
-      executeFakeGpsFallback();
+       console.log("GPS 통신 지연 혹은 권한 없음. Fallback 좌표를 계속 유지합니다.");
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
-  } else {
-    executeFakeGpsFallback();
   }
 };
 
@@ -384,8 +521,6 @@ const uploadImage = async (imageFile) => {
   try {
     const formData = new FormData();
     formData.append('image', finalFile);
-
-    // 🚨 [중요] 내 계정에 기록되도록 userId 추가
     formData.append('userId', userId.value);
 
     if(isAdmin.value) {
@@ -398,14 +533,11 @@ const uploadImage = async (imageFile) => {
 
     if (response.data.success) {
       alert(`[분석 성공] 단서를 찾았습니다! 목표 확인 완료.`);
-
       await loadMissionsData();
-
       currentMission.value = null;
       currentTargetName.value = '타겟 미지정 (마커를 선택하세요)';
       isArrived.value = false;
       targetDistance.value = 0;
-
     } else {
        alert("[분석 실패] 목표물을 정확히 프레임에 담아주십시오.");
     }
@@ -418,7 +550,6 @@ const uploadImage = async (imageFile) => {
 </script>
 
 <style scoped>
-/* (기존 스타일 유지) */
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 .tactical-fullscreen { width: 100vw; height: 100vh; background: #050505; display: flex; justify-content: center; align-items: center; font-family: 'Share Tech Mono', monospace; color: #00ffcc; padding: 10px; box-sizing: border-box; overflow: hidden; }
@@ -507,7 +638,7 @@ const uploadImage = async (imageFile) => {
 
 :deep(.custom-marker) { width: 24px; height: 24px; background-color: rgba(0, 255, 204, 0.8); border: 2px solid #000; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 0 10px #00ffcc; cursor: pointer; position: relative; top: -24px; left: -12px; }
 :deep(.custom-marker.cleared) { background-color: #8fa3a3; border: 2px solid #fff; box-shadow: 0 0 5px rgba(255, 255, 255, 0.5); opacity: 0.95; }
-:deep(.custom-marker.final) { background-color: #ff4444; box-shadow: 0 0 15px #ff4444; }
+:deep(.custom-marker.final) { background-color: rgba(237, 45, 48, 0.8); box-shadow: 0 0 15px #ff4444; }
 
 :deep(.custom-marker.user) {
   width: 16px;
@@ -563,5 +694,26 @@ const uploadImage = async (imageFile) => {
   border-style: solid;
   border-color: rgba(10, 20, 30, 0.95) transparent transparent transparent;
   filter: drop-shadow(0 2px 2px rgba(0,255,204,0.4));
+}
+
+.tmap-nav-btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  background-color: rgba(0, 50, 40, 0.8);
+  border: 1px solid #00ffcc;
+  color: #00ffcc;
+  font-weight: bold;
+  font-family: inherit;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 5px rgba(0, 255, 204, 0.3);
+}
+
+.tmap-nav-btn:hover {
+  background-color: #00ffcc;
+  color: #000;
+  box-shadow: 0 0 15px rgba(0, 255, 204, 0.6);
 }
 </style>
