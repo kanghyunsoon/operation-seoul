@@ -85,13 +85,19 @@
 <script setup>
 import { ref, onMounted, nextTick, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useSessionStore } from '@/stores/sessionStore'; // 🚨 스토어 가져오기
 import axios from 'axios';
 import CameraScanner from '@/components/CameraScanner.vue';
 import { useTypingBuffer } from '@/composables/useTypingBuffer';
 
 const route = useRoute();
-const router = useRouter(); // 💡 맵 복귀를 위해 라우터 추가
+const router = useRouter();
 const sessionId = ref(route.params.sessionId);
+
+// 🚨 스토어 사용 및 권한/ID 맵핑
+const sessionStore = useSessionStore();
+const isAdmin = computed(() => sessionStore.userInfo?.isAdmin || false);
+const userId = computed(() => sessionStore.userId);
 
 const chatHistory = ref([]);
 const userInput = ref('');
@@ -104,7 +110,6 @@ const isScannerOpen = ref(false);
 const isFinalAnswer = computed(() => !userInput.value.includes('?'));
 const { displayedText, isTyping, isFinished, addChunk, finishTyping, reset } = useTypingBuffer(30);
 
-// 💡 추가됨: 맵뷰로 복귀하는 로직
 const goBackToMap = () => {
   const regionId = route.query.regionId || 1;
   router.push({ name: 'Map', query: { regionId: regionId } });
@@ -169,7 +174,15 @@ const handleManualCapture = async (imageDataUrl) => {
     const formData = new FormData();
     formData.append("image", file);
 
-    await axios.post(`http://localhost:8080/api/v1/sessions/${sessionId.value}/vision`, formData, {
+    // 🚨 내 계정(userId)과 관리자 여부(isAdmin)를 폼 데이터에 실어서 전송
+    formData.append("userId", userId.value);
+    if (isAdmin.value) {
+      formData.append("isAdmin", "true");
+    }
+
+    // 🚨 경로 주의! 백엔드는 /api/v1/missions/{missionId}/vision 입니다.
+    // 기존에 sessions 로 되어있던 부분을 missions 로 수정했습니다.
+    await axios.post(`http://localhost:8080/api/v1/missions/${sessionId.value}/vision`, formData, {
       headers: { "Content-Type": "multipart/form-data" }
     });
 
@@ -205,6 +218,8 @@ const requestGeminiStream = async (textMessage) => {
   scrollToBottom();
 
   try {
+    // 🚨 채팅 응답 부분도 userId가 필요하다면 추후 폼 데이터를 변경해야 하지만,
+    // 현재 백엔드 로직에 맞춰 둡니다. (임시 tempUserId=1L 로 고정되어 있는 부분 추후 수정 필요)
     const response = await fetch(`http://localhost:8080/api/v1/sessions/${sessionId.value}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

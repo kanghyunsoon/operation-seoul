@@ -40,7 +40,7 @@
           </p>
         </div>
 
-        <button v-if="!isArrived" @click="forceArrival" class="override-btn">
+        <button v-if="!isArrived && isAdmin" @click="forceArrival" class="override-btn">
           [ MANUAL_OVERRIDE : 강제 도착 ]
         </button>
 
@@ -83,14 +83,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useSessionStore } from '@/stores/sessionStore';
 import apiClient from '@/api/axiosInstance';
 import CameraScanner from '@/components/CameraScanner.vue';
 
 const route = useRoute();
 const router = useRouter();
 const mapContainer = ref(null);
+
+const sessionStore = useSessionStore();
+const isAdmin = computed(() => sessionStore.userInfo?.isAdmin || false);
+const userId = computed(() => sessionStore.userId); // 🚨 유저 ID getter 사용
 
 const regionName = ref('조회 중...');
 const isArrived = ref(false);
@@ -114,8 +119,6 @@ let map = null;
 let userMarker = null;
 let gpsWatcherId = null;
 let markerOverlays = [];
-
-// 🚨 말풍선(오버레이) 객체를 하나만 유지하기 위한 변수
 let activeTooltipOverlay = null;
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -129,9 +132,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return Math.floor(R * c);
 };
 
-// 미클리어 마커 클릭
 const handleMissionClick = (mission) => {
-  // 열려있는 말풍선 닫기
   if (activeTooltipOverlay) {
     activeTooltipOverlay.setMap(null);
     activeTooltipOverlay = null;
@@ -154,21 +155,16 @@ const handleMissionClick = (mission) => {
   }
 };
 
-// 🚨 클리어된 마커 클릭 시 말풍선 토글 함수
 const toggleTooltip = (mission, latLng) => {
-  // 이미 열려있고, 같은 미션 마커를 눌렀다면 닫기
   if (activeTooltipOverlay && activeTooltipOverlay.getTitle() === mission.id.toString()) {
     activeTooltipOverlay.setMap(null);
     activeTooltipOverlay = null;
     return;
   }
-
-  // 다른 곳이 열려있으면 먼저 닫기
   if (activeTooltipOverlay) {
     activeTooltipOverlay.setMap(null);
   }
 
-  // 말풍선 DOM 생성
   const content = document.createElement('div');
   content.className = 'marker-tooltip';
   content.innerHTML = `
@@ -176,35 +172,33 @@ const toggleTooltip = (mission, latLng) => {
     <p>${mission.clue}</p>
   `;
 
-  // 닫기 버튼 또는 말풍선 자체 클릭 시 닫히게 설정
   content.onclick = () => {
     if (activeTooltipOverlay) activeTooltipOverlay.setMap(null);
     activeTooltipOverlay = null;
   };
 
-  // 마커 위에 띄울 새 오버레이 생성 (yAnchor를 조절하여 마커 위로 올림)
   activeTooltipOverlay = new window.kakao.maps.CustomOverlay({
     map: map,
     position: latLng,
     content: content,
-    yAnchor: 2.2, // 숫자가 커질수록 오버레이가 위로 올라감 (마커와 겹치지 않게 조절)
+    yAnchor: 2.2,
     zIndex: 10
   });
 
-  // 식별용 타이틀 강제 주입 (토글 로직용)
   activeTooltipOverlay.getTitle = () => mission.id.toString();
 };
 
-
 const loadMissionsData = async () => {
   try {
-    const misRes = await apiClient.get(`/v1/regions/${regionId}/missions`);
+    // 🚨 내 계정의 클리어 정보만 가져오도록 userId 파라미터 추가
+    const misRes = await apiClient.get(`/v1/regions/${regionId}/missions`, {
+      params: { userId: userId.value }
+    });
     missions.value = misRes.data;
 
     markerOverlays.forEach(overlay => overlay.setMap(null));
     markerOverlays = [];
 
-    // 데이터 갱신 시 기존 말풍선 초기화
     if (activeTooltipOverlay) {
       activeTooltipOverlay.setMap(null);
       activeTooltipOverlay = null;
@@ -215,7 +209,6 @@ const loadMissionsData = async () => {
 
     missions.value.forEach((mission) => {
       const isCleared = mission.sessionStatus === 'CLEARED';
-
       const content = document.createElement('div');
       content.className = isCleared ? 'custom-marker cleared' : (mission.isFinal ? 'custom-marker final' : 'custom-marker');
 
@@ -240,7 +233,6 @@ const loadMissionsData = async () => {
 
       markerOverlays.push(customOverlay);
     });
-
   } catch (error) {
     console.error("미션 데이터 갱신 중 오류:", error);
   }
@@ -393,7 +385,14 @@ const uploadImage = async (imageFile) => {
     const formData = new FormData();
     formData.append('image', finalFile);
 
-    const response = await apiClient.post(`/v1/sessions/${currentMission.value.id}/vision`, formData, {
+    // 🚨 [중요] 내 계정에 기록되도록 userId 추가
+    formData.append('userId', userId.value);
+
+    if(isAdmin.value) {
+        formData.append('isAdmin', 'true');
+    }
+
+    const response = await apiClient.post(`/v1/missions/${currentMission.value.id}/vision`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
 
@@ -419,6 +418,7 @@ const uploadImage = async (imageFile) => {
 </script>
 
 <style scoped>
+/* (기존 스타일 유지) */
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 .tactical-fullscreen { width: 100vw; height: 100vh; background: #050505; display: flex; justify-content: center; align-items: center; font-family: 'Share Tech Mono', monospace; color: #00ffcc; padding: 10px; box-sizing: border-box; overflow: hidden; }
@@ -465,7 +465,6 @@ const uploadImage = async (imageFile) => {
 .status-text { margin: 0 0 10px 0; color: #ffaa00; font-size: 0.9rem; }
 .status-text.ready { color: #00ffcc; font-weight: bold; }
 
-/* 🚨 타겟 안내 문구 CSS */
 .target-guide { margin-bottom: 8px; font-size: 0.9rem; color: #bbb; }
 .target-guide .highlight { color: #ffaa00; font-weight: bold; }
 
@@ -522,9 +521,7 @@ const uploadImage = async (imageFile) => {
   animation: pulse-gps 4s infinite;
 }
 
-/* 🚨 마커 말풍선 전용 CSS */
 :deep(.marker-tooltip) {
-  /* 배경은 어두운 남색 계열로 유지, 테두리와 폰트 색상을 변경해 가독성을 높입니다. */
   background: rgba(10, 20, 30, 0.95);
   border: 1px solid #00ffcc;
   padding: 10px 14px;
@@ -532,14 +529,12 @@ const uploadImage = async (imageFile) => {
   color: white;
   text-align: center;
   cursor: pointer;
-  /* 최소 너비는 유지하되, 텍스트가 길면 자동으로 줄바꿈 되도록 최대 너비 제한 */
   min-width: 200px;
   max-width: 300px;
   white-space: normal;
   box-shadow: 0 4px 15px rgba(0, 255, 204, 0.5);
   position: relative;
   font-family: 'Share Tech Mono', monospace;
-  /* 말풍선이 항상 마커 바로 위 중앙에 뜨도록 위치 조정 */
   bottom: -100px;
 }
 
@@ -558,7 +553,6 @@ const uploadImage = async (imageFile) => {
   line-height: 1.3;
 }
 
-/* 말풍선 꼬리표 (아래쪽 뾰족한 삼각형 모양) */
 :deep(.marker-tooltip::after) {
   content: '';
   position: absolute;
@@ -568,7 +562,6 @@ const uploadImage = async (imageFile) => {
   border-width: 8px 8px 0;
   border-style: solid;
   border-color: rgba(10, 20, 30, 0.95) transparent transparent transparent;
-  /* 꼬리표에도 네온 효과를 살짝 줌 */
   filter: drop-shadow(0 2px 2px rgba(0,255,204,0.4));
 }
 </style>

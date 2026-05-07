@@ -25,20 +25,42 @@ public class LocationController {
 
     /**
      * [기능: 맵 뷰 데이터 로딩 - 힌트 및 목적지 조회]
-     * 유저의 진행 상태를 기반으로, 현재 지역에 그려야 할 마커(미션) 정보를 반환합니다.
-     * * @param regionId 지역 식별자
-     * @param userId 유저 식별자 (임시로 헤더나 파라미터로 받음. 추후 JWT Security 파싱으로 교체 권장)
-     * @return 힌트 3개 + (조건 만족 시) 최종 목적지가 포함된 DTO 리스트
      */
     @GetMapping("/regions/{regionId}/missions")
     public ResponseEntity<List<MissionResponse>> getMissions(
             @PathVariable Long regionId,
-            @RequestParam(defaultValue = "1") Long userId // TODO: 추후 @AuthenticationPrincipal 로 토큰에서 추출
+            @RequestParam(defaultValue = "1") Long userId
     ) {
-        // 비즈니스 로직 호출: 유저의 힌트 수집 상태에 따라 해금/마스킹된 데이터 반환
         List<MissionResponse> response = missionService.getMissionBoard(regionId, userId);
         return ResponseEntity.ok(response);
     }
 
-    // ... (기존 checkArrival 로직 유지) ...
+    /**[기능: 미션 장소 도착 여부 검증]
+     - 수행 내용: 유저의 현재 좌표와 미션 목적지 좌표를 비교하여 반경 내 도착 여부 판정
+     - 🚨 수정 사항: 관리자 여부(isAdmin) 파라미터 추가 및 서비스 전달 */
+    @PostMapping("/missions/{missionId}/arrive")
+    public ResponseEntity<Boolean> checkArrival(
+            @PathVariable Long missionId,
+            @RequestBody LocationRequest request,
+            @RequestParam(value = "isAdmin", defaultValue = "false") boolean isAdmin) { // 🚨 관리자 파라미터 추가
+
+        // LocationValidationService에 isAdmin 값을 함께 넘겨줍니다.
+        // 서비스 내부 로직에 의해 isAdmin이 true이면 거리 계산 없이 무조건 true가 반환됩니다.
+        boolean isArrived = locationValidationService.verifyUserArrival(
+                missionId,
+                request.getUserLat(),
+                request.getUserLng(),
+                isAdmin // 🚨 서비스로 전달
+        );
+        return ResponseEntity.ok(isArrived);
+    }
+}
+
+/**
+ * [DTO: 위치 정보 요청 규격]
+ */
+@Data
+class LocationRequest {
+    private Double userLat;
+    private Double userLng;
 }
