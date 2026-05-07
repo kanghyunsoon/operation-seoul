@@ -5,20 +5,26 @@ import lombok.*;
 
 @Entity
 @Table(name = "users")
-@Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
 public class User {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String email; // 로그인 아이디(이메일)
+    private String email;
 
     @Column(nullable = false)
-    private String password; // 암호화된 비밀번호
+    private String password;
 
     @Column(nullable = false)
-    private String nickname; // 작전 코드네임
+    private String nickname;
+
+    // 🚨 새로 추가된 관리자 권한 필드 (기본값은 일반 유저)
+    @Column(nullable = false)
+    private boolean isAdmin = false;
 }

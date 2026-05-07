@@ -40,9 +40,15 @@ public class AuthController {
         }
 
         String token = jwtTokenProvider.createToken(user.getEmail());
+
         return ResponseEntity.ok(Map.of(
                 "token", token,
-                "user", Map.of("nickname", user.getNickname(), "email", user.getEmail())
+                "user", Map.of(
+                        "id", user.getId(),       // 🚨 [중요] 유저의 고유 ID(PK) 추가
+                        "nickname", user.getNickname(),
+                        "email", user.getEmail(),
+                        "isAdmin", user.isAdmin()
+                )
         ));
     }
 
