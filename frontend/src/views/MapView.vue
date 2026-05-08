@@ -489,7 +489,7 @@ onUnmounted(() => {
 
 const goToChat = () => {
   if (currentMission.value) {
-    router.push(`/chat/${currentMission.value.id}`);
+    router.push({ name: 'Chat', params: { sessionId: currentMission.value.id }, query: { regionId } });
   } else {
     alert("먼저 지도에서 작전을 수행할 마커를 선택해 주십시오.");
   }
