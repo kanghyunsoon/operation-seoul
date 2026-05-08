@@ -194,7 +194,9 @@ const drawTmapRoute = async (mission) => {
     }
     const data = await response.json();
 
-    const linePath = [];
+    const startPoint = new window.kakao.maps.LatLng(currentLat.value, currentLng.value);
+    const endPoint = new window.kakao.maps.LatLng(mission.targetLat, mission.targetLng);
+    const linePath = [startPoint];
     data.features.forEach(feature => {
       if (feature.geometry.type === "LineString") {
         feature.geometry.coordinates.forEach(coord => {
@@ -202,14 +204,14 @@ const drawTmapRoute = async (mission) => {
         });
       }
     });
+    linePath.push(endPoint);
 
-    // 🟢 [수정] 메인 네비게이션 선을 더 예쁜 반투명 네온 직선으로 변경
     polylineOverlay = new window.kakao.maps.Polyline({
       path: linePath,
-      strokeWeight: 7,            // 두께를 살짝 도톰하게
-      strokeColor: '#f229b3',     // 스파이 테마의 네온 시안 컬러
-      strokeOpacity: 0.6,         // 반투명하게 설정하여 지도를 너무 가리지 않게
-      strokeStyle: 'solid'        // 짜치던 점선(shortdash)을 직선(solid)으로 변경!
+      strokeWeight: 7,
+      strokeColor: '#f229b3',
+      strokeOpacity: 0.6,
+      strokeStyle: 'solid'
     });
     polylineOverlay.setMap(map);
     console.log("🚀 Tmap 도보 경로 탐색 완료");
@@ -221,13 +223,12 @@ const drawTmapRoute = async (mission) => {
       new window.kakao.maps.LatLng(mission.targetLat, mission.targetLng)
     ];
 
-    // 🔴 [수정] 통신 실패 시 나타나는 비상용 선도 예쁜 반투명 레드 직선으로 변경
     polylineOverlay = new window.kakao.maps.Polyline({
       path: fallbackPath,
       strokeWeight: 7,
-      strokeColor: '#ff003c',     // 위험을 알리는 네온 레드
-      strokeOpacity: 0.6,         // 반투명 설정
-      strokeStyle: 'solid'        // 직선
+      strokeColor: '#ff003c',
+      strokeOpacity: 0.6,
+      strokeStyle: 'solid'
     });
     polylineOverlay.setMap(map);
     alert("Tmap 통신망에 간섭이 발생했습니다. 보조 레이더망(직선 경로)을 가동합니다.");
