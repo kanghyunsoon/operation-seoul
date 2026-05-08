@@ -74,13 +74,15 @@ public class GeminiAiService {
         String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey.trim();
 
         String prompt = String.format(
-                "당신은 'Operation KOREA'의 본부(HQ) 지휘관입니다. 요원(플레이어)이 '%s' 현장에서 보고를 올렸습니다.\n" +
-                        "요원 보고 내용: \"%s\"\n" +
-                        "판독 결과: %b\n\n" +
-                        "🚨 [HQ 통신 가이드라인]\n" +
-                        "1. 성공(true) 시: '진실 해금(Truth Unlocked)' 원칙에 따라 이 장소가 가진 실제 역사적 중요성이나 로컬 가치를 요약 브리핑하세요. 그 후 '주변 상점에서 민간인으로 위장해 잠시 휴식(소비 유도)하며 다음 지령을 대기하라'고 지시하세요.\n" +
-                        "2. 실패(false) 시: 차갑게 질책하며 '이동 가능한 사물에 속지 말고, 단단히 고정된 명판이나 표지석을 다시 스캔하라'고 단호하게 명령하세요.\n" +
-                        "3. 말투: 철저하게 스파이 영화 속 지휘관 말투(하오체 또는 평어)를 유지하세요.",
+                "당신은 'Operation KOREA'의 HQ 안내관입니다. 요원은 '%s' 현장에서 다음 보고를 보냈습니다.\n" +
+                        "요원 보고: \"%s\"\n" +
+                        "판정: %b\n\n" +
+                        "[응답 규칙]\n" +
+                        "- 한국어로 2문장 이하, 120자 이하로 답하세요.\n" +
+                        "- 모욕, 조롱, 인신공격, 과한 질책은 금지합니다.\n" +
+                        "- 성공이면 정답 확인만 짧게 알리고, 상세 역사 해설은 임무 종료 기록에서 제공된다고 말하세요.\n" +
+                        "- 실패이면 관찰이 부족하다고만 정중히 알리고, 수집한 단서를 다시 대조하라고 안내하세요.\n" +
+                        "- 마크다운 제목, 대괄호 장식, 긴 서론은 쓰지 마세요.",
                 missionTitle, userAnswer, isCorrect
         );
 
@@ -102,6 +104,38 @@ public class GeminiAiService {
         return emitter;
     }
 
+    public ResponseBodyEmitter streamHintAnswer(Long missionId, String userQuestion) {
+        Mission mission = missionRepository.findById(missionId).orElseThrow();
+        String answerKeyword = mission.getAnswerKeyword();
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey.trim();
+
+        String prompt = String.format(
+                "당신은 역사 추리 게임의 정중한 힌트 진행자입니다.\n" +
+                        "정답 키워드: '%s'\n" +
+                        "플레이어 질문: '%s'\n\n" +
+                        "[응답 규칙]\n" +
+                        "- 한국어로 2문장 이하, 140자 이하로 답하세요.\n" +
+                        "- 질문 내용이 정답과 얼마나 가까운지 '관련 있음/부분적으로 관련 있음/거리가 있음' 중 하나로 알려주세요.\n" +
+                        "- 정답 키워드 자체는 절대 말하지 마세요.\n" +
+                        "- 관련 인물, 장소, 시대 배경은 힌트로 언급해도 되지만 결론을 직접 확정하지 마세요.\n" +
+                        "- 모욕, 조롱, 과한 질책, 긴 역사 해설은 금지합니다.",
+                answerKeyword, userQuestion
+        );
+
+        return streamPrompt(url, prompt);
+    }
+
+    public boolean isHintQuestion(String userAnswer) {
+        if (userAnswer == null) return false;
+        String trimmed = userAnswer.trim();
+        return trimmed.endsWith("?")
+                || trimmed.contains("관련")
+                || trimmed.contains("맞아")
+                || trimmed.contains("인가")
+                || trimmed.contains("일까")
+                || trimmed.contains("힌트");
+    }
+
     /**
      * 챗봇 답변 유사도 검증
      */
@@ -110,11 +144,48 @@ public class GeminiAiService {
         String answerKeyword = mission.getAnswerKeyword();
         if (answerKeyword == null) return true;
 
+        String normalizedAnswer = normalizeAnswer(userAnswer);
+        String normalizedKeyword = normalizeAnswer(answerKeyword);
+        if (normalizedAnswer.equals(normalizedKeyword) || normalizedAnswer.contains(normalizedKeyword)) {
+            return true;
+        }
+
         String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey.trim();
-        String prompt = String.format("정답: '%s', 요원답변: '%s'. 의미가 통하면 'TRUE', 틀리면 'FALSE'만 반환.", answerKeyword, userAnswer);
+        String prompt = String.format(
+                "정답 키워드: '%s'\n요원 답변: '%s'\n" +
+                        "판정 기준: 답변이 정답 키워드 자체이거나, 같은 역사적 사건/일화의 공식 명칭을 명확히 말한 경우만 TRUE입니다. " +
+                        "관련 인물, 장소, 시대 배경만 말한 것은 FALSE입니다. 예: 정답이 '아관파천'이면 '고종', '러시아 공사관', '덕수궁'은 FALSE입니다. " +
+                        "오직 TRUE 또는 FALSE만 반환하세요.",
+                answerKeyword, userAnswer
+        );
 
         String result = callGeminiStandard(url, prompt);
-        return result != null && result.contains("TRUE");
+        return result != null && "TRUE".equalsIgnoreCase(result.trim());
+    }
+
+    private String normalizeAnswer(String value) {
+        return value == null ? "" : value.replaceAll("[\\s\\p{Punct}]", "").toLowerCase();
+    }
+
+    private ResponseBodyEmitter streamPrompt(String url, String prompt) {
+        ResponseBodyEmitter emitter = new ResponseBodyEmitter(120000L);
+
+        new Thread(() -> {
+            try {
+                String aiResponseText = callGeminiStandard(url, prompt);
+                if (aiResponseText != null) {
+                    for (char c : aiResponseText.toCharArray()) {
+                        emitter.send(String.valueOf(c));
+                        Thread.sleep(25);
+                    }
+                }
+                emitter.complete();
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        }).start();
+
+        return emitter;
     }
 
     private String callGeminiStandard(String url, String prompt) {

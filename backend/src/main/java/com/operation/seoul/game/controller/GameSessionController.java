@@ -79,14 +79,17 @@ public class GameSessionController {
                     return sessionRepository.save(newSession);
                 });
 
-        boolean isCorrect = geminiAiService.verifyFinalAnswer(missionId, request.getUserAnswer());
+        boolean isQuestion = geminiAiService.isHintQuestion(request.getUserAnswer());
+        boolean isCorrect = !isQuestion && geminiAiService.verifyFinalAnswer(missionId, request.getUserAnswer());
 
         if (isCorrect) {
             session.setStatus("CLEARED");
             sessionRepository.save(session);
         }
 
-        return geminiAiService.streamNarration(missionId, request.getUserAnswer(), isCorrect);
+        return isQuestion
+                ? geminiAiService.streamHintAnswer(missionId, request.getUserAnswer())
+                : geminiAiService.streamNarration(missionId, request.getUserAnswer(), isCorrect);
     }
 
     // 🚨 컴파일 및 JSON 파싱 에러 방지를 위해 반드시 public static class 로 선언!
