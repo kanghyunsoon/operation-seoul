@@ -31,6 +31,9 @@ public class AdminMissionController {
     private static final double MIN_HINT_DISTANCE_METERS = 250.0;
     private static final double MAX_HINT_DISTANCE_METERS = 1500.0;
     private static final double MIN_HINT_SPACING_METERS = 180.0;
+    private static final double MAX_HINT_WALK_DISTANCE_METERS = 2300.0;
+    private static final double MAX_WALK_TO_STRAIGHT_RATIO = 2.2;
+    private static final int MAX_ROUTE_CHECK_CANDIDATES = 40;
     private static final int MAX_AI_SUB_SPOTS = 15;
 
     private final TourApiService tourApiService;
@@ -183,11 +186,43 @@ public class AdminMissionController {
                 .sorted(java.util.Comparator.comparingDouble(spot -> Double.parseDouble(spot.get("distanceMeters"))))
                 .toList();
 
-        List<Map<String, String>> selected = pickSpacedSpots(deduped, MIN_HINT_SPACING_METERS);
+        List<Map<String, String>> walkableCandidates = filterWalkableCandidates(deduped, targetLat, targetLng);
+
+        List<Map<String, String>> selected = pickSpacedSpots(walkableCandidates, MIN_HINT_SPACING_METERS);
         if (selected.size() < 6) {
-            selected = pickSpacedSpots(deduped, MIN_HINT_SPACING_METERS / 2);
+            selected = pickSpacedSpots(walkableCandidates, MIN_HINT_SPACING_METERS / 2);
         }
         return selected.stream().limit(MAX_AI_SUB_SPOTS).toList();
+    }
+
+    private List<Map<String, String>> filterWalkableCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {
+        List<Map<String, String>> checked = new ArrayList<>();
+        int routeCheckedCount = 0;
+
+        for (Map<String, String> spot : spots) {
+            if (routeCheckedCount >= MAX_ROUTE_CHECK_CANDIDATES) {
+                break;
+            }
+            routeCheckedCount++;
+
+            double straightDistance = Double.parseDouble(spot.get("distanceMeters"));
+            double spotLat = Double.parseDouble(spot.get("mapY"));
+            double spotLng = Double.parseDouble(spot.get("mapX"));
+            Double walkingDistance = tourApiService.fetchPedestrianDistanceMeters(targetLat, targetLng, spotLat, spotLng);
+
+            if (walkingDistance == null) {
+                continue;
+            }
+
+            if (walkingDistance <= MAX_HINT_WALK_DISTANCE_METERS
+                    && walkingDistance / Math.max(straightDistance, 1.0) <= MAX_WALK_TO_STRAIGHT_RATIO) {
+                Map<String, String> copied = new HashMap<>(spot);
+                copied.put("walkingDistanceMeters", String.valueOf(Math.round(walkingDistance)));
+                checked.add(copied);
+            }
+        }
+
+        return checked.size() >= 6 ? checked : spots;
     }
 
     private List<Map<String, String>> pickSpacedSpots(List<Map<String, String>> spots, double minSpacingMeters) {

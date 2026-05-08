@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -33,6 +34,9 @@ public class TourApiService {
     // 🔥 사용자님이 연동해두셨던 카카오 키 변수 원복
     @Value("${VITE_KAKAO_REST_KEY}")
     private String kakaoRestApiKey;
+
+    @Value("${tmap.app.key:}")
+    private String tmapAppKey;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -123,5 +127,49 @@ public class TourApiService {
             log.error("🚨 Kakao API 오류: {}", e.getMessage());
         }
         return spots;
+    }
+
+    public Double fetchPedestrianDistanceMeters(double startLat, double startLng, double endLat, double endLng) {
+        if (tmapAppKey == null || tmapAppKey.isBlank()) {
+            return null;
+        }
+
+        try {
+            String url = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json";
+
+            Map<String, Object> payload = Map.of(
+                    "startX", String.valueOf(startLng),
+                    "startY", String.valueOf(startLat),
+                    "endX", String.valueOf(endLng),
+                    "endY", String.valueOf(endLat),
+                    "reqCoordType", "WGS84GEO",
+                    "resCoordType", "WGS84GEO",
+                    "startName", "target",
+                    "endName", "hint"
+            );
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("appKey", tmapAppKey.trim());
+
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    url,
+                    new HttpEntity<>(payload, headers),
+                    String.class
+            );
+
+            JsonNode features = objectMapper.readTree(response.getBody()).path("features");
+            if (features.isArray()) {
+                for (JsonNode feature : features) {
+                    JsonNode totalDistance = feature.path("properties").path("totalDistance");
+                    if (totalDistance.isNumber() && totalDistance.asDouble() > 0) {
+                        return totalDistance.asDouble();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Tmap pedestrian distance check failed: {}", e.getMessage());
+        }
+        return null;
     }
 }
