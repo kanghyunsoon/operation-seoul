@@ -52,10 +52,10 @@
         </button>
 
         <div v-if="isArrived && (currentMission?.isFinal || currentMission?.final)" class="target-guide">
-          📸 촬영 목표: <span class="highlight">{{ currentMission?.visionKeyword }}</span>
+          🧩 수집한 단서를 바탕으로 최종 사건 키워드를 추론하세요.
         </div>
-        <button v-if="isArrived && (currentMission?.isFinal || currentMission?.final)" @click="isScannerOpen = true" class="capture-btn final-btn">
-          [ 목적지 진입 인증 스캔 ]
+        <button v-if="isArrived && (currentMission?.isFinal || currentMission?.final)" @click="goToChat" class="capture-btn final-btn">
+          [ 최종 분석 채널 접속 ]
         </button>
 
         <button
