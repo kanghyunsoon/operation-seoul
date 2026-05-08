@@ -5,6 +5,7 @@ import HomeView from '@/views/HomeView.vue';
 import BriefingView from '@/views/BriefingView.vue';
 import MapView from '@/views/MapView.vue';
 import AiChatView from '@/views/AiChatView.vue';
+import ClearView from '@/views/ClearView.vue';
 
 // 2. 세션 스토어 가져오기 (⚠️ 폴더명 stores 확인 완료)
 import { useSessionStore } from '@/stores/sessionStore.js';
@@ -43,6 +44,12 @@ const routes = [
     path: '/chat/:sessionId',
     name: 'Chat',
     component: AiChatView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/clear/:missionId',
+    name: 'Clear',
+    component: ClearView,
     meta: { requiresAuth: true }
   }
 ];

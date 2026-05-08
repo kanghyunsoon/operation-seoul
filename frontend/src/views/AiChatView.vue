@@ -87,12 +87,14 @@ import { ref, onMounted, nextTick, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore'; // 🚨 스토어 가져오기
 import axios from 'axios';
+import apiClient from '@/api/axiosInstance';
 import CameraScanner from '@/components/CameraScanner.vue';
 import { useTypingBuffer } from '@/composables/useTypingBuffer';
 
 const route = useRoute();
 const router = useRouter();
 const sessionId = ref(route.params.sessionId);
+const regionId = computed(() => route.query.regionId || 1);
 
 // 🚨 스토어 사용 및 권한/ID 맵핑
 const sessionStore = useSessionStore();
@@ -111,8 +113,7 @@ const isFinalAnswer = computed(() => !userInput.value.includes('?'));
 const { displayedText, isTyping, isFinished, addChunk, finishTyping, reset } = useTypingBuffer(30);
 
 const goBackToMap = () => {
-  const regionId = route.query.regionId || 1;
-  router.push({ name: 'Map', query: { regionId: regionId } });
+  router.push({ name: 'Map', query: { regionId: regionId.value } });
 };
 
 const scrollToBottom = async () => {
@@ -218,12 +219,13 @@ const requestGeminiStream = async (textMessage) => {
   scrollToBottom();
 
   try {
-    // 🚨 채팅 응답 부분도 userId가 필요하다면 추후 폼 데이터를 변경해야 하지만,
-    // 현재 백엔드 로직에 맞춰 둡니다. (임시 tempUserId=1L 로 고정되어 있는 부분 추후 수정 필요)
     const response = await fetch(`http://localhost:8080/api/v1/sessions/${sessionId.value}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userAnswer: textMessage })
+      body: JSON.stringify({
+        userId: userId.value || 1,
+        userAnswer: textMessage
+      })
     });
 
     if (!response.ok) throw new Error("서버 응답 오류");
@@ -258,6 +260,7 @@ const requestGeminiStream = async (textMessage) => {
       }
     }
     finishTyping();
+    await navigateIfMissionCleared();
 
     if (questionCount.value === 10) {
       setTimeout(() => {
@@ -268,6 +271,26 @@ const requestGeminiStream = async (textMessage) => {
     console.error("통신 에러:", error);
     isWaiting.value = false;
     typeWriterEffect("<span style='color:#ef5350'>[SYS_ERROR]</span> 위성 연결 불안정. 재전송 하십시오.");
+  }
+};
+
+const navigateIfMissionCleared = async () => {
+  try {
+    const response = await apiClient.get(`/v1/sessions/${sessionId.value}/status`, {
+      params: { userId: userId.value || 1 }
+    });
+
+    if (response.data?.cleared) {
+      setTimeout(() => {
+        router.push({
+          name: 'Clear',
+          params: { missionId: sessionId.value },
+          query: { regionId: regionId.value }
+        });
+      }, 900);
+    }
+  } catch (error) {
+    console.error('클리어 상태 확인 실패:', error);
   }
 };
 </script>
