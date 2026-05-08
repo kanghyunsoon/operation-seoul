@@ -71,7 +71,13 @@ public class GameSessionController {
         Long tempUserId = 1L;
 
         GameSession session = sessionRepository.findByUserIdAndMissionId(tempUserId, missionId)
-                .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다. 스캔 인증을 먼저 진행하십시오."));
+                .orElseGet(() -> {
+                    GameSession newSession = new GameSession();
+                    newSession.setUserId(tempUserId);
+                    newSession.setMissionId(missionId);
+                    newSession.setStatus("IN_PROGRESS");
+                    return sessionRepository.save(newSession);
+                });
 
         boolean isCorrect = geminiAiService.verifyFinalAnswer(missionId, request.getUserAnswer());
 

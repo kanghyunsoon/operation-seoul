@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +27,11 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = "http://localhost:5173")
 @RequiredArgsConstructor
 public class AdminMissionController {
+
+    private static final double MIN_HINT_DISTANCE_METERS = 250.0;
+    private static final double MAX_HINT_DISTANCE_METERS = 1500.0;
+    private static final double MIN_HINT_SPACING_METERS = 180.0;
+    private static final int MAX_AI_SUB_SPOTS = 15;
 
     private final TourApiService tourApiService;
     private final GeminiAiService geminiAiService;
@@ -76,22 +80,16 @@ public class AdminMissionController {
             double tLat = Double.parseDouble(targetSpot.get("mapY"));
             double tLng = Double.parseDouble(targetSpot.get("mapX"));
 
-            // [핵심 로직] 선택된 목적지 주변의 골목 상권 데이터를 카카오 API로 다양하게 긁어옵니다.
-            String[] keywords = {"카페", "시장", "공원", "노포", "벽화", "서점", "소품샵"};
+            String[] keywords = {"카페", "시장", "공원", "서점", "문화", "기념", "박물관", "전시", "산책"};
             List<Map<String, String>> localSpots = new ArrayList<>();
             for (String kw : keywords) {
-                List<Map<String, String>> spots = tourApiService.fetchNearbyLocalPOIs(tLat, tLng, 1000, kw);
+                List<Map<String, String>> spots = tourApiService.fetchNearbyLocalPOIs(tLat, tLng, 1600, kw);
                 if (spots != null && !spots.isEmpty()) {
                     localSpots.addAll(spots);
                 }
             }
 
-            // AI가 헷갈리지 않게 전체 리스트를 섞은 후, 최대 15개 정도의 다채로운 장소만 추려서 넘깁니다.
-            Collections.shuffle(localSpots);
-            List<Map<String, String>> subSpots = localSpots.stream()
-                    .distinct()
-                    .limit(15)
-                    .toList();
+            List<Map<String, String>> subSpots = selectHintCandidates(localSpots, tLat, tLng);
 
             // 🚨 [타입 변환 로직 추가] GeminiAiService가 Map<String, Object>를 요구하므로 맞춰서 변환합니다.
             Map<String, Object> targetSpotObj = new HashMap<>(targetSpot);
@@ -164,5 +162,74 @@ public class AdminMissionController {
             log.error("🚨 작전 파기 실패: ", e);
             return ResponseEntity.internalServerError().body("작전 파기 중 장애 발생: " + e.getMessage());
         }
+    }
+
+    private List<Map<String, String>> selectHintCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {
+        List<Map<String, String>> deduped = spots.stream()
+                .filter(spot -> spot.get("mapY") != null && spot.get("mapX") != null)
+                .collect(Collectors.toMap(
+                        this::spotIdentity,
+                        spot -> spot,
+                        (first, ignored) -> first,
+                        java.util.LinkedHashMap::new
+                ))
+                .values()
+                .stream()
+                .map(spot -> withDistance(spot, targetLat, targetLng))
+                .filter(spot -> {
+                    double distance = Double.parseDouble(spot.get("distanceMeters"));
+                    return distance >= MIN_HINT_DISTANCE_METERS && distance <= MAX_HINT_DISTANCE_METERS;
+                })
+                .sorted(java.util.Comparator.comparingDouble(spot -> Double.parseDouble(spot.get("distanceMeters"))))
+                .toList();
+
+        List<Map<String, String>> selected = pickSpacedSpots(deduped, MIN_HINT_SPACING_METERS);
+        if (selected.size() < 6) {
+            selected = pickSpacedSpots(deduped, MIN_HINT_SPACING_METERS / 2);
+        }
+        return selected.stream().limit(MAX_AI_SUB_SPOTS).toList();
+    }
+
+    private List<Map<String, String>> pickSpacedSpots(List<Map<String, String>> spots, double minSpacingMeters) {
+        List<Map<String, String>> selected = new ArrayList<>();
+        for (Map<String, String> spot : spots) {
+            boolean farEnoughFromOthers = selected.stream().allMatch(existing ->
+                    distanceMeters(
+                            Double.parseDouble(spot.get("mapY")),
+                            Double.parseDouble(spot.get("mapX")),
+                            Double.parseDouble(existing.get("mapY")),
+                            Double.parseDouble(existing.get("mapX"))
+                    ) >= minSpacingMeters
+            );
+            if (farEnoughFromOthers) {
+                selected.add(spot);
+            }
+            if (selected.size() >= MAX_AI_SUB_SPOTS) {
+                break;
+            }
+        }
+        return selected;
+    }
+
+    private Map<String, String> withDistance(Map<String, String> spot, double targetLat, double targetLng) {
+        Map<String, String> copied = new HashMap<>(spot);
+        double lat = Double.parseDouble(copied.get("mapY"));
+        double lng = Double.parseDouble(copied.get("mapX"));
+        copied.put("distanceMeters", String.valueOf(Math.round(distanceMeters(targetLat, targetLng, lat, lng))));
+        return copied;
+    }
+
+    private String spotIdentity(Map<String, String> spot) {
+        return (spot.getOrDefault("title", "") + "|" + spot.getOrDefault("address", "")).trim();
+    }
+
+    private double distanceMeters(double lat1, double lng1, double lat2, double lng2) {
+        double earthRadiusMeters = 6371000.0;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 }
