@@ -12,9 +12,7 @@
             {{ paragraph }}
           </p>
         </div>
-        <button class="primary-action" :disabled="isTyping" @click="showClues">
-          다음
-        </button>
+        <button class="primary-action" :disabled="isTyping" @click="showClues">다음</button>
       </article>
 
       <article v-else class="clue-stage">
@@ -25,25 +23,25 @@
         </p>
 
         <div v-if="visibleClues.length" class="clue-list">
-          <button
-            v-for="clue in visibleClues"
-            :key="clue.id"
-            class="clue-card"
-            :class="{ selected: selectedClue?.id === clue.id }"
-            @click="selectClue(clue)"
-          >
-            <strong>{{ clue.title }}</strong>
-            <span>{{ clue.clue || clue.description || '현장에서 확보한 단서입니다.' }}</span>
-          </button>
+          <div v-for="clue in visibleClues" :key="clue.id" class="clue-item">
+            <button
+              class="clue-card"
+              :class="{ selected: selectedClue?.id === clue.id }"
+              @click="selectClue(clue)"
+            >
+              <strong>{{ clue.title }}</strong>
+              <span>{{ clue.clue || clue.description || '현장에서 확보한 단서입니다.' }}</span>
+            </button>
+
+            <section v-if="selectedClue?.id === clue.id" class="adaptation-box">
+              <h3>{{ selectedClue.title }}</h3>
+              <p v-for="(paragraph, index) in selectedClueExplanation" :key="index">
+                {{ paragraph }}
+              </p>
+            </section>
+          </div>
         </div>
         <p v-else class="empty-message">수집한 단서 기록이 없습니다.</p>
-
-        <section v-if="selectedClue" class="adaptation-box">
-          <h3>{{ selectedClue.title }}</h3>
-          <p v-for="(paragraph, index) in selectedClueExplanation" :key="index">
-            {{ paragraph }}
-          </p>
-        </section>
 
         <button class="primary-action" @click="goHome">홈으로</button>
       </article>
@@ -162,7 +160,7 @@ const showClues = () => {
 };
 
 const selectClue = (clue) => {
-  selectedClue.value = clue;
+  selectedClue.value = selectedClue.value?.id === clue.id ? null : clue;
 };
 
 const goHome = () => {
@@ -179,9 +177,7 @@ const formatReadableParagraphs = (text) => {
     ?.map(sentence => sentence.trim())
     .filter(Boolean);
 
-  if (!sentences?.length) return normalized;
-
-  return sentences.join('\n\n');
+  return sentences?.length ? sentences.join('\n\n') : normalized;
 };
 
 const buildClueHistoricalRelation = (title, clue, keyword, finalTitle) => {
@@ -190,15 +186,15 @@ const buildClueHistoricalRelation = (title, clue, keyword, finalTitle) => {
 
   if (isAgwan && hasAny(source, ['이화', '교육', '여성', '독립', '발상지'])) {
     return {
-      connection: `이 단서는 ${keyword}의 발생 장소를 직접 가리키는 단서라기보다, 그 사건을 둘러싼 시대 분위기를 끌어온 힌트입니다. 왕실이 외세의 압박 속에서 흔들리던 시기에도 정동 일대에는 근대 교육, 선교, 독립 의식처럼 새로운 흐름이 함께 자라고 있었고, 그 대비가 당시 조선이 맞닥뜨린 불안과 변화를 더 선명하게 보여줍니다.`,
+      connection: `이 단서는 ${keyword}의 발생 장소를 직접 가리키기보다, 그 사건을 둘러싼 시대 분위기를 끌어온 힌트입니다. 왕실이 외세의 압박 속에서 흔들리던 시기에도 정동 일대에는 근대 교육, 선교, 독립 의식 같은 새로운 흐름이 함께 자라고 있었습니다.`,
       caveat: `${title}가 ${keyword}의 실제 현장이라는 뜻은 아닙니다. 다만 이 장소가 품은 근대성, 교육, 독립의 이미지를 빌려 ${finalTitle}로 이어지는 시대의 긴장감을 힌트 위치에 심어 둔 것입니다.`,
-      afterthought: `정답을 알고 나면 이 단서는 단순히 목적지를 숨긴 장식이 아니라, 궁궐 안팎에서 동시에 진행되던 권력의 위기와 사회의 변화를 떠올리게 하는 우회 단서가 됩니다.`
+      afterthought: `정답을 알고 나면 이 단서는 궁궐 안팎에서 동시에 진행되던 권력의 위기와 사회의 변화를 떠올리게 하는 우회 단서가 됩니다.`
     };
   }
 
   if (isAgwan && hasAny(source, ['러시아', '공사관', '외교', '공사', '정동'])) {
     return {
-      connection: `${keyword}에서 가장 중요한 축은 고종이 러시아 공사관으로 거처를 옮기며 조선의 권력 중심과 외교 지형이 흔들렸다는 점입니다. 이 단서는 그 이동의 목적지, 외세의 영향력, 그리고 당시 정동 일대가 외교 공간으로 기능했다는 사실을 떠올리도록 배치했습니다.`,
+      connection: `${keyword}에서 중요한 축은 고종이 러시아 공사관으로 거처를 옮기며 조선의 권력 중심과 외교 지형이 흔들렸다는 점입니다. 이 단서는 이동의 목적지, 외세의 영향력, 정동 일대의 외교 공간성을 떠올리도록 배치했습니다.`,
       caveat: `${title}에서 본 세부 물건이나 지점이 모두 실제 사건 기록과 일치한다는 뜻은 아닙니다. 대신 러시아 공사관과 외교 공간이라는 역사적 방향을 따라가게 하려고 해당 위치를 힌트로 각색했습니다.`,
       afterthought: `그래서 이 단서는 길을 맞히는 문제라기보다, 왜 한 나라의 국왕이 궁궐 밖 외국 공관으로 이동해야 했는지를 묻는 단서에 가깝습니다.`
     };
@@ -206,7 +202,7 @@ const buildClueHistoricalRelation = (title, clue, keyword, finalTitle) => {
 
   if (isAgwan && hasAny(source, ['덕수', '경운궁', '궁', '돌담', '문', '대한제국', '황제', '고종'])) {
     return {
-      connection: `${keyword}는 고종의 신변 위협, 궁궐을 둘러싼 정치적 불안, 그리고 이후 경운궁과 대한제국으로 이어지는 흐름을 함께 봐야 이해되는 사건입니다. 이 단서는 궁궐의 경계와 왕의 이동이라는 요소를 빌려, 플레이어가 최종 목적지 주변의 역사적 압박감을 느끼도록 설계했습니다.`,
+      connection: `${keyword}는 고종의 신변 위협, 궁궐을 둘러싼 정치적 불안, 이후 경운궁과 대한제국으로 이어지는 흐름을 함께 봐야 이해되는 사건입니다. 이 단서는 궁궐의 경계와 왕의 이동이라는 요소를 빌려 최종 목적지 주변의 역사적 압박감을 느끼도록 설계했습니다.`,
       caveat: `${title}의 현재 위치가 사건의 모든 장면을 그대로 증명하는 장소라는 뜻은 아닙니다. 실제 역사의 큰 흐름인 왕실의 이동, 궁궐의 변화, 권력 중심의 재편을 현장 힌트로 압축한 것입니다.`,
       afterthought: `정답을 알고 다시 보면 돌담과 문, 궁궐 주변의 길은 배경이 아니라 당시 권력이 어디에 머물고 어디로 밀려났는지를 보여주는 단서가 됩니다.`
     };
@@ -214,7 +210,7 @@ const buildClueHistoricalRelation = (title, clue, keyword, finalTitle) => {
 
   if (isAgwan && hasAny(source, ['명성황후', '을미', '시해', '일본', '친러', '친일', '위협'])) {
     return {
-      connection: `${keyword}의 배경에는 명성황후 시해 이후 커진 신변 위협과 조선을 둘러싼 열강의 압박이 놓여 있습니다. 이 단서는 그 불안과 공포, 그리고 고종이 궁궐을 떠나는 선택을 하게 된 정치적 배경을 떠올리도록 배치했습니다.`,
+      connection: `${keyword}의 배경에는 명성황후 시해 이후 커진 신변 위협과 조선을 둘러싼 열강의 압박이 놓여 있습니다. 이 단서는 고종이 궁궐을 떠나는 선택을 하게 된 정치적 배경을 떠올리도록 배치했습니다.`,
       caveat: `${title}가 사건의 직접 현장이라고 단정하는 힌트는 아닙니다. 대신 당시 조선 왕실이 느낀 위기감과 외세 사이의 긴장을 현장 단서로 바꿔 놓은 것입니다.`,
       afterthought: `이 관점에서 보면 단서는 정답 이름을 맞히는 암호가 아니라, 왜 그 사건이 불가피한 선택처럼 밀려왔는지 이해하게 만드는 조각입니다.`
     };
@@ -344,6 +340,12 @@ h3 {
   margin-bottom: 20px;
 }
 
+.clue-item {
+  display: grid;
+  gap: 10px;
+  animation: rise-in 360ms ease both;
+}
+
 .clue-card {
   width: 100%;
   text-align: left;
@@ -355,7 +357,6 @@ h3 {
   border-radius: 6px;
   padding: 15px 17px;
   cursor: pointer;
-  animation: rise-in 360ms ease both;
 }
 
 .clue-card:hover,
@@ -377,7 +378,7 @@ h3 {
   border-left: 3px solid #f8d66d;
   background: rgba(248, 214, 109, 0.08);
   padding: 20px;
-  margin: 14px 0 24px;
+  margin: 0 0 10px;
 }
 
 .adaptation-box p,
