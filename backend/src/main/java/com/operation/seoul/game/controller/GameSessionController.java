@@ -30,37 +30,7 @@ public class GameSessionController {
             @RequestParam(value = "userId", defaultValue = "1") Long userId,
             @RequestParam(value = "isAdmin", defaultValue = "false") boolean isAdmin) {
 
-        boolean isSuccess = isAdmin || visionAiService.validateKeyword(missionId, image);
-
-        if (isSuccess) {
-            // 👇 [핵심 추가] 비전 판독에 성공하면 DB에 클리어 도장을 찍어줍니다!
-            GameSession session = sessionRepository.findByUserIdAndMissionId(userId, missionId)
-                    .orElseGet(() -> {
-                        GameSession newSession = new GameSession();
-                        newSession.setUserId(userId);
-                        newSession.setMissionId(missionId);
-                        return newSession;
-                    });
-
-            // 만약 미션 정보(Mission 엔티티)를 조회해서 분기할 수 있다면 가장 좋습니다.
-            // 일반 힌트 미션 -> "CLEARED" 처리 (단서 해금)
-            // 최종 목적지 미션 -> "PHOTO_VERIFIED" 처리 (채팅 해금 대기)
-
-            // 임시로 무조건 일반 미션으로 간주하여 "CLEARED"로 업데이트하려면 아래처럼 박아줍니다.
-            session.setStatus("CLEARED");
-            sessionRepository.save(session);
-            // 👆 여기까지 추가 및 수정
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "인증 성공! 단서가 해금되었습니다." // 메시지도 상황에 맞게 수정
-            ));
-        } else {
-            return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "message", "목표 단서를 식별할 수 없습니다. 프레임에 정확히 담아주십시오."
-            ));
-        }
+        return ResponseEntity.ok(visionAiService.verifyAndRecordMission(missionId, image, userId, isAdmin));
     }
 
     @PostMapping("/{missionId}/chat/stream")

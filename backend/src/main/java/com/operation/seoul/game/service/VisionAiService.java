@@ -2,6 +2,8 @@ package com.operation.seoul.game.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.operation.seoul.game.domain.GameSession;
+import com.operation.seoul.game.repository.GameSessionRepository;
 import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.repository.MissionRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,7 @@ import java.util.*;
 public class VisionAiService {
 
     private final MissionRepository missionRepository;
+    private final GameSessionRepository gameSessionRepository;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -26,6 +29,35 @@ public class VisionAiService {
 
     @Value("${gemini.api.key}")
     private String geminiApiKey;
+
+    public Map<String, Object> verifyAndRecordMission(Long missionId, MultipartFile image, Long userId, boolean isAdmin) {
+        boolean isSuccess = isAdmin || validateKeyword(missionId, image);
+
+        if (!isSuccess) {
+            return Map.of(
+                    "success", false,
+                    "message", "목표 단서를 식별할 수 없습니다. 프레임에 정확히 담아주십시오."
+            );
+        }
+
+        GameSession session = gameSessionRepository.findByUserIdAndMissionId(userId, missionId)
+                .orElseGet(() -> {
+                    GameSession newSession = new GameSession();
+                    newSession.setUserId(userId);
+                    newSession.setMissionId(missionId);
+                    return newSession;
+                });
+
+        session.setStatus("CLEARED");
+        gameSessionRepository.save(session);
+
+        String keywordMsg = isAdmin ? "판독 성공 (관리자 프리패스)" : "판독 성공";
+        return Map.of(
+                "success", true,
+                "keyword", keywordMsg,
+                "message", "인증 성공! 단서가 해금되었습니다."
+        );
+    }
 
     public boolean validateKeyword(Long missionId, MultipartFile image) {
         try {
