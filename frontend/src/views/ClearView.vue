@@ -125,7 +125,7 @@ onMounted(async () => {
 
   report.value = reportResponse.data;
   clues.value = missionsResponse.data.filter(mission =>
-    mission.sessionStatus === 'CLEARED' && !(mission.isFinal || mission.final) && (mission.clue || mission.description)
+    mission.sessionStatus === 'CLEARED' && !getIsFinalMission(mission) && (mission.clue || mission.description)
   );
 
   startTypewriter();
@@ -171,6 +171,10 @@ const showClues = () => {
 
 const selectClue = (clue) => {
   selectedClue.value = selectedClue.value?.id === clue.id ? null : clue;
+};
+
+const getIsFinalMission = (mission) => {
+  return mission && (mission.missionType === 'FINAL' || mission.isFinal === true || mission.final === true);
 };
 
 const goHome = () => {

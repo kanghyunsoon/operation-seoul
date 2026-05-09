@@ -13,6 +13,7 @@ public class MissionResponse {
     private Double targetLng;
     private Double radiusInMeters;
     private String visionKeyword;
+    private String missionType;
     private boolean isFinal;
     private boolean isUnlocked;
     private String sessionStatus;
@@ -35,6 +36,7 @@ public class MissionResponse {
                 .targetLng(mission.getTargetLng())
                 .radiusInMeters(mission.getRadiusInMeters())
                 .visionKeyword(mission.getVisionKeyword())
+                .missionType(mission.isFinal() ? "FINAL" : "HINT")
                 .isFinal(mission.isFinal())
                 .isUnlocked(isUnlocked)
                 .sessionStatus(sessionStatus)
