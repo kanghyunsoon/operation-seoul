@@ -31,6 +31,7 @@ public class AdminMissionController {
     private static final double MIN_HINT_DISTANCE_METERS = 250.0;
     private static final double MAX_HINT_DISTANCE_METERS = 1500.0;
     private static final double MIN_HINT_SPACING_METERS = 180.0;
+    private static final double HINT_DISTANCE_BUCKET_METERS = 300.0;
     private static final double MAX_HINT_WALK_DISTANCE_METERS = 2300.0;
     private static final double MAX_WALK_TO_STRAIGHT_RATIO = 2.2;
     private static final int MAX_ROUTE_CHECK_CANDIDATES = 40;
@@ -188,9 +189,9 @@ public class AdminMissionController {
 
         List<Map<String, String>> walkableCandidates = filterWalkableCandidates(deduped, targetLat, targetLng);
 
-        List<Map<String, String>> selected = pickSpacedSpots(walkableCandidates, MIN_HINT_SPACING_METERS);
+        List<Map<String, String>> selected = pickDistributedSpots(walkableCandidates, MIN_HINT_SPACING_METERS);
         if (selected.size() < 6) {
-            selected = pickSpacedSpots(walkableCandidates, MIN_HINT_SPACING_METERS / 2);
+            selected = pickDistributedSpots(walkableCandidates, MIN_HINT_SPACING_METERS / 2);
         }
         return selected.stream().limit(MAX_AI_SUB_SPOTS).toList();
     }
@@ -228,15 +229,7 @@ public class AdminMissionController {
     private List<Map<String, String>> pickSpacedSpots(List<Map<String, String>> spots, double minSpacingMeters) {
         List<Map<String, String>> selected = new ArrayList<>();
         for (Map<String, String> spot : spots) {
-            boolean farEnoughFromOthers = selected.stream().allMatch(existing ->
-                    distanceMeters(
-                            Double.parseDouble(spot.get("mapY")),
-                            Double.parseDouble(spot.get("mapX")),
-                            Double.parseDouble(existing.get("mapY")),
-                            Double.parseDouble(existing.get("mapX"))
-                    ) >= minSpacingMeters
-            );
-            if (farEnoughFromOthers) {
+            if (isFarEnoughFromSelected(spot, selected, minSpacingMeters)) {
                 selected.add(spot);
             }
             if (selected.size() >= MAX_AI_SUB_SPOTS) {
@@ -244,6 +237,68 @@ public class AdminMissionController {
             }
         }
         return selected;
+    }
+
+    private List<Map<String, String>> pickDistributedSpots(List<Map<String, String>> spots, double minSpacingMeters) {
+        Map<Integer, List<Map<String, String>>> buckets = spots.stream()
+                .collect(Collectors.groupingBy(
+                        this::distanceBucket,
+                        java.util.LinkedHashMap::new,
+                        Collectors.toCollection(ArrayList::new)
+                ));
+
+        buckets.values().forEach(bucket ->
+                bucket.sort(java.util.Comparator.comparingDouble(spot -> Double.parseDouble(spot.get("distanceMeters"))))
+        );
+
+        List<Map<String, String>> selected = new ArrayList<>();
+        boolean added;
+        int round = 0;
+        do {
+            added = false;
+            for (List<Map<String, String>> bucket : buckets.values()) {
+                if (round >= bucket.size()) {
+                    continue;
+                }
+
+                Map<String, String> spot = bucket.get(round);
+                if (isFarEnoughFromSelected(spot, selected, minSpacingMeters)) {
+                    selected.add(spot);
+                    added = true;
+                }
+                if (selected.size() >= MAX_AI_SUB_SPOTS) {
+                    return selected;
+                }
+            }
+            round++;
+        } while (added || hasRemainingBucketItems(buckets, round));
+
+        return selected.isEmpty() ? pickSpacedSpots(spots, minSpacingMeters) : selected;
+    }
+
+    private boolean hasRemainingBucketItems(Map<Integer, List<Map<String, String>>> buckets, int round) {
+        for (List<Map<String, String>> bucket : buckets.values()) {
+            if (round < bucket.size()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int distanceBucket(Map<String, String> spot) {
+        double distance = Double.parseDouble(spot.get("distanceMeters"));
+        return (int) Math.floor((distance - MIN_HINT_DISTANCE_METERS) / HINT_DISTANCE_BUCKET_METERS);
+    }
+
+    private boolean isFarEnoughFromSelected(Map<String, String> spot, List<Map<String, String>> selected, double minSpacingMeters) {
+        return selected.stream().allMatch(existing ->
+                distanceMeters(
+                        Double.parseDouble(spot.get("mapY")),
+                        Double.parseDouble(spot.get("mapX")),
+                        Double.parseDouble(existing.get("mapY")),
+                        Double.parseDouble(existing.get("mapX"))
+                ) >= minSpacingMeters
+        );
     }
 
     private Map<String, String> withDistance(Map<String, String> spot, double targetLat, double targetLng) {

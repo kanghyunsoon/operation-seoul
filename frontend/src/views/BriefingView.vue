@@ -17,9 +17,11 @@
         <div class="divider"></div>
 
         <div class="message-area">
-          <p class="typewriter">
-            {{ displayedText }}<span class="cursor" v-if="!isFinished">_</span>
-          </p>
+          <div class="typewriter">
+            <p v-for="(paragraph, index) in displayedParagraphs" :key="index">
+              {{ paragraph }}<span class="cursor" v-if="!isFinished && index === displayedParagraphs.length - 1">_</span>
+            </p>
+          </div>
         </div>
       </div>
 
@@ -36,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/api/axiosInstance';
 
@@ -51,14 +53,19 @@ const displayedText = ref('');
 const isFinished = ref(false);
 let typingInterval = null;
 
-
+const displayedParagraphs = computed(() => {
+  return displayedText.value
+    .split(/\n{2,}/)
+    .map(paragraph => paragraph.trim())
+    .filter(Boolean);
+});
 
 onMounted(async () => {
   try {
     const response = await apiClient.get(`/v1/regions/${regionId}`);
     regionName.value = response.data.name;
     // 🚨 핵심 수정: <br> 태그를 타자기 효과가 인식할 수 있는 실제 줄바꿈(\n)으로 치환
-    fullText.value = response.data.description.replace(/<br\s*\/?>/gi, '\n');
+    fullText.value = formatReadableParagraphs(response.data.description.replace(/<br\s*\/?>/gi, '\n'));
     startTyping();
   } catch (error) {
     console.error("데이터 로드 실패:", error);
@@ -93,6 +100,21 @@ const completeTyping = () => {
 const startMission = () => {
   router.push({ name: 'Map', query: { regionId: regionId } });
 };
+
+const formatReadableParagraphs = (text) => {
+  const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) return '';
+
+  const sentences = normalized
+    .replace(/\n+/g, ' ')
+    .match(/[^.!?。！？]+[.!?。！？]?/g)
+    ?.map(sentence => sentence.trim())
+    .filter(Boolean);
+
+  if (!sentences?.length) return normalized;
+
+  return sentences.join('\n\n');
+};
 </script>
 
 <style scoped>
@@ -124,8 +146,8 @@ const startMission = () => {
 /* 터미널 창 디자인 */
 .terminal-box {
   width: 100%;
-  max-width: 800px;
-  min-height: 60vh;
+  max-width: 920px;
+  min-height: 72vh;
   background: rgba(10, 15, 20, 0.85);
   border: 1px solid #00ffcc;
   border-radius: 8px;
@@ -164,7 +186,7 @@ const startMission = () => {
 
 /* 터미널 본문 */
 .terminal-body {
-  padding: 30px;
+  padding: 34px;
   flex-grow: 1;
 }
 
@@ -182,17 +204,21 @@ const startMission = () => {
 }
 
 .message-area {
-  min-height: 200px;
+  min-height: 360px;
 }
 
 .typewriter {
   color: #e2e8f0;
-  font-size: 1.1rem;
-  line-height: 1.8;
+  font-size: 1.18rem;
+  line-height: 1.9;
   white-space: pre-wrap; /* \n 기호를 실제 줄바꿈으로 인식하게 만듭니다 */
 }
 
 /* 깜빡이는 커서 */
+.typewriter p {
+  margin: 0 0 18px;
+}
+
 .cursor {
   color: #00ffcc;
   font-weight: bold;
