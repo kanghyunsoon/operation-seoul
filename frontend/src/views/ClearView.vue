@@ -91,11 +91,19 @@ const typedHistoryParagraphs = computed(() => {
 const selectedClueExplanation = computed(() => {
   if (!selectedClue.value) return [];
 
+  const reportExplanation = report.value.clueExplanations?.[String(selectedClue.value.id)];
+  if (Array.isArray(reportExplanation) && reportExplanation.length) {
+    return reportExplanation;
+  }
+  if (typeof reportExplanation === 'string' && reportExplanation.trim()) {
+    return formatReadableParagraphs(reportExplanation).split(/\n{2,}/).filter(Boolean);
+  }
+
   const finalTitle = report.value.title || '최종 목적지';
   const keyword = report.value.answerKeyword || '핵심 사건';
   const clueTitle = selectedClue.value.title || '수집한 단서';
   const clueText = selectedClue.value.clue || selectedClue.value.description || '현장에서 확보한 단서';
-  const relation = buildClueHistoricalRelation(clueTitle, clueText, keyword, finalTitle);
+  const relation = buildDynamicClueRelation(clueTitle, clueText, keyword, finalTitle);
 
   return [
     `${clueTitle}에서 확인한 단서는 "${clueText}"였습니다.`,
@@ -107,7 +115,9 @@ const selectedClueExplanation = computed(() => {
 
 onMounted(async () => {
   const [reportResponse, missionsResponse] = await Promise.all([
-    apiClient.get(`/v1/sessions/${missionId.value}/clear-report`),
+    apiClient.get(`/v1/sessions/${missionId.value}/clear-report`, {
+      params: { userId: userId.value || 1 }
+    }),
     apiClient.get(`/v1/regions/${regionId.value}/missions`, {
       params: { userId: userId.value || 1 }
     })

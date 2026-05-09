@@ -113,9 +113,19 @@ public class AdminMissionController {
             String pureJson = aiRawResponse.substring(startIndex, endIndex + 1);
             JsonNode root = objectMapper.readTree(pureJson);
 
+            String finalAnswerKeyword = extractFinalAnswerKeyword(root.path("missions"));
+
             Region newRegion = new Region();
-            newRegion.setName(root.path("regionName").asText("알 수 없는 작전"));
-            newRegion.setDescription(root.path("regionDescription").asText("스토리 브리핑 대기 중..."));
+            newRegion.setName(maskSecretKeyword(
+                    root.path("regionName").asText("작전명: 봉인된 현장"),
+                    finalAnswerKeyword,
+                    "작전명: 봉인된 현장"
+            ));
+            newRegion.setDescription(maskSecretKeyword(
+                    root.path("regionDescription").asText("본부의 브리핑을 대기 중입니다."),
+                    finalAnswerKeyword,
+                    "현장에는 아직 공개되지 않은 역사적 사건의 흔적이 남아 있습니다. 주변 단서를 수집해 최종 진실을 유추하십시오."
+            ));
             Region savedRegion = regionRepository.save(newRegion);
 
             JsonNode missionsNode = root.path("missions");
@@ -134,6 +144,9 @@ public class AdminMissionController {
                     // 서브 미션은 clue(단서)를, 최종 미션은 answerKeyword(진짜 정답)를 가집니다.
                     mission.setAnswerKeyword(isFinal ? mNode.path("answerKeyword").asText("정답누락") : mNode.path("clue").asText("단서누락"));
 
+                    if (isFinal) {
+                        mission.setRealStory(mNode.path("realStory").asText(""));
+                    }
                     missionRepository.save(mission);
                 }
             }
@@ -166,6 +179,39 @@ public class AdminMissionController {
             log.error("🚨 작전 파기 실패: ", e);
             return ResponseEntity.internalServerError().body("작전 파기 중 장애 발생: " + e.getMessage());
         }
+    }
+
+    private String extractFinalAnswerKeyword(JsonNode missionsNode) {
+        if (missionsNode == null || !missionsNode.isArray()) {
+            return "";
+        }
+
+        for (JsonNode missionNode : missionsNode) {
+            if (missionNode.path("isFinal").asBoolean(false)) {
+                return missionNode.path("answerKeyword").asText("");
+            }
+        }
+        return "";
+    }
+
+    private String maskSecretKeyword(String text, String secretKeyword, String fallback) {
+        if (text == null || text.isBlank()) {
+            return fallback;
+        }
+        if (secretKeyword == null || secretKeyword.isBlank()) {
+            return text;
+        }
+
+        String normalizedText = normalizeForSecretCheck(text);
+        String normalizedKeyword = normalizeForSecretCheck(secretKeyword);
+        if (normalizedKeyword.isBlank() || !normalizedText.contains(normalizedKeyword)) {
+            return text;
+        }
+        return fallback;
+    }
+
+    private String normalizeForSecretCheck(String value) {
+        return value == null ? "" : value.replaceAll("[\\s\\p{P}\\p{S}]", "").toLowerCase();
     }
 
     private List<Map<String, String>> selectHintCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {

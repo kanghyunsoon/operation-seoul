@@ -109,8 +109,10 @@ public class GameSessionController {
     }
 
     @GetMapping("/{missionId}/clear-report")
-    public ResponseEntity<?> getClearReport(@PathVariable Long missionId) {
-        return ResponseEntity.ok(geminiAiService.generateClearReport(missionId));
+    public ResponseEntity<?> getClearReport(
+            @PathVariable Long missionId,
+            @RequestParam(value = "userId", defaultValue = "1") Long userId) {
+        return ResponseEntity.ok(geminiAiService.generateClearReport(missionId, userId));
     }
 
     // 🚨 컴파일 및 JSON 파싱 에러 방지를 위해 반드시 public static class 로 선언!
