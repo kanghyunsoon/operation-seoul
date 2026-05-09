@@ -94,6 +94,7 @@ const route = useRoute();
 const router = useRouter();
 const sessionId = ref(route.params.sessionId);
 const regionId = computed(() => route.query.regionId || 1);
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api').replace(/\/$/, '');
 
 // 🚨 스토어 사용 및 권한/ID 맵핑
 const sessionStore = useSessionStore();
@@ -218,9 +219,14 @@ const requestGeminiStream = async (textMessage) => {
   scrollToBottom();
 
   try {
-    const response = await fetch(`http://localhost:8080/api/v1/sessions/${sessionId.value}/chat/stream`, {
+    const headers = { 'Content-Type': 'application/json' };
+    if (sessionStore.isLoggedIn && sessionStore.token) {
+      headers.Authorization = `Bearer ${sessionStore.token}`;
+    }
+
+    const response = await fetch(`${apiBaseUrl}/v1/sessions/${sessionId.value}/chat/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         userId: userId.value || 1,
         userAnswer: textMessage
