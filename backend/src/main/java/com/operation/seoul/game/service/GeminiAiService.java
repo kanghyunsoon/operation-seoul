@@ -240,10 +240,17 @@ public class GeminiAiService {
             clues.add(Map.of(
                     "id", String.valueOf(mission.getId()),
                     "title", mission.getTitle() == null ? "" : mission.getTitle(),
-                    "clue", mission.getAnswerKeyword() == null ? "" : mission.getAnswerKeyword()
+                    "clue", getMissionClueText(mission)
             ));
         }
         return clues;
+    }
+
+    private String getMissionClueText(Mission mission) {
+        if (mission.getClue() != null && !mission.getClue().isBlank()) {
+            return mission.getClue();
+        }
+        return mission.getAnswerKeyword() == null ? "" : mission.getAnswerKeyword();
     }
 
     private Map<String, Object> generatePlayerClearReport(

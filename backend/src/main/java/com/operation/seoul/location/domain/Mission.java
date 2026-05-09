@@ -45,6 +45,10 @@ public class Mission {
      Google Vision API를 통해 추출된 텍스트와 비교 검증할 타겟 문자열 */
     private String visionKeyword;
 
+    /** 일반 힌트 미션 클리어 후 플레이어에게 공개할 단서 */
+    @Column(columnDefinition = "TEXT")
+    private String clue;
+
 
      /** 최종 퀴즈 정답 키워드
      AI 대화 세션 또는 정답 입력란에서 검증할 최종 통과용 텍스트 */

@@ -142,7 +142,11 @@ public class AdminMissionController {
                     mission.setFinal(isFinal);
                     mission.setRadiusInMeters(50.0);
                     // 서브 미션은 clue(단서)를, 최종 미션은 answerKeyword(진짜 정답)를 가집니다.
-                    mission.setAnswerKeyword(isFinal ? mNode.path("answerKeyword").asText("정답누락") : mNode.path("clue").asText("단서누락"));
+                    if (isFinal) {
+                        mission.setAnswerKeyword(mNode.path("answerKeyword").asText("정답누락"));
+                    } else {
+                        mission.setClue(mNode.path("clue").asText("단서누락"));
+                    }
 
                     if (isFinal) {
                         mission.setRealStory(mNode.path("realStory").asText(""));

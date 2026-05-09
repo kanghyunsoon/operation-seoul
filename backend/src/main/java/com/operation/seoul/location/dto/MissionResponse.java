@@ -18,7 +18,12 @@ public class MissionResponse {
     private String clue;
 
     public static MissionResponse of(Mission mission, String sessionStatus, boolean isUnlocked) {
-        String acquiredClue = "CLEARED".equals(sessionStatus) ? mission.getAnswerKeyword() : null;
+        String acquiredClue = null;
+        if ("CLEARED".equals(sessionStatus)) {
+            acquiredClue = mission.getClue() != null && !mission.getClue().isBlank()
+                    ? mission.getClue()
+                    : mission.getAnswerKeyword();
+        }
 
         return MissionResponse.builder()
                 .id(mission.getId())
