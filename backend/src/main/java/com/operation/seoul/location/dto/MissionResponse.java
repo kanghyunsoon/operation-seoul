@@ -11,6 +11,7 @@ public class MissionResponse {
     private String title;
     private Double targetLat;
     private Double targetLng;
+    private Double radiusInMeters;
     private String visionKeyword;
     private boolean isFinal;
     private boolean isUnlocked;
@@ -32,6 +33,7 @@ public class MissionResponse {
                 // (프론트엔드에서 마커 자체는 투명하게 가려줍니다)
                 .targetLat(mission.getTargetLat())
                 .targetLng(mission.getTargetLng())
+                .radiusInMeters(mission.getRadiusInMeters())
                 .visionKeyword(mission.getVisionKeyword())
                 .isFinal(mission.isFinal())
                 .isUnlocked(isUnlocked)

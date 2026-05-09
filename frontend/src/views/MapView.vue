@@ -262,11 +262,18 @@ const handleMissionClick = (mission) => {
       mission.targetLat,
       mission.targetLng
     );
-    isArrived.value = targetDistance.value <= 50;
+    isArrived.value = targetDistance.value <= getArrivalRadius(mission);
   } else {
     targetDistance.value = 999;
     isArrived.value = false;
   }
+};
+
+const getArrivalRadius = (mission) => {
+  if (!mission) return 50;
+  const radius = Number(mission.radiusInMeters ?? mission.radius ?? 0);
+  if (radius > 0) return radius;
+  return (mission.isFinal || mission.final) ? 30 : 50;
 };
 
 const toggleTooltip = (mission, latLng) => {
@@ -401,7 +408,7 @@ const startGpsTracking = () => {
 
     if (currentMission.value && currentMission.value.targetLat) {
       targetDistance.value = calculateDistance(fakeLat, fakeLng, currentMission.value.targetLat, currentMission.value.targetLng);
-      isArrived.value = targetDistance.value <= 50;
+      isArrived.value = targetDistance.value <= getArrivalRadius(currentMission.value);
     }
 
     map.setCenter(fakePosition);
@@ -437,7 +444,7 @@ const startGpsTracking = () => {
 
       if (currentMission.value && currentMission.value.targetLat) {
         targetDistance.value = calculateDistance(lat, lng, currentMission.value.targetLat, currentMission.value.targetLng);
-        isArrived.value = targetDistance.value <= 50;
+        isArrived.value = targetDistance.value <= getArrivalRadius(currentMission.value);
       }
 
       // 내 위치 갱신 후, 선이 그려져있다면 업데이트, 안 그려져있고 조건 맞으면 그림
