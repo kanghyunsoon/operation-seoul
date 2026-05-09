@@ -26,18 +26,18 @@ public class GameSessionController {
     @PostMapping("/{missionId}/vision")
     public ResponseEntity<?> verifyVision(
             @PathVariable Long missionId,
-            @RequestParam("image") MultipartFile image) {
+            @RequestParam("image") MultipartFile image,
+            @RequestParam(value = "userId", defaultValue = "1") Long userId,
+            @RequestParam(value = "isAdmin", defaultValue = "false") boolean isAdmin) {
 
-        boolean isSuccess = visionAiService.validateKeyword(missionId, image);
+        boolean isSuccess = isAdmin || visionAiService.validateKeyword(missionId, image);
 
         if (isSuccess) {
             // 👇 [핵심 추가] 비전 판독에 성공하면 DB에 클리어 도장을 찍어줍니다!
-            Long tempUserId = 1L; // (추후 로그인 토큰 연동 시 변경)
-
-            GameSession session = sessionRepository.findByUserIdAndMissionId(tempUserId, missionId)
+            GameSession session = sessionRepository.findByUserIdAndMissionId(userId, missionId)
                     .orElseGet(() -> {
                         GameSession newSession = new GameSession();
-                        newSession.setUserId(tempUserId);
+                        newSession.setUserId(userId);
                         newSession.setMissionId(missionId);
                         return newSession;
                     });
