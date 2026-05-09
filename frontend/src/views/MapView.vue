@@ -48,22 +48,22 @@
           [ MANUAL_OVERRIDE : 강제 도착 ]
         </button>
 
-        <div v-if="isArrived && !(currentMission?.isFinal || currentMission?.final)" class="target-guide">
+        <div v-if="isArrived && !getIsFinal(currentMission)" class="target-guide">
           📸 촬영 목표: <span class="highlight">{{ currentMission?.visionKeyword }}</span>
         </div>
-        <button v-if="isArrived && !(currentMission?.isFinal || currentMission?.final)" @click="isScannerOpen = true" class="capture-btn">
+        <button v-if="isArrived && !getIsFinal(currentMission)" @click="isScannerOpen = true" class="capture-btn">
           [ 스캐너 가동 ]
         </button>
 
-        <div v-if="isArrived && (currentMission?.isFinal || currentMission?.final)" class="target-guide">
+        <div v-if="isArrived && getIsFinal(currentMission)" class="target-guide">
           🧩 수집한 단서를 바탕으로 최종 사건 키워드를 추론하세요.
         </div>
-        <button v-if="isArrived && (currentMission?.isFinal || currentMission?.final)" @click="goToChat" class="capture-btn final-btn">
+        <button v-if="isArrived && getIsFinal(currentMission)" @click="goToChat" class="capture-btn final-btn">
           [ 최종 분석 채널 접속 ]
         </button>
 
         <button
-          v-if="currentMission && (currentMission.isFinal || currentMission.final) && (currentMission.isUnlocked || currentMission.unlocked)"
+          v-if="currentMission && getIsFinal(currentMission) && getIsUnlocked(currentMission)"
           @click="drawTmapRoute(currentMission)"
           class="tmap-nav-btn"
         >
@@ -147,7 +147,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 // 🟢 백엔드/프론트 통신(isFinal -> final) 버그 원천 차단 헬퍼 함수
-const getIsFinal = (m) => m && (m.isFinal === true || m.final === true);
+const getIsFinal = (m) => m && (m.missionType === 'FINAL' || m.isFinal === true || m.final === true);
 const getIsUnlocked = (m) => m && (m.isUnlocked === true || m.unlocked === true);
 
 const currentArrivalRadius = computed(() => getArrivalRadius(currentMission.value));
@@ -285,7 +285,7 @@ const getArrivalRadius = (mission) => {
   if (!mission) return 50;
   const radius = Number(mission.radiusInMeters ?? mission.radius ?? 0);
   if (radius > 0) return radius;
-  return (mission.isFinal || mission.final) ? 30 : 50;
+  return getIsFinal(mission) ? 30 : 50;
 };
 
 const toggleTooltip = (mission, latLng) => {
