@@ -180,7 +180,57 @@ operation-seoul
 
 <br>
 
-## 📱 5. 전체 앱 뷰(View) 흐름도
+## ⚙️ 5. 로컬 환경 설정 (Local Setup)
+
+민감정보가 포함되는 실제 설정 파일은 Git에 올리지 않습니다. 처음 실행하는 팀원은 예시 파일을 복사한 뒤 각자 발급받은 키와 로컬 DB 정보를 입력해야 합니다.
+
+### Backend
+
+```powershell
+Copy-Item backend/src/main/resources/application-example.properties backend/src/main/resources/application.properties
+```
+
+`application.properties`에 아래 항목을 채웁니다.
+
+| Key | 용도 |
+| :--- | :--- |
+| `spring.datasource.url` | MySQL 접속 URL |
+| `spring.datasource.username` | MySQL 계정 |
+| `spring.datasource.password` | MySQL 비밀번호 |
+| `gemini.api.key` | Gemini API 키 |
+| `google.vision.key` | Google Cloud Vision API 키 |
+| `kakao.rest.api.key` | Kakao REST API 키 |
+| `tmap.app.key` | Tmap API 키 |
+
+```powershell
+cd backend
+java -jar gradle/wrapper/gradle-wrapper.jar build -x test
+java -jar build/libs/seoul-0.0.1-SNAPSHOT.jar
+```
+
+### Frontend
+
+```powershell
+Copy-Item frontend/.env.example frontend/.env
+```
+
+`frontend/.env`에 아래 항목을 채웁니다.
+
+| Key | 용도 |
+| :--- | :--- |
+| `VITE_API_BASE_URL` | 백엔드 API 기본 주소. 로컬 기본값은 `http://localhost:8080/api` |
+| `VITE_KAKAO_MAP_KEY` | Kakao Map JavaScript 키 |
+| `VITE_TMAP_APP_KEY` | Tmap 앱 키 |
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+<br>
+
+## 📱 6. 전체 앱 뷰(View) 흐름도
 
 유저가 앱을 실행하여 미션을 클리어하기까지 겪게 되는 코어 사이클입니다.
 
@@ -201,7 +251,7 @@ operation-seoul
 
 <br>
 
-## 🔒 6. 기술적 해결 과제 (Key Highlights)
+## 🔒 7. 기술적 해결 과제 (Key Highlights)
 
 1. **[SSE 스트리밍]**: `ResponseBodyEmitter`를 활용하여 AI 텍스트 생성 완료 전부터 데이터를 전송, 체감 대기 시간을 혁신적으로 단축
 2. **[타자기 버퍼]**: 프론트엔드 자체 버퍼 큐(Queue) 로직으로 네트워크 환경에 구애받지 않는 일관된 0.05초 타자기 연출 구현
@@ -217,7 +267,7 @@ operation-seoul
 
 <br>
 
-## 🤝 7. 업무 분담 및 프로젝트 로드맵
+## 🤝 8. 업무 분담 및 프로젝트 로드맵
 
 도메인 지식을 깊이 있게 파악하기 위해 프론트/백엔드를 나누지 않고, **기능 단위로 기획부터 배포까지 전담하는 수직적(Vertical Slice) 분담 원칙**을 채택했습니다.
 
