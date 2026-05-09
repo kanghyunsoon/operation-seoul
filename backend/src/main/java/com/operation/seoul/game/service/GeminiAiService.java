@@ -4,6 +4,7 @@ package com.operation.seoul.game.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.operation.seoul.game.repository.GameSessionRepository;
 import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.repository.MissionRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +29,7 @@ import java.util.Map;
 public class GeminiAiService {
 
     private final MissionRepository missionRepository;
+    private final GameSessionRepository gameSessionRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -38,27 +42,73 @@ public class GeminiAiService {
     public String generateCourseWithTarget(Map<String, Object> targetSpot, List<Map<String, Object>> subSpots) {
         String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey.trim();
 
-        String prompt = "당신은 'Operation KOREA' 프로젝트의 수석 작전 기획자입니다.\n" +
-                "이 프로젝트는 플레이어를 스파이로 몰입시켜 역사적 장소(랜드마크)와 주변 로컬 상권을 연결해 지역 경제를 활성화하는 것이 목적입니다.\n\n" +
-                "📍 [작전 설계 데이터]\n" +
-                "- 최종 목적지(역사적 장소): " + targetSpot + "\n" +
-                "- 경유지 후보(로컬 상권 및 POI): " + subSpots + "\n\n" +
-                "🚨 [작전 수립 절대 수칙]\n" +
-                "1. 먼저 최종 목적지와 강하게 연결되는 역사적 사건, 인물, 유명 일화, 도시 전설 중 하나를 정하고 answerKeyword는 장소명이 아니라 그 사건/인물/일화의 핵심어로 작성하세요.\n" +
-                "2. 브리핑(regionDescription): 최종 목적지의 이름을 바로 노출하지 말고, 사건의 긴장감과 조사해야 할 이유를 스파이 느와르 톤으로 4문장 이상 작성하세요.\n" +
-                "3. 장소명(title): '인근', '골목길', '근처', '벽면' 등 위치가 모호한 단어는 절대 금지! 제공된 데이터의 '공식 상호명/장소명'만 정확하게 사용하세요.\n" +
-                "4. 인증 사물(visionKeyword): 장소에 도착해도 바로 찾기 어렵도록 너무 일반적인 '간판'만 반복하지 말고, 현장에서 관찰 가능한 '명판', '문양', '기둥', '동상', '표지석', '현판' 같은 1~2단어 사물명으로 섞어 작성하세요.\n" +
-                "5. 진실 해금(clue): 각 힌트 목적지의 단서는 최종 목적지와 최종 사건을 동시에 암시하되, 정답을 직접 말하지 마세요. 플레이어가 여러 단서를 합쳐 사건을 유추해야 합니다.\n" +
-                "6. 동선 구성: 경유지 후보 중 가장 매력적인 곳을 선택해 4개의 미션으로 구성하되, 마지막 미션은 반드시 제공된 '최종 목적지'여야 합니다.\n" +
-                "7. 반환 형식: 아래 JSON 구조만 출력하고 마크다운 부가설명은 생략하세요.\n\n" +
-                "{\n" +
-                "  \"regionName\": \"작전명: [강렬한 작전 이름]\",\n" +
-                "  \"regionDescription\": \"[고퀄리티 스파이 브리핑]\",\n" +
-                "  \"missions\": [\n" +
-                "    { \"title\": \"[공식명칭]\", \"lat\": [위도], \"lng\": [경도], \"visionKeyword\": \"[현장 관찰 사물명]\", \"clue\": \"[최종 장소와 사건을 모호하게 암시하는 단서]\", \"isFinal\": false },\n" +
-                "    { \"title\": \"[최종목적지 공식명]\", \"lat\": [위도], \"lng\": [경도], \"visionKeyword\": \"현장탐색\", \"answerKeyword\": \"[장소명이 아닌 사건/인물/일화 핵심어]\", \"isFinal\": true }\n" +
-                "  ]\n" +
-                "}";
+        String prompt = """
+                당신은 'Operation KOREA' 프로젝트의 수석 작전 기획자입니다.
+                이 프로젝트는 플레이어를 현장 요원으로 몰입시켜 역사적 장소와 주변 로컬 상권을 연결하는 역사 추리형 관광 게임입니다.
+
+                [작전 설계 데이터]
+                - 최종 목적지(역사적 장소): %s
+                - 경유지 후보(로컬 상권 및 POI): %s
+
+                [작전 수립 절대 수칙]
+                1. 먼저 최종 목적지와 강하게 연결되는 실제 역사적 사건, 공식 사건명, 유명 일화 중 하나를 정하세요.
+                   answerKeyword는 장소명이 아니라 그 사건/일화의 핵심어여야 합니다.
+                   좋은 예: "아관파천", "대한제국 선포", "을미사변"
+                   나쁜 예: "덕수궁", "고종", "러시아 공사관", "남대문"
+                   단, answerKeyword는 최종 채팅에서 맞혀야 할 비밀 정답입니다. regionName, regionDescription, clue에는 절대 쓰지 마세요.
+
+                2. 브리핑(regionDescription)은 기존 Operation KOREA 톤을 유지하세요.
+                   최종 목적지 이름과 answerKeyword를 직접 노출하지 말고, 사건의 긴장감과 조사해야 할 이유를 스파이 느와르 톤으로 작성하세요.
+                   단, 화면 가독성을 위해 문장마다 빈 줄을 넣으세요.
+                   방탈출 도입부처럼 전체 분위기와 위험 신호만 제시하고, 정답 사건명은 플레이어가 유추하게 남겨두세요.
+
+                3. 장소명(title)은 제공된 데이터의 공식 상호명/장소명을 정확히 사용하세요.
+                   '인근', '골목길', '근처', '벽면'처럼 위치가 모호한 단어를 title로 만들지 마세요.
+
+                4. 인증 사물(visionKeyword)은 현장에서 관찰 가능한 1~2단어 사물명으로 작성하세요.
+                   '간판'만 반복하지 말고, '명판', '문양', '기둥', '동상', '표지석', '현판'처럼 섞어 쓰세요.
+
+                5. 진실 해금(clue)은 이전처럼 짧고 몰입감 있는 단서 문장으로 작성하세요.
+                   각 힌트 목적지의 단서는 최종 목적지와 최종 사건을 동시에 암시하되, 정답 단어를 직접 말하지 마세요.
+                   플레이어가 여러 단서를 합쳐 사건을 유추할 수 있어야 합니다.
+                   clue에도 answerKeyword와 같은 단어를 쓰지 마세요.
+
+                6. 최종 미션에는 realStory를 반드시 작성하세요.
+                   realStory는 DB에 저장되어 클리어 화면에서 쓰일 실제 역사 해설입니다.
+                   첩보/픽션 말투를 쓰지 말고, 역사적 사실 중심으로 8~12문장 작성하세요.
+                   문장마다 빈 줄을 넣으세요.
+
+                7. 동선은 경유지 후보 중 가장 매력적인 곳을 선택해 총 4개의 미션으로 구성하세요.
+                   앞 3개는 힌트 미션이고, 마지막 미션은 반드시 제공된 최종 목적지여야 합니다.
+
+                8. 반환 형식은 변경 이전처럼 간결한 JSON 작전 패키지 형태를 유지하세요.
+                   JSON만 출력하고 마크다운 코드블록이나 추가 설명은 쓰지 마세요.
+                   regionName은 정답 사건명이 아니라 비유적 작전명이어야 합니다. 예: "작전명: 얼어붙은 왕좌", "작전명: 붉은 공관의 그림자"
+
+                {
+                  "regionName": "작전명: [강렬한 작전 이름]",
+                  "regionDescription": "[고퀄리티 스파이 브리핑]",
+                  "missions": [
+                    {
+                      "title": "[공식명칭]",
+                      "lat": [위도],
+                      "lng": [경도],
+                      "visionKeyword": "[현장 관찰 사물명]",
+                      "clue": "[최종 장소와 사건을 모호하게 암시하는 짧은 단서]",
+                      "isFinal": false
+                    },
+                    {
+                      "title": "[최종목적지 공식명]",
+                      "lat": [위도],
+                      "lng": [경도],
+                      "visionKeyword": "현장탐색",
+                      "answerKeyword": "[장소명이 아닌 사건/일화 핵심어]",
+                      "realStory": "[클리어 화면용 실제 역사 해설]",
+                      "isFinal": true
+                    }
+                  ]
+                }
+                """.formatted(targetSpot, subSpots);
 
         return callGeminiStandard(url, prompt);
     }
@@ -134,6 +184,172 @@ public class GeminiAiService {
                 || trimmed.contains("인가")
                 || trimmed.contains("일까")
                 || trimmed.contains("힌트");
+    }
+
+    public Map<String, Object> generateClearReport(Long missionId, Long userId) {
+        Mission mission = missionRepository.findById(missionId).orElseThrow();
+        String answerKeyword = mission.getAnswerKeyword();
+        String realStory = mission.getRealStory();
+        List<Map<String, String>> clearedClues = getClearedClues(mission, userId);
+
+        String report = realStory;
+        Map<String, List<String>> clueExplanations = new HashMap<>();
+        Map<String, Object> generatedReport = generatePlayerClearReport(mission, answerKeyword, realStory, clearedClues);
+        if (generatedReport != null) {
+            report = (String) generatedReport.getOrDefault("report", report);
+            Object explanations = generatedReport.get("clueExplanations");
+            if (explanations instanceof Map<?, ?> explanationMap) {
+                for (Map.Entry<?, ?> entry : explanationMap.entrySet()) {
+                    clueExplanations.put(String.valueOf(entry.getKey()), normalizeParagraphList(entry.getValue()));
+                }
+            }
+        }
+
+        if (report == null || report.isBlank()) {
+            report = "임무는 완료되었습니다. 수집한 단서는 실제 역사적 사건을 향해 플레이어의 시선을 옮기도록 설계되었습니다. 이 사건의 상세 기록은 추가 공공데이터 보강 후 더 정확하게 제공될 예정입니다.";
+        }
+        if (clueExplanations.isEmpty()) {
+            clueExplanations = buildFallbackClueExplanations(clearedClues, answerKeyword, mission.getTitle());
+        }
+
+        return Map.of(
+                "missionId", mission.getId(),
+                "title", mission.getTitle(),
+                "answerKeyword", answerKeyword == null ? "" : answerKeyword,
+                "report", report,
+                "clueExplanations", clueExplanations
+        );
+    }
+
+    private List<Map<String, String>> getClearedClues(Mission finalMission, Long userId) {
+        List<Map<String, String>> clues = new ArrayList<>();
+        if (finalMission.getRegionId() == null) {
+            return clues;
+        }
+
+        for (Mission mission : missionRepository.findByRegionId(finalMission.getRegionId())) {
+            if (mission.isFinal()) {
+                continue;
+            }
+            boolean cleared = gameSessionRepository.findByUserIdAndMissionId(userId, mission.getId())
+                    .map(session -> "CLEARED".equals(session.getStatus()))
+                    .orElse(false);
+            if (!cleared) {
+                continue;
+            }
+            clues.add(Map.of(
+                    "id", String.valueOf(mission.getId()),
+                    "title", mission.getTitle() == null ? "" : mission.getTitle(),
+                    "clue", mission.getAnswerKeyword() == null ? "" : mission.getAnswerKeyword()
+            ));
+        }
+        return clues;
+    }
+
+    private Map<String, Object> generatePlayerClearReport(
+            Mission mission,
+            String answerKeyword,
+            String realStory,
+            List<Map<String, String>> clearedClues) {
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey.trim();
+        String prompt = String.format("""
+                당신은 역사 추리형 관광 게임의 클리어 화면을 작성하는 역사 해설자입니다.
+
+                [최종 장소]
+                %s
+
+                [정답 사건]
+                %s
+
+                [실제 역사 원문 또는 생성 기록]
+                %s
+
+                [플레이어가 수집한 힌트]
+                %s
+
+                [작성 규칙]
+                - JSON만 반환하세요.
+                - report는 플레이어가 실제로 밟은 힌트 동선이 실제 역사에서 어떤 의미를 가졌는지 먼저 설명한 뒤, 정답 사건의 실제 역사 사실을 명확히 알려주세요.
+                - report는 픽션 말투가 아니라 정중하고 흥미로운 역사 해설 톤으로 작성하세요.
+                - report에는 역사적 사실과 게임 각색을 구분해 주세요.
+                - report는 10문장 이상 14문장 이하로 작성하고 문장마다 빈 줄을 넣으세요.
+                - clueExplanations는 각 힌트 id를 key로 사용하세요.
+                - 각 힌트 설명은 3개 문단 배열로 작성하세요.
+                - 각 힌트 설명은 모두 서로 달라야 하며, 해당 힌트가 왜 만들어졌는지 정답 사건의 장소성, 인물, 외교, 시대 분위기, 기억, 이동 중 구체적인 한 면과 연결해 설명하세요.
+                - 해당 힌트 위치가 실제 사건 현장이라고 단정하지 말고, 어떤 역사적 의미를 빌려 각색했는지 설명하세요.
+                - 확실하지 않은 역사 사실은 단정하지 마세요.
+
+                [반환 형식]
+                {
+                  "report": "문장마다 빈 줄이 있는 클리어 역사 해설",
+                  "clueExplanations": {
+                    "힌트id": ["문단1", "문단2", "문단3"]
+                  }
+                }
+                """, mission.getTitle(), answerKeyword, realStory == null ? "" : realStory, clearedClues);
+
+        String raw = callGeminiStandard(url, prompt);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        try {
+            int startIndex = raw.indexOf('{');
+            int endIndex = raw.lastIndexOf('}');
+            if (startIndex == -1 || endIndex == -1) {
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(raw.substring(startIndex, endIndex + 1));
+            Map<String, Object> parsed = new HashMap<>();
+            parsed.put("report", root.path("report").asText(""));
+
+            Map<String, List<String>> explanations = new HashMap<>();
+            JsonNode explanationNode = root.path("clueExplanations");
+            explanationNode.fields().forEachRemaining(entry -> explanations.put(entry.getKey(), normalizeParagraphList(entry.getValue())));
+            parsed.put("clueExplanations", explanations);
+            return parsed;
+        } catch (Exception e) {
+            log.warn("Clear report JSON parse failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private List<String> normalizeParagraphList(Object value) {
+        List<String> paragraphs = new ArrayList<>();
+        if (value instanceof JsonNode node && node.isArray()) {
+            node.forEach(item -> {
+                if (!item.asText("").isBlank()) {
+                    paragraphs.add(item.asText());
+                }
+            });
+        } else if (value instanceof List<?> list) {
+            list.forEach(item -> {
+                if (item != null && !String.valueOf(item).isBlank()) {
+                    paragraphs.add(String.valueOf(item));
+                }
+            });
+        } else if (value != null && !String.valueOf(value).isBlank()) {
+            paragraphs.add(String.valueOf(value));
+        }
+        return paragraphs;
+    }
+
+    private Map<String, List<String>> buildFallbackClueExplanations(
+            List<Map<String, String>> clues,
+            String answerKeyword,
+            String finalTitle) {
+        Map<String, List<String>> explanations = new HashMap<>();
+        for (Map<String, String> clue : clues) {
+            String id = clue.getOrDefault("id", "");
+            String title = clue.getOrDefault("title", "수집한 단서");
+            String clueText = clue.getOrDefault("clue", "현장 단서");
+            explanations.put(id, List.of(
+                    title + "에서 확보한 단서는 \"" + clueText + "\"였습니다.",
+                    "이 단서는 " + answerKeyword + "의 정답을 직접 알려주기보다, " + finalTitle + "에 얽힌 역사적 맥락을 떠올리도록 각색된 힌트입니다.",
+                    "해당 위치가 실제 사건 현장이라는 뜻은 아니며, 플레이어가 현장에서 관찰한 내용을 실제 역사 해설과 연결하도록 만든 장치입니다."
+            ));
+        }
+        return explanations;
     }
 
     public Map<String, Object> generateClearReport(Long missionId) {
