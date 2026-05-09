@@ -10,7 +10,7 @@
       <div class="sys-metrics">
         <span class="metric">ENC_KEY: AES-256</span>
         <span class="metric">PING: 18ms</span>
-        <span class="metric highlight">Q_REMAIN: {{ 20 - interactionCount }}</span>
+        <span class="metric highlight">Q_REMAIN: {{ questionRemaining }}</span>
       </div>
     </header>
 
@@ -60,16 +60,16 @@
           <input
               v-model="userInput"
               @keyup.enter="sendMessage"
-              :disabled="isWaiting || questionCount >= 20"
+              :disabled="isWaiting"
               class="cmd-input"
               autocomplete="off"
               spellcheck="false"
-              :placeholder="questionCount >= 20 ? 'LIMIT REACHED. FINAL CODE REQUIRED.' : 'AWAITING AGENT INPUT...'"
+              :placeholder="questionCount >= 20 ? 'FINAL CODE REQUIRED.' : 'AWAITING AGENT INPUT...'"
           />
           <span class="cursor-block" :class="{'typing': userInput.length > 0}"></span>
         </div>
 
-        <button @click="sendMessage" :disabled="isWaiting || !userInput.trim() || (questionCount >= 20 && !isFinalAnswer)" class="btn-exec">
+        <button @click="sendMessage" :disabled="isWaiting || !userInput.trim()" class="btn-exec">
           EXECUTE
         </button>
       </div>
@@ -105,11 +105,10 @@ const chatHistory = ref([]);
 const userInput = ref('');
 const isWaiting = ref(false);
 const questionCount = ref(0);
-const interactionCount = ref(0);
 const chatContainer = ref(null);
 const isScannerOpen = ref(false);
 
-const isFinalAnswer = computed(() => !userInput.value.includes('?'));
+const questionRemaining = computed(() => Math.max(0, 20 - questionCount.value));
 const { displayedText, isTyping, isFinished, addChunk, finishTyping, reset } = useTypingBuffer(30);
 
 const goBackToMap = () => {
@@ -188,7 +187,6 @@ const handleManualCapture = async (imageDataUrl) => {
     });
 
     questionCount.value++;
-    interactionCount.value++;
     isWaiting.value = false;
     await requestGeminiStream("새로운 시각 단서를 전송했습니다. 분석 결과를 보고해 주십시오.");
 
@@ -205,9 +203,8 @@ const sendMessage = async () => {
   const text = userInput.value;
   chatHistory.value.push({ sender: 'user', text: text });
 
-  if (text.includes('?')) {
+  if (hasQuestionIntent(text)) {
     questionCount.value++;
-    interactionCount.value++;
   }
 
   userInput.value = '';
@@ -292,6 +289,20 @@ const navigateIfMissionCleared = async () => {
   } catch (error) {
     console.error('클리어 상태 확인 실패:', error);
   }
+};
+
+const hasQuestionIntent = (text) => {
+  const value = String(text || '').trim();
+  if (!value) return false;
+
+  const normalized = value.replace(/[?!.,~\s]/g, '');
+  if (/^[가-힣A-Za-z0-9]{2,12}[?？]$/.test(value.trim()) && normalized.length <= 8) {
+    return false;
+  }
+
+  return value.includes('?')
+      || value.includes('？')
+      || /관련|맞아|인가|인가요|이야|뭐|무엇|어디|누구|왜|언제|어떻게|얼마나|힌트/.test(value);
 };
 </script>
 
