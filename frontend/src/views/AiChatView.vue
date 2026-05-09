@@ -233,13 +233,18 @@ const requestGeminiStream = async (textMessage) => {
       })
     });
 
-    if (!response.ok) throw new Error("서버 응답 오류");
+    if (response.status === 401) {
+      sessionStore.logout();
+      router.push({ name: 'Intro' });
+      return;
+    }
+    if (!response.ok) throw new Error(`서버 응답 오류: ${response.status}`);
+    if (!response.body) throw new Error("스트리밍 응답을 받을 수 없습니다.");
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
 
     chatHistory.value.push({ sender: 'ai', text: '', isTyping: true });
-    const aiMessageIndex = chatHistory.value.length - 1;
     reset();
 
     let isFirstChunk = true;
@@ -264,6 +269,7 @@ const requestGeminiStream = async (textMessage) => {
         }
       }
     }
+    isWaiting.value = false;
     finishTyping();
     await navigateIfMissionCleared();
 
