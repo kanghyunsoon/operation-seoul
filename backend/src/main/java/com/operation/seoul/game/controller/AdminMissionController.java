@@ -32,6 +32,7 @@ public class AdminMissionController {
     private static final double MAX_HINT_DISTANCE_METERS = 1500.0;
     private static final double MIN_HINT_SPACING_METERS = 180.0;
     private static final double HINT_DISTANCE_BUCKET_METERS = 300.0;
+    private static final double MAX_AI_COORDINATE_SNAP_METERS = 120.0;
     private static final double MAX_HINT_WALK_DISTANCE_METERS = 2300.0;
     private static final double MAX_WALK_TO_STRAIGHT_RATIO = 2.2;
     private static final int MAX_ROUTE_CHECK_CANDIDATES = 40;
@@ -133,12 +134,14 @@ public class AdminMissionController {
                 for (JsonNode mNode : missionsNode) {
                     Mission mission = new Mission();
                     mission.setRegionId(savedRegion.getId());
-                    mission.setTitle(mNode.path("title").asText("목적지"));
-                    mission.setTargetLat(mNode.path("lat").asDouble(0.0));
-                    mission.setTargetLng(mNode.path("lng").asDouble(0.0));
-                    mission.setVisionKeyword(mNode.path("visionKeyword").asText(""));
 
                     boolean isFinal = mNode.path("isFinal").asBoolean(false);
+                    Map<String, String> sourceSpot = resolveSourceSpot(mNode, targetSpot, subSpots, isFinal);
+
+                    mission.setTitle(resolveTitle(mNode, sourceSpot));
+                    mission.setTargetLat(resolveLatitude(mNode, sourceSpot));
+                    mission.setTargetLng(resolveLongitude(mNode, sourceSpot));
+                    mission.setVisionKeyword(mNode.path("visionKeyword").asText(""));
                     mission.setFinal(isFinal);
                     mission.setRadiusInMeters(50.0);
                     // 서브 미션은 clue(단서)를, 최종 미션은 answerKeyword(진짜 정답)를 가집니다.
@@ -215,6 +218,77 @@ public class AdminMissionController {
     }
 
     private String normalizeForSecretCheck(String value) {
+        return value == null ? "" : value.replaceAll("[\\s\\p{P}\\p{S}]", "").toLowerCase();
+    }
+
+    private Map<String, String> resolveSourceSpot(
+            JsonNode missionNode,
+            Map<String, String> targetSpot,
+            List<Map<String, String>> subSpots,
+            boolean isFinal) {
+        if (isFinal) {
+            return targetSpot;
+        }
+
+        String missionTitle = normalizeSpotName(missionNode.path("title").asText(""));
+        if (!missionTitle.isBlank()) {
+            for (Map<String, String> spot : subSpots) {
+                String sourceTitle = normalizeSpotName(spot.getOrDefault("title", ""));
+                if (sourceTitle.equals(missionTitle)
+                        || sourceTitle.contains(missionTitle)
+                        || missionTitle.contains(sourceTitle)) {
+                    return spot;
+                }
+            }
+        }
+
+        double aiLat = missionNode.path("lat").asDouble(Double.NaN);
+        double aiLng = missionNode.path("lng").asDouble(Double.NaN);
+        if (!Double.isNaN(aiLat) && !Double.isNaN(aiLng)) {
+            Map<String, String> closestSpot = subSpots.stream()
+                    .filter(spot -> spot.get("mapY") != null && spot.get("mapX") != null)
+                    .min(java.util.Comparator.comparingDouble(spot -> distanceMeters(
+                            aiLat,
+                            aiLng,
+                            Double.parseDouble(spot.get("mapY")),
+                            Double.parseDouble(spot.get("mapX"))
+                    )))
+                    .orElse(null);
+            if (closestSpot != null && distanceMeters(
+                    aiLat,
+                    aiLng,
+                    Double.parseDouble(closestSpot.get("mapY")),
+                    Double.parseDouble(closestSpot.get("mapX"))
+            ) <= MAX_AI_COORDINATE_SNAP_METERS) {
+                return closestSpot;
+            }
+        }
+
+        return null;
+    }
+
+    private String resolveTitle(JsonNode missionNode, Map<String, String> sourceSpot) {
+        if (sourceSpot != null && sourceSpot.get("title") != null && !sourceSpot.get("title").isBlank()) {
+            return sourceSpot.get("title");
+        }
+        return missionNode.path("title").asText("목적지");
+    }
+
+    private double resolveLatitude(JsonNode missionNode, Map<String, String> sourceSpot) {
+        if (sourceSpot != null && sourceSpot.get("mapY") != null && !sourceSpot.get("mapY").isBlank()) {
+            return Double.parseDouble(sourceSpot.get("mapY"));
+        }
+        return missionNode.path("lat").asDouble(0.0);
+    }
+
+    private double resolveLongitude(JsonNode missionNode, Map<String, String> sourceSpot) {
+        if (sourceSpot != null && sourceSpot.get("mapX") != null && !sourceSpot.get("mapX").isBlank()) {
+            return Double.parseDouble(sourceSpot.get("mapX"));
+        }
+        return missionNode.path("lng").asDouble(0.0);
+    }
+
+    private String normalizeSpotName(String value) {
         return value == null ? "" : value.replaceAll("[\\s\\p{P}\\p{S}]", "").toLowerCase();
     }
 
