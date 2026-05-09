@@ -35,6 +35,10 @@
         <div class="info-screen">
           <p class="tgt-text">TGT: {{ currentTargetName }}</p>
           <p class="distance">DIST: {{ isArrived ? '0' : targetDistance }}m</p>
+          <div v-if="currentMission" class="arrival-meter" :class="{ ready: isArrived }">
+            <span>LOCK RANGE {{ currentArrivalRadius }}m</span>
+            <span>{{ arrivalProgressText }}</span>
+          </div>
           <p class="status-text" :class="{ 'ready blink-fast': isArrived }">
             {{ isArrived ? '> SIGNAL_LOCKED: 현장 도착 완료!' : '> 이동 중 (TRACKING...)' }}
           </p>
@@ -145,6 +149,14 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 // 🟢 백엔드/프론트 통신(isFinal -> final) 버그 원천 차단 헬퍼 함수
 const getIsFinal = (m) => m && (m.isFinal === true || m.final === true);
 const getIsUnlocked = (m) => m && (m.isUnlocked === true || m.unlocked === true);
+
+const currentArrivalRadius = computed(() => getArrivalRadius(currentMission.value));
+const remainingArrivalDistance = computed(() => Math.max(0, targetDistance.value - currentArrivalRadius.value));
+const arrivalProgressText = computed(() => {
+  if (!currentMission.value) return 'NO TARGET';
+  if (isArrived.value) return 'SIGNAL LOCKED';
+  return `REMAIN ${remainingArrivalDistance.value}m`;
+});
 
 // 🟢 [완벽 복구] 힌트 1개부터 최종 거리 추적
 const finalDistance = computed(() => {
@@ -601,6 +613,23 @@ const uploadImage = async (imageFile) => {
 
 .tgt-text { margin: 0 0 5px 0; color: #00ffcc; font-size: 1rem; }
 .distance { margin: 0 0 5px 0; font-size: 1.4rem; font-weight: bold; color: #fff; }
+.arrival-meter {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 8px 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(0, 255, 204, 0.25);
+  border-radius: 4px;
+  color: #8fa3a3;
+  font-size: 0.72rem;
+  letter-spacing: 0;
+}
+.arrival-meter.ready {
+  border-color: rgba(0, 255, 204, 0.7);
+  color: #00ffcc;
+  box-shadow: 0 0 8px rgba(0, 255, 204, 0.18);
+}
 .status-text { margin: 0 0 10px 0; color: #ffaa00; font-size: 0.9rem; }
 .status-text.ready { color: #00ffcc; font-weight: bold; }
 
