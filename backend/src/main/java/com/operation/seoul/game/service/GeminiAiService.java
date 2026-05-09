@@ -154,22 +154,29 @@ public class GeminiAiService {
         return emitter;
     }
 
-    public ResponseBodyEmitter streamHintAnswer(Long missionId, String userQuestion) {
+    public ResponseBodyEmitter streamHintAnswer(Long missionId, Long userId, String userQuestion) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String answerKeyword = mission.getAnswerKeyword();
+        String realStory = mission.getRealStory();
+        String clueContext = buildCollectedClueContext(getClearedClues(mission, userId));
         String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey.trim();
 
         String prompt = String.format(
                 "당신은 역사 추리 게임의 정중한 힌트 진행자입니다.\n" +
                         "정답 키워드: '%s'\n" +
+                        "최종 장소: '%s'\n" +
+                        "실제 역사 기록 요약: '%s'\n" +
+                        "플레이어가 수집한 단서: %s\n" +
                         "플레이어 질문: '%s'\n\n" +
                         "[응답 규칙]\n" +
-                        "- 한국어로 2문장 이하, 140자 이하로 답하세요.\n" +
+                        "- 한국어로 2문장 이하, 170자 이하로 답하세요.\n" +
                         "- 질문 내용이 정답과 얼마나 가까운지 '관련 있음/부분적으로 관련 있음/거리가 있음' 중 하나로 알려주세요.\n" +
+                        "- 관련이 있다면 어떤 역사적 축과 가까운지 한 문장으로 설명하세요.\n" +
+                        "- 플레이어가 이미 수집한 단서와 연결되는 경우 그 단서의 방향성을 짧게 짚어주세요.\n" +
                         "- 정답 키워드 자체는 절대 말하지 마세요.\n" +
                         "- 관련 인물, 장소, 시대 배경은 힌트로 언급해도 되지만 결론을 직접 확정하지 마세요.\n" +
                         "- 모욕, 조롱, 과한 질책, 긴 역사 해설은 금지합니다.",
-                answerKeyword, userQuestion
+                answerKeyword, mission.getTitle(), summarizeForPrompt(realStory, 500), clueContext, userQuestion
         );
 
         return streamPrompt(url, prompt);
@@ -179,10 +186,19 @@ public class GeminiAiService {
         if (userAnswer == null) return false;
         String trimmed = userAnswer.trim();
         return trimmed.endsWith("?")
+                || trimmed.endsWith("？")
                 || trimmed.contains("관련")
                 || trimmed.contains("맞아")
                 || trimmed.contains("인가")
+                || trimmed.contains("이야")
                 || trimmed.contains("일까")
+                || trimmed.contains("뭐")
+                || trimmed.contains("무엇")
+                || trimmed.contains("왜")
+                || trimmed.contains("언제")
+                || trimmed.contains("어디")
+                || trimmed.contains("누구")
+                || trimmed.contains("어떻게")
                 || trimmed.contains("힌트");
     }
 
@@ -251,6 +267,34 @@ public class GeminiAiService {
             return mission.getClue();
         }
         return mission.getAnswerKeyword() == null ? "" : mission.getAnswerKeyword();
+    }
+
+    private String buildCollectedClueContext(List<Map<String, String>> clearedClues) {
+        if (clearedClues == null || clearedClues.isEmpty()) {
+            return "아직 수집된 단서 없음";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (Map<String, String> clue : clearedClues) {
+            if (!builder.isEmpty()) {
+                builder.append(" / ");
+            }
+            builder.append(clue.getOrDefault("title", "단서"))
+                    .append(": ")
+                    .append(summarizeForPrompt(clue.getOrDefault("clue", ""), 120));
+        }
+        return builder.toString();
+    }
+
+    private String summarizeForPrompt(String text, int maxLength) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        String normalized = text.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength) + "...";
     }
 
     private Map<String, Object> generatePlayerClearReport(

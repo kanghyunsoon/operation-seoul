@@ -58,7 +58,7 @@ public class GameSessionController {
         }
 
         return isQuestion
-                ? geminiAiService.streamHintAnswer(missionId, request.getUserAnswer())
+                ? geminiAiService.streamHintAnswer(missionId, userId, request.getUserAnswer())
                 : geminiAiService.streamNarration(missionId, request.getUserAnswer(), isCorrect);
     }
 
