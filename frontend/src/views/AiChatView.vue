@@ -86,7 +86,6 @@
 import { ref, onMounted, nextTick, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore'; // 🚨 스토어 가져오기
-import axios from 'axios';
 import apiClient from '@/api/axiosInstance';
 import CameraScanner from '@/components/CameraScanner.vue';
 import { useTypingBuffer } from '@/composables/useTypingBuffer';
@@ -180,13 +179,16 @@ const handleManualCapture = async (imageDataUrl) => {
       formData.append("isAdmin", "true");
     }
 
-    // 🚨 경로 주의! 백엔드는 /api/v1/missions/{missionId}/vision 입니다.
-    // 기존에 sessions 로 되어있던 부분을 missions 로 수정했습니다.
-    await axios.post(`http://localhost:8080/api/v1/missions/${sessionId.value}/vision`, formData, {
+    const response = await apiClient.post(`/v1/missions/${sessionId.value}/vision`, formData, {
       headers: { "Content-Type": "multipart/form-data" }
     });
 
-    questionCount.value++;
+    if (!response.data?.success) {
+      isWaiting.value = false;
+      typeWriterEffect("<span style='color:#ef5350'>[SCAN_FAILED]</span> 유효한 단서를 찾을 수 없습니다. 다시 촬영하십시오.");
+      return;
+    }
+
     isWaiting.value = false;
     await requestGeminiStream("새로운 시각 단서를 전송했습니다. 분석 결과를 보고해 주십시오.");
 
