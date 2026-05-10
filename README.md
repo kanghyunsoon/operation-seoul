@@ -146,10 +146,10 @@ operation-seoul
     ├── src
     │   ├── api (Axios 인스턴스) 
     │   ├── assets (폰트, 이미지, 스타일시트)
-    │   ├── components (ChatBubble, MapMarker, CameraScanner) 
-    │   ├── composables (useGeolocation, useTypingBuffer) 
-    │   ├── store (Pinia - sessionStore.js) 
-    │   ├── views (MapView.vue, IntroView.vue) 
+    │   ├── components (CameraScanner) 
+    │   ├── composables (useTypingBuffer) 
+    │   ├── stores (Pinia - sessionStore.js) 
+    │   ├── views (Intro, Home, Briefing, Map, AiChat, Clear) 
     │   └── router (vue-router 설정)
     └── vite.config.js
 ```
@@ -232,18 +232,16 @@ npm run dev
 
 ### 1) 준비 단계 (작전 탐색 및 선택)
 * **`IntroView`**: 시스템 접속 관문 (로그인/회원가입).
-* **`HomeView`**: 요원 대시보드. 진행 중인 작전 이어하기 및 전체 달성률 확인.
-* **`RegionSelectView`**: 작전 지역(테마) 선택 리스트.
-* **`MissionSelectView`**: 세부 스토리 미션 선택. 작전 시작 시 DB에 새로운 `GameSession` 생성.
+* **`HomeView`**: 작전 생성/선택 대시보드. 관리자 모드에서는 후보지 조회와 미션 생성을 수행합니다.
 
 ### 2) 게임 진행 단계 (코어 게임 사이클)
 * **`BriefingView`**: 프롤로그. 임무 배경 스토리와 첫 목적지 힌트 하달.
 * **`MapView`**: 실제 도심 지도를 보며 이동. 실시간 GPS 위치와 목적지 마커 표시.
-* **`CameraScannerView`**: 현장 도착 후 특정 구조물을 비추어 OCR로 단서 획득.
-* **`AiChatView`**: 획득한 단서로 본부 오퍼레이터(AI)와 채팅하며 정답 도출. 정답 시 다음 장소로 순환.
+* **`CameraScanner`**: 현장 도착 후 특정 구조물을 비추어 Vision API 기반 단서를 획득하는 공용 컴포넌트입니다.
+* **`AiChatView`**: 획득한 단서로 본부 오퍼레이터(AI)와 채팅하며 최종 사건 키워드를 추론합니다.
 
 ### 3) 결과 단계 (작전 종료)
-* **`ClearView`**: 모든 미션 완수 시 엔딩 화면 및 클리어 타임 제공. 확인 시 `HomeView`로 복귀.
+* **`ClearView`**: 최종 키워드 정답 시 실제 역사 해설과 수집 단서 해석을 제공하고, 확인 후 `HomeView`로 복귀합니다.
 
 <br>
 
