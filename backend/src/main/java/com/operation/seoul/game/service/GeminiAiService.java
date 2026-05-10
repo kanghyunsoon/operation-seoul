@@ -403,45 +403,6 @@ public class GeminiAiService {
         return explanations;
     }
 
-    public Map<String, Object> generateClearReport(Long missionId) {
-        Mission mission = missionRepository.findById(missionId).orElseThrow();
-        String answerKeyword = mission.getAnswerKeyword();
-        String realStory = mission.getRealStory();
-
-        String report = realStory;
-        if (report == null || report.isBlank()) {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey.trim();
-            String prompt = String.format(
-                    "당신은 역사 추리 게임의 클리어 화면에 들어갈 해설을 쓰는 역사 해설자입니다.\n" +
-                            "장소: %s\n" +
-                            "핵심 키워드: %s\n\n" +
-                            "[작성 규칙]\n" +
-                            "- 한국어로 10문장 이상 14문장 이하로 작성하세요.\n" +
-                            "- 문장마다 빈 줄을 넣어 모바일 화면에서도 읽기 쉽게 나누세요.\n" +
-                            "- 플레이어가 방금 추리를 끝낸 뒤 읽는 글처럼, 단서를 따라오며 몰입했던 경험을 실제 역사와 연결해 흥미롭게 풀어 쓰세요.\n" +
-                            "- 논문식 요약이나 백과사전식 정의가 아니라, 사건이 왜 벌어졌고 현장에서 무엇을 떠올리면 좋은지 이야기하듯 설명하세요.\n" +
-                            "- 첩보/픽션 말투를 쓰지 말고, 실제 역사 해설처럼 정중하게 설명하세요.\n" +
-                            "- 역사적 사실로 널리 알려진 내용만 말하세요.\n" +
-                            "- 확실하지 않은 세부사항은 단정하지 말고 '추가 확인이 필요합니다'라고 쓰세요.\n" +
-                            "- 마크다운 제목이나 목록은 쓰지 마세요.\n" +
-                            "- 마지막 문장은 이 사건을 현재 장소 탐방과 연결해 마무리하세요.",
-                    mission.getTitle(), answerKeyword
-            );
-            report = callGeminiStandard(url, prompt);
-        }
-
-        if (report == null || report.isBlank()) {
-            report = "임무는 완료되었습니다. 이 장소와 핵심 키워드의 상세 역사 해설은 공공데이터 기반 기록 보강 단계에서 제공될 예정입니다.";
-        }
-
-        return Map.of(
-                "missionId", mission.getId(),
-                "title", mission.getTitle(),
-                "answerKeyword", answerKeyword == null ? "" : answerKeyword,
-                "report", report
-        );
-    }
-
     /**
      * 챗봇 답변 유사도 검증
      */
