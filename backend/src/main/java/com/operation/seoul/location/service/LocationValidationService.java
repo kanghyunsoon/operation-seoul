@@ -22,12 +22,10 @@ public class LocationValidationService {
      @param missionId 검증 대상 미션 식별자
      @param userLat   사용자 실시간 위도
      @param userLng   사용자 실시간 경도
-     @param isAdmin   관리자 여부 (추가됨)
+     @param isAdmin   관리자 여부
      @return 반경 내 존재 시 true, 이외 false 반환 */
-    // 🚨 1. 파라미터에 boolean isAdmin 추가
     public boolean verifyUserArrival(Long missionId, double userLat, double userLng, boolean isAdmin) {
 
-        // 🚨 2. 관리자일 경우 좌표/거리 계산 없이 무조건 도달(true) 처리
         if (isAdmin) {
             return true;
         }

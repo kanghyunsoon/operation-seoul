@@ -1,5 +1,6 @@
 package com.operation.seoul.location.controller;
 
+import com.operation.seoul.auth.security.CurrentUserResolver;
 import com.operation.seoul.location.dto.MissionResponse;
 import com.operation.seoul.location.service.LocationValidationService;
 import com.operation.seoul.location.service.MissionService;
@@ -22,6 +23,7 @@ public class LocationController {
 
     private final MissionService missionService;
     private final LocationValidationService locationValidationService;
+    private final CurrentUserResolver currentUserResolver;
 
     /**
      * [기능: 맵 뷰 데이터 로딩 - 힌트 및 목적지 조회]
@@ -35,22 +37,21 @@ public class LocationController {
         return ResponseEntity.ok(response);
     }
 
-    /**[기능: 미션 장소 도착 여부 검증]
-     - 수행 내용: 유저의 현재 좌표와 미션 목적지 좌표를 비교하여 반경 내 도착 여부 판정
-     - 🚨 수정 사항: 관리자 여부(isAdmin) 파라미터 추가 및 서비스 전달 */
+    /**
+     * [기능: 미션 장소 도착 여부 검증]
+     */
     @PostMapping("/missions/{missionId}/arrive")
     public ResponseEntity<Boolean> checkArrival(
             @PathVariable Long missionId,
             @RequestBody LocationRequest request,
-            @RequestParam(value = "isAdmin", defaultValue = "false") boolean isAdmin) { // 🚨 관리자 파라미터 추가
+            @RequestParam(value = "isAdmin", defaultValue = "false") boolean isAdmin) {
 
-        // LocationValidationService에 isAdmin 값을 함께 넘겨줍니다.
-        // 서비스 내부 로직에 의해 isAdmin이 true이면 거리 계산 없이 무조건 true가 반환됩니다.
+        boolean effectiveIsAdmin = currentUserResolver.resolveIsAdmin(isAdmin);
         boolean isArrived = locationValidationService.verifyUserArrival(
                 missionId,
                 request.getUserLat(),
                 request.getUserLng(),
-                isAdmin // 🚨 서비스로 전달
+                effectiveIsAdmin
         );
         return ResponseEntity.ok(isArrived);
     }
