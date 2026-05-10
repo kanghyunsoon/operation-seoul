@@ -33,7 +33,8 @@ public class GameSessionController {
             @RequestParam(value = "isAdmin", defaultValue = "false") boolean isAdmin) {
 
         Long effectiveUserId = currentUserResolver.resolveUserId(userId);
-        return ResponseEntity.ok(visionAiService.verifyAndRecordMission(missionId, image, effectiveUserId, isAdmin));
+        boolean effectiveIsAdmin = currentUserResolver.resolveIsAdmin(isAdmin);
+        return ResponseEntity.ok(visionAiService.verifyAndRecordMission(missionId, image, effectiveUserId, effectiveIsAdmin));
     }
 
     @PostMapping("/{missionId}/chat/stream")
