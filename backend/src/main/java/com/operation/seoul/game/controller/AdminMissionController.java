@@ -137,7 +137,7 @@ public class AdminMissionController {
                     boolean isFinal = mNode.path("isFinal").asBoolean(false);
                     Map<String, String> sourceSpot = resolveSourceSpot(mNode, targetSpot, subSpots, isFinal);
 
-                    mission.setTitle(resolveTitle(mNode, sourceSpot));
+                    mission.setTitle(resolveSafeTitle(mNode, sourceSpot, finalAnswerKeyword, isFinal));
                     mission.setTargetLat(resolveLatitude(mNode, sourceSpot));
                     mission.setTargetLng(resolveLongitude(mNode, sourceSpot));
                     mission.setVisionKeyword(mNode.path("visionKeyword").asText(""));
@@ -147,7 +147,11 @@ public class AdminMissionController {
                     if (isFinal) {
                         mission.setAnswerKeyword(mNode.path("answerKeyword").asText("정답누락"));
                     } else {
-                        mission.setClue(mNode.path("clue").asText("단서누락"));
+                        mission.setClue(maskSecretKeyword(
+                                mNode.path("clue").asText("단서누락"),
+                                finalAnswerKeyword,
+                                "이 장소의 단서는 최종 사건을 직접 말하지 않고, 당시의 긴장과 선택을 우회적으로 가리킵니다."
+                        ));
                     }
 
                     if (isFinal) {
@@ -264,6 +268,11 @@ public class AdminMissionController {
         }
 
         return null;
+    }
+
+    private String resolveSafeTitle(JsonNode missionNode, Map<String, String> sourceSpot, String secretKeyword, boolean isFinal) {
+        String title = resolveTitle(missionNode, sourceSpot);
+        return maskSecretKeyword(title, secretKeyword, isFinal ? "최종 현장" : "단서 지점");
     }
 
     private String resolveTitle(JsonNode missionNode, Map<String, String> sourceSpot) {
