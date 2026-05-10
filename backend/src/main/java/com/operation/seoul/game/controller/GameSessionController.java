@@ -16,7 +16,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/sessions")
-@CrossOrigin(origins = "http://localhost:5173")
 @RequiredArgsConstructor
 public class GameSessionController {
 

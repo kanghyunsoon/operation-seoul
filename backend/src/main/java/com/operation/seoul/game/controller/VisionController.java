@@ -9,7 +9,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/missions")
-@CrossOrigin(origins = "http://localhost:5173")
 @RequiredArgsConstructor
 public class VisionController {
 
