@@ -3,19 +3,19 @@ import { defineStore } from 'pinia';
 
 export const useSessionStore = defineStore('session', () => {
     const token = ref(localStorage.getItem('accessToken') || null);
-    const userInfo = ref(JSON.parse(localStorage.getItem('userInfo')) || null);
+    const userInfo = ref(normalizeUserInfo(JSON.parse(localStorage.getItem('userInfo')) || null));
 
     const isLoggedIn = computed(() => !!token.value);
 
-    // 🚨 컴포넌트에서 편하게 userId를 꺼내 쓰기 위한 getter
     const userId = computed(() => userInfo.value?.id || null);
 
     const login = (payload) => {
+        const normalizedUser = normalizeUserInfo(payload.user);
         token.value = payload.token;
-        userInfo.value = payload.user;
+        userInfo.value = normalizedUser;
 
         localStorage.setItem('accessToken', payload.token);
-        localStorage.setItem('userInfo', JSON.stringify(payload.user));
+        localStorage.setItem('userInfo', JSON.stringify(normalizedUser));
     };
 
     const logout = () => {
@@ -27,3 +27,12 @@ export const useSessionStore = defineStore('session', () => {
 
     return { token, userInfo, userId, isLoggedIn, login, logout };
 });
+
+const normalizeUserInfo = (user) => {
+    if (!user) return null;
+
+    return {
+        ...user,
+        isAdmin: user.isAdmin === true || user.admin === true,
+    };
+};
