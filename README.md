@@ -197,6 +197,7 @@ Copy-Item backend/src/main/resources/application-example.properties backend/src/
 | `google.vision.key` | Google Cloud Vision API 키 |
 | `kakao.rest.api.key` | Kakao REST API 키 |
 | `tmap.app.key` | Tmap API 키 |
+| `jwt.secret` | JWT 서명용 비밀키. 최소 32자 이상의 임의 문자열 권장 |
 
 ```powershell
 cd backend
