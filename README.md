@@ -32,7 +32,7 @@ graph TD
         HW[Hardware Control\nGPS & Camera]
     end
 
-    subgraph "Server Side (Spring Boot 3)"
+    subgraph "Server Side (Spring Boot 4)"
         API[REST API Controller]
         SSE[SSE Stream Handler\nResponseBodyEmitter]
         MF[Mission Factory\nPrompt Engineering]
@@ -41,14 +41,14 @@ graph TD
 
     subgraph "Database Layer"
         RDB[(MySQL 8.0)]
-        CACHE[(Redis - Session/Token Cache)]
+        SESSION[(GameSession Table\nMission Progress)]
     end
 
     subgraph "External Intelligence & Data"
         MAP[Kakao Maps API\nDynamic Routing]
         TOUR[TourAPI 4.0\nPOI Seed Data]
         VISION[Google Cloud Vision\nOCR/Object Detection]
-        GEMINI[Google Gemini 1.5\nStory Generation]
+        GEMINI[Google Gemini API\nStory & Hint Generation]
     end
 
     UI <-->|HTTPS/REST| API
@@ -57,7 +57,7 @@ graph TD
     
     API <-->|JPA/Hibernate| RDB
     API <--> SEC
-    SEC <--> CACHE
+    API <-->|Read/Write Progress| SESSION
     
     UI -->|Map Rendering| MAP
     MF -->|Content Scrapping| TOUR
@@ -68,7 +68,7 @@ graph TD
 ### 💡 아키텍처 상세 설명
 * **Client Side**: Vue 3 Composition API를 활용해 상태(Pinia)를 관리합니다. 
 모바일 브라우저 환경에서 Geolocation API로 사용자 좌표를 추적하고, 프론트엔드 자체 타이핑 버퍼(Typing Buffer) 로직을 구현하여 네트워크 지연(Latency)에도 끊김 없는 AI 타자기 연출을 보장합니다.
-* **Server Side**: Spring Boot 3를 기반으로 RESTful API를 제공합니다. 핵심인 SSE Stream Handler는 AI(Gemini)의 응답을 청크(Chunk) 단위로 쪼개어 클라이언트에 실시간으로 밀어내는(Push) 단방향 비동기 통신을 담당합니다.
+* **Server Side**: Spring Boot 4를 기반으로 RESTful API를 제공합니다. 핵심인 SSE Stream Handler는 AI(Gemini)의 응답을 청크(Chunk) 단위로 쪼개어 클라이언트에 실시간으로 밀어내는(Push) 단방향 비동기 통신을 담당합니다.
 * **External Integration**: TourAPI에서 수집한 명소(POI) 데이터를 Mission Factory 파이프라인에 통과시켜 Gemini 프롬프트로 주입, 매번 새로운 세계관의 미션 스토리를 자동 생성합니다.
 
 <br>
@@ -82,55 +82,51 @@ erDiagram
     USER ||--o{ GAME_SESSION : plays
     REGION ||--o{ MISSION : contains
     MISSION ||--o{ GAME_SESSION : tracks
-    GAME_SESSION ||--o{ CHAT_LOG : records
 
     USER {
         Long id PK
         String email "UK (로그인 ID)"
+        String password "BCrypt 해시"
         String nickname "요원 코드네임"
-        Enum role "USER / ADMIN"
+        Boolean isAdmin "관리자 여부"
     }
     
     REGION {
         Long id PK
         String name "ex: 서울 종로구"
         String description "지역 세계관 설명"
-        String tourApiCode "TourAPI 연동 키값"
     }
     
     MISSION {
         Long id PK
-        Long region_id FK
+        Long regionId FK
         String title "미션명"
-        Text storyPrompt "AI 주입용 기본 프롬프트"
+        Text description "장소/미션 설명"
         Double targetLat "목적지 위도"
         Double targetLng "목적지 경도"
+        Double radiusInMeters "도착 인정 반경"
         String visionKeyword "OCR 통과 키워드"
+        Text clue "힌트 미션 클리어 후 공개 단서"
         String answerKeyword "최종 정답 키워드"
+        Long chapterId "챕터 그룹 ID"
+        Boolean isFinal "최종 목적지 여부"
+        Text realStory "클리어 후 실제 역사 해설"
     }
     
     GAME_SESSION {
         Long id PK
-        Long user_id FK
-        Long mission_id FK
-        Enum status "IN_PROGRESS / CLEARED / FAILED"
-        DateTime startTime
-        DateTime clearedTime "클리어 타임 기록용"
-    }
-    
-    CHAT_LOG {
-        Long id PK
-        Long session_id FK
-        Enum sender "AGENT(유저) / HQ(AI)"
-        Text message "채팅 내용"
-        DateTime createdAt
+        Long userId FK
+        Long missionId FK
+        String status "IN_PROGRESS / CLEARED 등"
+        Text extractedLog "Vision 분석 로그"
     }
 ```
 
 ### 💡 도메인 상세 설명
 * **Region과 Mission (1:N)**: 하나의 테마 지역 안에는 여러 개의 세부 스토리 미션이 존재합니다.
 * **Mission과 GameSession (1:N)**: 미션 정보는 정적인 마스터 데이터이며, 유저가 미션을 시작할 때마다 고유한 GameSession 인스턴스가 생성되어 진행 상태(Status)를 추적합니다.
-* **GameSession과 ChatLog (1:N)**: 특정 세션 내에서 발생한 AI와의 핑퐁 대화 내역을 타임스탬프와 함께 보관합니다.
+* **Mission의 힌트/최종 분리**: 일반 힌트 미션은 `visionKeyword`와 `clue`를 중심으로 동작하고, 최종 미션은 `answerKeyword`, `realStory`, `isFinal`을 통해 챗봇 추론과 클리어 해설을 담당합니다.
+* **ChatLog 상태**: 현재 `ChatLog`는 클래스만 존재하고 JPA 엔티티로 영속화되지는 않습니다. 채팅 저장은 추후 점수/회고 기능과 함께 별도 구현이 필요합니다.
 
 <br>
 
@@ -140,7 +136,7 @@ erDiagram
 
 ```text
 operation-seoul
-├── backend (Spring Boot 3 - Java 17)
+├── backend (Spring Boot 4 - Java 17)
 │   ├── src/main/java/com/operation/seoul
 │   │   ├── global (공통 예외 처리, 보안, 설정) 
 │   │   ├── game (게임 코어 & AI 스트리밍 도메인)
@@ -169,11 +165,11 @@ operation-seoul
 | **Frontend** | Vue 3 (Composition API) | 로직 재사용성(composables) 극대화 및 반응형 UI 구축 |
 | | Pinia | 가볍고 직관적인 전역 상태 관리 (유저 세션, 토큰 보관) |
 | | Axios & Vue Router | REST API 비동기 통신 및 네비게이션 가드를 통한 라우팅 보안 |
-| **Backend** | Java 17 & Spring Boot 3.x | 최신 문법 활용 및 안정적인 서버 아키텍처 |
+| **Backend** | Java 17 & Spring Boot 4.x | 최신 문법 활용 및 안정적인 서버 아키텍처 |
 | | Spring Data JPA | 객체 지향적 데이터 접근 및 유지보수 용이성 |
 | | Spring Security & JWT | Stateless 기반의 안전한 REST API 인증/인가 체계 구축 |
 | **Database** | MySQL 8.0 (Aiven - 개발, AWS RDS-배포)[예정] | 공간 데이터(Spatial Data) 확장성과 트랜잭션 무결성 보장 |
-| **AI Engine** | Google Gemini 1.5 Flash (LLM) | 빠른 응답 속도(Latency)와 문맥 파악 능력을 통한 실시간 대화 연출 |
+| **AI Engine** | Google Gemini API (LLM) | 빠른 응답 속도(Latency)와 문맥 파악 능력을 통한 실시간 대화 연출 |
 | | Google Cloud Vision (OCR) | 현장 구조물/텍스트를 판독하여 어뷰징을 방지하는 OCR 검증 |
 | **Data & API**| 한국관광공사 TourAPI 4.0 | 공공데이터 기반 초기 지역/명소 데이터 시딩 |
 | | Kakao Maps API | 한국 지형에 최적화된 지도 렌더링 및 동적 마커 표시 |
@@ -292,7 +288,7 @@ npm run dev
 - [ ] [FE] HTML5 Geolocation API(`useGeolocation`)를 활용한 실시간 위치 추적 기능 개발
 
 **팀원 B (AI & Game Core Domain 담당)**
-- [ ] [BE] Google Gemini 1.5 연동 및 비동기 스트리밍(SSE) 서버 응답 로직 구축
+- [ ] [BE] Google Gemini API 연동 및 비동기 스트리밍(SSE) 서버 응답 로직 구축
 - [ ] [BE] Google Cloud Vision API 연동 및 현장 이미지 판독(`VisionAiService`) 로직 작성
 - [ ] [FE] SSE 데이터 수신 처리 및 프론트엔드 자체 타자기 버퍼(`useTypingBuffer`) 개발
 - [ ] [FE] `CameraScanner` 컴포넌트 및 `AiChatView` UI/UX 최적화 구현
