@@ -1,5 +1,6 @@
 package com.operation.seoul.game.controller;
 
+import com.operation.seoul.auth.security.CurrentUserResolver;
 import com.operation.seoul.game.service.VisionAiService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class VisionController {
 
     private final VisionAiService visionAiService;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping("/{missionId}/vision")
     public ResponseEntity<?> verifyVision(
@@ -21,6 +23,7 @@ public class VisionController {
             @RequestParam(value = "userId", defaultValue = "1") Long userId,
             @RequestParam(value = "isAdmin", defaultValue = "false") boolean isAdmin) {
 
-        return ResponseEntity.ok(visionAiService.verifyAndRecordMission(missionId, image, userId, isAdmin));
+        Long effectiveUserId = currentUserResolver.resolveUserId(userId);
+        return ResponseEntity.ok(visionAiService.verifyAndRecordMission(missionId, image, effectiveUserId, isAdmin));
     }
 }

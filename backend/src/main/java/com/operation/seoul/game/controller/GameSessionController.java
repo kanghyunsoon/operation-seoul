@@ -1,6 +1,6 @@
 package com.operation.seoul.game.controller;
 
-import com.operation.seoul.auth.domain.User;
+import com.operation.seoul.auth.security.CurrentUserResolver;
 import com.operation.seoul.game.domain.GameSession;
 import com.operation.seoul.game.repository.GameSessionRepository;
 import com.operation.seoul.game.service.GeminiAiService;
@@ -8,8 +8,6 @@ import com.operation.seoul.game.service.VisionAiService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
@@ -25,6 +23,7 @@ public class GameSessionController {
     private final GameSessionRepository sessionRepository;
     private final VisionAiService visionAiService;
     private final GeminiAiService geminiAiService;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping("/{missionId}/vision")
     public ResponseEntity<?> verifyVision(
@@ -33,7 +32,7 @@ public class GameSessionController {
             @RequestParam(value = "userId", defaultValue = "1") Long userId,
             @RequestParam(value = "isAdmin", defaultValue = "false") boolean isAdmin) {
 
-        Long effectiveUserId = resolveUserId(userId);
+        Long effectiveUserId = currentUserResolver.resolveUserId(userId);
         return ResponseEntity.ok(visionAiService.verifyAndRecordMission(missionId, image, effectiveUserId, isAdmin));
     }
 
@@ -42,7 +41,7 @@ public class GameSessionController {
             @PathVariable Long missionId,
             @RequestBody ChatRequest request) {
 
-        Long userId = resolveUserId(request.getUserId());
+        Long userId = currentUserResolver.resolveUserId(request.getUserId());
 
         GameSession session = sessionRepository.findByUserIdAndMissionId(userId, missionId)
                 .orElseGet(() -> {
@@ -71,7 +70,7 @@ public class GameSessionController {
             @PathVariable Long missionId,
             @RequestParam(value = "userId", defaultValue = "1") Long userId) {
 
-        Long effectiveUserId = resolveUserId(userId);
+        Long effectiveUserId = currentUserResolver.resolveUserId(userId);
         String status = sessionRepository.findByUserIdAndMissionId(effectiveUserId, missionId)
                 .map(GameSession::getStatus)
                 .orElse("NONE");
@@ -87,16 +86,8 @@ public class GameSessionController {
     public ResponseEntity<?> getClearReport(
             @PathVariable Long missionId,
             @RequestParam(value = "userId", defaultValue = "1") Long userId) {
-        Long effectiveUserId = resolveUserId(userId);
+        Long effectiveUserId = currentUserResolver.resolveUserId(userId);
         return ResponseEntity.ok(geminiAiService.generateClearReport(missionId, effectiveUserId));
-    }
-
-    private Long resolveUserId(Long fallbackUserId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return fallbackUserId != null ? fallbackUserId : 1L;
     }
 
     @Data
