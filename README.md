@@ -198,6 +198,7 @@ Copy-Item backend/src/main/resources/application-example.properties backend/src/
 | `kakao.rest.api.key` | Kakao REST API 키 |
 | `tmap.app.key` | Tmap API 키 |
 | `jwt.secret` | JWT 서명용 비밀키. 최소 32자 이상의 임의 문자열 권장 |
+| `app.cors.allowed-origins` | 프론트엔드 origin 허용 목록. 여러 개면 쉼표로 구분 |
 
 ```powershell
 cd backend
