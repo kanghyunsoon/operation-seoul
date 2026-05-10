@@ -1,14 +1,13 @@
 package com.operation.seoul.auth.controller;
 
 import com.operation.seoul.auth.domain.User;
+import com.operation.seoul.auth.dto.AuthResponse;
 import com.operation.seoul.auth.repository.UserRepository;
 import com.operation.seoul.auth.security.JwtTokenProvider;
 import lombok.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -30,7 +29,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequest dto) {
+    public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest dto) {
         User user = userRepository.findByEmail(dto.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("미등록 요원"));
 
@@ -40,15 +39,7 @@ public class AuthController {
 
         String token = jwtTokenProvider.createToken(user.getEmail());
 
-        return ResponseEntity.ok(Map.of(
-                "token", token,
-                "user", Map.of(
-                        "id", user.getId(),       // 🚨 [중요] 유저의 고유 ID(PK) 추가
-                        "nickname", user.getNickname(),
-                        "email", user.getEmail(),
-                        "isAdmin", user.isAdmin()
-                )
-        ));
+        return ResponseEntity.ok(AuthResponse.of(token, user));
     }
 
     @Data
