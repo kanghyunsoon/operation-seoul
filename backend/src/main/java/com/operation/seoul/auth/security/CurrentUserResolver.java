@@ -15,4 +15,12 @@ public class CurrentUserResolver {
         }
         return fallbackUserId != null ? fallbackUserId : 1L;
     }
+
+    public boolean resolveIsAdmin(boolean fallbackIsAdmin) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User user) {
+            return user.isAdmin();
+        }
+        return fallbackIsAdmin;
+    }
 }
