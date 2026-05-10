@@ -111,7 +111,7 @@ const missions = ref([]);
 
 const isAdmin = computed(() => {
   const user = sessionStore.userInfo;
-  return user && (user.nickname === 'admin' || user.email === 'admin@seoul.go.kr');
+  return user?.isAdmin === true;
 });
 
 const showAdminModal = ref(false);
@@ -141,7 +141,7 @@ const fetchCandidates = async () => {
     candidates.value = response.data;
   } catch (error) {
     console.error(error);
-    alert("스캔 실패: 주변에 가용한 역사적 장소가 없거나 서버 오류입니다.");
+    alert(error.userMessage || "스캔 실패: 주변에 가용한 역사적 장소가 없거나 서버 오류입니다.");
   } finally {
     isScanning.value = false;
   }
@@ -165,7 +165,7 @@ const generateMissionByAi = async () => {
 
   } catch (error) {
     console.error(error);
-    alert('작전 수립에 실패했습니다. 백엔드 로그를 확인하세요.');
+    alert(error.userMessage || '작전 수립에 실패했습니다. 백엔드 로그를 확인하세요.');
   } finally {
     isGenerating.value = false;
   }
@@ -181,7 +181,7 @@ const deleteRegion = async (regionId, title) => {
     fetchMissions(); // 카드 목록 갱신
   } catch (error) {
     console.error(error);
-    alert('작전 파기 통신 실패. 본부에 문의하십시오.');
+    alert(error.userMessage || '작전 파기 통신 실패. 본부에 문의하십시오.');
   }
 };
 
