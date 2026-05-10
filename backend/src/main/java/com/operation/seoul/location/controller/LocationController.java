@@ -33,7 +33,8 @@ public class LocationController {
             @PathVariable Long regionId,
             @RequestParam(defaultValue = "1") Long userId
     ) {
-        List<MissionResponse> response = missionService.getMissionBoard(regionId, userId);
+        Long effectiveUserId = currentUserResolver.resolveUserId(userId);
+        List<MissionResponse> response = missionService.getMissionBoard(regionId, effectiveUserId);
         return ResponseEntity.ok(response);
     }
 
