@@ -1,10 +1,11 @@
 package com.operation.seoul.auth.controller;
 
 import com.operation.seoul.auth.domain.User;
+import com.operation.seoul.auth.dto.AuthRequest;
 import com.operation.seoul.auth.dto.AuthResponse;
 import com.operation.seoul.auth.repository.UserRepository;
 import com.operation.seoul.auth.security.JwtTokenProvider;
-import lombok.*;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -40,12 +41,5 @@ public class AuthController {
         String token = jwtTokenProvider.createToken(user.getEmail());
 
         return ResponseEntity.ok(AuthResponse.of(token, user));
-    }
-
-    @Data
-    static class AuthRequest {
-        private String email;
-        private String password;
-        private String nickname;
     }
 }
