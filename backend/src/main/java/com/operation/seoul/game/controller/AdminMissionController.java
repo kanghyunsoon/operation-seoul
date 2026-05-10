@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -114,6 +115,11 @@ public class AdminMissionController {
             JsonNode root = objectMapper.readTree(pureJson);
 
             String finalAnswerKeyword = extractFinalAnswerKeyword(root.path("missions"));
+            if (isInvalidFinalAnswerKeyword(finalAnswerKeyword, targetSpot)) {
+                return ResponseEntity.badRequest().body(
+                        "AI가 장소명/인물명에 가까운 최종 정답을 생성했습니다. 다시 생성해 주세요. answerKeyword=" + finalAnswerKeyword
+                );
+            }
 
             Region newRegion = new Region();
             newRegion.setName(maskSecretKeyword(
@@ -145,7 +151,7 @@ public class AdminMissionController {
                     mission.setRadiusInMeters(isFinal ? 30.0 : 50.0);
                     // 서브 미션은 clue(단서)를, 최종 미션은 answerKeyword(진짜 정답)를 가집니다.
                     if (isFinal) {
-                        mission.setAnswerKeyword(mNode.path("answerKeyword").asText("정답누락"));
+                        mission.setAnswerKeyword(finalAnswerKeyword);
                     } else {
                         mission.setClue(maskSecretKeyword(
                                 mNode.path("clue").asText("단서누락"),
@@ -202,6 +208,44 @@ public class AdminMissionController {
             }
         }
         return "";
+    }
+
+    private boolean isInvalidFinalAnswerKeyword(String answerKeyword, Map<String, String> targetSpot) {
+        String normalizedAnswer = normalizeForSecretCheck(answerKeyword);
+        if (normalizedAnswer.isBlank() || normalizedAnswer.equals(normalizeForSecretCheck("정답누락"))) {
+            return true;
+        }
+
+        String targetTitle = normalizeForSecretCheck(targetSpot.getOrDefault("title", ""));
+        if (!targetTitle.isBlank()
+                && (normalizedAnswer.equals(targetTitle)
+                || targetTitle.contains(normalizedAnswer)
+                || normalizedAnswer.contains(targetTitle))) {
+            return true;
+        }
+
+        return isCommonPlaceOrPersonAnswer(normalizedAnswer);
+    }
+
+    private boolean isCommonPlaceOrPersonAnswer(String normalizedAnswer) {
+        Set<String> blockedAnswers = Set.of(
+                "고종",
+                "명성황후",
+                "덕수궁",
+                "경복궁",
+                "경희궁",
+                "흥화문",
+                "남대문",
+                "숭례문",
+                "서울",
+                "정동",
+                "궁궐",
+                "러시아공사관",
+                "공사관",
+                "황제",
+                "왕"
+        );
+        return blockedAnswers.contains(normalizedAnswer);
     }
 
     private String maskSecretKeyword(String text, String secretKeyword, String fallback) {
