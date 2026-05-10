@@ -356,7 +356,7 @@ public class GeminiAiService {
 
             Map<String, List<String>> explanations = new HashMap<>();
             JsonNode explanationNode = root.path("clueExplanations");
-            explanationNode.fields().forEachRemaining(entry -> explanations.put(entry.getKey(), normalizeParagraphList(entry.getValue())));
+            explanationNode.properties().forEach(entry -> explanations.put(entry.getKey(), normalizeParagraphList(entry.getValue())));
             parsed.put("clueExplanations", explanations);
             return parsed;
         } catch (Exception e) {

@@ -2,15 +2,21 @@ package com.operation.seoul.auth.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import javax.crypto.SecretKey;
 
 @Component
 public class JwtTokenProvider {
-    // 훈련용 임시 키 (실제 배포 시엔 환경변수 처리 권장)
-    private final SecretKey key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+    private final SecretKey key;
     private final long validityInMilliseconds = 3600000 * 24; // 24시간 유효
+
+    public JwtTokenProvider(@Value("${jwt.secret:operation-seoul-local-development-jwt-secret}") String jwtSecret) {
+        this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+    }
 
     public String createToken(String email) {
         Claims claims = Jwts.claims().setSubject(email);
