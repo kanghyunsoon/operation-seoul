@@ -5,11 +5,15 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
+import java.util.Map;
+
 @SpringBootApplication
 public class OperationSeoulApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(OperationSeoulApplication.class, args);
+        SpringApplication application = new SpringApplication(OperationSeoulApplication.class);
+        application.setDefaultProperties(Map.of("spring.profiles.default", "local"));
+        application.run(args);
     }
 
     @Bean
