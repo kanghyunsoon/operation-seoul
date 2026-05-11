@@ -6,16 +6,17 @@
     <div class="content-wrapper">
       <header class="dashboard-header">
         <div class="title-group">
-          <h1 class="title">OPERATION<span class="highlight">: SEOUL</span></h1>
-          <p class="subtitle">작전 목록 데이터베이스 접근 중...</p>
+          <h1 class="title">OPERATION<span class="highlight">: {{ activeArea?.label || 'KOREA' }}</span></h1>
+          <p class="subtitle">{{ isAreaSelected ? `${activeArea.name} 작전 목록 데이터베이스 접근 중...` : '대한민국 작전망 대기 중...' }}</p>
         </div>
         <div class="user-panel">
+          <button v-if="isAreaSelected" @click="returnToAreaSelection" class="region-back-btn">지역 선택</button>
           <span class="agent-name">요원 [ {{ sessionStore.userInfo?.nickname || 'UNKNOWN' }} ]</span>
           <button @click="handleLogout" class="logout-btn">로그아웃</button>
         </div>
       </header>
 
-      <div v-if="isAdmin" class="admin-panel">
+      <div v-if="isAdmin && isAreaSelected" class="admin-panel">
         <button @click="showAdminModal = true" class="admin-generate-btn">
           [ ⚠️ 지휘부 권한: 신규 구역 AI 스캔 및 작전 수립 ]
         </button>
@@ -60,7 +61,76 @@
         </div>
       </div>
 
-      <main class="mission-grid">
+      <main v-if="!isAreaSelected" class="area-selector">
+        <section class="map-panel">
+          <div class="map-shell">
+            <svg class="korea-map" viewBox="0 0 320 520" role="img" aria-label="대한민국 작전 지도">
+              <defs>
+                <filter id="map-glow" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+                <radialGradient id="seoul-signal" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#ff6b6b" stop-opacity="1" />
+                  <stop offset="55%" stop-color="#ef4444" stop-opacity="0.7" />
+                  <stop offset="100%" stop-color="#ef4444" stop-opacity="0" />
+                </radialGradient>
+              </defs>
+
+              <path
+                class="nation-outline"
+                d="M169 22 L194 42 L206 77 L231 101 L222 139 L242 176 L229 223 L247 265 L230 316 L238 363 L210 402 L205 455 L176 498 L143 475 L129 430 L102 401 L110 354 L86 318 L96 268 L77 229 L95 185 L87 143 L115 111 L118 70 L145 48 Z"
+              />
+              <path
+                class="nation-inner-line"
+                d="M151 58 C173 102 160 134 181 169 C203 205 179 246 198 281 C217 318 189 359 196 413"
+              />
+              <path
+                class="nation-inner-line"
+                d="M107 185 C136 197 161 195 191 211 C213 222 229 241 240 267"
+              />
+
+              <g
+                class="map-region seoul-region"
+                :class="{ selected: pendingAreaCode === 'seoul' }"
+                tabindex="0"
+                role="button"
+                aria-label="서울특별시"
+                @click="openAreaConfirm('seoul')"
+                @keyup.enter="openAreaConfirm('seoul')"
+              >
+                <circle class="signal-ring" cx="152" cy="132" r="35" />
+                <path class="region-fill" d="M132 116 L154 104 L176 116 L182 138 L164 155 L138 150 L126 132 Z" />
+                <circle class="region-core" cx="153" cy="130" r="8" />
+                <text class="region-label" x="189" y="128">SEOUL</text>
+              </g>
+            </svg>
+          </div>
+        </section>
+
+        <section class="area-intel-panel">
+          <p class="eyebrow">REGION NETWORK</p>
+          <h2>대한민국 작전망</h2>
+          <div class="area-choice-list">
+            <button
+              v-for="area in areaCatalog"
+              :key="area.code"
+              class="area-choice"
+              :class="{ selected: pendingAreaCode === area.code, disabled: !area.enabled }"
+              :disabled="!area.enabled"
+              @click="openAreaConfirm(area.code)"
+            >
+              <span>{{ area.name }}</span>
+              <strong>{{ area.status }}</strong>
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <main v-else class="mission-grid">
         <div
             v-for="mission in missions"
             :key="mission.id"
@@ -114,20 +184,71 @@
           </div>
         </div>
       </main>
+
+      <div v-if="pendingArea" class="area-confirm-overlay">
+        <section class="area-confirm-dialog">
+          <p class="eyebrow">REGION CONFIRM</p>
+          <h2>{{ pendingArea.name }}을 선택하시겠습니까?</h2>
+          <div class="confirm-actions">
+            <button class="confirm-primary" @click="confirmAreaSelection">진입</button>
+            <button class="confirm-secondary" @click="cancelAreaSelection">취소</button>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore';
 import apiClient from '@/api/axiosInstance';
 
+const route = useRoute();
 const router = useRouter();
 const sessionStore = useSessionStore();
 
 const missions = ref([]);
+const pendingAreaCode = ref(null);
+
+const areaCatalog = [
+  {
+    code: 'seoul',
+    name: '서울',
+    label: 'SEOUL',
+    status: '작전 가능',
+    enabled: true
+  },
+  {
+    code: 'busan',
+    name: '부산',
+    label: 'BUSAN',
+    status: '준비 중',
+    enabled: false
+  },
+  {
+    code: 'gwangju',
+    name: '광주',
+    label: 'GWANGJU',
+    status: '준비 중',
+    enabled: false
+  }
+];
+
+const selectedAreaCode = computed(() => {
+  return typeof route.query.area === 'string' ? route.query.area : '';
+});
+
+const activeArea = computed(() => {
+  return areaCatalog.find(area => area.enabled && area.code === selectedAreaCode.value) || null;
+});
+
+const isAreaSelected = computed(() => Boolean(activeArea.value));
+
+const pendingArea = computed(() => {
+  return areaCatalog.find(area => area.enabled && area.code === pendingAreaCode.value) || null;
+});
 
 const isAdmin = computed(() => {
   const user = sessionStore.userInfo;
@@ -254,9 +375,39 @@ const formatDistance = (meters) => {
   return `${Math.round(safeMeters)}m`;
 };
 
-onMounted(() => {
-  fetchMissions();
-});
+watch(isAreaSelected, (selected) => {
+  if (selected) {
+    fetchMissions();
+    return;
+  }
+
+  missions.value = [];
+}, { immediate: true });
+
+const openAreaConfirm = (areaCode) => {
+  const area = areaCatalog.find(item => item.enabled && item.code === areaCode);
+  if (!area) return;
+
+  pendingAreaCode.value = area.code;
+};
+
+const confirmAreaSelection = () => {
+  if (!pendingArea.value) return;
+
+  const areaCode = pendingArea.value.code;
+  pendingAreaCode.value = null;
+  router.push({ name: 'Home', query: { area: areaCode } });
+};
+
+const cancelAreaSelection = () => {
+  pendingAreaCode.value = null;
+};
+
+const returnToAreaSelection = () => {
+  pendingAreaCode.value = null;
+  showAdminModal.value = false;
+  router.push({ name: 'Home' });
+};
 
 const handleMissionClick = (mission) => {
   if (!mission.isReady) {
@@ -293,7 +444,7 @@ const handleLogout = () => {
   font-family: 'Noto Sans KR', sans-serif;
   color: #e2e8f0;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
   padding: 40px 20px;
 }
 
@@ -314,8 +465,43 @@ const handleLogout = () => {
 .subtitle { font-size: 0.9rem; color: #94a3b8; margin: 0; }
 .user-panel { display: flex; align-items: center; gap: 20px; }
 .agent-name { color: #06b6d4; font-weight: 500; font-size: 0.9rem; }
+.region-back-btn { background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.45); color: #67e8f9; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 700; transition: 0.3s; }
+.region-back-btn:hover { background: rgba(6, 182, 212, 0.22); color: #fff; }
 .logout-btn { background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; }
 .logout-btn:hover { background: #ef4444; color: #fff; }
+.area-selector { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr); gap: 32px; align-items: center; min-height: 520px; }
+.map-panel, .area-intel-panel { min-width: 0; }
+.map-shell { position: relative; width: min(100%, 520px); aspect-ratio: 4 / 5; margin: 0 auto; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid rgba(6, 182, 212, 0.28); border-radius: 8px; background: radial-gradient(circle at 50% 35%, rgba(6, 182, 212, 0.16), rgba(15, 23, 42, 0.16) 38%, rgba(2, 6, 23, 0.48) 100%); box-shadow: inset 0 0 36px rgba(6, 182, 212, 0.1), 0 20px 60px rgba(0, 0, 0, 0.32); }
+.map-shell::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px); background-size: 32px 32px; mask-image: radial-gradient(circle at center, black 30%, transparent 72%); pointer-events: none; }
+.korea-map { position: relative; z-index: 1; width: min(82%, 360px); height: 92%; overflow: visible; }
+.nation-outline { fill: rgba(8, 47, 73, 0.28); stroke: #22d3ee; stroke-width: 3; filter: url(#map-glow); }
+.nation-inner-line { fill: none; stroke: rgba(103, 232, 249, 0.35); stroke-width: 1.6; stroke-dasharray: 7 8; }
+.map-region { cursor: pointer; outline: none; }
+.signal-ring { fill: url(#seoul-signal); opacity: 0.28; transition: opacity 0.25s ease; }
+.region-fill { fill: rgba(6, 182, 212, 0.62); stroke: #67e8f9; stroke-width: 2; transition: fill 0.25s ease, stroke 0.25s ease, filter 0.25s ease; }
+.region-core { fill: #ecfeff; transition: fill 0.25s ease; }
+.region-label { fill: #cffafe; font-size: 18px; font-weight: 800; letter-spacing: 0; paint-order: stroke; stroke: rgba(2, 6, 23, 0.82); stroke-width: 5; }
+.map-region:hover .signal-ring, .map-region:focus .signal-ring, .map-region.selected .signal-ring { opacity: 0.72; }
+.map-region:hover .region-fill, .map-region:focus .region-fill, .map-region.selected .region-fill { fill: rgba(239, 68, 68, 0.92); stroke: #fecaca; filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.75)); }
+.map-region:hover .region-core, .map-region:focus .region-core, .map-region.selected .region-core { fill: #fee2e2; }
+.area-intel-panel { padding: 8px 0; }
+.eyebrow { margin: 0 0 10px; color: #67e8f9; font-size: 0.74rem; font-weight: 800; letter-spacing: 0; }
+.area-intel-panel h2 { margin: 0 0 22px; color: #fff; font-size: 1.75rem; line-height: 1.2; }
+.area-choice-list { display: grid; gap: 12px; }
+.area-choice { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 18px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; background: rgba(15, 23, 42, 0.56); color: #e2e8f0; font-family: inherit; cursor: pointer; transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease; }
+.area-choice span { min-width: 0; font-size: 1rem; font-weight: 800; }
+.area-choice strong { flex: 0 0 auto; color: #67e8f9; font-size: 0.78rem; }
+.area-choice:hover, .area-choice.selected { border-color: rgba(239, 68, 68, 0.78); background: rgba(127, 29, 29, 0.32); transform: translateX(4px); }
+.area-choice.disabled { cursor: not-allowed; opacity: 0.45; }
+.area-choice.disabled strong { color: #94a3b8; }
+.area-choice.disabled:hover { transform: none; border-color: rgba(148, 163, 184, 0.2); background: rgba(15, 23, 42, 0.56); }
+.area-confirm-overlay { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(2, 6, 23, 0.74); backdrop-filter: blur(10px); }
+.area-confirm-dialog { width: min(100%, 380px); padding: 26px; border: 1px solid rgba(239, 68, 68, 0.62); border-radius: 8px; background: rgba(15, 23, 42, 0.96); box-shadow: 0 0 28px rgba(239, 68, 68, 0.18); }
+.area-confirm-dialog h2 { margin: 0 0 22px; color: #fff; font-size: 1.3rem; line-height: 1.35; }
+.confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirm-primary, .confirm-secondary { padding: 11px 14px; border-radius: 6px; font-family: inherit; font-weight: 800; cursor: pointer; }
+.confirm-primary { border: 1px solid #ef4444; background: #ef4444; color: #fff; }
+.confirm-secondary { border: 1px solid rgba(148, 163, 184, 0.35); background: transparent; color: #cbd5e1; }
 .mission-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); column-gap: 25px; row-gap: 32px; align-items: stretch; }
 .glass-card { position: relative; overflow: hidden; box-sizing: border-box; width: 100%; min-width: 0; min-height: 260px; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 24px; cursor: pointer; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column; }
 .glass-card:hover { transform: translateY(-5px); border-color: rgba(6, 182, 212, 0.5); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(6, 182, 212, 0.2); background: rgba(255, 255, 255, 0.05); }
@@ -435,4 +621,15 @@ const handleLogout = () => {
 .spot-selected { background: rgba(0, 255, 204, 0.15) !important; border-left: 3px solid #00ffcc; }
 .spot-item strong { display: block; color: #eee; font-size: 0.9rem; margin-bottom: 3px; }
 .spot-item span { display: block; color: #777; font-size: 0.75rem; }
+
+@media (max-width: 760px) {
+  .dashboard-container { padding: 28px 14px; }
+  .dashboard-header { align-items: flex-start; gap: 18px; flex-direction: column; }
+  .user-panel { width: 100%; flex-wrap: wrap; gap: 10px; }
+  .agent-name { flex: 1 1 100%; }
+  .area-selector { grid-template-columns: 1fr; min-height: auto; gap: 24px; }
+  .map-shell { width: 100%; max-height: 470px; }
+  .area-intel-panel h2 { font-size: 1.45rem; }
+  .confirm-actions { grid-template-columns: 1fr; }
+}
 </style>
