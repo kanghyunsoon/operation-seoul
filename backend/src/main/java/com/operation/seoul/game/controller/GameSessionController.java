@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @RestController
@@ -49,14 +51,22 @@ public class GameSessionController {
                     newSession.setUserId(userId);
                     newSession.setMissionId(missionId);
                     newSession.setStatus("IN_PROGRESS");
+                    newSession.setStartedAt(LocalDateTime.now());
                     return sessionRepository.save(newSession);
                 });
+        if (session.getStartedAt() == null) {
+            session.setStartedAt(LocalDateTime.now());
+        }
 
         boolean isCorrect = geminiAiService.verifyFinalAnswer(missionId, request.getUserAnswer());
         boolean isQuestion = !isCorrect && geminiAiService.isHintQuestion(request.getUserAnswer());
 
         if (isCorrect) {
             session.setStatus("CLEARED");
+            session.setClearedAt(LocalDateTime.now());
+            session.setElapsedSeconds(resolveElapsedSeconds(session, request.getElapsedSeconds()));
+            session.setRouteDistanceMeters(sanitizeRouteDistance(request.getRouteDistanceMeters()));
+            session.setScore(calculateScore(session.getElapsedSeconds(), session.getRouteDistanceMeters()));
             sessionRepository.save(session);
         }
 
@@ -94,5 +104,32 @@ public class GameSessionController {
     public static class ChatRequest {
         private Long userId;
         private String userAnswer;
+        private Long elapsedSeconds;
+        private Double routeDistanceMeters;
+    }
+
+    private Long resolveElapsedSeconds(GameSession session, Long reportedElapsedSeconds) {
+        if (reportedElapsedSeconds != null && reportedElapsedSeconds > 0) {
+            return reportedElapsedSeconds;
+        }
+        if (session.getStartedAt() == null || session.getClearedAt() == null) {
+            return 0L;
+        }
+        return Math.max(0L, Duration.between(session.getStartedAt(), session.getClearedAt()).getSeconds());
+    }
+
+    private Double sanitizeRouteDistance(Double routeDistanceMeters) {
+        if (routeDistanceMeters == null || routeDistanceMeters.isNaN() || routeDistanceMeters.isInfinite()) {
+            return 0.0;
+        }
+        return Math.max(0.0, routeDistanceMeters);
+    }
+
+    private int calculateScore(Long elapsedSeconds, Double routeDistanceMeters) {
+        long minutes = elapsedSeconds == null ? 0L : Math.max(0L, (long) Math.ceil(elapsedSeconds / 60.0));
+        double distanceMeters = routeDistanceMeters == null ? 0.0 : Math.max(0.0, routeDistanceMeters);
+        int timePenalty = (int) Math.min(500, minutes * 4);
+        int routePenalty = (int) Math.min(300, Math.round(distanceMeters / 100.0) * 2);
+        return Math.max(100, 1000 - timePenalty - routePenalty);
     }
 }

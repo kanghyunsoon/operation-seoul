@@ -4,6 +4,20 @@
       <p class="eyebrow">MISSION CLEARED</p>
       <h1>{{ report.title || '작전 완료' }}</h1>
       <p class="keyword">핵심 키워드: {{ report.answerKeyword || '분석 완료' }}</p>
+      <div v-if="hasScore" class="score-summary">
+        <div>
+          <span>SCORE</span>
+          <strong>{{ report.score }}</strong>
+        </div>
+        <div>
+          <span>TIME</span>
+          <strong>{{ elapsedText }}</strong>
+        </div>
+        <div>
+          <span>ROUTE</span>
+          <strong>{{ routeDistanceText }}</strong>
+        </div>
+      </div>
 
       <article v-if="step === 'history'" class="history-stage">
         <h2>실제 역사 기록</h2>
@@ -79,6 +93,23 @@ const historyText = computed(() => {
     || '임무는 완료되었습니다. 이 장소와 핵심 키워드의 상세 역사 해설은 공공데이터 기반 기록 보강 단계에서 제공될 예정입니다.';
 
   return formatReadableParagraphs(rawReport);
+});
+
+const hasScore = computed(() => Number(report.value.score) > 0);
+
+const elapsedText = computed(() => {
+  const seconds = Math.max(0, Number(report.value.elapsedSeconds) || 0);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${String(remainingSeconds).padStart(2, '0')}s`;
+});
+
+const routeDistanceText = computed(() => {
+  const meters = Math.max(0, Number(report.value.routeDistanceMeters) || 0);
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(2)}km`;
+  }
+  return `${Math.round(meters)}m`;
 });
 
 const typedHistoryParagraphs = computed(() => {
@@ -319,9 +350,37 @@ h3 {
 
 .keyword {
   color: #f8d66d;
-  margin-bottom: 32px;
+  margin-bottom: 18px;
   font-size: 1.08rem;
   font-weight: 700;
+}
+
+.score-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+.score-summary div {
+  border: 1px solid rgba(248, 214, 109, 0.35);
+  background: rgba(248, 214, 109, 0.07);
+  border-radius: 6px;
+  padding: 13px 14px;
+}
+
+.score-summary span {
+  display: block;
+  color: #adc3c0;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+
+.score-summary strong {
+  color: #f8d66d;
+  font-size: 1.3rem;
 }
 
 .history-stage,
@@ -449,6 +508,10 @@ h3 {
   .typewriter {
     min-height: 440px;
     font-size: 1.08rem;
+  }
+
+  .score-summary {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -111,6 +111,31 @@ const isScannerOpen = ref(false);
 const questionRemaining = computed(() => Math.max(0, 20 - questionCount.value));
 const { displayedText, isTyping, isFinished, addChunk, finishTyping, reset } = useTypingBuffer(30);
 
+const getMetricKey = () => `operation-seoul:mission-metrics:${userId.value || 1}:${regionId.value}`;
+
+const readMissionMetrics = () => {
+  try {
+    const saved = localStorage.getItem(getMetricKey());
+    return saved ? JSON.parse(saved) : {};
+  } catch (error) {
+    console.warn('Mission metric read failed:', error);
+    return {};
+  }
+};
+
+const getMissionMetricPayload = () => {
+  const metrics = readMissionMetrics();
+  const startedAt = Number(metrics.startedAt);
+  const elapsedSeconds = Number.isFinite(startedAt)
+      ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+      : 0;
+
+  return {
+    elapsedSeconds,
+    routeDistanceMeters: Math.max(0, Math.round(Number(metrics.routeDistanceMeters) || 0))
+  };
+};
+
 const goBackToMap = () => {
   router.push({ name: 'Map', query: { regionId: regionId.value } });
 };
@@ -229,7 +254,8 @@ const requestGeminiStream = async (textMessage) => {
       headers,
       body: JSON.stringify({
         userId: userId.value || 1,
-        userAnswer: textMessage
+        userAnswer: textMessage,
+        ...getMissionMetricPayload()
       })
     });
 
@@ -292,6 +318,7 @@ const navigateIfMissionCleared = async () => {
     });
 
     if (response.data?.cleared) {
+      localStorage.removeItem(getMetricKey());
       setTimeout(() => {
         router.push({
           name: 'Clear',

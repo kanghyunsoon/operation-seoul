@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -45,10 +46,15 @@ public class VisionAiService {
                     GameSession newSession = new GameSession();
                     newSession.setUserId(userId);
                     newSession.setMissionId(missionId);
+                    newSession.setStartedAt(LocalDateTime.now());
                     return newSession;
                 });
 
+        if (session.getStartedAt() == null) {
+            session.setStartedAt(LocalDateTime.now());
+        }
         session.setStatus("CLEARED");
+        session.setClearedAt(LocalDateTime.now());
         gameSessionRepository.save(session);
 
         String keywordMsg = isAdmin ? "판독 성공 (관리자 프리패스)" : "판독 성공";

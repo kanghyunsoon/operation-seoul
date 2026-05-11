@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 /**[Entity: 게임 진행 상태 및 데이터 보존]
  - 역할: 사용자의 실시간 미션 진행 단계(세이브 포인트)를 관리하는 테이블 매핑 클래스 */
 @Entity
@@ -35,4 +37,14 @@ public class GameSession {
      - 목적: 인증 실패 케이스 분석 및 서비스 성능 최적화를 위한 기초 데이터 확보  */
     @Column(columnDefinition = "TEXT")
     private String extractedLog;
+
+    private LocalDateTime startedAt;
+
+    private LocalDateTime clearedAt;
+
+    private Long elapsedSeconds;
+
+    private Double routeDistanceMeters;
+
+    private Integer score;
 }
