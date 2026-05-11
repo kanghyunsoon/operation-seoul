@@ -65,13 +65,13 @@
             v-for="mission in missions"
             :key="mission.id"
             class="glass-card"
-            :class="{ 'analyzing': !mission.isReady }"
+            :class="{ 'analyzing': !mission.isReady, 'cleared-card': mission.isCleared }"
             @click="handleMissionClick(mission)"
         >
           <div class="card-header">
             <div style="display: flex; gap: 8px;">
               <span v-if="mission.isReady" :class="['status-badge', mission.status.toLowerCase()]">
-                {{ mission.status === 'ACTIVE' ? '진행 가능' : mission.status === 'LOCKED' ? '해금 필요' : '작전 완료' }}
+                {{ mission.status === 'ACTIVE' ? '진행 가능' : mission.status === 'LOCKED' ? '해금 필요' : '사건 해결' }}
               </span>
               <span v-else class="status-badge analyzing-badge">데이터 분석 중</span>
 
@@ -85,12 +85,32 @@
             </button>
           </div>
 
+          <div v-if="mission.isCleared" class="clear-stamp" aria-label="해결한 작전">
+            <span>CLEARED</span>
+            <strong>{{ mission.answerKeyword || '사건 해결' }}</strong>
+          </div>
+
           <h2 class="mission-title">{{ mission.title }}</h2>
           <p class="mission-desc" v-html="mission.description"></p>
 
+          <div v-if="mission.isCleared" class="clear-summary">
+            <div class="clear-metric">
+              <span>점수</span>
+              <strong>{{ mission.score || '-' }}</strong>
+            </div>
+            <div class="clear-metric">
+              <span>시간</span>
+              <strong>{{ formatElapsed(mission.elapsedSeconds) }}</strong>
+            </div>
+            <div class="clear-metric">
+              <span>이동</span>
+              <strong>{{ formatDistance(mission.routeDistanceMeters) }}</strong>
+            </div>
+          </div>
+
           <div class="card-footer">
             <span class="location-tag">📍 {{ mission.location }}</span>
-            <span class="enter-text">{{ mission.isReady ? '작전 브리핑 ➔' : '접근 제한' }}</span>
+            <span class="enter-text">{{ mission.isCleared ? '클리어 기록 보기 ➔' : mission.isReady ? '작전 브리핑 ➔' : '접근 제한' }}</span>
           </div>
         </div>
       </main>
@@ -187,22 +207,51 @@ const deleteRegion = async (regionId, title) => {
 
 const fetchMissions = async () => {
   try {
-    const response = await apiClient.get('/v1/regions');
+    const response = await apiClient.get('/v1/regions/cards', {
+      params: { userId: sessionStore.userId || 1 }
+    });
     missions.value = response.data.map(region => ({
       id: region.id,
       title: region.name,
       description: region.description,
       difficulty: 'NORMAL',
-      location: '현장 작전 구역',
-      status: 'ACTIVE',
+      location: region.cleared ? '클리어 기록 보관함' : '현장 작전 구역',
+      status: region.cleared ? 'CLEARED' : 'ACTIVE',
+      isCleared: region.cleared === true,
+      finalMissionId: region.finalMissionId,
+      answerKeyword: region.answerKeyword,
+      score: region.score,
+      elapsedSeconds: region.elapsedSeconds,
+      routeDistanceMeters: region.routeDistanceMeters,
       isReady: true
     }));
   } catch (error) {
     console.error('[시스템 오류] 데이터 동기화 실패. 예비 서버로 전환합니다.', error);
     missions.value = [
-      { id: 1, title: '중명전의 비밀', description: 'DB 연결 확인 중...', difficulty: 'NORMAL', location: '서울 정동길', status: 'ACTIVE', isReady: true }
+      { id: 1, title: '중명전의 비밀', description: 'DB 연결 확인 중...', difficulty: 'NORMAL', location: '서울 정동길', status: 'ACTIVE', isCleared: false, isReady: true }
     ];
   }
+};
+
+const formatElapsed = (seconds) => {
+  if (seconds === null || seconds === undefined || seconds === '') {
+    return '-';
+  }
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${minutes}m ${String(remainingSeconds).padStart(2, '0')}s`;
+};
+
+const formatDistance = (meters) => {
+  if (meters === null || meters === undefined || meters === '') {
+    return '-';
+  }
+  const safeMeters = Math.max(0, Number(meters) || 0);
+  if (safeMeters >= 1000) {
+    return `${(safeMeters / 1000).toFixed(2)}km`;
+  }
+  return `${Math.round(safeMeters)}m`;
 };
 
 onMounted(() => {
@@ -214,6 +263,16 @@ const handleMissionClick = (mission) => {
     alert(`[접근 거부] 분석 중인 섹터입니다.`);
     return;
   }
+
+  if (mission.isCleared && mission.finalMissionId) {
+    router.push({
+      name: 'Clear',
+      params: { missionId: mission.finalMissionId },
+      query: { regionId: mission.id }
+    });
+    return;
+  }
+
   // BriefingView가 알아들을 수 있도록 regionId 로 이름을 변경
   router.push({ name: 'Briefing', query: { regionId: mission.id } });
 };
@@ -258,9 +317,11 @@ const handleLogout = () => {
 .logout-btn { background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; }
 .logout-btn:hover { background: #ef4444; color: #fff; }
 .mission-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
-.glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 24px; cursor: pointer; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column; height: 100%; }
+.glass-card { position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 24px; cursor: pointer; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column; height: 100%; }
 .glass-card:hover { transform: translateY(-5px); border-color: rgba(6, 182, 212, 0.5); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(6, 182, 212, 0.2); background: rgba(255, 255, 255, 0.05); }
 .glass-card.analyzing { opacity: 0.6; cursor: not-allowed; }
+.glass-card.cleared-card { border-color: rgba(245, 158, 11, 0.45); background: linear-gradient(160deg, rgba(245, 158, 11, 0.11), rgba(6, 182, 212, 0.05) 48%, rgba(255, 255, 255, 0.03)); }
+.glass-card.cleared-card:hover { border-color: rgba(245, 158, 11, 0.75); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.55), 0 0 18px rgba(245, 158, 11, 0.22); }
 
 /* 💡 카드 헤더 레이아웃 조정 (삭제 버튼과 균형) */
 .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
@@ -292,6 +353,62 @@ const handleLogout = () => {
 
 .mission-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0 0 10px 0; }
 .mission-desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin: 0 0 20px 0; flex-grow: 1; }
+.clear-stamp {
+  align-self: flex-end;
+  max-width: 180px;
+  margin: -8px 0 14px;
+  padding: 7px 12px;
+  border: 2px solid rgba(245, 158, 11, 0.85);
+  border-radius: 6px;
+  color: #fbbf24;
+  text-align: center;
+  text-transform: uppercase;
+  transform: rotate(3deg);
+  background: rgba(15, 23, 42, 0.8);
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.14);
+}
+.clear-stamp span {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.clear-stamp strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+.clear-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.clear-metric {
+  min-width: 0;
+  padding: 9px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.28);
+}
+.clear-metric span {
+  display: block;
+  margin-bottom: 4px;
+  color: #94a3b8;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.clear-metric strong {
+  display: block;
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.05); }
 .location-tag { font-size: 0.8rem; color: #cbd5e1; }
 .enter-text { font-size: 0.8rem; color: #06b6d4; font-weight: 700; opacity: 0; transition: opacity 0.3s; }
