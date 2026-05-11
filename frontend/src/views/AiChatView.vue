@@ -180,7 +180,7 @@ const handleManualCapture = async (imageDataUrl) => {
       formData.append("isAdmin", "true");
     }
 
-    const response = await apiClient.post(`/v1/missions/${sessionId.value}/vision`, formData, {
+    const response = await apiClient.post(`/v1/sessions/${sessionId.value}/vision`, formData, {
       headers: { "Content-Type": "multipart/form-data" }
     });
 
@@ -310,7 +310,7 @@ const hasQuestionIntent = (text) => {
   if (!value) return false;
 
   const normalized = value.replace(/[?!.,~\s]/g, '');
-  if (/^[가-힣A-Za-z0-9]{2,12}[?？]$/.test(value.trim()) && normalized.length <= 8) {
+  if (/^[가-힣A-Za-z0-9]{2,12}[?？]?$/.test(value) && normalized.length <= 8) {
     return false;
   }
 

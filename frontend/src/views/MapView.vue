@@ -56,7 +56,9 @@
         </button>
 
         <div v-if="isArrived && getIsFinal(currentMission)" class="target-guide">
-          🧩 수집한 단서를 바탕으로 최종 사건 키워드를 추론하세요.
+          최종 현장 단서: <span class="highlight">{{ currentMission?.visionKeyword || '현장 표식' }}</span>
+          <br>
+          수집한 단서와 현장 표식을 바탕으로 사건 키워드를 추론하세요.
         </div>
         <button v-if="isArrived && getIsFinal(currentMission)" @click="goToChat" class="capture-btn final-btn">
           [ 최종 분석 채널 접속 ]
@@ -547,7 +549,7 @@ const uploadImage = async (imageFile) => {
         formData.append('isAdmin', 'true');
     }
 
-    const response = await apiClient.post(`/v1/missions/${currentMission.value.id}/vision`, formData, {
+    const response = await apiClient.post(`/v1/sessions/${currentMission.value.id}/vision`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
 
