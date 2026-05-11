@@ -13,10 +13,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,13 +36,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminMissionController {
 
-    private static final double MIN_HINT_DISTANCE_METERS = 250.0;
-    private static final double MAX_HINT_DISTANCE_METERS = 1500.0;
-    private static final double MIN_HINT_SPACING_METERS = 180.0;
+    private static final double MIN_HINT_DISTANCE_METERS = 350.0;
+    private static final double MAX_HINT_DISTANCE_METERS = 1800.0;
+    private static final double MIN_HINT_SPACING_METERS = 260.0;
     private static final double HINT_DISTANCE_BUCKET_METERS = 300.0;
     private static final double MAX_AI_COORDINATE_SNAP_METERS = 120.0;
-    private static final double MAX_HINT_WALK_DISTANCE_METERS = 2300.0;
-    private static final double MAX_WALK_TO_STRAIGHT_RATIO = 2.2;
+    private static final double MAX_HINT_WALK_DISTANCE_METERS = 2600.0;
+    private static final double MAX_WALK_TO_STRAIGHT_RATIO = 1.8;
     private static final int MAX_ROUTE_CHECK_CANDIDATES = 40;
     private static final int MAX_AI_SUB_SPOTS = 15;
 
@@ -47,153 +55,138 @@ public class AdminMissionController {
     @Data
     public static class MissionGenerateRequest {
         private Map<String, String> targetSpot;
-        private List<Map<String, String>> candidateSpots; // 프론트에서 넘어오지 않아도 구조 유지를 위해 둡니다.
+        private List<Map<String, String>> candidateSpots;
     }
 
-    /**
-     * 1. 후보지 조회: TourAPI를 이용해 "역사적 장소(메인 목적지)" 후보만 검색하여 반환합니다.
-     */
     @GetMapping("/candidates")
     public ResponseEntity<?> getHistoricalCandidates(@RequestParam double lat,
                                                      @RequestParam double lng,
                                                      @RequestParam(defaultValue = "2000") int radius) {
-        log.info("📍 역사적 메인 목적지 후보 검색 요청: lat={}, lng={}", lat, lng);
         try {
-            List<Map<String, String>> historicalSites = tourApiService.fetchHistoricalPlaces(lat, lng, 2000);
+            List<Map<String, String>> historicalSites = tourApiService.fetchHistoricalPlaces(lat, lng, radius);
             if (historicalSites == null || historicalSites.isEmpty()) {
-                return ResponseEntity.badRequest().body("주변 반경에 역사적 장소(관광지) 데이터가 없습니다.");
+                return ResponseEntity.badRequest().body("주변 반경에 역사 관광지 데이터가 없습니다.");
             }
             return ResponseEntity.ok(historicalSites);
         } catch (Exception e) {
-            log.error("🚨 후보지 검색 중 오류 발생: ", e);
+            log.error("Candidate search failed", e);
             return ResponseEntity.internalServerError().body("후보지 검색 실패: " + e.getMessage());
         }
     }
 
-    /**
-     * 2. AI 작전 수립: 선택된 역사적 장소를 기반으로, 주변 골목 상권을 백엔드에서 자동 수집하여 AI에게 기획을 맡깁니다.
-     */
     @PostMapping("/generate-selected")
     public ResponseEntity<?> generateMissionByAi(@RequestBody MissionGenerateRequest request) {
-        log.info("🤖 AI 작전 수립 파이프라인 가동 시작...");
         try {
             Map<String, String> targetSpot = request.getTargetSpot();
             if (targetSpot == null || !targetSpot.containsKey("mapY") || !targetSpot.containsKey("mapX")) {
-                return ResponseEntity.badRequest().body("목적지(Target Spot) 데이터가 없거나 좌표가 누락되었습니다.");
+                return ResponseEntity.badRequest().body("목적지 좌표가 필요합니다.");
             }
 
-            double tLat = Double.parseDouble(targetSpot.get("mapY"));
-            double tLng = Double.parseDouble(targetSpot.get("mapX"));
+            double targetLat = Double.parseDouble(targetSpot.get("mapY"));
+            double targetLng = Double.parseDouble(targetSpot.get("mapX"));
 
-            String[] keywords = {"카페", "시장", "공원", "서점", "문화", "기념", "박물관", "전시", "산책"};
+            String[] keywords = {"카페", "시장", "공원", "서점", "문화", "기념", "박물관", "전시", "역사", "광장", "골목"};
             List<Map<String, String>> localSpots = new ArrayList<>();
-            for (String kw : keywords) {
-                List<Map<String, String>> spots = tourApiService.fetchNearbyLocalPOIs(tLat, tLng, 1600, kw);
+            for (String keyword : keywords) {
+                List<Map<String, String>> spots = tourApiService.fetchNearbyLocalPOIs(targetLat, targetLng, 1900, keyword);
                 if (spots != null && !spots.isEmpty()) {
                     localSpots.addAll(spots);
                 }
             }
 
-            List<Map<String, String>> subSpots = selectHintCandidates(localSpots, tLat, tLng);
+            List<Map<String, String>> subSpots = selectHintCandidates(localSpots, targetLat, targetLng);
+            if (subSpots.size() < 3) {
+                return ResponseEntity.badRequest().body("최종 목적지와 충분히 떨어진 보행 가능 힌트 지점이 부족합니다.");
+            }
 
-            // 🚨 [타입 변환 로직 추가] GeminiAiService가 Map<String, Object>를 요구하므로 맞춰서 변환합니다.
             Map<String, Object> targetSpotObj = new HashMap<>(targetSpot);
             List<Map<String, Object>> subSpotsObj = subSpots.stream()
                     .map(spot -> new HashMap<String, Object>(spot))
                     .collect(Collectors.toList());
 
-            // AI에게 최종 목적지(역사적 장소)와 경유지 후보군(골목 상권)을 함께 전달하여 스토리를 짜도록 지시합니다.
             String aiRawResponse = geminiAiService.generateCourseWithTarget(targetSpotObj, subSpotsObj);
-            if (aiRawResponse == null || aiRawResponse.isBlank()) return ResponseEntity.internalServerError().body("AI 응답 없음");
+            if (aiRawResponse == null || aiRawResponse.isBlank()) {
+                return ResponseEntity.internalServerError().body("AI 응답이 비어 있습니다.");
+            }
 
-            // JSON 파싱 및 DB 저장
             int startIndex = aiRawResponse.indexOf('{');
             int endIndex = aiRawResponse.lastIndexOf('}');
-            if (startIndex == -1 || endIndex == -1) return ResponseEntity.internalServerError().body("JSON 포맷 오류");
+            if (startIndex == -1 || endIndex == -1) {
+                return ResponseEntity.internalServerError().body("AI 응답에서 JSON을 찾지 못했습니다.");
+            }
 
-            String pureJson = aiRawResponse.substring(startIndex, endIndex + 1);
-            JsonNode root = objectMapper.readTree(pureJson);
-
+            JsonNode root = objectMapper.readTree(aiRawResponse.substring(startIndex, endIndex + 1));
             String finalAnswerKeyword = extractFinalAnswerKeyword(root.path("missions"));
             if (isInvalidFinalAnswerKeyword(finalAnswerKeyword, targetSpot)) {
-                return ResponseEntity.badRequest().body(
-                        "AI가 장소명/인물명에 가까운 최종 정답을 생성했습니다. 다시 생성해 주세요. answerKeyword=" + finalAnswerKeyword
-                );
+                return ResponseEntity.badRequest().body("AI가 장소명에 가까운 최종 정답을 생성했습니다. 다시 생성해 주세요. answerKeyword=" + finalAnswerKeyword);
             }
 
             Region newRegion = new Region();
             newRegion.setName(maskSecretKeyword(
-                    root.path("regionName").asText("작전명: 봉인된 현장"),
+                    root.path("regionName").asText("작전명 봉인된 현장"),
                     finalAnswerKeyword,
-                    "작전명: 봉인된 현장"
+                    "작전명 봉인된 현장"
             ));
             newRegion.setDescription(maskSecretKeyword(
-                    root.path("regionDescription").asText("본부의 브리핑을 대기 중입니다."),
+                    root.path("regionDescription").asText("현장에는 아직 공개되지 않은 사건의 흔적이 남아 있습니다. 주변 단서를 수집해 최종 진실을 추론하십시오."),
                     finalAnswerKeyword,
-                    "현장에는 아직 공개되지 않은 역사적 사건의 흔적이 남아 있습니다. 주변 단서를 수집해 최종 진실을 유추하십시오."
+                    "현장에는 아직 공개되지 않은 사건의 흔적이 남아 있습니다. 주변 단서를 수집해 최종 진실을 추론하십시오."
             ));
             Region savedRegion = regionRepository.save(newRegion);
 
             JsonNode missionsNode = root.path("missions");
             if (missionsNode.isArray()) {
-                for (JsonNode mNode : missionsNode) {
+                for (JsonNode missionNode : missionsNode) {
+                    boolean isFinal = missionNode.path("isFinal").asBoolean(false);
+                    Map<String, String> sourceSpot = resolveSourceSpot(missionNode, targetSpot, subSpots, isFinal);
+
                     Mission mission = new Mission();
                     mission.setRegionId(savedRegion.getId());
-
-                    boolean isFinal = mNode.path("isFinal").asBoolean(false);
-                    Map<String, String> sourceSpot = resolveSourceSpot(mNode, targetSpot, subSpots, isFinal);
-
-                    mission.setTitle(resolveSafeTitle(mNode, sourceSpot, finalAnswerKeyword, isFinal));
-                    mission.setTargetLat(resolveLatitude(mNode, sourceSpot));
-                    mission.setTargetLng(resolveLongitude(mNode, sourceSpot));
-                    mission.setVisionKeyword(mNode.path("visionKeyword").asText(""));
+                    mission.setTitle(resolveSafeTitle(missionNode, sourceSpot, finalAnswerKeyword, isFinal));
+                    mission.setTargetLat(resolveLatitude(missionNode, sourceSpot));
+                    mission.setTargetLng(resolveLongitude(missionNode, sourceSpot));
+                    mission.setVisionKeyword(missionNode.path("visionKeyword").asText(""));
                     mission.setFinal(isFinal);
-                    mission.setRadiusInMeters(isFinal ? 30.0 : 50.0);
-                    // 서브 미션은 clue(단서)를, 최종 미션은 answerKeyword(진짜 정답)를 가집니다.
+                    mission.setRadiusInMeters(isFinal ? 30.0 : 45.0);
+
                     if (isFinal) {
                         mission.setAnswerKeyword(finalAnswerKeyword);
+                        mission.setRealStory(missionNode.path("realStory").asText(""));
                     } else {
                         mission.setClue(maskSecretKeyword(
-                                mNode.path("clue").asText("단서누락"),
+                                missionNode.path("clue").asText("현장 단서는 최종 사건을 직접 말하지 않고 주변 정황만 남깁니다."),
                                 finalAnswerKeyword,
-                                "이 장소의 단서는 최종 사건을 직접 말하지 않고, 당시의 긴장과 선택을 우회적으로 가리킵니다."
+                                "이 단서는 최종 사건을 직접 말하지 않고, 당시의 긴장과 선택의 흔적만 남깁니다."
                         ));
                     }
 
-                    if (isFinal) {
-                        mission.setRealStory(mNode.path("realStory").asText(""));
-                    }
                     missionRepository.save(mission);
                 }
             }
-            return ResponseEntity.ok("AI 작전 생성 완료! [" + savedRegion.getName() + "] 카드가 등록되었습니다.");
+            return ResponseEntity.ok("AI 작전 생성 완료: " + savedRegion.getName());
         } catch (Exception e) {
-            log.error("🚨 AI 미션 생성 중 오류: ", e);
-            return ResponseEntity.internalServerError().body("작전 수립 실패: " + e.getMessage());
+            log.error("Mission generation failed", e);
+            return ResponseEntity.internalServerError().body("작전 생성 실패: " + e.getMessage());
         }
     }
 
     @DeleteMapping("/regions/{regionId}")
     @Transactional
     public ResponseEntity<?> deleteRegion(@PathVariable Long regionId) {
-        log.info("🗑️ 작전 파기 요청 수신. Region ID: {}", regionId);
         try {
             List<Mission> missions = missionRepository.findByRegionId(regionId);
             if (!missions.isEmpty()) {
                 missionRepository.deleteAll(missions);
-                log.info("   - 하위 미션 데이터 {}개 삭제 완료", missions.size());
             }
 
             if (regionRepository.existsById(regionId)) {
                 regionRepository.deleteById(regionId);
-                log.info("   - Region ID: {} 최종 파기 성공", regionId);
-                return ResponseEntity.ok("성공적으로 해당 작전 데이터가 영구 파기되었습니다.");
-            } else {
-                return ResponseEntity.status(404).body("이미 존재하지 않거나 파기된 작전입니다.");
+                return ResponseEntity.ok("작전 데이터가 삭제되었습니다.");
             }
+            return ResponseEntity.status(404).body("존재하지 않는 작전입니다.");
         } catch (Exception e) {
-            log.error("🚨 작전 파기 실패: ", e);
-            return ResponseEntity.internalServerError().body("작전 파기 중 장애 발생: " + e.getMessage());
+            log.error("Region delete failed", e);
+            return ResponseEntity.internalServerError().body("작전 삭제 실패: " + e.getMessage());
         }
     }
 
@@ -201,7 +194,6 @@ public class AdminMissionController {
         if (missionsNode == null || !missionsNode.isArray()) {
             return "";
         }
-
         for (JsonNode missionNode : missionsNode) {
             if (missionNode.path("isFinal").asBoolean(false)) {
                 return missionNode.path("answerKeyword").asText("");
@@ -223,27 +215,26 @@ public class AdminMissionController {
                 || normalizedAnswer.contains(targetTitle))) {
             return true;
         }
-
         return isCommonPlaceOrPersonAnswer(normalizedAnswer);
     }
 
     private boolean isCommonPlaceOrPersonAnswer(String normalizedAnswer) {
         Set<String> blockedAnswers = Set.of(
-                "고종",
-                "명성황후",
-                "덕수궁",
-                "경복궁",
-                "경희궁",
-                "흥화문",
-                "남대문",
-                "숭례문",
-                "서울",
-                "정동",
-                "궁궐",
-                "러시아공사관",
-                "공사관",
-                "황제",
-                "왕"
+                normalizeForSecretCheck("고종"),
+                normalizeForSecretCheck("명성황후"),
+                normalizeForSecretCheck("덕수궁"),
+                normalizeForSecretCheck("경복궁"),
+                normalizeForSecretCheck("경희궁"),
+                normalizeForSecretCheck("광화문"),
+                normalizeForSecretCheck("숭례문"),
+                normalizeForSecretCheck("흥인지문"),
+                normalizeForSecretCheck("서울"),
+                normalizeForSecretCheck("정동"),
+                normalizeForSecretCheck("권력"),
+                normalizeForSecretCheck("러시아공사관"),
+                normalizeForSecretCheck("공사관"),
+                normalizeForSecretCheck("황제"),
+                normalizeForSecretCheck("왕")
         );
         return blockedAnswers.contains(normalizedAnswer);
     }
@@ -351,7 +342,7 @@ public class AdminMissionController {
                         this::spotIdentity,
                         spot -> spot,
                         (first, ignored) -> first,
-                        java.util.LinkedHashMap::new
+                        LinkedHashMap::new
                 ))
                 .values()
                 .stream()
@@ -419,7 +410,7 @@ public class AdminMissionController {
         Map<Integer, List<Map<String, String>>> buckets = spots.stream()
                 .collect(Collectors.groupingBy(
                         this::distanceBucket,
-                        java.util.LinkedHashMap::new,
+                        LinkedHashMap::new,
                         Collectors.toCollection(ArrayList::new)
                 ));
 
