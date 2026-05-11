@@ -148,6 +148,48 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return Math.floor(R * c);
 };
 
+const getMetricKey = () => `operation-seoul:mission-metrics:${userId.value || 1}:${regionId}`;
+
+const readMissionMetrics = () => {
+  try {
+    const saved = localStorage.getItem(getMetricKey());
+    if (saved) return JSON.parse(saved);
+  } catch (error) {
+    console.warn('Mission metric read failed:', error);
+  }
+  return {
+    startedAt: Date.now(),
+    routeDistanceMeters: 0,
+    lastLat: null,
+    lastLng: null
+  };
+};
+
+const writeMissionMetrics = (metrics) => {
+  localStorage.setItem(getMetricKey(), JSON.stringify(metrics));
+};
+
+const recordRoutePosition = (lat, lng) => {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+  const metrics = readMissionMetrics();
+  if (!metrics.startedAt) {
+    metrics.startedAt = Date.now();
+  }
+
+  if (Number.isFinite(metrics.lastLat) && Number.isFinite(metrics.lastLng)) {
+    const delta = calculateDistance(metrics.lastLat, metrics.lastLng, lat, lng);
+    if (delta >= 3 && delta <= 250) {
+      metrics.routeDistanceMeters = Math.round((Number(metrics.routeDistanceMeters) || 0) + delta);
+    }
+  }
+
+  metrics.lastLat = lat;
+  metrics.lastLng = lng;
+  metrics.updatedAt = Date.now();
+  writeMissionMetrics(metrics);
+};
+
 // 🟢 백엔드/프론트 통신(isFinal -> final) 버그 원천 차단 헬퍼 함수
 const getIsFinal = (m) => m && (m.missionType === 'FINAL' || m.isFinal === true || m.final === true);
 const getIsUnlocked = (m) => m && (m.isUnlocked === true || m.unlocked === true);
@@ -403,6 +445,7 @@ const startGpsTracking = () => {
 
     currentLat.value = fakeLat;
     currentLng.value = fakeLng;
+    recordRoutePosition(fakeLat, fakeLng);
 
     if (!userMarker) {
       const userContent = document.createElement('div');
@@ -439,6 +482,7 @@ const startGpsTracking = () => {
 
       currentLat.value = lat;
       currentLng.value = lng;
+      recordRoutePosition(lat, lng);
 
       if (!userMarker) {
         const userContent = document.createElement('div');

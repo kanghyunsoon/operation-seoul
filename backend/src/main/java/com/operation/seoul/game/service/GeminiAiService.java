@@ -2,6 +2,7 @@ package com.operation.seoul.game.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.operation.seoul.game.domain.GameSession;
 import com.operation.seoul.game.repository.GameSessionRepository;
 import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.repository.MissionRepository;
@@ -166,6 +167,7 @@ public class GeminiAiService {
         String answerKeyword = mission.getAnswerKeyword();
         String realStory = mission.getRealStory();
         List<Map<String, String>> clearedClues = getClearedClues(mission, userId);
+        GameSession finalSession = gameSessionRepository.findByUserIdAndMissionId(userId, missionId).orElse(null);
 
         String report = realStory;
         Map<String, List<String>> clueExplanations = new HashMap<>();
@@ -192,7 +194,10 @@ public class GeminiAiService {
                 "title", mission.getTitle(),
                 "answerKeyword", answerKeyword == null ? "" : answerKeyword,
                 "report", report,
-                "clueExplanations", clueExplanations
+                "clueExplanations", clueExplanations,
+                "score", finalSession != null && finalSession.getScore() != null ? finalSession.getScore() : 0,
+                "elapsedSeconds", finalSession != null && finalSession.getElapsedSeconds() != null ? finalSession.getElapsedSeconds() : 0L,
+                "routeDistanceMeters", finalSession != null && finalSession.getRouteDistanceMeters() != null ? finalSession.getRouteDistanceMeters() : 0.0
         );
     }
 
