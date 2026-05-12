@@ -80,8 +80,12 @@ public class AdminMissionController {
     @PostMapping("/generate-selected")
     public ResponseEntity<?> generateMissionByAi(@RequestBody MissionGenerateRequest request) {
         try {
+            if (request == null) {
+                return ResponseEntity.badRequest().body("요청 본문이 필요합니다.");
+            }
+
             Map<String, String> targetSpot = request.getTargetSpot();
-            if (targetSpot == null || !targetSpot.containsKey("mapY") || !targetSpot.containsKey("mapX")) {
+            if (!hasUsableCoordinates(targetSpot)) {
                 return ResponseEntity.badRequest().body("목적지 좌표가 필요합니다.");
             }
 
@@ -98,9 +102,23 @@ public class AdminMissionController {
                 }
             }
 
-            List<Map<String, String>> subSpots = selectHintCandidates(localSpots, targetLat, targetLng);
+            List<Map<String, String>> hintPool = new ArrayList<>(localSpots);
+            List<Map<String, String>> subSpots = selectHintCandidates(hintPool, targetLat, targetLng);
             if (subSpots.size() < 3) {
-                return ResponseEntity.badRequest().body("최종 목적지와 충분히 떨어진 보행 가능 힌트 지점이 부족합니다.");
+                List<Map<String, String>> fallbackSpots = buildCandidateFallbackSpots(
+                        request.getCandidateSpots(),
+                        targetSpot,
+                        targetLat,
+                        targetLng
+                );
+                hintPool.addAll(fallbackSpots);
+                subSpots = selectHintCandidates(hintPool, targetLat, targetLng);
+                if (subSpots.size() < 3) {
+                    subSpots = selectClosestHintCandidates(hintPool, targetLat, targetLng);
+                }
+            }
+            if (subSpots.size() < 3) {
+                return ResponseEntity.badRequest().body("최종 목적지 주변에 사용할 수 있는 힌트 지점이 3개 미만입니다. 기준 좌표를 조금 옮기거나 다른 장소를 선택해 주세요.");
             }
 
             Map<String, Object> targetSpotObj = new HashMap<>(targetSpot);
@@ -342,7 +360,7 @@ public class AdminMissionController {
 
     private List<Map<String, String>> selectHintCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {
         List<Map<String, String>> deduped = spots.stream()
-                .filter(spot -> spot.get("mapY") != null && spot.get("mapX") != null)
+                .filter(this::hasUsableCoordinates)
                 .collect(Collectors.toMap(
                         this::spotIdentity,
                         spot -> spot,
@@ -366,6 +384,73 @@ public class AdminMissionController {
             selected = pickDistributedSpots(walkableCandidates, MIN_HINT_SPACING_METERS / 2);
         }
         return selected.stream().limit(MAX_AI_SUB_SPOTS).toList();
+    }
+
+    private List<Map<String, String>> buildCandidateFallbackSpots(
+            List<Map<String, String>> candidateSpots,
+            Map<String, String> targetSpot,
+            double targetLat,
+            double targetLng) {
+        if (candidateSpots == null || candidateSpots.isEmpty()) {
+            return List.of();
+        }
+
+        return candidateSpots.stream()
+                .filter(this::hasUsableCoordinates)
+                .filter(spot -> !isSameSpot(spot, targetSpot, targetLat, targetLng))
+                .map(spot -> {
+                    Map<String, String> copied = new HashMap<>(spot);
+                    copied.putIfAbsent("source", "CandidateFallback");
+                    return copied;
+                })
+                .toList();
+    }
+
+    private List<Map<String, String>> selectClosestHintCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {
+        return spots.stream()
+                .filter(this::hasUsableCoordinates)
+                .collect(Collectors.toMap(
+                        this::spotIdentity,
+                        spot -> spot,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ))
+                .values()
+                .stream()
+                .map(spot -> withDistance(spot, targetLat, targetLng))
+                .filter(spot -> Double.parseDouble(spot.get("distanceMeters")) > 50.0)
+                .sorted(java.util.Comparator.comparingDouble(spot -> Double.parseDouble(spot.get("distanceMeters"))))
+                .limit(MAX_AI_SUB_SPOTS)
+                .toList();
+    }
+
+    private boolean hasUsableCoordinates(Map<String, String> spot) {
+        return spot != null
+                && parseCoordinate(spot.get("mapY")) != null
+                && parseCoordinate(spot.get("mapX")) != null;
+    }
+
+    private Double parseCoordinate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private boolean isSameSpot(Map<String, String> spot, Map<String, String> targetSpot, double targetLat, double targetLng) {
+        String spotIdentity = spotIdentity(spot);
+        String targetIdentity = spotIdentity(targetSpot);
+        if (!spotIdentity.isBlank() && spotIdentity.equals(targetIdentity)) {
+            return true;
+        }
+
+        double spotLat = Double.parseDouble(spot.get("mapY"));
+        double spotLng = Double.parseDouble(spot.get("mapX"));
+        return distanceMeters(spotLat, spotLng, targetLat, targetLng) <= 20.0;
     }
 
     private List<Map<String, String>> filterWalkableCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {
@@ -482,7 +567,15 @@ public class AdminMissionController {
     }
 
     private String spotIdentity(Map<String, String> spot) {
-        return (spot.getOrDefault("title", "") + "|" + spot.getOrDefault("address", "")).trim();
+        if (spot == null) {
+            return "";
+        }
+
+        String identity = (spot.getOrDefault("title", "") + "|" + spot.getOrDefault("address", "")).trim();
+        if (!identity.isBlank()) {
+            return identity;
+        }
+        return spot.getOrDefault("mapY", "") + "|" + spot.getOrDefault("mapX", "");
     }
 
     private double distanceMeters(double lat1, double lng1, double lat2, double lng2) {
