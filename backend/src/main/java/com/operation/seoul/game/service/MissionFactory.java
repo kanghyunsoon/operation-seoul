@@ -7,6 +7,7 @@ import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.domain.Region;
 import com.operation.seoul.location.repository.MissionRepository;
 import com.operation.seoul.location.repository.RegionRepository;
+import com.operation.seoul.location.service.OperationAreaResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +28,7 @@ public class MissionFactory {
 
     private final RegionRepository regionRepository;
     private final MissionRepository missionRepository;
+    private final OperationAreaResolver operationAreaResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -53,6 +55,7 @@ public class MissionFactory {
 
         // 3. Region(지역/작전구역) 테이블 저장
         Region region = new Region();
+        region.setAreaCode(operationAreaResolver.resolveAreaCode(finalLat, finalLng, null));
         region.setName(aiResult.getRegionName());
         region.setDescription(aiResult.getRegionDescription());
         Region savedRegion = regionRepository.save(region);
