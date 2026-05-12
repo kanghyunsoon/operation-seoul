@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-container">
+  <div class="dashboard-container" :class="{ 'area-mode': !isAreaSelected }">
     <div class="bg-glow blob-1"></div>
     <div class="bg-glow blob-2"></div>
 
@@ -64,7 +64,7 @@
       <main v-if="!isAreaSelected" class="area-selector">
         <section class="map-panel">
           <div class="map-shell">
-            <svg class="korea-map" viewBox="0 0 320 520" role="img" aria-label="대한민국 작전 지도">
+            <svg class="korea-map" :viewBox="`0 0 ${MAP_VIEW.width} ${MAP_VIEW.height}`" role="img" aria-label="대한민국 작전 지도">
               <defs>
                 <filter id="map-glow" x="-40%" y="-40%" width="180%" height="180%">
                   <feGaussianBlur stdDeviation="4" result="blur" />
@@ -78,34 +78,55 @@
                   <stop offset="55%" stop-color="#ef4444" stop-opacity="0.7" />
                   <stop offset="100%" stop-color="#ef4444" stop-opacity="0" />
                 </radialGradient>
+                <clipPath id="south-korea-clip">
+                  <polygon :points="projectPolygon(koreaOutline)" />
+                </clipPath>
               </defs>
 
-              <path
-                class="nation-outline"
-                d="M169 22 L194 42 L206 77 L231 101 L222 139 L242 176 L229 223 L247 265 L230 316 L238 363 L210 402 L205 455 L176 498 L143 475 L129 430 L102 401 L110 354 L86 318 L96 268 L77 229 L95 185 L87 143 L115 111 L118 70 L145 48 Z"
-              />
-              <path
-                class="nation-inner-line"
-                d="M151 58 C173 102 160 134 181 169 C203 205 179 246 198 281 C217 318 189 359 196 413"
-              />
-              <path
-                class="nation-inner-line"
-                d="M107 185 C136 197 161 195 191 211 C213 222 229 241 240 267"
-              />
+              <polygon class="nation-base" :points="projectPolygon(koreaOutline)" />
+
+              <g clip-path="url(#south-korea-clip)">
+                <g
+                  v-for="area in areaCatalog"
+                  :key="area.code"
+                  class="map-region"
+                  :class="{ selected: pendingAreaCode === area.code, disabled: !area.enabled }"
+                  tabindex="0"
+                  role="button"
+                  :aria-label="area.name"
+                  :aria-disabled="!area.enabled"
+                  @click="openAreaConfirm(area.code)"
+                  @keyup.enter="openAreaConfirm(area.code)"
+                >
+                  <polygon class="sector-fill" :points="projectPolygon(area.points)" />
+                </g>
+              </g>
 
               <g
-                class="map-region seoul-region"
+                class="seoul-hotspot"
                 :class="{ selected: pendingAreaCode === 'seoul' }"
-                tabindex="0"
-                role="button"
-                aria-label="서울특별시"
                 @click="openAreaConfirm('seoul')"
-                @keyup.enter="openAreaConfirm('seoul')"
               >
-                <circle class="signal-ring" cx="152" cy="132" r="35" />
-                <path class="region-fill" d="M132 116 L154 104 L176 116 L182 138 L164 155 L138 150 L126 132 Z" />
-                <circle class="region-core" cx="153" cy="130" r="8" />
-                <text class="region-label" x="189" y="128">SEOUL</text>
+                <circle class="signal-ring" :cx="projectPoint(seoulPoint).x" :cy="projectPoint(seoulPoint).y" r="34" />
+                <circle class="region-core" :cx="projectPoint(seoulPoint).x" :cy="projectPoint(seoulPoint).y" r="8" />
+              </g>
+
+              <polygon class="jeju-outline" :points="projectPolygon(jejuOutline)" />
+              <polyline class="nation-outline" :points="projectPolygon(koreaOutlineLoop)" />
+              <polyline class="nation-inner-line" :points="projectPolygon(dmzLine)" />
+
+              <g v-for="area in areaCatalog" :key="`${area.code}-label`">
+                <text class="sector-label" :x="projectPoint(area.center).x" :y="projectPoint(area.center).y">
+                  {{ area.mapLabel }}
+                </text>
+              </g>
+
+              <g class="gps-marker" :class="{ fallback: userPosition.isFallback }">
+                <circle class="gps-pulse" :cx="userMapPoint.x" :cy="userMapPoint.y" r="18" />
+                <circle class="gps-dot" :cx="userMapPoint.x" :cy="userMapPoint.y" r="5" />
+                <text class="gps-label" :x="userMapPoint.x + 12" :y="userMapPoint.y - 10">
+                  {{ userPosition.isFallback ? 'SEOUL DEFAULT' : 'USER GPS' }}
+                </text>
               </g>
             </svg>
           </div>
@@ -120,7 +141,7 @@
               :key="area.code"
               class="area-choice"
               :class="{ selected: pendingAreaCode === area.code, disabled: !area.enabled }"
-              :disabled="!area.enabled"
+              :aria-disabled="!area.enabled"
               @click="openAreaConfirm(area.code)"
             >
               <span>{{ area.name }}</span>
@@ -188,9 +209,9 @@
       <div v-if="pendingArea" class="area-confirm-overlay">
         <section class="area-confirm-dialog">
           <p class="eyebrow">REGION CONFIRM</p>
-          <h2>{{ pendingArea.name }}을 선택하시겠습니까?</h2>
-          <div class="confirm-actions">
-            <button class="confirm-primary" @click="confirmAreaSelection">진입</button>
+          <h2>{{ pendingArea.enabled ? `${pendingArea.name}을 선택하시겠습니까?` : `${pendingArea.name} 작전망은 준비 중입니다` }}</h2>
+          <div class="confirm-actions" :class="{ single: !pendingArea.enabled }">
+            <button v-if="pendingArea.enabled" class="confirm-primary" @click="confirmAreaSelection">진입</button>
             <button class="confirm-secondary" @click="cancelAreaSelection">취소</button>
           </div>
         </section>
@@ -200,7 +221,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore';
 import apiClient from '@/api/axiosInstance';
@@ -211,30 +232,156 @@ const sessionStore = useSessionStore();
 
 const missions = ref([]);
 const pendingAreaCode = ref(null);
+const MAP_VIEW = { width: 420, height: 620, padding: 28 };
+const MAP_BOUNDS = { minLng: 124.7, maxLng: 130.2, minLat: 33.0, maxLat: 38.75 };
+const DEFAULT_USER_POSITION = { lng: 126.9780, lat: 37.5665, isFallback: true };
+const userPosition = ref({ ...DEFAULT_USER_POSITION });
+const seoulPoint = [126.9780, 37.5665];
+
+const koreaOutline = [
+  [126.1, 38.55], [126.8, 38.32], [127.7, 38.35], [128.55, 38.58], [129.12, 38.23],
+  [129.45, 37.52], [129.35, 36.72], [129.45, 35.95], [129.25, 35.22], [128.9, 34.78],
+  [128.16, 34.46], [127.35, 34.43], [126.55, 34.28], [125.82, 34.58], [126.05, 35.22],
+  [126.02, 35.78], [125.74, 36.32], [126.18, 36.86], [126.04, 37.46]
+];
+const koreaOutlineLoop = [...koreaOutline, koreaOutline[0]];
+
+const jejuOutline = [
+  [126.10, 33.36], [126.32, 33.24], [126.66, 33.24], [126.92, 33.36],
+  [126.82, 33.54], [126.48, 33.60], [126.18, 33.52]
+];
+
+const dmzLine = [
+  [126.10, 38.12], [126.85, 38.02], [127.70, 38.14], [128.54, 38.32]
+];
 
 const areaCatalog = [
   {
     code: 'seoul',
     name: '서울',
     label: 'SEOUL',
+    mapLabel: '서울',
     status: '작전 가능',
-    enabled: true
+    enabled: true,
+    center: [126.98, 37.52],
+    points: [
+      [126.02, 37.06], [126.16, 37.46], [126.10, 38.12], [126.85, 38.02],
+      [127.70, 38.14], [127.88, 37.46], [127.34, 36.94], [126.55, 36.92]
+    ]
   },
   {
-    code: 'busan',
-    name: '부산',
-    label: 'BUSAN',
+    code: 'gangwon',
+    name: '강원',
+    label: 'GANGWON',
+    mapLabel: '강원',
     status: '준비 중',
-    enabled: false
+    enabled: false,
+    center: [128.32, 37.54],
+    points: [
+      [127.70, 38.14], [128.54, 38.32], [129.12, 38.23], [129.45, 37.52],
+      [129.28, 36.88], [128.68, 36.58], [127.88, 37.46]
+    ]
   },
   {
-    code: 'gwangju',
-    name: '광주',
-    label: 'GWANGJU',
+    code: 'chungbuk',
+    name: '충북',
+    label: 'CHUNGBUK',
+    mapLabel: '충북',
     status: '준비 중',
-    enabled: false
+    enabled: false,
+    center: [127.74, 36.42],
+    points: [
+      [126.55, 36.92], [127.34, 36.94], [127.88, 37.46], [128.68, 36.58],
+      [128.36, 35.92], [127.54, 35.76], [126.94, 35.96]
+    ]
+  },
+  {
+    code: 'chungnam',
+    name: '충남',
+    label: 'CHUNGNAM',
+    mapLabel: '충남',
+    status: '준비 중',
+    enabled: false,
+    center: [126.44, 36.30],
+    points: [
+      [125.74, 36.32], [126.02, 35.78], [126.28, 35.54], [126.94, 35.96],
+      [126.55, 36.92], [126.18, 36.86]
+    ]
+  },
+  {
+    code: 'jeonbuk',
+    name: '전북',
+    label: 'JEONBUK',
+    mapLabel: '전북',
+    status: '준비 중',
+    enabled: false,
+    center: [126.92, 35.48],
+    points: [
+      [126.02, 35.78], [126.28, 35.54], [126.94, 35.96], [127.54, 35.76],
+      [127.70, 35.28], [127.14, 35.00], [126.34, 35.12], [126.05, 35.22]
+    ]
+  },
+  {
+    code: 'jeonnam',
+    name: '전남',
+    label: 'JEONNAM',
+    mapLabel: '전남',
+    status: '준비 중',
+    enabled: false,
+    center: [126.58, 34.72],
+    points: [
+      [125.82, 34.58], [126.55, 34.28], [127.35, 34.43], [127.70, 35.28],
+      [127.14, 35.00], [126.34, 35.12], [126.05, 35.22]
+    ]
+  },
+  {
+    code: 'gyeongbuk',
+    name: '경북',
+    label: 'GYEONGBUK',
+    mapLabel: '경북',
+    status: '준비 중',
+    enabled: false,
+    center: [128.62, 36.18],
+    points: [
+      [127.54, 35.76], [128.36, 35.92], [128.68, 36.58], [129.28, 36.88],
+      [129.45, 35.95], [129.25, 35.22], [128.48, 35.06], [127.92, 35.26]
+    ]
+  },
+  {
+    code: 'gyeongnam',
+    name: '경남',
+    label: 'GYEONGNAM',
+    mapLabel: '경남',
+    status: '준비 중',
+    enabled: false,
+    center: [128.22, 34.86],
+    points: [
+      [127.14, 35.00], [127.70, 35.28], [127.92, 35.26], [128.48, 35.06],
+      [129.25, 35.22], [128.90, 34.78], [128.16, 34.46], [127.35, 34.43]
+    ]
   }
 ];
+
+const projectPoint = ([lng, lat]) => {
+  const usableWidth = MAP_VIEW.width - (MAP_VIEW.padding * 2);
+  const usableHeight = MAP_VIEW.height - (MAP_VIEW.padding * 2);
+  const x = MAP_VIEW.padding + ((lng - MAP_BOUNDS.minLng) / (MAP_BOUNDS.maxLng - MAP_BOUNDS.minLng)) * usableWidth;
+  const y = MAP_VIEW.padding + ((MAP_BOUNDS.maxLat - lat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat)) * usableHeight;
+
+  return {
+    x: Number(x.toFixed(1)),
+    y: Number(y.toFixed(1))
+  };
+};
+
+const projectPolygon = (coordinates) => {
+  return coordinates.map((coordinate) => {
+    const point = projectPoint(coordinate);
+    return `${point.x},${point.y}`;
+  }).join(' ');
+};
+
+const userMapPoint = computed(() => projectPoint([userPosition.value.lng, userPosition.value.lat]));
 
 const selectedAreaCode = computed(() => {
   return typeof route.query.area === 'string' ? route.query.area : '';
@@ -247,7 +394,7 @@ const activeArea = computed(() => {
 const isAreaSelected = computed(() => Boolean(activeArea.value));
 
 const pendingArea = computed(() => {
-  return areaCatalog.find(area => area.enabled && area.code === pendingAreaCode.value) || null;
+  return areaCatalog.find(area => area.code === pendingAreaCode.value) || null;
 });
 
 const isAdmin = computed(() => {
@@ -384,15 +531,55 @@ watch(isAreaSelected, (selected) => {
   missions.value = [];
 }, { immediate: true });
 
+onMounted(() => {
+  locateUser();
+});
+
+const locateUser = () => {
+  if (!navigator.geolocation) {
+    userPosition.value = { ...DEFAULT_USER_POSITION };
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => {
+      const nextPosition = {
+        lng: coords.longitude,
+        lat: coords.latitude,
+        isFallback: false
+      };
+
+      userPosition.value = isCoordinateInsideMap(nextPosition)
+        ? nextPosition
+        : { ...DEFAULT_USER_POSITION };
+    },
+    () => {
+      userPosition.value = { ...DEFAULT_USER_POSITION };
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 5000,
+      maximumAge: 300000
+    }
+  );
+};
+
+const isCoordinateInsideMap = ({ lng, lat }) => {
+  return lng >= MAP_BOUNDS.minLng
+    && lng <= MAP_BOUNDS.maxLng
+    && lat >= MAP_BOUNDS.minLat
+    && lat <= MAP_BOUNDS.maxLat;
+};
+
 const openAreaConfirm = (areaCode) => {
-  const area = areaCatalog.find(item => item.enabled && item.code === areaCode);
+  const area = areaCatalog.find(item => item.code === areaCode);
   if (!area) return;
 
   pendingAreaCode.value = area.code;
 };
 
 const confirmAreaSelection = () => {
-  if (!pendingArea.value) return;
+  if (!pendingArea.value || !pendingArea.value.enabled) return;
 
   const areaCode = pendingArea.value.code;
   pendingAreaCode.value = null;
@@ -447,6 +634,11 @@ const handleLogout = () => {
   overflow-x: hidden;
   padding: 40px 20px;
 }
+.dashboard-container.area-mode {
+  height: 100svh;
+  overflow: hidden;
+  padding: clamp(18px, 3vh, 30px) 20px;
+}
 
 .bg-glow {
   position: absolute;
@@ -459,8 +651,11 @@ const handleLogout = () => {
 .blob-2 { width: 500px; height: 500px; background: #3b82f6; bottom: -150px; right: -100px; }
 
 .content-wrapper { position: relative; z-index: 1; max-width: 1000px; margin: 0 auto; }
+.area-mode .content-wrapper { height: 100%; display: flex; flex-direction: column; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 20px; }
+.area-mode .dashboard-header { flex: 0 0 auto; margin-bottom: clamp(12px, 2vh, 20px); padding-bottom: 14px; }
 .title { font-size: 2rem; font-weight: 700; margin: 0 0 5px 0; color: #fff; }
+.area-mode .title { font-size: clamp(1.55rem, 3.2vw, 2rem); }
 .highlight { color: #06b6d4; }
 .subtitle { font-size: 0.9rem; color: #94a3b8; margin: 0; }
 .user-panel { display: flex; align-items: center; gap: 20px; }
@@ -470,35 +665,55 @@ const handleLogout = () => {
 .logout-btn { background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; }
 .logout-btn:hover { background: #ef4444; color: #fff; }
 .area-selector { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr); gap: 32px; align-items: center; min-height: 520px; }
+.area-mode .area-selector { flex: 1 1 auto; min-height: 0; height: 100%; gap: clamp(18px, 3vw, 32px); }
 .map-panel, .area-intel-panel { min-width: 0; }
 .map-shell { position: relative; width: min(100%, 520px); aspect-ratio: 4 / 5; margin: 0 auto; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid rgba(6, 182, 212, 0.28); border-radius: 8px; background: radial-gradient(circle at 50% 35%, rgba(6, 182, 212, 0.16), rgba(15, 23, 42, 0.16) 38%, rgba(2, 6, 23, 0.48) 100%); box-shadow: inset 0 0 36px rgba(6, 182, 212, 0.1), 0 20px 60px rgba(0, 0, 0, 0.32); }
+.area-mode .map-shell { width: min(100%, 430px, 58svh); max-height: 100%; }
 .map-shell::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px); background-size: 32px 32px; mask-image: radial-gradient(circle at center, black 30%, transparent 72%); pointer-events: none; }
-.korea-map { position: relative; z-index: 1; width: min(82%, 360px); height: 92%; overflow: visible; }
-.nation-outline { fill: rgba(8, 47, 73, 0.28); stroke: #22d3ee; stroke-width: 3; filter: url(#map-glow); }
+.korea-map { position: relative; z-index: 1; width: min(88%, 390px); height: 94%; overflow: visible; }
+.nation-base { fill: rgba(8, 47, 73, 0.24); stroke: none; }
+.nation-outline { fill: none; stroke: #22d3ee; stroke-width: 3; filter: url(#map-glow); }
+.jeju-outline { fill: rgba(8, 47, 73, 0.36); stroke: #22d3ee; stroke-width: 2.3; filter: url(#map-glow); }
 .nation-inner-line { fill: none; stroke: rgba(103, 232, 249, 0.35); stroke-width: 1.6; stroke-dasharray: 7 8; }
 .map-region { cursor: pointer; outline: none; }
+.map-region.disabled { cursor: pointer; }
+.sector-fill { fill: rgba(6, 182, 212, 0.18); stroke: rgba(103, 232, 249, 0.58); stroke-width: 1.4; transition: fill 0.25s ease, stroke 0.25s ease, filter 0.25s ease; }
+.map-region.disabled .sector-fill { fill: rgba(15, 23, 42, 0.14); stroke: rgba(148, 163, 184, 0.34); }
+.map-region:hover .sector-fill,
+.map-region:focus .sector-fill,
+.map-region.selected .sector-fill { fill: rgba(239, 68, 68, 0.62); stroke: #fecaca; filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.65)); }
 .signal-ring { fill: url(#seoul-signal); opacity: 0.28; transition: opacity 0.25s ease; }
-.region-fill { fill: rgba(6, 182, 212, 0.62); stroke: #67e8f9; stroke-width: 2; transition: fill 0.25s ease, stroke 0.25s ease, filter 0.25s ease; }
 .region-core { fill: #ecfeff; transition: fill 0.25s ease; }
-.region-label { fill: #cffafe; font-size: 18px; font-weight: 800; letter-spacing: 0; paint-order: stroke; stroke: rgba(2, 6, 23, 0.82); stroke-width: 5; }
-.map-region:hover .signal-ring, .map-region:focus .signal-ring, .map-region.selected .signal-ring { opacity: 0.72; }
-.map-region:hover .region-fill, .map-region:focus .region-fill, .map-region.selected .region-fill { fill: rgba(239, 68, 68, 0.92); stroke: #fecaca; filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.75)); }
-.map-region:hover .region-core, .map-region:focus .region-core, .map-region.selected .region-core { fill: #fee2e2; }
+.seoul-hotspot { cursor: pointer; }
+.seoul-hotspot:hover .signal-ring, .seoul-hotspot.selected .signal-ring { opacity: 0.78; }
+.seoul-hotspot:hover .region-core, .seoul-hotspot.selected .region-core { fill: #fee2e2; }
+.sector-label { fill: #cffafe; font-size: 12px; font-weight: 800; letter-spacing: 0; text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: rgba(2, 6, 23, 0.84); stroke-width: 4; pointer-events: none; }
+.gps-marker { pointer-events: none; }
+.gps-pulse { fill: rgba(34, 211, 238, 0.24); stroke: rgba(34, 211, 238, 0.82); stroke-width: 1.4; }
+.gps-dot { fill: #67e8f9; stroke: #ecfeff; stroke-width: 2; filter: drop-shadow(0 0 9px rgba(34, 211, 238, 0.95)); }
+.gps-label { fill: #e0f2fe; font-size: 11px; font-weight: 800; letter-spacing: 0; paint-order: stroke; stroke: rgba(2, 6, 23, 0.88); stroke-width: 4; }
+.gps-marker.fallback .gps-pulse { fill: rgba(245, 158, 11, 0.2); stroke: rgba(245, 158, 11, 0.82); }
+.gps-marker.fallback .gps-dot { fill: #fbbf24; filter: drop-shadow(0 0 9px rgba(245, 158, 11, 0.9)); }
 .area-intel-panel { padding: 8px 0; }
+.area-mode .area-intel-panel { align-self: center; }
 .eyebrow { margin: 0 0 10px; color: #67e8f9; font-size: 0.74rem; font-weight: 800; letter-spacing: 0; }
 .area-intel-panel h2 { margin: 0 0 22px; color: #fff; font-size: 1.75rem; line-height: 1.2; }
+.area-mode .area-intel-panel h2 { margin-bottom: 16px; }
 .area-choice-list { display: grid; gap: 12px; }
+.area-mode .area-choice-list { gap: 9px; }
 .area-choice { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 18px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; background: rgba(15, 23, 42, 0.56); color: #e2e8f0; font-family: inherit; cursor: pointer; transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease; }
+.area-mode .area-choice { padding: 12px 14px; }
 .area-choice span { min-width: 0; font-size: 1rem; font-weight: 800; }
 .area-choice strong { flex: 0 0 auto; color: #67e8f9; font-size: 0.78rem; }
 .area-choice:hover, .area-choice.selected { border-color: rgba(239, 68, 68, 0.78); background: rgba(127, 29, 29, 0.32); transform: translateX(4px); }
-.area-choice.disabled { cursor: not-allowed; opacity: 0.45; }
+.area-choice.disabled { cursor: pointer; opacity: 0.45; }
 .area-choice.disabled strong { color: #94a3b8; }
-.area-choice.disabled:hover { transform: none; border-color: rgba(148, 163, 184, 0.2); background: rgba(15, 23, 42, 0.56); }
+.area-choice.disabled:hover, .area-choice.disabled.selected { transform: translateX(4px); border-color: rgba(239, 68, 68, 0.78); background: rgba(127, 29, 29, 0.32); }
 .area-confirm-overlay { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(2, 6, 23, 0.74); backdrop-filter: blur(10px); }
 .area-confirm-dialog { width: min(100%, 380px); padding: 26px; border: 1px solid rgba(239, 68, 68, 0.62); border-radius: 8px; background: rgba(15, 23, 42, 0.96); box-shadow: 0 0 28px rgba(239, 68, 68, 0.18); }
 .area-confirm-dialog h2 { margin: 0 0 22px; color: #fff; font-size: 1.3rem; line-height: 1.35; }
 .confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirm-actions.single { grid-template-columns: 1fr; }
 .confirm-primary, .confirm-secondary { padding: 11px 14px; border-radius: 6px; font-family: inherit; font-weight: 800; cursor: pointer; }
 .confirm-primary { border: 1px solid #ef4444; background: #ef4444; color: #fff; }
 .confirm-secondary { border: 1px solid rgba(148, 163, 184, 0.35); background: transparent; color: #cbd5e1; }
@@ -624,12 +839,22 @@ const handleLogout = () => {
 
 @media (max-width: 760px) {
   .dashboard-container { padding: 28px 14px; }
+  .dashboard-container.area-mode { padding: 16px 14px; }
   .dashboard-header { align-items: flex-start; gap: 18px; flex-direction: column; }
+  .area-mode .dashboard-header { gap: 10px; margin-bottom: 10px; padding-bottom: 10px; }
   .user-panel { width: 100%; flex-wrap: wrap; gap: 10px; }
   .agent-name { flex: 1 1 100%; }
-  .area-selector { grid-template-columns: 1fr; min-height: auto; gap: 24px; }
+  .area-selector { grid-template-columns: 1fr; min-height: auto; gap: 14px; }
+  .area-mode .area-selector { grid-template-rows: minmax(0, 1fr) auto; }
   .map-shell { width: 100%; max-height: 470px; }
+  .area-mode .map-shell { width: min(72vw, 280px); }
   .area-intel-panel h2 { font-size: 1.45rem; }
+  .area-mode .area-intel-panel h2 { display: none; }
+  .area-mode .eyebrow { margin-bottom: 8px; }
+  .area-mode .area-choice-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .area-mode .area-choice { padding: 9px 10px; }
+  .area-mode .area-choice span { font-size: 0.86rem; }
+  .area-mode .area-choice strong { font-size: 0.68rem; }
   .confirm-actions { grid-template-columns: 1fr; }
 }
 </style>
