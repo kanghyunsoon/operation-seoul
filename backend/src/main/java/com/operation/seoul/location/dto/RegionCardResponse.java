@@ -7,6 +7,7 @@ import lombok.Data;
 @Builder
 public class RegionCardResponse {
     private Long id;
+    private String areaCode;
     private String name;
     private String description;
     private Long finalMissionId;

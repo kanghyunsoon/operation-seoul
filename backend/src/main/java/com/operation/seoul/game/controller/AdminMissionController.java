@@ -8,6 +8,7 @@ import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.domain.Region;
 import com.operation.seoul.location.repository.MissionRepository;
 import com.operation.seoul.location.repository.RegionRepository;
+import com.operation.seoul.location.service.OperationAreaResolver;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,12 +51,14 @@ public class AdminMissionController {
     private final GeminiAiService geminiAiService;
     private final RegionRepository regionRepository;
     private final MissionRepository missionRepository;
+    private final OperationAreaResolver operationAreaResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Data
     public static class MissionGenerateRequest {
         private Map<String, String> targetSpot;
         private List<Map<String, String>> candidateSpots;
+        private String areaCode;
     }
 
     @GetMapping("/candidates")
@@ -84,6 +87,7 @@ public class AdminMissionController {
 
             double targetLat = Double.parseDouble(targetSpot.get("mapY"));
             double targetLng = Double.parseDouble(targetSpot.get("mapX"));
+            String areaCode = operationAreaResolver.resolveAreaCode(targetLat, targetLng, request.getAreaCode());
 
             String[] keywords = {"카페", "시장", "공원", "서점", "문화", "기념", "박물관", "전시", "역사", "광장", "골목"};
             List<Map<String, String>> localSpots = new ArrayList<>();
@@ -122,6 +126,7 @@ public class AdminMissionController {
             }
 
             Region newRegion = new Region();
+            newRegion.setAreaCode(areaCode);
             newRegion.setName(maskSecretKeyword(
                     root.path("regionName").asText("작전명 봉인된 현장"),
                     finalAnswerKeyword,
@@ -163,7 +168,7 @@ public class AdminMissionController {
                     missionRepository.save(mission);
                 }
             }
-            return ResponseEntity.ok("AI 작전 생성 완료: " + savedRegion.getName());
+            return ResponseEntity.ok("AI 작전 생성 완료 [" + areaCode + "]: " + savedRegion.getName());
         } catch (Exception e) {
             log.error("Mission generation failed", e);
             return ResponseEntity.internalServerError().body("작전 생성 실패: " + e.getMessage());

@@ -13,6 +13,10 @@
       <div class="screen-container">
         <div class="screen-overlay scanline"></div>
         <div id="map" class="map-view" ref="mapContainer"></div>
+        <div v-if="mapLoadFailed" class="map-error-state">
+          <strong>MAP LINK FAILED</strong>
+          <span>{{ mapLoadMessage }}</span>
+        </div>
 
         <button class="hint-collection-btn" @click="showHintModal = true">
           💡 획득한 단서 {{ collectedHints }} / {{ requiredHints }}
@@ -124,6 +128,8 @@ const clearedMissions = ref([]);
 
 const currentLat = ref(null);
 const currentLng = ref(null);
+const mapLoadFailed = ref(false);
+const mapLoadMessage = ref('지도 통신망 연결 중...');
 
 const regionId = route.query.regionId || 1;
 const missions = ref([]);
@@ -521,29 +527,64 @@ const startGpsTracking = () => {
   }
 };
 
-onMounted(() => {
-  if (!window.kakao || !window.kakao.maps) return;
-
-  window.kakao.maps.load(async () => {
-    const options = { center: new window.kakao.maps.LatLng(37.5665, 126.9780), level: 4 };
-    map = new window.kakao.maps.Map(mapContainer.value, options);
-    map.setMapTypeId(window.kakao.maps.MapTypeId.HYBRID);
-
-    try {
-      const regRes = await apiClient.get(`/v1/regions/${regionId}`);
-      regionName.value = regRes.data.name;
-
-      await loadMissionsData();
-
-      if (missions.value.length > 0) {
-        map.setCenter(new window.kakao.maps.LatLng(missions.value[0].targetLat, missions.value[0].targetLng));
-      }
-      startGpsTracking();
-
-    } catch (error) {
-      currentTargetName.value = '데이터 수신 실패';
+const waitForKakaoMapSdk = () => {
+  return new Promise((resolve, reject) => {
+    if (window.kakao?.maps?.Map && window.kakao?.maps?.LatLng) {
+      resolve(window.kakao.maps);
+      return;
     }
+
+    let retries = 0;
+    const timer = window.setInterval(() => {
+      if (window.kakao?.maps?.Map && window.kakao?.maps?.LatLng) {
+        window.clearInterval(timer);
+        resolve(window.kakao.maps);
+        return;
+      }
+
+      retries += 1;
+      if (retries >= 80) {
+        window.clearInterval(timer);
+        reject(new Error('Kakao Maps SDK가 index.html에서 로드되지 않았습니다.'));
+      }
+    }, 100);
   });
+};
+const initializeMap = async () => {
+  if (!mapContainer.value) {
+    throw new Error('지도 컨테이너를 찾을 수 없습니다.');
+  }
+
+  const options = { center: new window.kakao.maps.LatLng(37.5665, 126.9780), level: 4 };
+  map = new window.kakao.maps.Map(mapContainer.value, options);
+  map.setMapTypeId(window.kakao.maps.MapTypeId.HYBRID);
+
+  try {
+    const regRes = await apiClient.get(`/v1/regions/${regionId}`);
+    regionName.value = regRes.data.name;
+
+    await loadMissionsData();
+
+    if (missions.value.length > 0) {
+      map.setCenter(new window.kakao.maps.LatLng(missions.value[0].targetLat, missions.value[0].targetLng));
+    }
+    startGpsTracking();
+  } catch (error) {
+    console.error('지도 데이터 수신 실패:', error);
+    currentTargetName.value = '데이터 수신 실패';
+  }
+};
+
+onMounted(async () => {
+  try {
+    await waitForKakaoMapSdk();
+    await initializeMap();
+  } catch (error) {
+    console.error('Kakao 지도 초기화 실패:', error);
+    mapLoadFailed.value = true;
+    mapLoadMessage.value = error.message || 'Kakao 지도 초기화에 실패했습니다.';
+    currentTargetName.value = '지도 로딩 실패';
+  }
 });
 
 onUnmounted(() => {
@@ -634,6 +675,30 @@ const uploadImage = async (imageFile) => {
 
 .screen-container { flex: 1; position: relative; width: 100%; border: 2px solid #00ffcc; border-radius: 8px; overflow: hidden; }
 .map-view { width: 100%; height: 100%; }
+.map-error-state {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.86);
+  color: #ff4444;
+  text-align: center;
+  font-weight: 700;
+}
+.map-error-state strong {
+  color: #ff4444;
+  font-size: 1rem;
+}
+.map-error-state span {
+  color: #fca5a5;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
 .screen-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
 .scanline { background: linear-gradient(rgba(0, 255, 204, 0.05) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 4px; }
 

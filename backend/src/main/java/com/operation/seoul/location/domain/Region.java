@@ -5,6 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -25,8 +27,21 @@ public class Region {
      예: "서울특별시 정동길", "부산 해운대구" 등 사용자에게 노출되는 지역의 공식 이름  */
     private String name;
 
+    @Column(length = 32)
+    private String areaCode = "seoul";
+
     /**지역 테마 및 상세 설명
      해당 구역에서 진행되는 미션의 전체적인 배경 스토리나 테마 정보 수록 */
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @PrePersist
+    @PreUpdate
+    private void normalizeAreaCode() {
+        if (areaCode == null || areaCode.isBlank()) {
+            areaCode = "seoul";
+            return;
+        }
+        areaCode = areaCode.trim().toLowerCase();
+    }
 }

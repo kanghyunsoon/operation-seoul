@@ -17,7 +17,7 @@
       </header>
 
       <div v-if="isAdmin && isAreaSelected" class="admin-panel">
-        <button @click="showAdminModal = true" class="admin-generate-btn">
+        <button @click="openAdminModal" class="admin-generate-btn">
           [ ⚠️ 지휘부 권한: 신규 구역 AI 스캔 및 작전 수립 ]
         </button>
       </div>
@@ -152,6 +152,11 @@
       </main>
 
       <main v-else class="mission-grid">
+        <section v-if="missions.length === 0" class="empty-area-state">
+          <p class="eyebrow">{{ activeArea.name }} NETWORK</p>
+          <h2>아직 등록된 작전이 없습니다.</h2>
+          <p>지휘부 계정으로 이 지역의 좌표를 스캔해 첫 작전을 생성할 수 있습니다.</p>
+        </section>
         <div
             v-for="mission in missions"
             :key="mission.id"
@@ -274,8 +279,8 @@ const areaCatalog = [
     name: '강원',
     label: 'GANGWON',
     mapLabel: '강원',
-    status: '준비 중',
-    enabled: false,
+    status: '작전 가능',
+    enabled: true,
     center: [128.32, 37.54],
     points: [
       [127.70, 38.14], [128.54, 38.32], [129.12, 38.23], [129.45, 37.52],
@@ -287,8 +292,8 @@ const areaCatalog = [
     name: '충북',
     label: 'CHUNGBUK',
     mapLabel: '충북',
-    status: '준비 중',
-    enabled: false,
+    status: '작전 가능',
+    enabled: true,
     center: [127.74, 36.42],
     points: [
       [126.55, 36.92], [127.34, 36.94], [127.88, 37.46], [128.68, 36.58],
@@ -300,8 +305,8 @@ const areaCatalog = [
     name: '충남',
     label: 'CHUNGNAM',
     mapLabel: '충남',
-    status: '준비 중',
-    enabled: false,
+    status: '작전 가능',
+    enabled: true,
     center: [126.44, 36.30],
     points: [
       [125.74, 36.32], [126.02, 35.78], [126.28, 35.54], [126.94, 35.96],
@@ -313,8 +318,8 @@ const areaCatalog = [
     name: '전북',
     label: 'JEONBUK',
     mapLabel: '전북',
-    status: '준비 중',
-    enabled: false,
+    status: '작전 가능',
+    enabled: true,
     center: [126.92, 35.48],
     points: [
       [126.02, 35.78], [126.28, 35.54], [126.94, 35.96], [127.54, 35.76],
@@ -326,8 +331,8 @@ const areaCatalog = [
     name: '전남',
     label: 'JEONNAM',
     mapLabel: '전남',
-    status: '준비 중',
-    enabled: false,
+    status: '작전 가능',
+    enabled: true,
     center: [126.58, 34.72],
     points: [
       [125.82, 34.58], [126.55, 34.28], [127.35, 34.43], [127.70, 35.28],
@@ -339,8 +344,8 @@ const areaCatalog = [
     name: '경북',
     label: 'GYEONGBUK',
     mapLabel: '경북',
-    status: '준비 중',
-    enabled: false,
+    status: '작전 가능',
+    enabled: true,
     center: [128.62, 36.18],
     points: [
       [127.54, 35.76], [128.36, 35.92], [128.68, 36.58], [129.28, 36.88],
@@ -352,8 +357,8 @@ const areaCatalog = [
     name: '경남',
     label: 'GYEONGNAM',
     mapLabel: '경남',
-    status: '준비 중',
-    enabled: false,
+    status: '작전 가능',
+    enabled: true,
     center: [128.22, 34.86],
     points: [
       [127.14, 35.00], [127.70, 35.28], [127.92, 35.26], [128.48, 35.06],
@@ -411,6 +416,17 @@ const adminForm = ref({ lat: 37.5658, lng: 126.9751 });
 const candidates = ref([]);
 const selectedSpot = ref(null);
 
+const openAdminModal = () => {
+  const [lng, lat] = activeArea.value?.center || seoulPoint;
+  adminForm.value = {
+    lat: Number(lat.toFixed(6)),
+    lng: Number(lng.toFixed(6))
+  };
+  candidates.value = [];
+  selectedSpot.value = null;
+  showAdminModal.value = true;
+};
+
 const closeAdminModal = () => {
   showAdminModal.value = false;
   candidates.value = [];
@@ -443,7 +459,8 @@ const generateMissionByAi = async () => {
     // 🚨 팩트체크: AI가 경유지를 짤 수 있도록 '최종 목적지'와 '후보지 리스트'를 모두 보냅니다!
     const response = await apiClient.post('/v1/admin/missions/generate-selected', {
       targetSpot: selectedSpot.value,
-      candidateSpots: candidates.value
+      candidateSpots: candidates.value,
+      areaCode: activeArea.value?.code || 'seoul'
     });
 
     alert(`[SYSTEM] ${response.data}`);
@@ -476,7 +493,10 @@ const deleteRegion = async (regionId, title) => {
 const fetchMissions = async () => {
   try {
     const response = await apiClient.get('/v1/regions/cards', {
-      params: { userId: sessionStore.userId || 1 }
+      params: {
+        userId: sessionStore.userId || 1,
+        areaCode: activeArea.value?.code || 'seoul'
+      }
     });
     missions.value = response.data.map(region => ({
       id: region.id,
@@ -494,10 +514,8 @@ const fetchMissions = async () => {
       isReady: true
     }));
   } catch (error) {
-    console.error('[시스템 오류] 데이터 동기화 실패. 예비 서버로 전환합니다.', error);
-    missions.value = [
-      { id: 1, title: '중명전의 비밀', description: 'DB 연결 확인 중...', difficulty: 'NORMAL', location: '서울 정동길', status: 'ACTIVE', isCleared: false, isReady: true }
-    ];
+    console.error('[시스템 오류] 선택 지역 작전 목록 동기화 실패.', error);
+    missions.value = [];
   }
 };
 
@@ -627,6 +645,7 @@ const handleLogout = () => {
 
 .dashboard-container {
   min-height: 100vh;
+  box-sizing: border-box;
   background-color: #0b0f19;
   font-family: 'Noto Sans KR', sans-serif;
   color: #e2e8f0;
@@ -635,9 +654,10 @@ const handleLogout = () => {
   padding: 40px 20px;
 }
 .dashboard-container.area-mode {
-  height: 100svh;
+  height: 100dvh;
+  min-height: 0;
   overflow: hidden;
-  padding: clamp(18px, 3vh, 30px) 20px;
+  padding: clamp(10px, 2vh, 20px) 20px;
 }
 
 .bg-glow {
@@ -651,9 +671,9 @@ const handleLogout = () => {
 .blob-2 { width: 500px; height: 500px; background: #3b82f6; bottom: -150px; right: -100px; }
 
 .content-wrapper { position: relative; z-index: 1; max-width: 1000px; margin: 0 auto; }
-.area-mode .content-wrapper { height: 100%; display: flex; flex-direction: column; }
+.area-mode .content-wrapper { height: 100%; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 20px; }
-.area-mode .dashboard-header { flex: 0 0 auto; margin-bottom: clamp(12px, 2vh, 20px); padding-bottom: 14px; }
+.area-mode .dashboard-header { flex: 0 0 auto; margin-bottom: clamp(8px, 1.5vh, 14px); padding-bottom: 10px; }
 .title { font-size: 2rem; font-weight: 700; margin: 0 0 5px 0; color: #fff; }
 .area-mode .title { font-size: clamp(1.55rem, 3.2vw, 2rem); }
 .highlight { color: #06b6d4; }
@@ -665,10 +685,10 @@ const handleLogout = () => {
 .logout-btn { background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; }
 .logout-btn:hover { background: #ef4444; color: #fff; }
 .area-selector { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr); gap: 32px; align-items: center; min-height: 520px; }
-.area-mode .area-selector { flex: 1 1 auto; min-height: 0; height: 100%; gap: clamp(18px, 3vw, 32px); }
+.area-mode .area-selector { flex: 1 1 auto; min-height: 0; height: 100%; overflow: hidden; gap: clamp(14px, 2.4vw, 28px); }
 .map-panel, .area-intel-panel { min-width: 0; }
 .map-shell { position: relative; width: min(100%, 520px); aspect-ratio: 4 / 5; margin: 0 auto; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid rgba(6, 182, 212, 0.28); border-radius: 8px; background: radial-gradient(circle at 50% 35%, rgba(6, 182, 212, 0.16), rgba(15, 23, 42, 0.16) 38%, rgba(2, 6, 23, 0.48) 100%); box-shadow: inset 0 0 36px rgba(6, 182, 212, 0.1), 0 20px 60px rgba(0, 0, 0, 0.32); }
-.area-mode .map-shell { width: min(100%, 430px, 58svh); max-height: 100%; }
+.area-mode .map-shell { width: min(100%, 470px, 62dvh); max-height: 100%; }
 .map-shell::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px); background-size: 32px 32px; mask-image: radial-gradient(circle at center, black 30%, transparent 72%); pointer-events: none; }
 .korea-map { position: relative; z-index: 1; width: min(88%, 390px); height: 94%; overflow: visible; }
 .nation-base { fill: rgba(8, 47, 73, 0.24); stroke: none; }
@@ -698,11 +718,11 @@ const handleLogout = () => {
 .area-mode .area-intel-panel { align-self: center; }
 .eyebrow { margin: 0 0 10px; color: #67e8f9; font-size: 0.74rem; font-weight: 800; letter-spacing: 0; }
 .area-intel-panel h2 { margin: 0 0 22px; color: #fff; font-size: 1.75rem; line-height: 1.2; }
-.area-mode .area-intel-panel h2 { margin-bottom: 16px; }
+.area-mode .area-intel-panel h2 { margin-bottom: 10px; font-size: 1.35rem; }
 .area-choice-list { display: grid; gap: 12px; }
-.area-mode .area-choice-list { gap: 9px; }
+.area-mode .area-choice-list { gap: 7px; }
 .area-choice { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 18px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; background: rgba(15, 23, 42, 0.56); color: #e2e8f0; font-family: inherit; cursor: pointer; transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease; }
-.area-mode .area-choice { padding: 12px 14px; }
+.area-mode .area-choice { padding: 8px 12px; }
 .area-choice span { min-width: 0; font-size: 1rem; font-weight: 800; }
 .area-choice strong { flex: 0 0 auto; color: #67e8f9; font-size: 0.78rem; }
 .area-choice:hover, .area-choice.selected { border-color: rgba(239, 68, 68, 0.78); background: rgba(127, 29, 29, 0.32); transform: translateX(4px); }
@@ -718,6 +738,9 @@ const handleLogout = () => {
 .confirm-primary { border: 1px solid #ef4444; background: #ef4444; color: #fff; }
 .confirm-secondary { border: 1px solid rgba(148, 163, 184, 0.35); background: transparent; color: #cbd5e1; }
 .mission-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); column-gap: 25px; row-gap: 32px; align-items: stretch; }
+.empty-area-state { grid-column: 1 / -1; padding: 42px 24px; border: 1px solid rgba(6, 182, 212, 0.24); border-radius: 8px; background: rgba(15, 23, 42, 0.48); text-align: center; }
+.empty-area-state h2 { margin: 0 0 10px; color: #fff; font-size: 1.35rem; }
+.empty-area-state p:last-child { margin: 0; color: #94a3b8; font-size: 0.9rem; }
 .glass-card { position: relative; overflow: hidden; box-sizing: border-box; width: 100%; min-width: 0; min-height: 260px; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 24px; cursor: pointer; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column; }
 .glass-card:hover { transform: translateY(-5px); border-color: rgba(6, 182, 212, 0.5); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(6, 182, 212, 0.2); background: rgba(255, 255, 255, 0.05); }
 .glass-card.analyzing { opacity: 0.6; cursor: not-allowed; }
@@ -839,7 +862,7 @@ const handleLogout = () => {
 
 @media (max-width: 760px) {
   .dashboard-container { padding: 28px 14px; }
-  .dashboard-container.area-mode { padding: 16px 14px; }
+  .dashboard-container.area-mode { padding: 8px 12px; }
   .dashboard-header { align-items: flex-start; gap: 18px; flex-direction: column; }
   .area-mode .dashboard-header { gap: 10px; margin-bottom: 10px; padding-bottom: 10px; }
   .user-panel { width: 100%; flex-wrap: wrap; gap: 10px; }
@@ -847,12 +870,12 @@ const handleLogout = () => {
   .area-selector { grid-template-columns: 1fr; min-height: auto; gap: 14px; }
   .area-mode .area-selector { grid-template-rows: minmax(0, 1fr) auto; }
   .map-shell { width: 100%; max-height: 470px; }
-  .area-mode .map-shell { width: min(72vw, 280px); }
+  .area-mode .map-shell { width: min(78vw, 330px, 48dvh); }
   .area-intel-panel h2 { font-size: 1.45rem; }
   .area-mode .area-intel-panel h2 { display: none; }
   .area-mode .eyebrow { margin-bottom: 8px; }
-  .area-mode .area-choice-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .area-mode .area-choice { padding: 9px 10px; }
+  .area-mode .area-choice-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .area-mode .area-choice { padding: 8px 9px; }
   .area-mode .area-choice span { font-size: 0.86rem; }
   .area-mode .area-choice strong { font-size: 0.68rem; }
   .confirm-actions { grid-template-columns: 1fr; }

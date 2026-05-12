@@ -8,6 +8,7 @@ import com.operation.seoul.location.domain.Region;
 import com.operation.seoul.location.dto.RegionCardResponse;
 import com.operation.seoul.location.repository.MissionRepository;
 import com.operation.seoul.location.repository.RegionRepository;
+import com.operation.seoul.location.service.OperationAreaResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,7 @@ public class RegionController {
     private final MissionRepository missionRepository;
     private final GameSessionRepository gameSessionRepository;
     private final CurrentUserResolver currentUserResolver;
+    private final OperationAreaResolver operationAreaResolver;
 
     @GetMapping
     public ResponseEntity<List<Region>> getAllRegions() {
@@ -35,10 +37,12 @@ public class RegionController {
 
     @GetMapping("/cards")
     public ResponseEntity<List<RegionCardResponse>> getRegionCards(
-            @RequestParam(value = "userId", defaultValue = "1") Long userId) {
+            @RequestParam(value = "userId", defaultValue = "1") Long userId,
+            @RequestParam(value = "areaCode", defaultValue = OperationAreaResolver.DEFAULT_AREA_CODE) String areaCode) {
 
         Long effectiveUserId = currentUserResolver.resolveUserId(userId);
-        List<RegionCardResponse> cards = regionRepository.findAll().stream()
+        String normalizedAreaCode = operationAreaResolver.normalizeAreaCode(areaCode);
+        List<RegionCardResponse> cards = regionRepository.findCardsByAreaCode(normalizedAreaCode).stream()
                 .map(region -> buildRegionCard(region, effectiveUserId))
                 .collect(Collectors.toList());
 
@@ -65,6 +69,7 @@ public class RegionController {
 
         RegionCardResponse.RegionCardResponseBuilder builder = RegionCardResponse.builder()
                 .id(region.getId())
+                .areaCode(operationAreaResolver.normalizeAreaCode(region.getAreaCode()))
                 .name(region.getName())
                 .description(region.getDescription());
 
