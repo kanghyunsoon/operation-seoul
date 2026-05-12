@@ -120,12 +120,28 @@ const handleSubmit = async () => {
   } catch (error) {
       // 에러 발생 시 모드에 따라 알림 다르게 표시
       if (isLoginMode.value) {
-        alert('시스템 접근 거부: 등록되지 않은 요원이거나 암호가 틀렸습니다.');
+        alert(getLoginErrorMessage(error));
       } else {
         alert('등록 실패: 이미 사용 중인 이메일이거나 서버 오류입니다.');
       }
       console.error(error);
   }
+};
+
+const getLoginErrorMessage = (error) => {
+  if (!error.response) {
+    return '시스템 연결 실패: 백엔드 서버 주소 또는 CORS 설정을 확인하십시오.';
+  }
+
+  if (error.response.status === 401) {
+    return '시스템 접근 거부: 등록되지 않은 요원이거나 암호가 틀렸습니다.';
+  }
+
+  if (error.response.status === 403) {
+    return '시스템 접근 거부: 현재 계정에 접근 권한이 없습니다.';
+  }
+
+  return `시스템 접근 실패: 서버 오류가 발생했습니다. [${error.response.status}]`;
 };
 </script>
 
