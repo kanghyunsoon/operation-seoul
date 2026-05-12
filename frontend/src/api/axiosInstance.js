@@ -27,13 +27,19 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
+        if (error.response && error.response.data) {
+            const responseData = error.response.data;
+            error.userMessage = typeof responseData === 'string'
+                ? responseData
+                : responseData.message || JSON.stringify(responseData);
+        }
         if (error.response && error.response.status === 401) {
             const sessionStore = useSessionStore();
             sessionStore.logout();
             window.location.href = '/intro';
         }
         if (error.response && error.response.status === 403) {
-            error.userMessage = '해당 기능을 실행할 권한이 없습니다.';
+            error.userMessage = error.userMessage || '해당 기능을 실행할 권한이 없습니다.';
         }
         return Promise.reject(error);
     }
