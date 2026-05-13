@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminMissionController {
 
+    // 힌트 후보는 최종 목적지에서 너무 가깝거나 멀지 않고, 후보끼리도 적당히 떨어지도록 제한합니다.
     private static final double MIN_HINT_DISTANCE_METERS = 350.0;
     private static final double MAX_HINT_DISTANCE_METERS = 1800.0;
     private static final double MIN_HINT_SPACING_METERS = 260.0;
@@ -115,11 +116,18 @@ public class AdminMissionController {
 
     @Data
     public static class MissionGenerateRequest {
+        /** 관리자가 최종 목적지로 선택한 TourAPI 후보지입니다. */
         private Map<String, String> targetSpot;
+        /** 같은 권역에서 함께 스캔된 후보지 목록입니다. 주변 POI가 부족할 때 fallback으로 씁니다. */
         private List<Map<String, String>> candidateSpots;
+        /** 사용자가 홈 화면에서 선택한 권역 코드입니다. */
         private String areaCode;
     }
 
+    /**
+     * 현재 좌표 주변의 역사 관광지 후보를 조회합니다.
+     * 초기 개발용 endpoint이며, 권역 단위 스캔은 region-candidates를 주로 사용합니다.
+     */
     @GetMapping("/candidates")
     public ResponseEntity<?> getHistoricalCandidates(@RequestParam double lat,
                                                      @RequestParam double lng,
@@ -136,6 +144,10 @@ public class AdminMissionController {
         }
     }
 
+    /**
+     * 권역별 대표 시드 좌표를 여러 개 훑어 TourAPI 후보지를 수집합니다.
+     * 중복 제거와 권역 폴리곤 필터를 거쳐 홈 관리자 모달에 표시할 후보만 반환합니다.
+     */
     @GetMapping("/region-candidates")
     public ResponseEntity<?> getRegionHistoricalCandidates(@RequestParam(defaultValue = "seoul") String areaCode) {
         String normalizedAreaCode = operationAreaResolver.normalizeAreaCode(areaCode);
@@ -209,6 +221,10 @@ public class AdminMissionController {
         }
     }
 
+    /**
+     * 관리자가 선택한 최종 목적지를 기준으로 주변 힌트 후보를 보강하고 Gemini 작전을 생성합니다.
+     * AI 응답은 정답 노출 검사를 통과한 뒤 Region/Mission 엔티티로 저장됩니다.
+     */
     @PostMapping("/generate-selected")
     public ResponseEntity<?> generateMissionByAi(@RequestBody MissionGenerateRequest request) {
         try {
@@ -337,6 +353,7 @@ public class AdminMissionController {
         }
     }
 
+    /** 관리자 화면에서 작전 카드를 삭제할 때 Region과 하위 Mission을 함께 제거합니다. */
     @DeleteMapping("/regions/{regionId}")
     @Transactional
     public ResponseEntity<?> deleteRegion(@PathVariable Long regionId) {
@@ -357,6 +374,7 @@ public class AdminMissionController {
         }
     }
 
+    /** AI 응답의 missions 배열에서 최종 미션 정답 키워드를 꺼냅니다. */
     private String extractFinalAnswerKeyword(JsonNode missionsNode) {
         if (missionsNode == null || !missionsNode.isArray()) {
             return "";
@@ -369,6 +387,7 @@ public class AdminMissionController {
         return "";
     }
 
+    /** 장소명, 공백, 유명하지만 무관한 사건명처럼 부적합한 최종 정답을 걸러냅니다. */
     private boolean isInvalidFinalAnswerKeyword(String answerKeyword, Map<String, String> targetSpot) {
         String normalizedAnswer = normalizeForSecretCheck(answerKeyword);
         if (normalizedAnswer.isBlank() || normalizedAnswer.equals(normalizeForSecretCheck("정답누락"))) {
@@ -388,6 +407,7 @@ public class AdminMissionController {
         return isCommonPlaceOrPersonAnswer(normalizedAnswer);
     }
 
+    /** 유명 사건이 특정 장소와 연결될 만한 anchor 없이 붙은 경우를 차단합니다. */
     private boolean isLikelyUnrelatedFamousEvent(String normalizedAnswer, Map<String, String> targetSpot) {
         String targetContext = normalizeForSecretCheck(String.join(" ",
                 targetSpot.getOrDefault("title", ""),
@@ -432,6 +452,7 @@ public class AdminMissionController {
         return requiredAnchors.stream().noneMatch(targetContext::contains);
     }
 
+    /** 장소명/인물명처럼 너무 직접적이거나 흔한 정답 후보를 차단합니다. */
     private boolean isCommonPlaceOrPersonAnswer(String normalizedAnswer) {
         Set<String> blockedAnswers = Set.of(
                 normalizeForSecretCheck("고종"),
@@ -453,6 +474,7 @@ public class AdminMissionController {
         return blockedAnswers.contains(normalizedAnswer);
     }
 
+    /** 최종 정답이 카드명/설명/힌트에 직접 노출되면 안전한 대체 문구로 바꿉니다. */
     private String maskSecretKeyword(String text, String secretKeyword, String fallback) {
         if (text == null || text.isBlank()) {
             return fallback;
@@ -469,10 +491,12 @@ public class AdminMissionController {
         return fallback;
     }
 
+    /** 비밀 키워드 비교용으로 공백, 구두점, 기호를 제거합니다. */
     private String normalizeForSecretCheck(String value) {
         return value == null ? "" : value.replaceAll("[\\s\\p{P}\\p{S}]", "").toLowerCase();
     }
 
+    /** AI가 돌려준 미션을 실제 후보 좌표와 매칭해 좌표 환각을 줄입니다. */
     private Map<String, String> resolveSourceSpot(
             JsonNode missionNode,
             Map<String, String> targetSpot,
@@ -519,11 +543,13 @@ public class AdminMissionController {
         return null;
     }
 
+    /** 정답 키워드가 제목에 들어가면 최종 현장/단서 지점 같은 안전한 제목으로 대체합니다. */
     private String resolveSafeTitle(JsonNode missionNode, Map<String, String> sourceSpot, String secretKeyword, boolean isFinal) {
         String title = resolveTitle(missionNode, sourceSpot);
         return maskSecretKeyword(title, secretKeyword, isFinal ? "최종 현장" : "단서 지점");
     }
 
+    /** 실제 후보 장소명이 있으면 우선 사용하고, 없으면 AI 제목을 fallback으로 사용합니다. */
     private String resolveTitle(JsonNode missionNode, Map<String, String> sourceSpot) {
         if (sourceSpot != null && sourceSpot.get("title") != null && !sourceSpot.get("title").isBlank()) {
             return sourceSpot.get("title");
@@ -531,6 +557,7 @@ public class AdminMissionController {
         return missionNode.path("title").asText("목적지");
     }
 
+    /** AI 응답의 description/storyBeat 중 사용 가능한 미션 설명을 선택합니다. */
     private String resolveMissionDescription(JsonNode missionNode, boolean isFinal) {
         String description = missionNode.path("description").asText("");
         if (description.isBlank()) {
@@ -544,6 +571,7 @@ public class AdminMissionController {
                 : "본부가 끊어진 현장 신호를 포착했다. 작은 흔적 하나가 더 큰 사건의 윤곽을 밀어 올린다.";
     }
 
+    /** 실제 후보 좌표가 있으면 후보 위도를, 없으면 AI 응답 위도를 사용합니다. */
     private double resolveLatitude(JsonNode missionNode, Map<String, String> sourceSpot) {
         if (sourceSpot != null && sourceSpot.get("mapY") != null && !sourceSpot.get("mapY").isBlank()) {
             return Double.parseDouble(sourceSpot.get("mapY"));
@@ -551,6 +579,7 @@ public class AdminMissionController {
         return missionNode.path("lat").asDouble(0.0);
     }
 
+    /** 실제 후보 좌표가 있으면 후보 경도를, 없으면 AI 응답 경도를 사용합니다. */
     private double resolveLongitude(JsonNode missionNode, Map<String, String> sourceSpot) {
         if (sourceSpot != null && sourceSpot.get("mapX") != null && !sourceSpot.get("mapX").isBlank()) {
             return Double.parseDouble(sourceSpot.get("mapX"));
@@ -558,10 +587,12 @@ public class AdminMissionController {
         return missionNode.path("lng").asDouble(0.0);
     }
 
+    /** 장소명 비교를 위해 공백/기호를 제거하고 소문자로 정규화합니다. */
     private String normalizeSpotName(String value) {
         return value == null ? "" : value.replaceAll("[\\s\\p{P}\\p{S}]", "").toLowerCase();
     }
 
+    /** 거리, 중복, 도보 접근성, 후보 간 간격 기준으로 AI에 넘길 힌트 후보를 선별합니다. */
     private List<Map<String, String>> selectHintCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {
         List<Map<String, String>> deduped = spots.stream()
                 .filter(this::hasUsableCoordinates)
@@ -590,6 +621,7 @@ public class AdminMissionController {
         return selected.stream().limit(MAX_AI_SUB_SPOTS).toList();
     }
 
+    /** Kakao 주변 POI가 부족할 때 같은 TourAPI 후보 목록에서 최종 목적지가 아닌 지점을 보강합니다. */
     private List<Map<String, String>> buildCandidateFallbackSpots(
             List<Map<String, String>> candidateSpots,
             Map<String, String> targetSpot,
@@ -610,6 +642,7 @@ public class AdminMissionController {
                 .toList();
     }
 
+    /** 엄격한 거리 조건을 만족하는 후보가 부족할 때 가장 가까운 유효 후보를 fallback으로 고릅니다. */
     private List<Map<String, String>> selectClosestHintCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {
         return spots.stream()
                 .filter(this::hasUsableCoordinates)
@@ -628,12 +661,14 @@ public class AdminMissionController {
                 .toList();
     }
 
+    /** TourAPI/Kakao 응답에 파싱 가능한 위도/경도가 모두 있는지 확인합니다. */
     private boolean hasUsableCoordinates(Map<String, String> spot) {
         return spot != null
                 && parseCoordinate(spot.get("mapY")) != null
                 && parseCoordinate(spot.get("mapX")) != null;
     }
 
+    /** 문자열 좌표를 안전하게 Double로 변환합니다. 실패하면 null을 반환합니다. */
     private Double parseCoordinate(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -645,6 +680,7 @@ public class AdminMissionController {
         }
     }
 
+    /** 후보가 최종 목적지와 같은 장소인지 제목/주소 또는 근접 거리로 판단합니다. */
     private boolean isSameSpot(Map<String, String> spot, Map<String, String> targetSpot, double targetLat, double targetLng) {
         String spotIdentity = spotIdentity(spot);
         String targetIdentity = spotIdentity(targetSpot);
@@ -657,6 +693,7 @@ public class AdminMissionController {
         return distanceMeters(spotLat, spotLng, targetLat, targetLng) <= 20.0;
     }
 
+    /** Tmap 도보 거리를 확인해 실제로 걷기 어려운 후보를 제거합니다. */
     private List<Map<String, String>> filterWalkableCandidates(List<Map<String, String>> spots, double targetLat, double targetLng) {
         List<Map<String, String>> checked = new ArrayList<>();
         int routeCheckedCount = 0;
@@ -687,6 +724,7 @@ public class AdminMissionController {
         return checked.size() >= 6 ? checked : spots;
     }
 
+    /** 후보 목록에서 선택된 지점끼리 최소 간격을 유지하며 순서대로 고릅니다. */
     private List<Map<String, String>> pickSpacedSpots(List<Map<String, String>> spots, double minSpacingMeters) {
         List<Map<String, String>> selected = new ArrayList<>();
         for (Map<String, String> spot : spots) {
@@ -700,6 +738,7 @@ public class AdminMissionController {
         return selected;
     }
 
+    /** 거리 구간별로 후보를 나눠 너무 한 방향/거리대에 몰리지 않게 고릅니다. */
     private List<Map<String, String>> pickDistributedSpots(List<Map<String, String>> spots, double minSpacingMeters) {
         Map<Integer, List<Map<String, String>>> buckets = spots.stream()
                 .collect(Collectors.groupingBy(
@@ -737,6 +776,7 @@ public class AdminMissionController {
         return selected.isEmpty() ? pickSpacedSpots(spots, minSpacingMeters) : selected;
     }
 
+    /** round-robin 분배 중 아직 처리할 bucket item이 남았는지 확인합니다. */
     private boolean hasRemainingBucketItems(Map<Integer, List<Map<String, String>>> buckets, int round) {
         for (List<Map<String, String>> bucket : buckets.values()) {
             if (round < bucket.size()) {
@@ -746,11 +786,13 @@ public class AdminMissionController {
         return false;
     }
 
+    /** 최종 목적지와의 거리를 일정 간격 bucket으로 나눕니다. */
     private int distanceBucket(Map<String, String> spot) {
         double distance = Double.parseDouble(spot.get("distanceMeters"));
         return (int) Math.floor((distance - MIN_HINT_DISTANCE_METERS) / HINT_DISTANCE_BUCKET_METERS);
     }
 
+    /** 새 후보가 이미 선택된 후보들과 충분히 떨어져 있는지 확인합니다. */
     private boolean isFarEnoughFromSelected(Map<String, String> spot, List<Map<String, String>> selected, double minSpacingMeters) {
         return selected.stream().allMatch(existing ->
                 distanceMeters(
@@ -762,6 +804,7 @@ public class AdminMissionController {
         );
     }
 
+    /** 후보 Map에 최종 목적지와의 직선거리 값을 추가합니다. */
     private Map<String, String> withDistance(Map<String, String> spot, double targetLat, double targetLng) {
         Map<String, String> copied = new HashMap<>(spot);
         double lat = Double.parseDouble(copied.get("mapY"));
@@ -770,6 +813,7 @@ public class AdminMissionController {
         return copied;
     }
 
+    /** 후보 중복 제거용 key입니다. 제목/주소가 없으면 좌표를 사용합니다. */
     private String spotIdentity(Map<String, String> spot) {
         if (spot == null) {
             return "";
@@ -782,6 +826,7 @@ public class AdminMissionController {
         return spot.getOrDefault("mapY", "") + "|" + spot.getOrDefault("mapX", "");
     }
 
+    /** 하버사인 공식으로 두 좌표 사이 직선거리를 미터 단위로 계산합니다. */
     private double distanceMeters(double lat1, double lng1, double lat2, double lng2) {
         double earthRadiusMeters = 6371000.0;
         double dLat = Math.toRadians(lat2 - lat1);

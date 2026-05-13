@@ -1,5 +1,9 @@
 import { ref } from 'vue';
 
+/**
+ * SSE나 fetch stream으로 들어온 텍스트를 화면에 일정 속도로 출력하는 composable입니다.
+ * 네트워크 chunk 크기와 관계없이 사용자는 안정적인 타자기 효과를 보게 됩니다.
+ */
 export function useTypingBuffer(typingSpeed = 50) {
     const displayedText = ref('');
     const isTyping = ref(false);
@@ -8,7 +12,7 @@ export function useTypingBuffer(typingSpeed = 50) {
     let queue = [];
     let intervalId = null;
 
-    // 백엔드에서 받은 텍스트 조각(Chunk)을 큐에 추가
+    // 백엔드에서 받은 텍스트 조각(Chunk)을 큐에 추가합니다.
     const addChunk = (textChunk) => {
         // HTML 태그(<br>, <b> 등)가 끊기지 않도록 정규식으로 통째로 분리하여 큐에 삽입
         // 일반 글자는 한 글자씩 쪼개짐
@@ -21,7 +25,7 @@ export function useTypingBuffer(typingSpeed = 50) {
         }
     };
 
-    // 큐에서 글자를 하나씩 빼서 화면에 출력하는 핵심 로직
+    // 큐에서 글자를 하나씩 빼서 화면에 출력하는 핵심 로직입니다.
     const startTyping = () => {
         isTyping.value = true;
         isFinished.value = false;
@@ -34,7 +38,7 @@ export function useTypingBuffer(typingSpeed = 50) {
         }, typingSpeed);
     };
 
-    // 백엔드에서 모든 데이터 전송이 완료되었다는 신호를 받았을 때 호출
+    // 백엔드에서 모든 데이터 전송이 완료되었다는 신호를 받았을 때 호출합니다.
     const finishTyping = () => {
         // 큐에 남아있는 텍스트가 다 출력될 때까지 기다렸다가 종료 처리
         const checkEmpty = setInterval(() => {
@@ -47,7 +51,7 @@ export function useTypingBuffer(typingSpeed = 50) {
         }, typingSpeed);
     };
 
-    // 플레이어가 스킵 버튼을 눌렀을 때 남은 텍스트를 한 번에 출력
+    // 플레이어가 스킵 버튼을 눌렀을 때 남은 텍스트를 한 번에 출력합니다.
     const skipTyping = () => {
         clearInterval(intervalId);
         displayedText.value += queue.join('');
@@ -56,7 +60,7 @@ export function useTypingBuffer(typingSpeed = 50) {
         isFinished.value = true;
     };
 
-    // 초기화 (재사용 시)
+    // 같은 컴포넌트에서 새 AI 응답을 받을 때 기존 큐와 화면 텍스트를 초기화합니다.
     const reset = () => {
         clearInterval(intervalId);
         displayedText.value = '';

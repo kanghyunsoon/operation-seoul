@@ -1,5 +1,6 @@
 <template>
   <div class="tactical-viewport">
+    <!-- 최종 미션에서 수집 단서를 바탕으로 AI와 대화하고 정답을 제출하는 화면입니다. -->
     <div class="noise-overlay"></div>
     <div class="scanlines"></div>
 
@@ -111,7 +112,7 @@
 <script setup>
 import { ref, onMounted, nextTick, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useSessionStore } from '@/stores/sessionStore'; // 🚨 스토어 가져오기
+import { useSessionStore } from '@/stores/sessionStore';
 import apiClient from '@/api/axiosInstance';
 import CameraScanner from '@/components/CameraScanner.vue';
 import { useTypingBuffer } from '@/composables/useTypingBuffer';
@@ -122,7 +123,7 @@ const sessionId = ref(route.params.sessionId);
 const regionId = computed(() => route.query.regionId || 1);
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api').replace(/\/$/, '');
 
-// 🚨 스토어 사용 및 권한/ID 맵핑
+// 세션 store는 JWT 전송, userId fallback, 관리자 Vision bypass 여부 판단에 사용합니다.
 const sessionStore = useSessionStore();
 const isAdmin = computed(() => sessionStore.userInfo?.isAdmin || false);
 const userId = computed(() => sessionStore.userId);
@@ -141,8 +142,10 @@ const showCluePanel = ref(false);
 const questionRemaining = computed(() => Math.max(0, 20 - questionCount.value));
 const { displayedText, isTyping, isFinished, addChunk, finishTyping, reset } = useTypingBuffer(30);
 
+// MapView가 기록한 시간/이동거리 metric과 같은 key를 사용합니다.
 const getMetricKey = () => `operation-seoul:mission-metrics:${userId.value || 1}:${regionId.value}`;
 
+// 최종 정답 제출 시 점수 계산에 필요한 metric을 localStorage에서 읽습니다.
 const readMissionMetrics = () => {
   try {
     const saved = localStorage.getItem(getMetricKey());
@@ -153,6 +156,7 @@ const readMissionMetrics = () => {
   }
 };
 
+// 서버가 GameSession에 저장할 elapsedSeconds와 routeDistanceMeters payload를 구성합니다.
 const getMissionMetricPayload = () => {
   const metrics = readMissionMetrics();
   const startedAt = Number(metrics.startedAt);
@@ -166,10 +170,12 @@ const getMissionMetricPayload = () => {
   };
 };
 
+// 지도 화면으로 돌아가 현재 현장 상태를 다시 확인합니다.
 const goBackToMap = () => {
   router.push({ name: 'Map', query: { regionId: regionId.value } });
 };
 
+// 새 메시지가 들어오면 채팅창을 최하단으로 부드럽게 이동합니다.
 const scrollToBottom = async () => {
   await nextTick();
   if (chatContainer.value) {
@@ -180,6 +186,7 @@ const scrollToBottom = async () => {
   }
 };
 
+// AI 응답이 끝나면 사용자가 바로 다음 입력을 할 수 있게 input focus를 복구합니다.
 const focusCommandInput = async () => {
   await nextTick();
   if (isWaiting.value || isScannerOpen.value || !commandInput.value) return;
@@ -191,6 +198,7 @@ const focusCommandInput = async () => {
   }
 };
 
+// 타자기 출력이 끝난 AI 메시지를 일반 메시지로 확정합니다.
 watch(isFinished, (newVal) => {
   if (newVal) {
     const typingMsg = chatHistory.value.find(m => m.isTyping);
@@ -202,12 +210,14 @@ watch(isFinished, (newVal) => {
   }
 });
 
+// 로딩 상태가 풀리면 입력창 focus를 되돌립니다.
 watch(isWaiting, (waiting) => {
   if (!waiting) {
     focusCommandInput();
   }
 });
 
+// 이미 받은 텍스트도 useTypingBuffer를 통해 같은 타자기 효과로 출력합니다.
 const typeWriterEffect = (text) => {
   reset();
   chatHistory.value.push({ sender: 'ai', text: '', isTyping: true });
@@ -222,6 +232,7 @@ const typeWriterEffect = (text) => {
   }, 100);
 };
 
+// 진입 시 최종 미션 정보와 수집 단서를 불러오고, 초기 안내 메시지를 출력합니다.
 onMounted(async () => {
   await loadFinalMissionInfo();
 
@@ -235,6 +246,7 @@ onMounted(async () => {
   }
 });
 
+// 채팅 화면의 field clue와 단서 패널 표시를 위해 현재 region의 미션 목록을 불러옵니다.
 const loadFinalMissionInfo = async () => {
   try {
     const response = await apiClient.get(`/v1/regions/${regionId.value}/missions`, {
@@ -250,6 +262,7 @@ const loadFinalMissionInfo = async () => {
   }
 };
 
+// 최초 진입 안내 메시지에 최종 현장 단서와 질문 제한을 포함합니다.
 const buildInitialMessage = (prefix) => {
   const fieldTarget = finalMissionInfo.value?.visionKeyword || '현장 표식';
   const fieldClue = finalMissionInfo.value?.fieldClue
@@ -258,6 +271,7 @@ const buildInitialMessage = (prefix) => {
   return `${prefix}<br><span style='color:#f8d66d'>[FIELD_CLUE]</span> ${escapeHtml(fieldTarget)}: ${escapeHtml(fieldClue)}<br>단, 적들의 도청 위험이 있어 조력 횟수는 20회로 제한한다. 최종 암호를 입력하라.`;
 };
 
+// AI 응답 영역에 삽입하는 field clue 값이 HTML로 해석되지 않도록 escaping합니다.
 const escapeHtml = (value) => {
   return String(value || '')
       .replace(/&/g, '&amp;')
@@ -267,10 +281,12 @@ const escapeHtml = (value) => {
       .replace(/'/g, '&#039;');
 };
 
+// 백엔드 DTO 필드명 변화에 대응하기 위한 최종 미션 판별 helper입니다.
 const getIsFinalMission = (mission) => {
   return mission && (mission.missionType === 'FINAL' || mission.isFinal === true || mission.final === true);
 };
 
+// 채팅 화면에서도 수동 스캔을 보낼 수 있게 data URL을 파일로 바꿔 Vision API에 업로드합니다.
 const handleManualCapture = async (imageDataUrl) => {
   isScannerOpen.value = false;
   chatHistory.value.push({ sender: 'user', type: 'image', text: imageDataUrl });
@@ -285,7 +301,7 @@ const handleManualCapture = async (imageDataUrl) => {
     const formData = new FormData();
     formData.append("image", file);
 
-    // 🚨 내 계정(userId)과 관리자 여부(isAdmin)를 폼 데이터에 실어서 전송
+    // 내 계정(userId)과 관리자 여부(isAdmin)를 폼 데이터에 실어서 전송합니다.
     formData.append("userId", userId.value);
     if (isAdmin.value) {
       formData.append("isAdmin", "true");
@@ -311,6 +327,7 @@ const handleManualCapture = async (imageDataUrl) => {
   }
 };
 
+// 사용자의 입력을 채팅 로그에 추가하고, 질문성 입력이면 조력 횟수를 증가시킵니다.
 const sendMessage = async () => {
   if (!userInput.value.trim() || isWaiting.value) return;
 
@@ -325,6 +342,7 @@ const sendMessage = async () => {
   await requestGeminiStream(text);
 };
 
+// fetch reader로 백엔드 ResponseBodyEmitter 스트림을 읽고 typing buffer에 전달합니다.
 const requestGeminiStream = async (textMessage) => {
   isWaiting.value = true;
   scrollToBottom();
@@ -401,6 +419,7 @@ const requestGeminiStream = async (textMessage) => {
   }
 };
 
+// 스트리밍 응답 뒤 서버 세션 상태를 확인해 클리어 화면으로 이동할지 판단합니다.
 const navigateIfMissionCleared = async () => {
   try {
     const response = await apiClient.get(`/v1/sessions/${sessionId.value}/status`, {
@@ -424,6 +443,7 @@ const navigateIfMissionCleared = async () => {
   return false;
 };
 
+// 짧은 키워드 입력은 정답 제출로 보고, 질문문/힌트 요청만 조력 횟수에 반영합니다.
 const hasQuestionIntent = (text) => {
   const value = String(text || '').trim();
   if (!value) return false;

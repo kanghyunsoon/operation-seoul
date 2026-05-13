@@ -38,13 +38,18 @@ public class GameSession {
     @Column(columnDefinition = "TEXT")
     private String extractedLog;
 
+    /** 작전 또는 미션 세션이 처음 생성된 시각입니다. 점수 계산과 소요 시간 보정에 사용합니다. */
     private LocalDateTime startedAt;
 
+    /** 최종 정답 또는 현장 인증이 성공한 시각입니다. */
     private LocalDateTime clearedAt;
 
+    /** 프론트가 보고하거나 서버가 보정한 전체 소요 시간입니다. */
     private Long elapsedSeconds;
 
+    /** 프론트 GPS 기록으로 계산한 누적 이동 거리입니다. */
     private Double routeDistanceMeters;
 
+    /** 시간과 이동 거리 감점으로 계산한 클리어 점수입니다. */
     private Integer score;
 }

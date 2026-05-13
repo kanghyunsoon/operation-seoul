@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router';
-// 1. 뷰 파일들 가져오기
 import IntroView from '@/views/IntroView.vue';
 import HomeView from '@/views/HomeView.vue';
 import BriefingView from '@/views/BriefingView.vue';
@@ -7,9 +6,10 @@ import MapView from '@/views/MapView.vue';
 import AiChatView from '@/views/AiChatView.vue';
 import ClearView from '@/views/ClearView.vue';
 
-// 2. 세션 스토어 가져오기 (⚠️ 폴더명 stores 확인 완료)
 import { useSessionStore } from '@/stores/sessionStore.js';
 
+// 서비스의 전체 화면 흐름입니다.
+// Intro -> Home -> Briefing -> Map -> Chat -> Clear 순서가 기본 게임 루프입니다.
 const routes = [
   {
     path: '/',
@@ -32,7 +32,7 @@ const routes = [
     name: 'Briefing',
     component: BriefingView,
     meta: { requiresAuth: true }, // 로그인 필수
-    props: route => ({ missionId: route.query.missionId }) // 쿼리 파라미터를 컴포넌트 소품(props)으로 전달
+    props: route => ({ missionId: route.query.missionId })
   },
   {
     path: '/map',
@@ -61,20 +61,19 @@ const router = createRouter({
   routes
 });
 
-// src/router/index.js 내부 하단
-
+// 로그인 필수 화면은 sessionStore의 토큰 존재 여부로 막습니다.
+// 이미 로그인한 사용자가 Intro로 돌아오면 Home으로 돌려보내 UX 흐름을 단순화합니다.
 router.beforeEach((to, from) => {
   const sessionStore = useSessionStore();
 
   if (to.meta.requiresAuth && !sessionStore.isLoggedIn) {
     alert('로그인이 필요한 서비스입니다.');
-    return { name: 'Intro' }; // 👈 next() 대신 return 사용
+    return { name: 'Intro' };
   } else if (to.name === 'Intro' && sessionStore.isLoggedIn) {
-    // 로그인 상태에서 인트로 접근 시 무조건 'Home'으로!
-    return { name: 'Home' }; // 👈 next() 대신 return 사용
+    return { name: 'Home' };
   }
 
-  return true; // 👈 그 외의 경우는 정상적인 이동 허용
+  return true;
 });
 
 export default router;

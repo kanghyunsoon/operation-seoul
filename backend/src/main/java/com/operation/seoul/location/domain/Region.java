@@ -27,6 +27,7 @@ public class Region {
      예: "서울특별시 정동길", "부산 해운대구" 등 사용자에게 노출되는 지역의 공식 이름  */
     private String name;
 
+    /** 홈 화면 전국 권역 필터에 사용하는 코드입니다. 예: seoul, gangwon, jeju */
     @Column(length = 32)
     private String areaCode = "seoul";
 

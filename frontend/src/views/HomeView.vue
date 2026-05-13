@@ -1,5 +1,6 @@
 <template>
   <div class="dashboard-container" :class="{ 'area-mode': !isAreaSelected }">
+    <!-- 홈 화면은 권역 선택 모드와 선택 권역의 작전 카드 모드를 함께 담당합니다. -->
     <div class="bg-glow blob-1"></div>
     <div class="bg-glow blob-2"></div>
 
@@ -250,14 +251,17 @@ const route = useRoute();
 const router = useRouter();
 const sessionStore = useSessionStore();
 
+// 작전 카드 목록과 권역 선택 UI의 현재 선택 상태입니다.
 const missions = ref([]);
 const pendingAreaCode = ref(null);
+// SVG 지도는 실제 지도가 아니라 권역 선택용 근사 지도이므로, 투영 bounds를 상수로 둡니다.
 const MAP_VIEW = { width: 420, height: 620, padding: 28 };
 const MAP_BOUNDS = { minLng: 124.7, maxLng: 130.2, minLat: 33.0, maxLat: 38.75 };
 const DEFAULT_USER_POSITION = { lng: 126.9780, lat: 37.5665, isFallback: true };
 const userPosition = ref({ ...DEFAULT_USER_POSITION });
 const seoulPoint = [126.9780, 37.5665];
 
+// 화면에 그릴 대한민국 외곽선/권역 폴리곤 좌표입니다. 정밀 행정 경계가 아니라 서비스용 근사값입니다.
 const koreaOutline = [
   [126.1, 38.55], [126.8, 38.32], [127.7, 38.35], [128.55, 38.58], [129.12, 38.23],
   [129.45, 37.52], [129.35, 36.72], [129.45, 35.95], [129.25, 35.22], [128.9, 34.78],
@@ -401,6 +405,7 @@ const areaCatalog = [
   }
 ];
 
+// 위경도를 SVG viewBox 좌표로 변환합니다.
 const projectPoint = ([lng, lat]) => {
   const usableWidth = MAP_VIEW.width - (MAP_VIEW.padding * 2);
   const usableHeight = MAP_VIEW.height - (MAP_VIEW.padding * 2);
@@ -413,6 +418,7 @@ const projectPoint = ([lng, lat]) => {
   };
 };
 
+// polygon/polyline의 points 문자열로 변환합니다.
 const projectPolygon = (coordinates) => {
   return coordinates.map((coordinate) => {
     const point = projectPoint(coordinate);
@@ -451,6 +457,7 @@ const isAdmin = computed(() => {
   return user?.isAdmin === true;
 });
 
+// 관리자 모달에서 후보지 스캔과 AI 작전 생성을 제어하는 상태입니다.
 const showAdminModal = ref(false);
 const isGenerating = ref(false);
 const isScanning = ref(false);
@@ -458,6 +465,7 @@ const isScanning = ref(false);
 const candidates = ref([]);
 const selectedSpot = ref(null);
 
+// 관리자 모달을 열면 현재 선택 권역의 후보지 스캔을 즉시 시작합니다.
 const openAdminModal = () => {
   if (!activeArea.value) return;
 
@@ -473,6 +481,7 @@ const closeAdminModal = () => {
   selectedSpot.value = null;
 };
 
+// 권역별 대표 시드 좌표를 백엔드가 훑어 TourAPI 후보지를 모아 오게 합니다.
 const fetchCandidates = async () => {
   if (!activeArea.value) return;
 
@@ -493,12 +502,13 @@ const fetchCandidates = async () => {
   }
 };
 
+// 관리자가 선택한 후보지를 최종 목적지로 삼아 AI 작전을 생성합니다.
 const generateMissionByAi = async () => {
   if (!selectedSpot.value) return;
 
   isGenerating.value = true;
   try {
-    // 🚨 팩트체크: AI가 경유지를 짤 수 있도록 '최종 목적지'와 '후보지 리스트'를 모두 보냅니다!
+    // AI가 경유지를 짤 수 있도록 최종 목적지와 같은 권역 후보지 리스트를 함께 보냅니다.
     const response = await apiClient.post('/v1/admin/missions/generate-selected', {
       targetSpot: selectedSpot.value,
       candidateSpots: candidates.value,
@@ -518,7 +528,7 @@ const generateMissionByAi = async () => {
   }
 };
 
-// 💡 추가된 삭제 함수
+// 관리자 전용 작전 삭제 기능입니다. Region과 하위 Mission이 함께 삭제됩니다.
 const deleteRegion = async (regionId, title) => {
   if (!confirm(`[경고] '${title}' 작전을 데이터베이스에서 영구 파기하시겠습니까?`)) return;
 
@@ -532,6 +542,7 @@ const deleteRegion = async (regionId, title) => {
   }
 };
 
+// 홈 카드 API는 Region 중심 응답이므로 화면 카드 모델로 한 번 변환합니다.
 const fetchMissions = async () => {
   try {
     const response = await apiClient.get('/v1/regions/cards', {
@@ -561,6 +572,7 @@ const fetchMissions = async () => {
   }
 };
 
+// 클리어 카드에 표시할 소요 시간을 사람이 읽기 쉬운 문자열로 변환합니다.
 const formatElapsed = (seconds) => {
   if (seconds === null || seconds === undefined || seconds === '') {
     return '-';
@@ -571,6 +583,7 @@ const formatElapsed = (seconds) => {
   return `${minutes}m ${String(remainingSeconds).padStart(2, '0')}s`;
 };
 
+// 클리어 카드에 표시할 이동 거리를 m/km 단위로 변환합니다.
 const formatDistance = (meters) => {
   if (meters === null || meters === undefined || meters === '') {
     return '-';
@@ -582,6 +595,7 @@ const formatDistance = (meters) => {
   return `${Math.round(safeMeters)}m`;
 };
 
+// 후보지 스캔 모달에서 시드 좌표와 후보지 간 거리를 표시합니다.
 const formatSeedDistance = (meters) => {
   const safeMeters = Math.max(0, Number(meters) || 0);
   if (safeMeters >= 1000) {
@@ -590,6 +604,7 @@ const formatSeedDistance = (meters) => {
   return `${Math.round(safeMeters)}m`;
 };
 
+// route query의 area가 선택되면 해당 권역 카드 목록을 불러옵니다.
 watch(isAreaSelected, (selected) => {
   if (selected) {
     fetchMissions();
@@ -632,6 +647,7 @@ const locateUser = () => {
   );
 };
 
+// SVG 지도 영역 밖 GPS는 지도 표식이 깨지므로 서울 기본 좌표로 보정합니다.
 const isCoordinateInsideMap = ({ lng, lat }) => {
   return lng >= MAP_BOUNDS.minLng
     && lng <= MAP_BOUNDS.maxLng
@@ -639,6 +655,7 @@ const isCoordinateInsideMap = ({ lng, lat }) => {
     && lat <= MAP_BOUNDS.maxLat;
 };
 
+// 권역 클릭 시 즉시 이동하지 않고 확인 모달을 먼저 띄웁니다.
 const openAreaConfirm = (areaCode) => {
   const area = areaCatalog.find(item => item.code === areaCode);
   if (!area) return;
@@ -646,6 +663,7 @@ const openAreaConfirm = (areaCode) => {
   pendingAreaCode.value = area.code;
 };
 
+// 선택한 권역을 route query에 반영해 새로고침해도 권역 선택이 유지되게 합니다.
 const confirmAreaSelection = () => {
   if (!pendingArea.value || !pendingArea.value.enabled) return;
 
@@ -664,6 +682,7 @@ const returnToAreaSelection = () => {
   router.push({ name: 'Home' });
 };
 
+// 클리어된 작전은 리포트 화면으로, 진행 가능한 작전은 브리핑 화면으로 보냅니다.
 const handleMissionClick = (mission) => {
   if (!mission.isReady) {
     alert(`[접근 거부] 분석 중인 섹터입니다.`);
@@ -679,10 +698,10 @@ const handleMissionClick = (mission) => {
     return;
   }
 
-  // BriefingView가 알아들을 수 있도록 regionId 로 이름을 변경
   router.push({ name: 'Briefing', query: { regionId: mission.id } });
 };
 
+// localStorage 세션을 지우고 인트로로 복귀합니다.
 const handleLogout = () => {
   sessionStore.logout();
   router.push({ name: 'Intro' });

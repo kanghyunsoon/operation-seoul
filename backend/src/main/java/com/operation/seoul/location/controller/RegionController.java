@@ -30,11 +30,16 @@ public class RegionController {
     private final CurrentUserResolver currentUserResolver;
     private final OperationAreaResolver operationAreaResolver;
 
+    /** 디버그/관리 목적으로 DB에 저장된 Region 원본 목록을 반환합니다. */
     @GetMapping
     public ResponseEntity<List<Region>> getAllRegions() {
         return ResponseEntity.ok(regionRepository.findAll());
     }
 
+    /**
+     * 홈 화면 작전 카드 목록입니다.
+     * 권역 코드로 지역을 필터링하고, 최종 미션 클리어 기록이 있으면 점수/시간/거리 요약을 붙입니다.
+     */
     @GetMapping("/cards")
     public ResponseEntity<List<RegionCardResponse>> getRegionCards(
             @RequestParam(value = "userId", defaultValue = "1") Long userId,
@@ -49,6 +54,7 @@ public class RegionController {
         return ResponseEntity.ok(cards);
     }
 
+    /** 브리핑 화면에서 작전명과 배경 설명을 불러올 때 사용합니다. */
     @GetMapping("/{id}")
     public ResponseEntity<?> getRegionById(@PathVariable Long id) {
         Optional<Region> regionOpt = regionRepository.findById(id);
@@ -62,6 +68,10 @@ public class RegionController {
         return ResponseEntity.ok(regionOpt.get());
     }
 
+    /**
+     * Region 엔티티를 홈 카드 DTO로 변환합니다.
+     * 최종 미션의 GameSession이 CLEARED일 때만 클리어 기록을 노출합니다.
+     */
     private RegionCardResponse buildRegionCard(Region region, Long userId) {
         Optional<Mission> finalMissionOpt = missionRepository.findByRegionId(region.getId()).stream()
                 .filter(Mission::isFinal)

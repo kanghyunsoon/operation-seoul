@@ -4,7 +4,6 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
@@ -12,6 +11,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      // src 하위 파일을 @/ 형태로 import하기 위한 경로 별칭입니다.
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },

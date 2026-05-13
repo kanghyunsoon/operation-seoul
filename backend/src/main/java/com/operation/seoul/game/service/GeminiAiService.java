@@ -36,6 +36,10 @@ public class GeminiAiService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
+    /**
+     * 최종 목적지와 후보 POI 목록을 받아 Gemini가 작전 JSON을 생성하게 합니다.
+     * prompt 안에서 정답 키워드 노출 금지, 힌트/최종 미션 수, realStory 형식을 강하게 제한합니다.
+     */
     public String generateCourseWithTarget(Map<String, Object> targetSpot, List<Map<String, Object>> subSpots) {
         String url = geminiUrl();
         String prompt = """
@@ -141,6 +145,10 @@ public class GeminiAiService {
         return callGeminiStandard(url, prompt);
     }
 
+    /**
+     * 최종 채팅에서 사용자의 답변에 대한 짧은 판정 내레이션을 스트리밍합니다.
+     * 정답이면 성공 안내, 오답이면 직접 정답을 공개하지 않는 재추론 안내를 생성합니다.
+     */
     public ResponseBodyEmitter streamNarration(Long missionId, String userAnswer, boolean isCorrect) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String fieldClue = getFinalFieldClue(mission);
@@ -161,6 +169,9 @@ public class GeminiAiService {
         return streamPrompt(geminiUrl(), prompt);
     }
 
+    /**
+     * 플레이어가 질문형 입력을 했을 때 정답을 직접 노출하지 않는 힌트 답변을 스트리밍합니다.
+     */
     public ResponseBodyEmitter streamHintAnswer(Long missionId, Long userId, String userQuestion) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String clueContext = buildCollectedClueContext(getClearedClues(mission, userId));
@@ -194,6 +205,7 @@ public class GeminiAiService {
         return streamPrompt(geminiUrl(), prompt, answer -> sanitizeHintAnswer(answer, mission, genericHintRequest));
     }
 
+    /** 사용자의 입력이 정답 제출인지 힌트 질문인지 구분하기 위한 휴리스틱입니다. */
     public boolean isHintQuestion(String userAnswer) {
         if (userAnswer == null) {
             return false;
@@ -216,6 +228,7 @@ public class GeminiAiService {
                 || trimmed.contains("힌트");
     }
 
+    /** "힌트 줘"처럼 일반 도움 요청인지, "이게 맞아?"처럼 가설 검증 요청인지 구분합니다. */
     private boolean isGenericHintRequest(String userQuestion) {
         String normalized = normalizeAnswer(userQuestion);
         if (normalized.isBlank()) {
@@ -235,6 +248,7 @@ public class GeminiAiService {
         return asksForHint && !asksRelation;
     }
 
+    /** Gemini 힌트가 실수로 정답 키워드나 판정문을 노출하면 안전한 fallback 문장으로 대체합니다. */
     private String sanitizeHintAnswer(String answer, Mission mission, boolean genericHintRequest) {
         if (answer == null || answer.isBlank()) {
             return buildSafeHintFallback();
@@ -254,10 +268,15 @@ public class GeminiAiService {
         return answer.trim();
     }
 
+    /** 힌트 생성 실패 또는 안전성 보정 시 사용할 고정 대체 문장입니다. */
     private String buildSafeHintFallback() {
         return "지금은 결론보다 배열이 중요하다. 가장 먼저 얻은 단서가 만든 균열과 마지막 현장 표식이 만나는 지점을 다시 좁혀라.";
     }
 
+    /**
+     * 클리어 화면에 필요한 역사 리포트와 단서별 해설, 점수 정보를 모읍니다.
+     * AI 리포트 생성이 실패해도 기본 realStory와 fallback 단서 해설을 반환합니다.
+     */
     public Map<String, Object> generateClearReport(Long missionId, Long userId) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String answerKeyword = mission.getAnswerKeyword();
@@ -297,6 +316,10 @@ public class GeminiAiService {
         );
     }
 
+    /**
+     * 사용자의 최종 답변을 정답 키워드와 비교합니다.
+     * 1차로 정규화 문자열 비교를 하고, 애매한 경우 Gemini에게 TRUE/FALSE 판정을 위임합니다.
+     */
     public boolean verifyFinalAnswer(Long missionId, String userAnswer) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String answerKeyword = mission.getAnswerKeyword();
@@ -329,6 +352,7 @@ public class GeminiAiService {
         return result != null && "TRUE".equalsIgnoreCase(result.trim());
     }
 
+    /** 짧은 한국어 복합어에서 어순만 살짝 바뀐 답변을 허용하기 위한 보조 비교입니다. */
     private boolean isSameShortKoreanCompoundIgnoringOrder(String normalizedKeyword, String normalizedAnswer) {
         if (normalizedKeyword == null || normalizedAnswer == null) {
             return false;
@@ -357,6 +381,7 @@ public class GeminiAiService {
         return sortCharacters(keywordBody).equals(sortCharacters(answerBody));
     }
 
+    /** 비교 가능한 사건/행위 접미사를 추출합니다. */
     private String extractComparableSuffix(String value) {
         for (String suffix : List.of("도입", "개통", "조성", "건립", "설립", "창건", "복원", "재건", "이전", "철거", "폐지", "개항", "개방", "운동", "봉기", "의거", "전투", "선언", "협정", "조약", "사건", "축제", "탄생", "유래", "화")) {
             if (value.endsWith(suffix)) {
@@ -366,6 +391,7 @@ public class GeminiAiService {
         return "";
     }
 
+    /** 문자열의 code point를 정렬해 어순 차이를 비교할 때 사용합니다. */
     private String sortCharacters(String value) {
         return value.chars()
                 .sorted()
@@ -373,6 +399,7 @@ public class GeminiAiService {
                 .toString();
     }
 
+    /** 문자열에 여러 후보 키워드 중 하나라도 포함되는지 확인합니다. */
     private boolean containsAny(String value, String... needles) {
         if (value == null || value.isBlank()) {
             return false;
@@ -385,6 +412,7 @@ public class GeminiAiService {
         return false;
     }
 
+    /** 최종 미션과 같은 region 안에서 이미 클리어한 힌트 단서를 모읍니다. */
     private List<Map<String, String>> getClearedClues(Mission finalMission, Long userId) {
         List<Map<String, String>> clues = new ArrayList<>();
         if (finalMission.getRegionId() == null) {
@@ -410,6 +438,7 @@ public class GeminiAiService {
         return clues;
     }
 
+    /** Mission.clue를 우선 사용하고, 없으면 answerKeyword를 보조 단서로 사용합니다. */
     private String getMissionClueText(Mission mission) {
         if (mission.getClue() != null && !mission.getClue().isBlank()) {
             return MissionResponse.sanitizeStoryClue(mission, mission.getClue());
@@ -417,6 +446,7 @@ public class GeminiAiService {
         return mission.getAnswerKeyword() == null ? "" : mission.getAnswerKeyword();
     }
 
+    /** Gemini prompt에 넣을 수 있게 수집 단서를 짧은 문자열로 합칩니다. */
     private String buildCollectedClueContext(List<Map<String, String>> clearedClues) {
         if (clearedClues == null || clearedClues.isEmpty()) {
             return "아직 수집한 단서 없음";
@@ -434,6 +464,7 @@ public class GeminiAiService {
         return builder.toString();
     }
 
+    /** 최종 현장에서 관찰할 단서를 구성합니다. */
     private String getFinalFieldClue(Mission mission) {
         if (mission.getClue() != null && !mission.getClue().isBlank()) {
             return mission.getClue();
@@ -444,6 +475,7 @@ public class GeminiAiService {
         return "마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 사건의 방향이 한쪽으로 기울어 있다.";
     }
 
+    /** 긴 역사 해설이 prompt를 과도하게 차지하지 않도록 공백 정리 후 길이를 제한합니다. */
     private String summarizeForPrompt(String text, int maxLength) {
         if (text == null || text.isBlank()) {
             return "";
@@ -455,6 +487,7 @@ public class GeminiAiService {
         return normalized.substring(0, maxLength) + "...";
     }
 
+    /** 클리어 후 보여줄 플레이어 맞춤 리포트를 Gemini JSON으로 생성합니다. */
     private Map<String, Object> generatePlayerClearReport(
             Mission mission,
             String answerKeyword,
@@ -506,6 +539,7 @@ public class GeminiAiService {
         }
     }
 
+    /** AI JSON 값이 배열/문자열 어느 쪽으로 와도 화면 표시용 문단 리스트로 정규화합니다. */
     private List<String> normalizeParagraphList(Object value) {
         List<String> paragraphs = new ArrayList<>();
         if (value instanceof JsonNode node && node.isArray()) {
@@ -526,6 +560,7 @@ public class GeminiAiService {
         return paragraphs;
     }
 
+    /** AI 리포트 생성 실패 시 단서별 기본 해설을 구성합니다. */
     private Map<String, List<String>> buildFallbackClueExplanations(
             List<Map<String, String>> clues,
             String answerKeyword,
@@ -544,14 +579,20 @@ public class GeminiAiService {
         return explanations;
     }
 
+    /** 정답 비교용으로 공백과 기호를 제거합니다. */
     private String normalizeAnswer(String value) {
         return value == null ? "" : value.replaceAll("[\\s\\p{P}\\p{S}]", "").toLowerCase();
     }
 
+    /** sanitizer 없이 일반 스트리밍 응답을 생성합니다. */
     private ResponseBodyEmitter streamPrompt(String url, String prompt) {
         return streamPrompt(url, prompt, null);
     }
 
+    /**
+     * Gemini 응답을 한 번 받은 뒤 문자 단위로 ResponseBodyEmitter에 흘려보냅니다.
+     * 실제 Gemini streaming API가 아니라 서버 측 타자기 스트림이므로 프론트 버퍼와 함께 UX를 맞춥니다.
+     */
     private ResponseBodyEmitter streamPrompt(String url, String prompt, java.util.function.UnaryOperator<String> sanitizer) {
         ResponseBodyEmitter emitter = new ResponseBodyEmitter(120000L);
 
@@ -576,6 +617,7 @@ public class GeminiAiService {
         return emitter;
     }
 
+    /** Gemini generateContent를 호출하고 마크다운 코드블록 노이즈를 제거한 텍스트를 반환합니다. */
     private String callGeminiStandard(String url, String prompt) {
         Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
         HttpHeaders headers = new HttpHeaders();
@@ -591,6 +633,7 @@ public class GeminiAiService {
         }
     }
 
+    /** 현재 프로젝트에서 사용하는 Gemini 모델 endpoint를 구성합니다. */
     private String geminiUrl() {
         return "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + geminiApiKey.trim();
     }

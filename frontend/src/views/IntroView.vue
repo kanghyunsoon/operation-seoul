@@ -1,5 +1,6 @@
 <template>
   <div class="intro-container">
+    <!-- 로그인/회원가입을 한 화면에서 전환하는 진입 화면입니다. -->
     <div class="bg-shape circle-1"></div>
     <div class="bg-shape circle-2"></div>
 
@@ -81,6 +82,7 @@ const email = ref('');
 const password = ref('');
 const nickname = ref('');
 
+// 로그인/회원가입 모드를 전환할 때 이전 입력값이 남아 잘못 제출되지 않도록 모두 초기화합니다.
 const toggleMode = () => {
   isLoginMode.value = !isLoginMode.value;
   email.value = '';
@@ -88,16 +90,16 @@ const toggleMode = () => {
   nickname.value = '';
 };
 
+// AuthController의 /login 또는 /register를 호출하고, 로그인 성공 시 Pinia 세션에 JWT를 저장합니다.
 const handleSubmit = async () => {
   try {
     if (isLoginMode.value) {
-      // 🟢 [로그인 모드]
       const response = await apiClient.post('/v1/auth/login', {
         email: email.value,
         password: password.value
       });
 
-      // 백엔드에서 받은 토큰과 유저 정보를 Pinia 스토어에 저장
+      // 백엔드에서 받은 토큰과 유저 정보를 Pinia 스토어에 저장합니다.
       sessionStore.login({
         token: response.data.token,
         user: response.data.user
@@ -107,7 +109,6 @@ const handleSubmit = async () => {
       router.push({name: 'Home'});
 
     } else {
-      // 🔵 [회원가입 모드] (새로 추가된 부분!)
       const response = await apiClient.post('/v1/auth/register', {
         email: email.value,
         password: password.value,
@@ -115,10 +116,10 @@ const handleSubmit = async () => {
       });
 
       alert('신규 요원 등록이 완료되었습니다. 이제 로그인해주십시오.');
-      toggleMode(); // 가입 성공 시 다시 로그인 화면으로 부드럽게 자동 전환
+      toggleMode();
     }
   } catch (error) {
-      // 에러 발생 시 모드에 따라 알림 다르게 표시
+      // 로그인과 회원가입은 실패 원인이 달라 사용자 메시지를 분리합니다.
       if (isLoginMode.value) {
         alert(getLoginErrorMessage(error));
       } else {
@@ -128,6 +129,7 @@ const handleSubmit = async () => {
   }
 };
 
+// 서버 연결 실패, 인증 실패, 권한 실패를 신규 팀원이 디버깅하기 쉬운 문구로 구분합니다.
 const getLoginErrorMessage = (error) => {
   if (!error.response) {
     return '시스템 연결 실패: 백엔드 서버 주소 또는 CORS 설정을 확인하십시오.';

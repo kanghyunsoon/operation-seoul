@@ -1,5 +1,6 @@
 <template>
   <div class="briefing-container">
+    <!-- 작전 시작 전 지역 서사를 타자기 효과로 보여주는 화면입니다. -->
     <div class="scanlines"></div>
     <div class="terminal-box">
       <div class="terminal-header">
@@ -62,7 +63,7 @@ const route = useRoute();
 const router = useRouter();
 const sessionStore = useSessionStore();
 
-// 동적 할당용 변수
+// route query의 regionId가 이후 미션 목록/지도 화면의 기준값입니다.
 const regionId = route.query.regionId || 1;
 const regionName = ref('LOADING...');
 const fullText = ref('');
@@ -71,6 +72,7 @@ const isFinished = ref(false);
 const missions = ref([]);
 let typingInterval = null;
 
+// 힌트/최종 미션 구분은 백엔드 DTO 필드명이 바뀌어도 동작하도록 helper를 사용합니다.
 const hintMissions = computed(() => missions.value.filter(mission => !getIsFinalMission(mission)));
 const finalMission = computed(() => missions.value.find(getIsFinalMission) || null);
 const hintMissionCount = computed(() => hintMissions.value.length || '---');
@@ -83,6 +85,7 @@ const displayedParagraphs = computed(() => {
     .filter(Boolean);
 });
 
+// Region과 Mission을 병렬로 불러오고, 실패하면 fallback 브리핑을 출력합니다.
 onMounted(async () => {
   try {
     const [regionResult, missionsResult] = await Promise.allSettled([
@@ -128,6 +131,7 @@ const startTyping = () => {
   }, 28);
 };
 
+// 전체 브리핑을 즉시 보여주고 시작 버튼을 활성화합니다.
 const skipTyping = () => {
   clearInterval(typingInterval);
   displayedText.value = fullText.value;
@@ -143,12 +147,14 @@ const startMission = () => {
   router.push({ name: 'Map', query: { regionId: regionId } });
 };
 
+// 백엔드가 저장한 region.description을 우선 사용하고, 품질이 낮으면 로컬 템플릿으로 보정합니다.
 const buildBriefingText = (region) => {
   const scenario = buildNarrativeScenario(region);
 
   return formatBriefingBlock(scenario);
 };
 
+// AI 생성 서사가 시스템 설명처럼 보이면 플레이어 몰입을 위해 주제별 prequel로 대체합니다.
 const buildNarrativeScenario = (region) => {
   const generatedStory = compactText(region.description, 700);
   if (isUsableNarrative(generatedStory)) {
@@ -158,6 +164,7 @@ const buildNarrativeScenario = (region) => {
   return buildStoryPrequel(region);
 };
 
+// 지역/미션 키워드를 보고 브리핑 fallback 테마를 선택합니다.
 const buildStoryPrequel = (region) => {
   const theme = resolveStoryTheme(region);
   if (theme === 'railIndustry') {
@@ -245,6 +252,7 @@ const getOperationName = (region) => {
   return name.replace(/^작전명\s*/g, '').trim();
 };
 
+// 최종 미션명, briefingContext, 미션 설명을 합쳐 지역 작전의 큰 테마를 추론합니다.
 const resolveStoryTheme = (region) => {
   const source = [
     region?.name,
@@ -271,6 +279,7 @@ const resolveStoryTheme = (region) => {
   return 'archive';
 };
 
+// 시스템 용어, 안내 문장, 최종 장소명이 노출된 텍스트는 브리핑으로 쓰지 않습니다.
 const isUsableNarrative = (text) => {
   if (!text) return false;
   const blockedTerms = ['마커', '좌표', 'TourAPI', '사진', '촬영', 'AI', '채팅', '이동', '지역', '지도', '힌트 노드', '투입 지시', '판독 기준', '안내판', '비석', '조형물', '전시관', '놀이터'];
@@ -301,6 +310,7 @@ const isMechanicalBriefing = (text) => {
     || text.includes('배경 기록은 일부만 복호화');
 };
 
+// AI 문체가 명령형/존댓말로 흔들릴 때 방탈출 서사형 문체로 정리합니다.
 const normalizeDirectiveTone = (text) => {
   return normalizeImperativeTone(cleanBriefingText(text))
     .replace(/있음을 기억하라/g, '있다')
@@ -311,6 +321,7 @@ const normalizeDirectiveTone = (text) => {
     .replace(/침묵만 남겼음을 의심하라/g, '결말을 숨긴 채 멈춰 있다');
 };
 
+// 브리핑에 불필요한 bracket, 고정 오프닝, placeholder 표현을 제거합니다.
 const cleanBriefingText = (text) => {
   return String(text || '')
     .replace(/요원,\s*본부 암호 채널을 개방한다\.?/g, '')
@@ -320,6 +331,7 @@ const cleanBriefingText = (text) => {
     .replace(/'최종 현장'/g, '최종 현장');
 };
 
+// 존댓말/지시형 표현을 단정형에 가깝게 보정합니다.
 const normalizeImperativeTone = (text) => {
   return String(text || '')
     .replace(/이었습니다/g, '이었다')
@@ -343,6 +355,7 @@ const normalizeImperativeTone = (text) => {
     .replace(/시오/g, '라');
 };
 
+// 긴 문단을 터미널에서 읽기 좋은 길이로 나눕니다.
 const formatBriefingBlock = (text) => {
   const normalized = cleanBriefingText(text).trim();
   if (!normalized) return '';
@@ -354,6 +367,7 @@ const formatBriefingBlock = (text) => {
     .join('\n\n');
 };
 
+// 문장 단위로 잘라 1~2문장 정도의 문단으로 재조합합니다.
 const splitReadableParagraphs = (block) => {
   const sentences = splitSentences(block);
   const paragraphs = [];
@@ -377,20 +391,24 @@ const splitReadableParagraphs = (block) => {
   return paragraphs;
 };
 
+// 한국어 마침표와 영문 구두점을 기준으로 문장을 분리합니다.
 const splitSentences = (text) => {
   const normalized = String(text || '').replace(/\s+/g, ' ').trim();
   if (!normalized) return [];
   return normalized.match(/[^.!?]+[.!?]?/g)?.map(sentence => sentence.trim()).filter(Boolean) || [normalized];
 };
 
+// 백엔드/프론트 필드명 차이를 흡수하는 최종 미션 판별 helper입니다.
 const getIsFinalMission = (mission) => {
   return mission && (mission.missionType === 'FINAL' || mission.isFinal === true || mission.final === true);
 };
 
+// 최종 미션 해금 여부도 isUnlocked/unlocked 모두 허용합니다.
 const getIsUnlockedMission = (mission) => {
   return mission && (mission.isUnlocked === true || mission.unlocked === true);
 };
 
+// HTML 태그와 과도한 공백을 제거하고 최대 길이를 제한합니다.
 const compactText = (text, maxLength) => {
   const normalized = String(text || '')
     .replace(/<br\s*\/?>/gi, ' ')

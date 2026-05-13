@@ -25,6 +25,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
 
+    /**
+     * 모든 요청에서 Authorization 헤더를 확인하고, 유효한 JWT가 있으면 SecurityContext에 User를 적재합니다.
+     */
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -39,6 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    /** `Bearer <token>` 형식의 헤더에서 실제 토큰 문자열만 분리합니다. */
     private String resolveToken(HttpServletRequest request) {
         String header = request.getHeader("Authorization");
         if (header == null || !header.startsWith(BEARER_PREFIX)) {
@@ -47,6 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return header.substring(BEARER_PREFIX.length()).trim();
     }
 
+    /** 토큰 subject로 사용자 엔티티를 조회해 이후 컨트롤러/서비스에서 현재 사용자로 사용할 수 있게 합니다. */
     private void authenticate(String token) {
         String email = jwtTokenProvider.getSubject(token);
         userRepository.findByEmail(email).ifPresent(user -> {
@@ -59,6 +64,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         });
     }
 
+    /** Spring Security 권한 규칙과 맞추기 위해 ROLE_ 접두사가 붙은 authority를 생성합니다. */
     private List<SimpleGrantedAuthority> buildAuthorities(User user) {
         String role = user.isAdmin() ? "ROLE_ADMIN" : "ROLE_USER";
         return List.of(new SimpleGrantedAuthority(role));

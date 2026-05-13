@@ -35,10 +35,14 @@ public class MissionFactory {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
-    // 지휘관님 요청에 따라 프론트엔드와 동일한 명칭으로 세팅했습니다.
-    @Value("${VITE_KAKAO_REST_KEY:}")
+    // 백엔드 표준 키(kakao.rest.api.key)를 우선 사용하되, 기존 로컬 설정(VITE_KAKAO_REST_KEY)도 호환합니다.
+    @Value("${kakao.rest.api.key:${VITE_KAKAO_REST_KEY:}}")
     private String kakaoApiKey;
 
+    /**
+     * 단일 최종 장소 데이터를 받아 주변 후보를 보강하고 Gemini 시나리오를 생성해 DB에 저장합니다.
+     * 현재 관리자 화면은 AdminMissionController의 generate-selected 흐름을 주로 사용합니다.
+     */
     @Transactional
     public Map<String, Object> createAiMission(Map<String, Object> spotData) {
         String finalSpotName = (String) spotData.get("title");
@@ -89,7 +93,7 @@ public class MissionFactory {
         }
 
         try {
-            // 요원님이 검수하신 정확한 카카오 API 주소입니다.
+            // 카페 카테고리(CE7)를 우선 사용해 최종 목적지 주변 경유지를 확보합니다.
             String url = "https://dapi.kakao.com/v2/local/search/category.json?category_group_code=CE7&y=" + lat + "&x=" + lng + "&radius=1500&size=3";
 
             HttpHeaders headers = new HttpHeaders();
@@ -126,7 +130,6 @@ public class MissionFactory {
 
     private AiCourseResponseDto generateStoryFromGemini(String finalSpot, double finalLat, double finalLng, List<Map<String, Object>> subs) {
         try {
-            // 💡 지휘관님 요청: Gemini 3.1 Flash Lite Preview 버전으로 변경 완료
             String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + geminiApiKey;
 
             String promptText = String.format(
@@ -165,7 +168,7 @@ public class MissionFactory {
             JsonNode root = objectMapper.readTree(response.getBody());
             String aiJsonText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
 
-            // 💡 노이즈 제거 로직 유지
+            // Gemini가 실수로 코드블록이나 설명을 붙여도 JSON 본문만 파싱합니다.
             int startIndex = aiJsonText.indexOf("{");
             int endIndex = aiJsonText.lastIndexOf("}");
 
