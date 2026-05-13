@@ -62,7 +62,7 @@
         <div v-if="isArrived && getIsFinal(currentMission)" class="target-guide">
           최종 현장 단서: <span class="highlight">{{ currentMission?.visionKeyword || '현장 표식' }}</span>
           <br>
-          <span class="field-clue-text">{{ currentMission?.fieldClue || '안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건 키워드를 추론하세요.' }}</span>
+          <span class="field-clue-text">{{ currentMission?.fieldClue || '마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 사건의 방향을 의심하라.' }}</span>
         </div>
         <button v-if="isArrived && getIsFinal(currentMission)" @click="goToChat" class="capture-btn final-btn">
           [ 최종 분석 채널 접속 ]
