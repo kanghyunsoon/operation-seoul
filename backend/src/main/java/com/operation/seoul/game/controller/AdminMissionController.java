@@ -46,6 +46,59 @@ public class AdminMissionController {
     private static final double MAX_WALK_TO_STRAIGHT_RATIO = 1.8;
     private static final int MAX_ROUTE_CHECK_CANDIDATES = 40;
     private static final int MAX_AI_SUB_SPOTS = 15;
+    private static final int REGION_CANDIDATE_RADIUS_METERS = 18000;
+    private static final int MAX_REGION_CANDIDATES = 60;
+    private static final Map<String, List<AreaSeed>> REGION_CANDIDATE_SEEDS = Map.of(
+            "seoul", List.of(
+                    new AreaSeed(37.5665, 126.9780),
+                    new AreaSeed(37.5796, 126.9770),
+                    new AreaSeed(37.5512, 126.9882)
+            ),
+            "gangwon", List.of(
+                    new AreaSeed(37.8813, 127.7298),
+                    new AreaSeed(37.7519, 128.8761),
+                    new AreaSeed(38.2070, 128.5918),
+                    new AreaSeed(37.3422, 127.9202)
+            ),
+            "chungbuk", List.of(
+                    new AreaSeed(36.6424, 127.4890),
+                    new AreaSeed(37.1326, 128.1910),
+                    new AreaSeed(36.9910, 127.9259)
+            ),
+            "chungnam", List.of(
+                    new AreaSeed(36.6588, 126.6728),
+                    new AreaSeed(36.8151, 127.1139),
+                    new AreaSeed(36.4465, 127.1190),
+                    new AreaSeed(36.3326, 126.6129)
+            ),
+            "jeonbuk", List.of(
+                    new AreaSeed(35.8242, 127.1480),
+                    new AreaSeed(35.9677, 126.7366),
+                    new AreaSeed(35.4164, 127.3904),
+                    new AreaSeed(35.9483, 126.9576)
+            ),
+            "jeonnam", List.of(
+                    new AreaSeed(34.8118, 126.3922),
+                    new AreaSeed(34.7604, 127.6622),
+                    new AreaSeed(35.0161, 126.7108),
+                    new AreaSeed(34.9506, 127.4872)
+            ),
+            "gyeongbuk", List.of(
+                    new AreaSeed(36.5684, 128.7294),
+                    new AreaSeed(36.0190, 129.3435),
+                    new AreaSeed(35.8562, 129.2247),
+                    new AreaSeed(36.1195, 128.3446)
+            ),
+            "gyeongnam", List.of(
+                    new AreaSeed(35.2285, 128.6811),
+                    new AreaSeed(35.1796, 128.1076),
+                    new AreaSeed(34.8544, 128.4332),
+                    new AreaSeed(35.5038, 128.7466)
+            )
+    );
+
+    private record AreaSeed(double lat, double lng) {
+    }
 
     private final TourApiService tourApiService;
     private final GeminiAiService geminiAiService;
@@ -74,6 +127,73 @@ public class AdminMissionController {
         } catch (Exception e) {
             log.error("Candidate search failed", e);
             return ResponseEntity.internalServerError().body("후보지 검색 실패: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/region-candidates")
+    public ResponseEntity<?> getRegionHistoricalCandidates(@RequestParam(defaultValue = "seoul") String areaCode) {
+        String normalizedAreaCode = operationAreaResolver.normalizeAreaCode(areaCode);
+        List<AreaSeed> seeds = REGION_CANDIDATE_SEEDS.getOrDefault(
+                normalizedAreaCode,
+                REGION_CANDIDATE_SEEDS.get(OperationAreaResolver.DEFAULT_AREA_CODE)
+        );
+
+        try {
+            Map<String, Map<String, String>> uniqueSites = new LinkedHashMap<>();
+            for (AreaSeed seed : seeds) {
+                try {
+                    List<Map<String, String>> historicalSites = tourApiService.fetchHistoricalPlaces(
+                            seed.lat(),
+                            seed.lng(),
+                            REGION_CANDIDATE_RADIUS_METERS
+                    );
+
+                    if (historicalSites == null || historicalSites.isEmpty()) {
+                        continue;
+                    }
+
+                    for (Map<String, String> site : historicalSites) {
+                        if (!hasUsableCoordinates(site)) {
+                            continue;
+                        }
+
+                        Map<String, String> copied = new HashMap<>(site);
+                        copied.put("areaCode", normalizedAreaCode);
+                        copied.put("seedLat", String.valueOf(seed.lat()));
+                        copied.put("seedLng", String.valueOf(seed.lng()));
+                        copied.put("seedDistanceMeters", String.valueOf(Math.round(distanceMeters(
+                                seed.lat(),
+                                seed.lng(),
+                                Double.parseDouble(site.get("mapY")),
+                                Double.parseDouble(site.get("mapX"))
+                        ))));
+
+                        uniqueSites.putIfAbsent(spotIdentity(copied), copied);
+                    }
+                } catch (Exception seedError) {
+                    log.warn(
+                            "Region candidate seed scan skipped. areaCode={}, lat={}, lng={}",
+                            normalizedAreaCode,
+                            seed.lat(),
+                            seed.lng(),
+                            seedError
+                    );
+                }
+            }
+
+            List<Map<String, String>> candidates = uniqueSites.values().stream()
+                    .sorted(java.util.Comparator.comparing(spot -> spot.getOrDefault("title", "")))
+                    .limit(MAX_REGION_CANDIDATES)
+                    .toList();
+
+            if (candidates.isEmpty()) {
+                return ResponseEntity.badRequest().body("선택 지역에서 TourAPI 후보지를 찾지 못했습니다.");
+            }
+
+            return ResponseEntity.ok(candidates);
+        } catch (Exception e) {
+            log.error("Region candidate search failed. areaCode={}", normalizedAreaCode, e);
+            return ResponseEntity.internalServerError().body("지역 후보지 검색 실패: " + e.getMessage());
         }
     }
 

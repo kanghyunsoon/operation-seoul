@@ -24,31 +24,27 @@
 
       <div v-if="showAdminModal" class="admin-modal-overlay">
         <div class="admin-modal-content">
-          <h3>🤖 AI 자동 작전 수립 시스템</h3>
-          <p>TourAPI와 Gemini를 가동하여 주변 명소 기반 스토리를 생성합니다.</p>
-
-          <div class="input-group">
-            <label>기준 위도 (Latitude)</label>
-            <input type="number" step="0.000001" v-model="adminForm.lat" />
-          </div>
-          <div class="input-group">
-            <label>기준 경도 (Longitude)</label>
-            <input type="number" step="0.000001" v-model="adminForm.lng" />
+          <h3>🤖 지역 후보지 자동 스캔</h3>
+          <p><strong>{{ activeArea.name }}</strong> 작전권역의 역사 명소 후보지를 자동으로 수집합니다.</p>
+          <div class="scan-summary">
+            <span>대상 권역</span>
+            <strong>{{ activeArea.name }} / {{ activeArea.label }}</strong>
           </div>
 
           <button @click="fetchCandidates" class="execute-btn" :disabled="isScanning || isGenerating">
-            {{ isScanning ? '주변 반경 스캔 중...' : '1단계: 주변 명소 스캔 (TourAPI)' }}
+            {{ isScanning ? `${activeArea.name} 후보지 스캔 중...` : `1단계: ${activeArea.name} 후보지 불러오기` }}
           </button>
 
           <div v-if="candidates.length > 0" class="candidate-list">
-            <label style="display: block; font-size: 0.85rem; color: #aaa; margin-top:15px; margin-bottom: 5px;">작전 목표 장소를 선택하십시오</label>
+            <label class="candidate-label">{{ activeArea.name }} 후보지 {{ candidates.length }}곳 중 작전 목표 선택</label>
             <div class="candidate-scroll-area">
-              <div v-for="spot in candidates" :key="spot.title"
+              <div v-for="spot in candidates" :key="`${spot.title}-${spot.mapX}-${spot.mapY}`"
                    class="spot-item"
                    :class="{ 'spot-selected': selectedSpot === spot }"
                    @click="selectedSpot = spot">
                 <strong>{{ spot.title }}</strong>
-                <span>{{ spot.address }}</span>
+                <span>{{ spot.address || '주소 정보 없음' }}</span>
+                <em v-if="spot.seedDistanceMeters">기준점 약 {{ formatSeedDistance(spot.seedDistanceMeters) }}</em>
               </div>
             </div>
           </div>
@@ -155,7 +151,7 @@
         <section v-if="missions.length === 0" class="empty-area-state">
           <p class="eyebrow">{{ activeArea.name }} NETWORK</p>
           <h2>아직 등록된 작전이 없습니다.</h2>
-          <p>지휘부 계정으로 이 지역의 좌표를 스캔해 첫 작전을 생성할 수 있습니다.</p>
+          <p>지휘부 계정으로 이 지역의 후보지를 자동 스캔해 첫 작전을 생성할 수 있습니다.</p>
         </section>
         <div
             v-for="mission in missions"
@@ -411,20 +407,16 @@ const showAdminModal = ref(false);
 const isGenerating = ref(false);
 const isScanning = ref(false);
 
-const adminForm = ref({ lat: 37.5658, lng: 126.9751 });
-
 const candidates = ref([]);
 const selectedSpot = ref(null);
 
 const openAdminModal = () => {
-  const [lng, lat] = activeArea.value?.center || seoulPoint;
-  adminForm.value = {
-    lat: Number(lat.toFixed(6)),
-    lng: Number(lng.toFixed(6))
-  };
+  if (!activeArea.value) return;
+
   candidates.value = [];
   selectedSpot.value = null;
   showAdminModal.value = true;
+  fetchCandidates();
 };
 
 const closeAdminModal = () => {
@@ -434,18 +426,20 @@ const closeAdminModal = () => {
 };
 
 const fetchCandidates = async () => {
+  if (!activeArea.value) return;
+
   isScanning.value = true;
   candidates.value = [];
   selectedSpot.value = null;
 
   try {
-    const response = await apiClient.get('/v1/admin/missions/candidates', {
-      params: { lat: adminForm.value.lat, lng: adminForm.value.lng }
+    const response = await apiClient.get('/v1/admin/missions/region-candidates', {
+      params: { areaCode: activeArea.value.code }
     });
     candidates.value = response.data;
   } catch (error) {
     console.error(error);
-    alert(error.userMessage || "스캔 실패: 주변에 가용한 역사적 장소가 없거나 서버 오류입니다.");
+    alert(error.userMessage || "스캔 실패: 선택 지역에서 가용한 역사적 장소가 없거나 서버 오류입니다.");
   } finally {
     isScanning.value = false;
   }
@@ -536,6 +530,14 @@ const formatDistance = (meters) => {
   const safeMeters = Math.max(0, Number(meters) || 0);
   if (safeMeters >= 1000) {
     return `${(safeMeters / 1000).toFixed(2)}km`;
+  }
+  return `${Math.round(safeMeters)}m`;
+};
+
+const formatSeedDistance = (meters) => {
+  const safeMeters = Math.max(0, Number(meters) || 0);
+  if (safeMeters >= 1000) {
+    return `${(safeMeters / 1000).toFixed(1)}km`;
   }
   return `${Math.round(safeMeters)}m`;
 };
@@ -843,8 +845,13 @@ const handleLogout = () => {
 .admin-generate-btn:hover { background: #ff4444; color: #fff; box-shadow: 0 0 15px #ff4444; }
 
 .admin-modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; z-index: 9999; }
-.admin-modal-content { background: #111; border: 2px solid #ff4444; padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; color: #fff; }
+.admin-modal-content { background: #111; border: 2px solid #ff4444; padding: 25px; border-radius: 12px; width: 90%; max-width: 560px; color: #fff; }
 .admin-modal-content h3 { color: #ff4444; margin-top: 0; border-bottom: 1px solid #ff4444; padding-bottom: 10px;}
+.admin-modal-content p { color: #cbd5e1; line-height: 1.5; margin: 0 0 16px; }
+.admin-modal-content p strong { color: #fff; }
+.scan-summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; padding: 11px 12px; border: 1px solid rgba(0, 255, 204, 0.22); border-radius: 6px; background: rgba(0, 255, 204, 0.06); }
+.scan-summary span { color: #94a3b8; font-size: 0.8rem; font-weight: 700; }
+.scan-summary strong { color: #00ffcc; font-size: 0.92rem; }
 .input-group { margin-bottom: 15px; text-align: left; }
 .input-group label { display: block; font-size: 0.85rem; color: #aaa; margin-bottom: 5px; }
 .input-group input { width: 100%; padding: 8px; background: #222; border: 1px solid #555; color: #00ffcc; font-family: inherit; border-radius: 4px; box-sizing: border-box; }
@@ -852,13 +859,15 @@ const handleLogout = () => {
 .execute-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
 .close-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #aaa; color: #aaa; font-family: inherit; border-radius: 6px; cursor: pointer; }
 
-.candidate-scroll-area { max-height: 150px; overflow-y: auto; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; }
+.candidate-label { display: block; margin: 16px 0 7px; color: #aaa; font-size: 0.85rem; }
+.candidate-scroll-area { max-height: 280px; overflow-y: auto; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; }
 .spot-item { padding: 10px; border-bottom: 1px solid #333; cursor: pointer; transition: background 0.2s; }
 .spot-item:last-child { border-bottom: none; }
 .spot-item:hover { background: #2a2a2a; }
 .spot-selected { background: rgba(0, 255, 204, 0.15) !important; border-left: 3px solid #00ffcc; }
 .spot-item strong { display: block; color: #eee; font-size: 0.9rem; margin-bottom: 3px; }
 .spot-item span { display: block; color: #777; font-size: 0.75rem; }
+.spot-item em { display: block; margin-top: 4px; color: #00ffcc; font-size: 0.72rem; font-style: normal; opacity: 0.82; }
 
 @media (max-width: 760px) {
   .dashboard-container { padding: 28px 14px; }

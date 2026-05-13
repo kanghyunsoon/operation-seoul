@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore';
 import apiClient from '@/api/axiosInstance';
@@ -416,7 +416,7 @@ const loadMissionsData = async () => {
         map: map,
         position: position,
         content: content,
-        yAnchor: 1,
+        yAnchor: 1.2,
         xAnchor: 0.5,
         zIndex: 2
       });
@@ -426,6 +426,7 @@ const loadMissionsData = async () => {
 
     // 맵 데이터 로드 시점에도 조건이 맞으면 네비게이션 작동
     checkAndDrawNavigation();
+    await syncMapLayout();
 
   } catch (error) {
     console.error("미션 데이터 갱신 중 오류:", error);
@@ -475,6 +476,7 @@ const startGpsTracking = () => {
     }
 
     map.setCenter(fakePosition);
+    syncMapLayout(fakePosition);
     checkAndDrawNavigation();
   };
 
@@ -550,6 +552,27 @@ const waitForKakaoMapSdk = () => {
     }, 100);
   });
 };
+
+const syncMapLayout = async (center = null) => {
+  if (!map) return;
+
+  await nextTick();
+  const nextCenter = center || map.getCenter();
+  await new Promise(resolve => {
+    window.requestAnimationFrame(() => {
+      if (!map) {
+        resolve();
+        return;
+      }
+      map.relayout();
+      if (nextCenter) {
+        map.setCenter(nextCenter);
+      }
+      resolve();
+    });
+  });
+};
+
 const initializeMap = async () => {
   if (!mapContainer.value) {
     throw new Error('지도 컨테이너를 찾을 수 없습니다.');
@@ -558,6 +581,7 @@ const initializeMap = async () => {
   const options = { center: new window.kakao.maps.LatLng(37.5665, 126.9780), level: 4 };
   map = new window.kakao.maps.Map(mapContainer.value, options);
   map.setMapTypeId(window.kakao.maps.MapTypeId.HYBRID);
+  await syncMapLayout(options.center);
 
   try {
     const regRes = await apiClient.get(`/v1/regions/${regionId}`);
@@ -566,7 +590,9 @@ const initializeMap = async () => {
     await loadMissionsData();
 
     if (missions.value.length > 0) {
-      map.setCenter(new window.kakao.maps.LatLng(missions.value[0].targetLat, missions.value[0].targetLng));
+      const firstMissionPosition = new window.kakao.maps.LatLng(missions.value[0].targetLat, missions.value[0].targetLng);
+      map.setCenter(firstMissionPosition);
+      await syncMapLayout(firstMissionPosition);
     }
     startGpsTracking();
   } catch (error) {
@@ -785,7 +811,7 @@ const uploadImage = async (imageFile) => {
 }
 .floating-chat-btn:hover { background: #00ffcc; color: #000; box-shadow: 0 0 20px rgba(0, 255, 204, 0.8); }
 
-:deep(.custom-marker) { width: 24px; height: 24px; background-color: rgba(0, 255, 204, 0.8); border: 2px solid #000; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 0 10px #00ffcc; cursor: pointer; position: relative; top: -24px; left: -12px; }
+:deep(.custom-marker) { width: 24px; height: 24px; background-color: rgba(0, 255, 204, 0.8); border: 2px solid #000; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); transform-origin: center; box-shadow: 0 0 10px #00ffcc; cursor: pointer; position: relative; }
 :deep(.custom-marker.cleared) { background-color: #8fa3a3; border: 2px solid #fff; box-shadow: 0 0 5px rgba(255, 255, 255, 0.5); opacity: 0.95; }
 :deep(.custom-marker.final) { background-color: rgba(237, 45, 48, 0.8); box-shadow: 0 0 15px #ff4444; }
 
@@ -796,8 +822,8 @@ const uploadImage = async (imageFile) => {
   border-radius: 50%;
   border: 2px solid #fff;
   box-shadow: 0 0 15px #ff007a;
-  transform: translate(-50%, -50%);
-  position: absolute;
+  transform: none;
+  position: relative;
   animation: pulse-gps 4s infinite;
 }
 
