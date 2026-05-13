@@ -19,7 +19,8 @@ public class OperationAreaResolver {
             "jeonbuk",
             "jeonnam",
             "gyeongbuk",
-            "gyeongnam"
+            "gyeongnam",
+            "jeju"
     );
 
     private static final Map<String, List<Point>> AREA_POLYGONS = Map.of(
@@ -97,6 +98,15 @@ public class OperationAreaResolver {
                     new Point(128.90, 34.78),
                     new Point(128.16, 34.46),
                     new Point(127.35, 34.43)
+            ),
+            "jeju", List.of(
+                    new Point(126.10, 33.36),
+                    new Point(126.32, 33.24),
+                    new Point(126.66, 33.24),
+                    new Point(126.92, 33.36),
+                    new Point(126.82, 33.54),
+                    new Point(126.48, 33.60),
+                    new Point(126.18, 33.52)
             )
     );
 
@@ -108,7 +118,8 @@ public class OperationAreaResolver {
             "jeonbuk",
             "jeonnam",
             "gyeongbuk",
-            "gyeongnam"
+            "gyeongnam",
+            "jeju"
     );
 
     public String resolveAreaCode(double lat, double lng, String requestedAreaCode) {
@@ -118,6 +129,12 @@ public class OperationAreaResolver {
             }
         }
         return normalizeAreaCode(requestedAreaCode);
+    }
+
+    public boolean isInsideAreaCode(String areaCode, double lat, double lng) {
+        String normalizedAreaCode = normalizeAreaCode(areaCode);
+        List<Point> polygon = AREA_POLYGONS.get(normalizedAreaCode);
+        return polygon != null && isInsidePolygon(lng, lat, polygon);
     }
 
     public String normalizeAreaCode(String areaCode) {

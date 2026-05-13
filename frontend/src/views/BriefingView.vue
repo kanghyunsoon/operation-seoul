@@ -74,7 +74,7 @@ let typingInterval = null;
 const hintMissions = computed(() => missions.value.filter(mission => !getIsFinalMission(mission)));
 const finalMission = computed(() => missions.value.find(getIsFinalMission) || null);
 const hintMissionCount = computed(() => hintMissions.value.length || '---');
-const finalTargetLabel = computed(() => finalMission.value?.isUnlocked ? finalMission.value.title : 'CLASSIFIED');
+const finalTargetLabel = computed(() => getIsUnlockedMission(finalMission.value) ? finalMission.value.title : 'CLASSIFIED');
 
 const displayedParagraphs = computed(() => {
   return displayedText.value
@@ -103,7 +103,7 @@ onMounted(async () => {
     startTyping();
   } catch (error) {
     console.error("데이터 로드 실패:", error);
-    fullText.value = "본부와의 통신이 원활하지 않습니다.\n\n지역 기록과 작전 노드가 완전히 복호화되지 않았습니다. 잠시 후 다시 시도하십시오.";
+    fullText.value = "본부와의 통신이 원활하지 않음을 인지하라.\n\n봉인된 기록이 완전히 복호화되지 않았음을 기억하라. 잠시 후 다시 접속하라.";
     startTyping();
   }
 });
@@ -144,43 +144,112 @@ const startMission = () => {
 };
 
 const buildBriefingText = (region) => {
-  const description = formatReadableParagraphs(String(region.description || '').replace(/<br\s*\/?>/gi, '\n'));
-  const hintTitles = hintMissions.value
-    .slice(0, 3)
-    .map(mission => mission.title)
-    .filter(Boolean);
-  const hintLine = hintTitles.length
-    ? hintTitles.join(', ')
-    : '아직 복호화 중인 현장 노드';
-  const hintCount = hintMissions.value.length || 3;
+  const scenario = buildNarrativeScenario(region);
+  const finalThread = buildFinalStoryThread();
 
   return [
-    `요원, ${region.name || regionName.value} 구역 작전 브리핑을 시작한다. 지금부터 전송되는 내용은 단순 관광 안내가 아니라 현장 기록, 장소의 잔향, 그리고 숨겨진 사건 키워드를 역추적하기 위한 작전 명령이다.`,
-    description || '이 구역의 기록은 완전히 정리되지 않았다. 본부는 현장 주변에 흩어진 표식과 장소의 맥락을 통해 최종 사건 키워드를 복원해야 한다고 판단했다.',
-    `초기 조사 노드는 ${hintCount}개다. 현재 우선 탐색 대상으로 분류된 지점은 ${hintLine}이며, 각 지점은 표면적으로는 평범해 보여도 최종 장소와 같은 시대적 긴장, 인물의 선택, 사건의 흔적을 서로 다른 각도에서 비춘다.`,
-    `각 현장에서는 사진 인증 목표만 좇지 말고 주변 안내문, 비문, 현판, 연도, 인명, 반복되는 표현을 함께 확인하라. 본부가 제공하는 단서는 정답을 직접 말하지 않는다. 서로 맞지 않아 보이는 문장들을 겹쳐 읽을 때만 최종 키워드의 윤곽이 드러난다.`,
-    `최종 목적지는 아직 봉인되어 있다. 힌트 노드를 충분히 확보하면 좌표가 해금되고, 도착 후에는 촬영 임무가 아니라 본부 AI와의 추론 채널이 열린다. 그때부터는 모아온 단서와 현장 표식을 바탕으로 사건의 이름을 직접 도출해야 한다.`,
-    `작전 원칙은 세 가지다. 첫째, 장소명과 인물명에 너무 빨리 매달리지 말 것. 둘째, 같은 단어가 다른 지점에서 반복되는지 확인할 것. 셋째, 최종 장소에서 보이는 물리적 단서를 마지막 검증 축으로 삼을 것. 준비가 끝났다면 현장 투입을 승인하라.`
+    '요원, 봉인된 기록을 수신하라.',
+    scenario,
+    finalThread
   ].join('\n\n');
+};
+
+const buildNarrativeScenario = (region) => {
+  const generatedStory = compactText(region.description, 700);
+  if (isUsableNarrative(generatedStory)) {
+    return normalizeImperativeTone(generatedStory);
+  }
+
+  const fragments = hintMissions.value
+    .map(buildStoryFragment)
+    .filter(Boolean);
+
+  if (!fragments.length) {
+    return '오래된 문이 안쪽에서 잠기고, 이름 없는 기록만 어둠 속에 남았음을 기억하라. 누군가 지워 둔 문장 사이에서 사건의 그림자가 다시 움직이기 시작했음을 의심하라.';
+  }
+
+  return [
+    '오래된 기록은 닫힌 방처럼 침묵하고, 첫 문장은 이미 누군가에 의해 찢겨 나갔음을 기억하라.',
+    fragments.join(' '),
+    '서로 맞지 않는 장면들이 하나의 사건을 가리키고 있음을 의심하라. 마지막 이름은 아직 어둠 속에 남겨 두라.'
+  ].join('\n\n');
+};
+
+const buildStoryFragment = (mission) => {
+  const narrative = compactText(mission.description, 180);
+  if (isUsableNarrative(narrative)) {
+    return normalizeImperativeTone(narrative);
+  }
+
+  const signal = getStorySignal(mission);
+  return `낡은 ${signal}이 한 번 지워진 장면을 다시 비추고 있음을 기억하라. 그 흔적이 결말을 말하지 않고 침묵만 남겼음을 의심하라.`;
+};
+
+const buildFinalStoryThread = () => {
+  const final = finalMission.value;
+  if (!final) {
+    return '마지막 장면은 아직 도착하지 않았음을 기억하라. 결말을 먼저 열지 말고, 닫힌 기록이 스스로 균열을 낼 때까지 의심하라.';
+  }
+
+  if (getIsUnlockedMission(final)) {
+    const finalNarrative = compactText(final.description, 220);
+    if (isUsableNarrative(finalNarrative)) {
+      return normalizeImperativeTone(finalNarrative);
+    }
+    return `마지막 장면에 남은 ${getStorySignal(final)}이 앞선 기록들을 하나의 사건으로 묶고 있음을 기억하라. 그 이름을 너무 일찍 부르지 말고, 침묵이 끝까지 남긴 균열을 의심하라.`;
+  }
+
+  return '마지막 장면은 아직 봉인되어 있음을 기억하라. 흩어진 장면들이 충분히 서로를 부를 때, 감춰진 결말도 스스로 어둠 밖으로 밀려날 것이라 의심하라.';
+};
+
+const getStorySignal = (mission) => {
+  if (mission?.visionKeyword) {
+    return `'${mission.visionKeyword}'`;
+  }
+  if (mission?.fieldClue) {
+    return compactText(mission.fieldClue, 90);
+  }
+  return '이름 없는 표식';
+};
+
+const isUsableNarrative = (text) => {
+  if (!text) return false;
+  const blockedTerms = ['마커', '좌표', 'TourAPI', '사진', '촬영', 'AI', '채팅', '이동', '지역', '지도', '힌트 노드', '투입 지시', '판독 기준'];
+  const mixedToneTerms = ['습니다', '입니다', '하세요', '하십시오', '하시오'];
+  return !blockedTerms.some(term => text.includes(term))
+    && !mixedToneTerms.some(term => text.includes(term));
+};
+
+const normalizeImperativeTone = (text) => {
+  return String(text || '')
+    .replace(/하십시오/g, '하라')
+    .replace(/하세요/g, '하라')
+    .replace(/해 주세요/g, '하라')
+    .replace(/합니다/g, '하라')
+    .replace(/입니다/g, '이다')
+    .replace(/하십시오/g, '하라')
+    .replace(/하시오/g, '하라')
+    .replace(/시오/g, '라');
 };
 
 const getIsFinalMission = (mission) => {
   return mission && (mission.missionType === 'FINAL' || mission.isFinal === true || mission.final === true);
 };
 
-const formatReadableParagraphs = (text) => {
-  const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
+const getIsUnlockedMission = (mission) => {
+  return mission && (mission.isUnlocked === true || mission.unlocked === true);
+};
+
+const compactText = (text, maxLength) => {
+  const normalized = String(text || '')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   if (!normalized) return '';
-
-  const sentences = normalized
-    .replace(/\n+/g, ' ')
-    .match(/[^.!?。！？]+[.!?。！？]?/g)
-    ?.map(sentence => sentence.trim())
-    .filter(Boolean);
-
-  if (!sentences?.length) return normalized;
-
-  return sentences.join('\n\n');
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength).trim()}...`;
 };
 </script>
 

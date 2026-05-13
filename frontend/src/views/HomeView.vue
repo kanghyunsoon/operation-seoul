@@ -83,7 +83,7 @@
 
               <g clip-path="url(#south-korea-clip)">
                 <g
-                  v-for="area in areaCatalog"
+                  v-for="area in mainlandAreas"
                   :key="area.code"
                   class="map-region"
                   :class="{ selected: pendingAreaCode === area.code, disabled: !area.enabled }"
@@ -99,6 +99,20 @@
               </g>
 
               <g
+                v-if="jejuArea"
+                class="map-region jeju-region"
+                :class="{ selected: pendingAreaCode === jejuArea.code, disabled: !jejuArea.enabled }"
+                tabindex="0"
+                role="button"
+                :aria-label="jejuArea.name"
+                :aria-disabled="!jejuArea.enabled"
+                @click="openAreaConfirm(jejuArea.code)"
+                @keyup.enter="openAreaConfirm(jejuArea.code)"
+              >
+                <polygon class="sector-fill island-fill" :points="projectPolygon(jejuArea.points)" />
+              </g>
+
+              <g
                 class="seoul-hotspot"
                 :class="{ selected: pendingAreaCode === 'seoul' }"
                 @click="openAreaConfirm('seoul')"
@@ -107,12 +121,17 @@
                 <circle class="region-core" :cx="projectPoint(seoulPoint).x" :cy="projectPoint(seoulPoint).y" r="8" />
               </g>
 
-              <polygon class="jeju-outline" :points="projectPolygon(jejuOutline)" />
               <polyline class="nation-outline" :points="projectPolygon(koreaOutlineLoop)" />
               <polyline class="nation-inner-line" :points="projectPolygon(dmzLine)" />
 
-              <g v-for="area in areaCatalog" :key="`${area.code}-label`">
-                <text class="sector-label" :x="projectPoint(area.center).x" :y="projectPoint(area.center).y">
+              <g
+                v-for="area in areaCatalog"
+                :key="`${area.code}-label`"
+                class="sector-label-group"
+                :transform="projectAreaLabelTransform(area)"
+              >
+                <rect class="sector-label-bg" x="-20" y="-12" width="40" height="24" rx="5" />
+                <text class="sector-label" y="1">
                   {{ area.mapLabel }}
                 </text>
               </g>
@@ -265,6 +284,7 @@ const areaCatalog = [
     status: '작전 가능',
     enabled: true,
     center: [126.98, 37.52],
+    labelPosition: [126.78, 37.48],
     points: [
       [126.02, 37.06], [126.16, 37.46], [126.10, 38.12], [126.85, 38.02],
       [127.70, 38.14], [127.88, 37.46], [127.34, 36.94], [126.55, 36.92]
@@ -278,6 +298,7 @@ const areaCatalog = [
     status: '작전 가능',
     enabled: true,
     center: [128.32, 37.54],
+    labelPosition: [128.62, 37.62],
     points: [
       [127.70, 38.14], [128.54, 38.32], [129.12, 38.23], [129.45, 37.52],
       [129.28, 36.88], [128.68, 36.58], [127.88, 37.46]
@@ -291,6 +312,7 @@ const areaCatalog = [
     status: '작전 가능',
     enabled: true,
     center: [127.74, 36.42],
+    labelPosition: [127.72, 36.48],
     points: [
       [126.55, 36.92], [127.34, 36.94], [127.88, 37.46], [128.68, 36.58],
       [128.36, 35.92], [127.54, 35.76], [126.94, 35.96]
@@ -304,6 +326,7 @@ const areaCatalog = [
     status: '작전 가능',
     enabled: true,
     center: [126.44, 36.30],
+    labelPosition: [126.36, 36.34],
     points: [
       [125.74, 36.32], [126.02, 35.78], [126.28, 35.54], [126.94, 35.96],
       [126.55, 36.92], [126.18, 36.86]
@@ -317,6 +340,7 @@ const areaCatalog = [
     status: '작전 가능',
     enabled: true,
     center: [126.92, 35.48],
+    labelPosition: [126.93, 35.43],
     points: [
       [126.02, 35.78], [126.28, 35.54], [126.94, 35.96], [127.54, 35.76],
       [127.70, 35.28], [127.14, 35.00], [126.34, 35.12], [126.05, 35.22]
@@ -330,6 +354,7 @@ const areaCatalog = [
     status: '작전 가능',
     enabled: true,
     center: [126.58, 34.72],
+    labelPosition: [126.55, 34.70],
     points: [
       [125.82, 34.58], [126.55, 34.28], [127.35, 34.43], [127.70, 35.28],
       [127.14, 35.00], [126.34, 35.12], [126.05, 35.22]
@@ -343,6 +368,7 @@ const areaCatalog = [
     status: '작전 가능',
     enabled: true,
     center: [128.62, 36.18],
+    labelPosition: [128.82, 36.12],
     points: [
       [127.54, 35.76], [128.36, 35.92], [128.68, 36.58], [129.28, 36.88],
       [129.45, 35.95], [129.25, 35.22], [128.48, 35.06], [127.92, 35.26]
@@ -356,10 +382,22 @@ const areaCatalog = [
     status: '작전 가능',
     enabled: true,
     center: [128.22, 34.86],
+    labelPosition: [128.16, 34.82],
     points: [
       [127.14, 35.00], [127.70, 35.28], [127.92, 35.26], [128.48, 35.06],
       [129.25, 35.22], [128.90, 34.78], [128.16, 34.46], [127.35, 34.43]
     ]
+  },
+  {
+    code: 'jeju',
+    name: '제주',
+    label: 'JEJU',
+    mapLabel: '제주',
+    status: '작전 가능',
+    enabled: true,
+    center: [126.48, 33.42],
+    labelPosition: [126.50, 33.42],
+    points: jejuOutline
   }
 ];
 
@@ -382,6 +420,13 @@ const projectPolygon = (coordinates) => {
   }).join(' ');
 };
 
+const getAreaLabelPoint = (area) => area.labelPosition || area.center;
+
+const projectAreaLabelTransform = (area) => {
+  const point = projectPoint(getAreaLabelPoint(area));
+  return `translate(${point.x} ${point.y})`;
+};
+
 const userMapPoint = computed(() => projectPoint([userPosition.value.lng, userPosition.value.lat]));
 
 const selectedAreaCode = computed(() => {
@@ -391,6 +436,9 @@ const selectedAreaCode = computed(() => {
 const activeArea = computed(() => {
   return areaCatalog.find(area => area.enabled && area.code === selectedAreaCode.value) || null;
 });
+
+const mainlandAreas = computed(() => areaCatalog.filter(area => area.code !== 'jeju'));
+const jejuArea = computed(() => areaCatalog.find(area => area.code === 'jeju') || null);
 
 const isAreaSelected = computed(() => Boolean(activeArea.value));
 
@@ -694,22 +742,24 @@ const handleLogout = () => {
 .map-shell::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px); background-size: 32px 32px; mask-image: radial-gradient(circle at center, black 30%, transparent 72%); pointer-events: none; }
 .korea-map { position: relative; z-index: 1; width: min(88%, 390px); height: 94%; overflow: visible; }
 .nation-base { fill: rgba(8, 47, 73, 0.24); stroke: none; }
-.nation-outline { fill: none; stroke: #22d3ee; stroke-width: 3; filter: url(#map-glow); }
-.jeju-outline { fill: rgba(8, 47, 73, 0.36); stroke: #22d3ee; stroke-width: 2.3; filter: url(#map-glow); }
-.nation-inner-line { fill: none; stroke: rgba(103, 232, 249, 0.35); stroke-width: 1.6; stroke-dasharray: 7 8; }
+.nation-outline { fill: none; stroke: #67e8f9; stroke-width: 3.4; stroke-linejoin: round; filter: url(#map-glow); pointer-events: none; }
+.nation-inner-line { fill: none; stroke: rgba(226, 232, 240, 0.58); stroke-width: 2; stroke-dasharray: 7 8; pointer-events: none; }
 .map-region { cursor: pointer; outline: none; }
 .map-region.disabled { cursor: pointer; }
-.sector-fill { fill: rgba(6, 182, 212, 0.18); stroke: rgba(103, 232, 249, 0.58); stroke-width: 1.4; transition: fill 0.25s ease, stroke 0.25s ease, filter 0.25s ease; }
+.sector-fill { fill: rgba(6, 182, 212, 0.21); stroke: rgba(226, 232, 240, 0.84); stroke-width: 2.2; stroke-linejoin: round; vector-effect: non-scaling-stroke; transition: fill 0.25s ease, stroke 0.25s ease, filter 0.25s ease; }
+.island-fill { fill: rgba(6, 182, 212, 0.28); filter: url(#map-glow); }
 .map-region.disabled .sector-fill { fill: rgba(15, 23, 42, 0.14); stroke: rgba(148, 163, 184, 0.34); }
 .map-region:hover .sector-fill,
 .map-region:focus .sector-fill,
-.map-region.selected .sector-fill { fill: rgba(239, 68, 68, 0.62); stroke: #fecaca; filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.65)); }
+.map-region.selected .sector-fill { fill: rgba(239, 68, 68, 0.68); stroke: #fff7ed; filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.72)); }
 .signal-ring { fill: url(#seoul-signal); opacity: 0.28; transition: opacity 0.25s ease; }
 .region-core { fill: #ecfeff; transition: fill 0.25s ease; }
 .seoul-hotspot { cursor: pointer; }
 .seoul-hotspot:hover .signal-ring, .seoul-hotspot.selected .signal-ring { opacity: 0.78; }
 .seoul-hotspot:hover .region-core, .seoul-hotspot.selected .region-core { fill: #fee2e2; }
-.sector-label { fill: #cffafe; font-size: 12px; font-weight: 800; letter-spacing: 0; text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: rgba(2, 6, 23, 0.84); stroke-width: 4; pointer-events: none; }
+.sector-label-group { pointer-events: none; }
+.sector-label-bg { fill: rgba(2, 6, 23, 0.72); stroke: rgba(103, 232, 249, 0.38); stroke-width: 1; }
+.sector-label { fill: #f8fafc; font-size: 13px; font-weight: 900; letter-spacing: 0; text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: rgba(2, 6, 23, 0.88); stroke-width: 3; pointer-events: none; }
 .gps-marker { pointer-events: none; }
 .gps-pulse { fill: rgba(34, 211, 238, 0.24); stroke: rgba(34, 211, 238, 0.82); stroke-width: 1.4; }
 .gps-dot { fill: #67e8f9; stroke: #ecfeff; stroke-width: 2; filter: drop-shadow(0 0 9px rgba(34, 211, 238, 0.95)); }

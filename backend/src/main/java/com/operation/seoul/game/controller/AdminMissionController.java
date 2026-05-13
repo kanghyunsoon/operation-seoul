@@ -94,6 +94,12 @@ public class AdminMissionController {
                     new AreaSeed(35.1796, 128.1076),
                     new AreaSeed(34.8544, 128.4332),
                     new AreaSeed(35.5038, 128.7466)
+            ),
+            "jeju", List.of(
+                    new AreaSeed(33.4996, 126.5312),
+                    new AreaSeed(33.2539, 126.5597),
+                    new AreaSeed(33.4098, 126.2671),
+                    new AreaSeed(33.4585, 126.9425)
             )
     );
 
@@ -157,6 +163,12 @@ public class AdminMissionController {
                             continue;
                         }
 
+                        double siteLat = Double.parseDouble(site.get("mapY"));
+                        double siteLng = Double.parseDouble(site.get("mapX"));
+                        if (!operationAreaResolver.isInsideAreaCode(normalizedAreaCode, siteLat, siteLng)) {
+                            continue;
+                        }
+
                         Map<String, String> copied = new HashMap<>(site);
                         copied.put("areaCode", normalizedAreaCode);
                         copied.put("seedLat", String.valueOf(seed.lat()));
@@ -164,8 +176,8 @@ public class AdminMissionController {
                         copied.put("seedDistanceMeters", String.valueOf(Math.round(distanceMeters(
                                 seed.lat(),
                                 seed.lng(),
-                                Double.parseDouble(site.get("mapY")),
-                                Double.parseDouble(site.get("mapX"))
+                                siteLat,
+                                siteLng
                         ))));
 
                         uniqueSites.putIfAbsent(spotIdentity(copied), copied);
@@ -271,9 +283,9 @@ public class AdminMissionController {
                     "작전명 봉인된 현장"
             ));
             newRegion.setDescription(maskSecretKeyword(
-                    root.path("regionDescription").asText("현장에는 아직 공개되지 않은 사건의 흔적이 남아 있습니다. 주변 단서를 수집해 최종 진실을 추론하십시오."),
+                    root.path("regionDescription").asText("봉인된 기록이 어둠 속에 남아 있음을 기억하라. 사라진 이름이 여러 장소의 침묵 사이에서 다시 떠오를 것이라 인지하라."),
                     finalAnswerKeyword,
-                    "현장에는 아직 공개되지 않은 사건의 흔적이 남아 있습니다. 주변 단서를 수집해 최종 진실을 추론하십시오."
+                    "봉인된 기록이 어둠 속에 남아 있음을 기억하라. 사라진 이름이 여러 장소의 침묵 사이에서 다시 떠오를 것이라 인지하라."
             ));
             Region savedRegion = regionRepository.save(newRegion);
 
@@ -289,22 +301,29 @@ public class AdminMissionController {
                     mission.setTargetLat(resolveLatitude(missionNode, sourceSpot));
                     mission.setTargetLng(resolveLongitude(missionNode, sourceSpot));
                     mission.setVisionKeyword(missionNode.path("visionKeyword").asText(""));
+                    mission.setDescription(maskSecretKeyword(
+                            resolveMissionDescription(missionNode, isFinal),
+                            finalAnswerKeyword,
+                            isFinal
+                                    ? "마지막 장면은 아직 이름을 드러내지 않는다. 닫힌 기록의 끝에서 오래된 선택의 흔적만 남겨 두라."
+                                    : "닫힌 기록의 파편이 이 장소에 남아 있다. 사라진 사건의 그림자가 아직 말없이 이어짐을 기억하라."
+                    ));
                     mission.setFinal(isFinal);
                     mission.setRadiusInMeters(isFinal ? 30.0 : 45.0);
 
                     if (isFinal) {
                         mission.setAnswerKeyword(finalAnswerKeyword);
                         mission.setClue(maskSecretKeyword(
-                                missionNode.path("clue").asText("최종 현장의 안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건의 이름을 유추하세요."),
+                                missionNode.path("clue").asText("마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 권력의 문이 흔들리던 밤을 기억하라."),
                                 finalAnswerKeyword,
-                                "최종 현장의 안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건의 이름을 유추하세요."
+                                "마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 권력의 문이 흔들리던 밤을 기억하라."
                         ));
                         mission.setRealStory(missionNode.path("realStory").asText(""));
                     } else {
                         mission.setClue(maskSecretKeyword(
-                                missionNode.path("clue").asText("현장 단서는 최종 사건을 직접 말하지 않고 주변 정황만 남깁니다."),
+                                missionNode.path("clue").asText("낡은 표식은 다른 장소의 그림자를 먼저 비춘다. 권력의 방향이 흔들리던 시대의 침묵을 기억하라."),
                                 finalAnswerKeyword,
-                                "이 단서는 최종 사건을 직접 말하지 않고, 당시의 긴장과 선택의 흔적만 남깁니다."
+                                "낡은 표식은 다른 장소의 그림자를 먼저 비춘다. 권력의 방향이 흔들리던 시대의 침묵을 기억하라."
                         ));
                     }
 
@@ -463,6 +482,19 @@ public class AdminMissionController {
             return sourceSpot.get("title");
         }
         return missionNode.path("title").asText("목적지");
+    }
+
+    private String resolveMissionDescription(JsonNode missionNode, boolean isFinal) {
+        String description = missionNode.path("description").asText("");
+        if (description.isBlank()) {
+            description = missionNode.path("storyBeat").asText("");
+        }
+        if (!description.isBlank()) {
+            return description;
+        }
+        return isFinal
+                ? "마지막 장면은 아직 이름을 드러내지 않는다. 닫힌 기록의 끝에서 오래된 선택의 흔적만 남겨 두라."
+                : "닫힌 기록의 파편이 이 장소에 남아 있다. 사라진 사건의 그림자가 아직 말없이 이어짐을 기억하라.";
     }
 
     private double resolveLatitude(JsonNode missionNode, Map<String, String> sourceSpot) {

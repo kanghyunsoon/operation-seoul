@@ -233,7 +233,7 @@ const loadFinalMissionInfo = async () => {
 const buildInitialMessage = (prefix) => {
   const fieldTarget = finalMissionInfo.value?.visionKeyword || '현장 표식';
   const fieldClue = finalMissionInfo.value?.fieldClue
-      || '최종 지점의 안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건 키워드를 유추하라.';
+      || '마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 사건의 방향을 의심하라.';
 
   return `${prefix}<br><span style='color:#f8d66d'>[FIELD_CLUE]</span> ${escapeHtml(fieldTarget)}: ${escapeHtml(fieldClue)}<br>단, 적들의 도청 위험이 있어 조력 횟수는 20회로 제한한다. 최종 암호를 입력하라.`;
 };
