@@ -63,6 +63,7 @@
         <div class="input-area">
           <span class="prompt-symbol">&gt;</span>
           <input
+              ref="commandInput"
               v-model="userInput"
               @keyup.enter="sendMessage"
               :disabled="isWaiting"
@@ -131,6 +132,7 @@ const userInput = ref('');
 const isWaiting = ref(false);
 const questionCount = ref(0);
 const chatContainer = ref(null);
+const commandInput = ref(null);
 const isScannerOpen = ref(false);
 const finalMissionInfo = ref(null);
 const collectedMissions = ref([]);
@@ -178,6 +180,17 @@ const scrollToBottom = async () => {
   }
 };
 
+const focusCommandInput = async () => {
+  await nextTick();
+  if (isWaiting.value || isScannerOpen.value || !commandInput.value) return;
+
+  try {
+    commandInput.value.focus({ preventScroll: true });
+  } catch {
+    commandInput.value.focus();
+  }
+};
+
 watch(isFinished, (newVal) => {
   if (newVal) {
     const typingMsg = chatHistory.value.find(m => m.isTyping);
@@ -185,6 +198,13 @@ watch(isFinished, (newVal) => {
       typingMsg.text = displayedText.value;
       typingMsg.isTyping = false;
     }
+    focusCommandInput();
+  }
+});
+
+watch(isWaiting, (waiting) => {
+  if (!waiting) {
+    focusCommandInput();
   }
 });
 
@@ -363,7 +383,10 @@ const requestGeminiStream = async (textMessage) => {
     }
     isWaiting.value = false;
     finishTyping();
-    await navigateIfMissionCleared();
+    const cleared = await navigateIfMissionCleared();
+    if (!cleared) {
+      await focusCommandInput();
+    }
 
     if (questionCount.value === 10) {
       setTimeout(() => {
@@ -374,6 +397,7 @@ const requestGeminiStream = async (textMessage) => {
     console.error("통신 에러:", error);
     isWaiting.value = false;
     typeWriterEffect("<span style='color:#ef5350'>[SYS_ERROR]</span> 위성 연결 불안정. 재전송 하십시오.");
+    await focusCommandInput();
   }
 };
 
@@ -392,10 +416,12 @@ const navigateIfMissionCleared = async () => {
           query: { regionId: regionId.value }
         });
       }, 900);
+      return true;
     }
   } catch (error) {
     console.error('클리어 상태 확인 실패:', error);
   }
+  return false;
 };
 
 const hasQuestionIntent = (text) => {
