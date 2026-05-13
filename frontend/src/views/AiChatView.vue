@@ -4,7 +4,12 @@
     <div class="scanlines"></div>
 
     <header class="hud-header">
-      <button @click="goBackToMap" class="btn-back">[ ⬅ MAP ]</button>
+      <div class="header-actions">
+        <button @click="goBackToMap" class="btn-back">[ ⬅ MAP ]</button>
+        <button @click="showCluePanel = true" class="btn-clues">
+          [ CLUES {{ collectedMissions.length }} ]
+        </button>
+      </div>
 
       <div class="header-glitch" data-text="HQ_SECURE_UPLINK">HQ_SECURE_UPLINK</div>
       <div class="sys-metrics">
@@ -75,6 +80,26 @@
       </div>
     </footer>
 
+    <div v-if="showCluePanel" class="clue-panel-overlay" @click="showCluePanel = false">
+      <section class="clue-panel" @click.stop>
+        <div class="clue-panel-header">
+          <div>
+            <p class="panel-kicker">ACQUIRED FIELD NOTES</p>
+            <h2>획득한 미션 단서</h2>
+          </div>
+          <button class="panel-close" @click="showCluePanel = false">CLOSE</button>
+        </div>
+
+        <div v-if="collectedMissions.length" class="clue-log-list">
+          <article v-for="mission in collectedMissions" :key="mission.id" class="clue-log">
+            <strong>{{ mission.title }}</strong>
+            <p>{{ mission.clue || mission.description || '본부에 등록된 단서 문구가 없습니다.' }}</p>
+          </article>
+        </div>
+        <p v-else class="empty-clue-log">아직 확보한 단서가 없습니다. 현장 미션을 먼저 완료하십시오.</p>
+      </section>
+    </div>
+
     <div v-if="isScannerOpen" class="scanner-modal">
       <CameraScanner @capture="handleManualCapture" @close="isScannerOpen = false" />
       <button @click="isScannerOpen = false" class="btn-abort">ABORT_LINK</button>
@@ -108,6 +133,8 @@ const questionCount = ref(0);
 const chatContainer = ref(null);
 const isScannerOpen = ref(false);
 const finalMissionInfo = ref(null);
+const collectedMissions = ref([]);
+const showCluePanel = ref(false);
 
 const questionRemaining = computed(() => Math.max(0, 20 - questionCount.value));
 const { displayedText, isTyping, isFinished, addChunk, finishTyping, reset } = useTypingBuffer(30);
@@ -193,7 +220,11 @@ const loadFinalMissionInfo = async () => {
     const response = await apiClient.get(`/v1/regions/${regionId.value}/missions`, {
       params: { userId: userId.value || 1 }
     });
-    finalMissionInfo.value = response.data.find(mission => String(mission.id) === String(sessionId.value)) || null;
+    const missionList = response.data || [];
+    finalMissionInfo.value = missionList.find(mission => String(mission.id) === String(sessionId.value)) || null;
+    collectedMissions.value = missionList.filter(mission =>
+        mission.sessionStatus === 'CLEARED' && !getIsFinalMission(mission)
+    );
   } catch (error) {
     console.warn('Final mission field clue load failed:', error);
   }
@@ -214,6 +245,10 @@ const escapeHtml = (value) => {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+};
+
+const getIsFinalMission = (mission) => {
+  return mission && (mission.missionType === 'FINAL' || mission.isFinal === true || mission.final === true);
 };
 
 const handleManualCapture = async (imageDataUrl) => {
@@ -412,13 +447,23 @@ const hasQuestionIntent = (text) => {
   display: flex; justify-content: space-between; align-items: center;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 /* 💡 추가됨: 뒤로가기 버튼 스타일 (요원님 테마색 준수) */
-.btn-back {
+.btn-back,
+.btn-clues {
   background: rgba(8, 189, 186, 0.1); border: 1px solid #08bdba;
   color: #08bdba; padding: 5px 10px; font-family: inherit; font-size: 0.8rem;
   font-weight: bold; cursor: pointer; border-radius: 3px; transition: 0.2s;
 }
-.btn-back:hover { background: #08bdba; color: #000; box-shadow: 0 0 8px #08bdba; }
+.btn-back:hover,
+.btn-clues:hover { background: #08bdba; color: #000; box-shadow: 0 0 8px #08bdba; }
+.btn-clues { border-color: rgba(248, 214, 109, 0.72); color: #f8d66d; background: rgba(248, 214, 109, 0.08); }
+.btn-clues:hover { background: #f8d66d; border-color: #f8d66d; color: #000; box-shadow: 0 0 8px rgba(248, 214, 109, 0.55); }
 
 .header-glitch { font-size: 1.2rem; font-weight: bold; color: #80cbc4; letter-spacing: 2px; }
 .sys-metrics { display: flex; gap: 15px; font-size: 0.8rem; color: #4dd0e1; opacity: 0.7; }
@@ -526,7 +571,114 @@ const hasQuestionIntent = (text) => {
 .terminal-msg-enter-active, .terminal-msg-leave-active { transition: all 0.3s ease; }
 .terminal-msg-enter-from { opacity: 0; transform: translateX(-10px); }
 
+.clue-panel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background: rgba(1, 8, 12, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.clue-panel {
+  width: min(620px, 100%);
+  max-height: min(680px, 86vh);
+  overflow-y: auto;
+  border: 1px solid rgba(248, 214, 109, 0.52);
+  border-radius: 8px;
+  background: rgba(4, 12, 16, 0.96);
+  padding: 24px;
+  box-shadow: 0 0 28px rgba(248, 214, 109, 0.14);
+}
+
+.clue-panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(248, 214, 109, 0.18);
+}
+
+.panel-kicker {
+  margin: 0 0 6px;
+  color: #f8d66d;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.clue-panel h2 {
+  margin: 0;
+  color: #e0f2f1;
+  font-size: 1.24rem;
+}
+
+.panel-close {
+  flex: 0 0 auto;
+  border: 1px solid rgba(248, 214, 109, 0.58);
+  border-radius: 4px;
+  background: transparent;
+  color: #f8d66d;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.clue-log-list {
+  display: grid;
+  gap: 10px;
+}
+
+.clue-log {
+  border: 1px solid rgba(8, 189, 186, 0.18);
+  border-radius: 6px;
+  background: rgba(8, 189, 186, 0.05);
+  padding: 14px 16px;
+}
+
+.clue-log strong {
+  display: block;
+  margin-bottom: 7px;
+  color: #80cbc4;
+  font-size: 0.98rem;
+}
+
+.clue-log p,
+.empty-clue-log {
+  margin: 0;
+  color: #cfd8dc;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 .scanner-modal { position: fixed; inset: 0; z-index: 1000; background: #000; }
 .btn-abort { position: absolute; top: 20px; right: 20px; background: transparent; border: 1px solid #ef5350; color: #ef5350; padding: 10px 20px; z-index: 1001; cursor: pointer; font-family: inherit; font-weight: bold; border-radius: 4px; }
 .btn-abort:hover { background: rgba(239, 83, 80, 0.1); }
+
+@media (max-width: 720px) {
+  .hud-header {
+    gap: 12px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sys-metrics {
+    flex-wrap: wrap;
+  }
+
+  .message-block {
+    max-width: 82%;
+  }
+
+  .terminal-interface {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
 </style>
