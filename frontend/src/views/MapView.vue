@@ -62,7 +62,7 @@
         <div v-if="isArrived && getIsFinal(currentMission)" class="target-guide">
           최종 현장 단서: <span class="highlight">{{ currentMission?.visionKeyword || '현장 표식' }}</span>
           <br>
-          <span class="field-clue-text">{{ currentMission?.fieldClue || '마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 사건의 방향을 의심하라.' }}</span>
+          <span class="field-clue-text">{{ currentMission?.fieldClue || '마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 사건의 방향이 한쪽으로 기울어 있다.' }}</span>
         </div>
         <button v-if="isArrived && getIsFinal(currentMission)" @click="goToChat" class="capture-btn final-btn">
           [ 최종 분석 채널 접속 ]
@@ -89,7 +89,7 @@
         <ul v-if="clearedMissions.length > 0">
           <li v-for="m in clearedMissions" :key="m.id">
             📍 {{ m.title }} <br>
-            <span class="highlight">[단서]: {{ m.clue }}</span>
+            <span class="highlight clue-text">[단서]: {{ m.clue }}</span>
           </li>
         </ul>
         <p v-else class="no-hints">아직 획득한 단서가 없습니다.</p>
@@ -773,6 +773,7 @@ const uploadImage = async (imageFile) => {
 .target-guide { margin-bottom: 8px; font-size: 0.9rem; color: #bbb; }
 .target-guide .highlight { color: #ffaa00; font-weight: bold; }
 .field-clue-text { display: inline-block; margin-top: 6px; color: #dbeafe; line-height: 1.5; }
+.clue-text { white-space: pre-line; line-height: 1.62; }
 
 .override-btn { width: 100%; padding: 15px; background: transparent; color: #ffaa00; border: 1px solid #ffaa00; font-family: inherit; font-weight: bold; border-radius: 4px; cursor: pointer; }
 .override-btn:hover { background: rgba(255, 170, 0, 0.2); }

@@ -283,9 +283,9 @@ public class AdminMissionController {
                     "작전명 봉인된 현장"
             ));
             newRegion.setDescription(maskSecretKeyword(
-                    root.path("regionDescription").asText("봉인된 기록이 어둠 속에 남아 있음을 기억하라. 사라진 이름이 여러 장소의 침묵 사이에서 다시 떠오를 것이라 인지하라."),
+                    root.path("regionDescription").asText("오래된 기록을 정리하던 조사원이 같은 날짜가 서로 다른 이름으로 남아 있다는 사실을 발견했다. 한 기록은 사건이 끝났다고 말했고, 다른 기록은 아직 시작되지 않았다고 적혀 있었다.\n\n조사원은 두 기록 사이에 빠진 하루를 찾기 위해 현장으로 향했지만, 그날 밤 이후 연락이 끊겼다. 책상 위에는 찢긴 메모와 순서가 뒤바뀐 사진 몇 장만 남아 있었다.\n\n본편은 그가 찾지 못한 하루에서 시작된다. 흩어진 장면을 제자리에 놓고, 왜 누군가 이 이야기의 시작을 바꾸려 했는지 밝혀내라."),
                     finalAnswerKeyword,
-                    "봉인된 기록이 어둠 속에 남아 있음을 기억하라. 사라진 이름이 여러 장소의 침묵 사이에서 다시 떠오를 것이라 인지하라."
+                    "오래된 기록을 정리하던 조사원이 같은 날짜가 서로 다른 이름으로 남아 있다는 사실을 발견했다. 한 기록은 사건이 끝났다고 말했고, 다른 기록은 아직 시작되지 않았다고 적혀 있었다.\n\n조사원은 두 기록 사이에 빠진 하루를 찾기 위해 현장으로 향했지만, 그날 밤 이후 연락이 끊겼다. 책상 위에는 찢긴 메모와 순서가 뒤바뀐 사진 몇 장만 남아 있었다.\n\n본편은 그가 찾지 못한 하루에서 시작된다. 흩어진 장면을 제자리에 놓고, 왜 누군가 이 이야기의 시작을 바꾸려 했는지 밝혀내라."
             ));
             Region savedRegion = regionRepository.save(newRegion);
 
@@ -305,8 +305,8 @@ public class AdminMissionController {
                             resolveMissionDescription(missionNode, isFinal),
                             finalAnswerKeyword,
                             isFinal
-                                    ? "마지막 장면은 아직 이름을 드러내지 않는다. 닫힌 기록의 끝에서 오래된 선택의 흔적만 남겨 두라."
-                                    : "닫힌 기록의 파편이 이 장소에 남아 있다. 사라진 사건의 그림자가 아직 말없이 이어짐을 기억하라."
+                                    ? "마지막 파일은 아직 완전히 열리지 않았다. 오래된 선택의 흔적이 결론 앞에서 신호를 낮춘다."
+                                    : "본부가 끊어진 현장 신호를 포착했다. 작은 흔적 하나가 더 큰 사건의 윤곽을 밀어 올린다."
                     ));
                     mission.setFinal(isFinal);
                     mission.setRadiusInMeters(isFinal ? 30.0 : 45.0);
@@ -314,16 +314,16 @@ public class AdminMissionController {
                     if (isFinal) {
                         mission.setAnswerKeyword(finalAnswerKeyword);
                         mission.setClue(maskSecretKeyword(
-                                missionNode.path("clue").asText("마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 권력의 문이 흔들리던 밤을 기억하라."),
+                                missionNode.path("clue").asText("마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 문 너머에서 오래된 결정이 아직 흔들린다."),
                                 finalAnswerKeyword,
-                                "마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 권력의 문이 흔들리던 밤을 기억하라."
+                                "마지막 표식은 이름을 감추고 연도와 인물의 그림자만 남긴다. 닫힌 문 너머에서 오래된 결정이 아직 흔들린다."
                         ));
                         mission.setRealStory(missionNode.path("realStory").asText(""));
                     } else {
                         mission.setClue(maskSecretKeyword(
-                                missionNode.path("clue").asText("낡은 표식은 다른 장소의 그림자를 먼저 비춘다. 권력의 방향이 흔들리던 시대의 침묵을 기억하라."),
+                                missionNode.path("clue").asText("낡은 표식은 다른 장소의 그림자를 먼저 비춘다. 흔들린 시대의 결재선이 아직 한쪽으로 기울어 있다."),
                                 finalAnswerKeyword,
-                                "낡은 표식은 다른 장소의 그림자를 먼저 비춘다. 권력의 방향이 흔들리던 시대의 침묵을 기억하라."
+                                "낡은 표식은 다른 장소의 그림자를 먼저 비춘다. 흔들린 시대의 결재선이 아직 한쪽으로 기울어 있다."
                         ));
                     }
 
@@ -540,8 +540,8 @@ public class AdminMissionController {
             return description;
         }
         return isFinal
-                ? "마지막 장면은 아직 이름을 드러내지 않는다. 닫힌 기록의 끝에서 오래된 선택의 흔적만 남겨 두라."
-                : "닫힌 기록의 파편이 이 장소에 남아 있다. 사라진 사건의 그림자가 아직 말없이 이어짐을 기억하라.";
+                ? "마지막 파일은 아직 완전히 열리지 않았다. 오래된 선택의 흔적이 결론 앞에서 신호를 낮춘다."
+                : "본부가 끊어진 현장 신호를 포착했다. 작은 흔적 하나가 더 큰 사건의 윤곽을 밀어 올린다.";
     }
 
     private double resolveLatitude(JsonNode missionNode, Map<String, String> sourceSpot) {
