@@ -174,6 +174,11 @@ public class AdminMissionController {
 
                     if (isFinal) {
                         mission.setAnswerKeyword(finalAnswerKeyword);
+                        mission.setClue(maskSecretKeyword(
+                                missionNode.path("clue").asText("최종 현장의 안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건의 이름을 유추하세요."),
+                                finalAnswerKeyword,
+                                "최종 현장의 안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건의 이름을 유추하세요."
+                        ));
                         mission.setRealStory(missionNode.path("realStory").asText(""));
                     } else {
                         mission.setClue(maskSecretKeyword(
