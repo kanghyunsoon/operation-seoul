@@ -114,7 +114,7 @@ public class VisionAiService {
 
     // 🚨 Gemini 403 에러 해결: 헤더로 API 키 전달하도록 수정!
     private boolean judgeMatchWithGemini(String labels, String target) throws Exception {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
 
         String prompt = String.format(
                 "당신은 '오퍼레이션 서울'의 작전 통제 AI입니다. 요원이 현장에서 찍은 사진의 분석 키워드들을 보고, 목표 사물과 일치하는지 판단하세요.\n\n" +
