@@ -15,6 +15,10 @@ public class VisionController {
     private final VisionAiService visionAiService;
     private final CurrentUserResolver currentUserResolver;
 
+    /**
+     * 과거 프론트 호출 경로와의 호환용 Vision endpoint입니다.
+     * 신규 화면은 `/api/v1/sessions/{missionId}/vision`을 사용하므로 추후 하나로 통합할 수 있습니다.
+     */
     @PostMapping("/{missionId}/vision")
     public ResponseEntity<?> verifyVision(
             @PathVariable Long missionId,

@@ -31,8 +31,8 @@ public class TourApiService {
     @Value("${tourapi.key}")
     private String tourApiKey;
 
-    // 🔥 사용자님이 연동해두셨던 카카오 키 변수 원복
-    @Value("${VITE_KAKAO_REST_KEY}")
+    // 백엔드 표준 키(kakao.rest.api.key)를 우선 사용하되, 기존 로컬 설정(VITE_KAKAO_REST_KEY)도 호환합니다.
+    @Value("${kakao.rest.api.key:${VITE_KAKAO_REST_KEY:}}")
     private String kakaoRestApiKey;
 
     @Value("${tmap.app.key:}")
@@ -43,14 +43,13 @@ public class TourApiService {
 
     /**
      * [역사적 장소 수집] TourAPI 호출 (ContentType 12: 관광지)
+     * 관리자 후보지 스캔에서 최종 목적지 후보를 모으는 첫 단계입니다.
      */
     public List<Map<String, String>> fetchHistoricalPlaces(double lat, double lng, int radius) {
         List<Map<String, String>> spots = new ArrayList<>();
         try {
-            // 💡 사용자님 원본 로직: 키 앞뒤 공백 제거
             String safeKey = tourApiKey.trim();
 
-            // 💡 사용자님 원본 로직: KorService2 / locationBasedList2 완벽 복구
             StringBuilder urlBuilder = new StringBuilder("https://apis.data.go.kr/B551011/KorService2/locationBasedList2");
             urlBuilder.append("?serviceKey=").append(safeKey);
             urlBuilder.append("&numOfRows=15");
@@ -58,7 +57,6 @@ public class TourApiService {
             urlBuilder.append("&MobileOS=ETC");
             urlBuilder.append("&MobileApp=OperationSeoul");
             urlBuilder.append("&_type=json");
-            // 🔥 에러의 주범이었던 arrange 파라미터 제외 (사용자님 원본과 동일하게)
             urlBuilder.append("&mapX=").append(lng);
             urlBuilder.append("&mapY=").append(lat);
             urlBuilder.append("&radius=").append(radius);
@@ -90,7 +88,7 @@ public class TourApiService {
 
     /**
      * [주변 장소 수집] 카카오 API 호출
-     * 🔥 (사용자님이 작성하신 로직 100% 원복)
+     * 최종 목적지 주변의 카페/공원/시장 등 힌트 미션 후보 POI를 수집합니다.
      */
     public List<Map<String, String>> fetchNearbyLocalPOIs(double lat, double lng, int radius, String keyword) {
         List<Map<String, String>> spots = new ArrayList<>();
@@ -129,6 +127,10 @@ public class TourApiService {
         return spots;
     }
 
+    /**
+     * Tmap 도보 경로 API로 실제 보행 거리를 확인합니다.
+     * 후보지 필터링에서 직선거리는 가깝지만 도보 접근성이 나쁜 장소를 제외하는 데 사용합니다.
+     */
     public Double fetchPedestrianDistanceMeters(double startLat, double startLng, double endLat, double endLng) {
         if (tmapAppKey == null || tmapAppKey.isBlank()) {
             return null;

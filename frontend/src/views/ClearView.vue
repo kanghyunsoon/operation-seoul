@@ -1,5 +1,6 @@
 <template>
   <main class="clear-view">
+    <!-- 최종 미션 성공 후 실제 역사 해설과 단서별 각색 의도를 보여주는 결과 화면입니다. -->
     <section class="clear-panel">
       <p class="eyebrow">MISSION CLEARED</p>
       <h1>{{ report.title || '작전 완료' }}</h1>
@@ -77,6 +78,7 @@ const missionId = computed(() => route.params.missionId);
 const regionId = computed(() => route.query.regionId || 1);
 const userId = computed(() => sessionStore.userId || 1);
 
+// clear-report API 응답과 지역 미션 목록에서 추출한 클리어 단서를 화면 상태로 관리합니다.
 const report = ref({});
 const clues = ref([]);
 const visibleClues = ref([]);
@@ -88,6 +90,7 @@ const step = ref('history');
 let typingTimer = null;
 const revealTimers = [];
 
+// 서버 리포트가 비어도 최소한의 안내 문구를 보여주도록 fallback을 둡니다.
 const historyText = computed(() => {
   const rawReport = report.value.report
     || '임무는 완료되었습니다. 이 장소와 핵심 키워드의 상세 역사 해설은 공공데이터 기반 기록 보강 단계에서 제공될 예정입니다.';
@@ -95,8 +98,10 @@ const historyText = computed(() => {
   return formatReadableParagraphs(rawReport);
 });
 
+// 점수가 0이면 아직 점수 계산 전 상태로 보고 요약 영역을 숨깁니다.
 const hasScore = computed(() => Number(report.value.score) > 0);
 
+// 초 단위 기록을 m:ss 형식으로 표시합니다.
 const elapsedText = computed(() => {
   const seconds = Math.max(0, Number(report.value.elapsedSeconds) || 0);
   const minutes = Math.floor(seconds / 60);
@@ -104,6 +109,7 @@ const elapsedText = computed(() => {
   return `${minutes}m ${String(remainingSeconds).padStart(2, '0')}s`;
 });
 
+// 누적 이동 거리를 m/km 단위 문자열로 표시합니다.
 const routeDistanceText = computed(() => {
   const meters = Math.max(0, Number(report.value.routeDistanceMeters) || 0);
   if (meters >= 1000) {
@@ -112,6 +118,7 @@ const routeDistanceText = computed(() => {
   return `${Math.round(meters)}m`;
 });
 
+// 타자기 문자열을 문단 단위로 나눠 template에서 렌더링합니다.
 const typedHistoryParagraphs = computed(() => {
   return typedHistory.value
     .split(/\n{2,}/)
@@ -119,6 +126,7 @@ const typedHistoryParagraphs = computed(() => {
     .filter(Boolean);
 });
 
+// 선택한 단서에 대해 AI가 만든 해설이 있으면 우선 쓰고, 없으면 로컬 fallback 해설을 구성합니다.
 const selectedClueExplanation = computed(() => {
   if (!selectedClue.value) return [];
 
@@ -144,6 +152,7 @@ const selectedClueExplanation = computed(() => {
   ];
 });
 
+// 클리어 리포트와 미션 목록을 병렬로 가져오고 역사 해설 타자기 효과를 시작합니다.
 onMounted(async () => {
   const [reportResponse, missionsResponse] = await Promise.all([
     apiClient.get(`/v1/sessions/${missionId.value}/clear-report`, {
@@ -187,6 +196,7 @@ const startTypewriter = () => {
   tick();
 };
 
+// 역사 해설을 다 본 뒤 단서 카드를 순차적으로 노출합니다.
 const showClues = () => {
   step.value = 'clues';
   visibleClues.value = [];
@@ -200,18 +210,22 @@ const showClues = () => {
   });
 };
 
+// 같은 단서를 다시 누르면 상세 해설을 접습니다.
 const selectClue = (clue) => {
   selectedClue.value = selectedClue.value?.id === clue.id ? null : clue;
 };
 
+// 백엔드 DTO 필드명 변화에 대응하기 위한 최종 미션 판별 helper입니다.
 const getIsFinalMission = (mission) => {
   return mission && (mission.missionType === 'FINAL' || mission.isFinal === true || mission.final === true);
 };
 
+// 결과 확인 후 홈으로 돌아갑니다.
 const goHome = () => {
   router.push({ name: 'Home' });
 };
 
+// 긴 리포트를 한 문장씩 읽기 쉬운 문단으로 나눕니다.
 const formatReadableParagraphs = (text) => {
   const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
   if (!normalized) return '';
@@ -225,6 +239,7 @@ const formatReadableParagraphs = (text) => {
   return sentences?.length ? sentences.join('\n\n') : normalized;
 };
 
+// 특정 역사 사건에는 더 정확한 단서 연결 설명을 제공하고, 나머지는 일반 해설로 fallback합니다.
 const buildClueHistoricalRelation = (title, clue, keyword, finalTitle) => {
   const source = `${title} ${clue}`.toLowerCase();
   const isAgwan = keyword.includes('아관파천');
@@ -269,10 +284,12 @@ const buildClueHistoricalRelation = (title, clue, keyword, finalTitle) => {
   };
 };
 
+// 여러 키워드 중 하나라도 포함하는지 확인하는 단순 유틸입니다.
 const hasAny = (text, keywords) => {
   return keywords.some(keyword => text.includes(keyword));
 };
 
+// 단서 문구의 키워드를 바탕으로 어떤 역사적 관점의 힌트인지 대략 분류합니다.
 const inferClueTheme = (text) => {
   const value = text.toLowerCase();
 

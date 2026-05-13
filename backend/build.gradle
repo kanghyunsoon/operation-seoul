@@ -4,11 +4,13 @@ plugins {
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
+// 백엔드 모듈의 Maven 좌표입니다. 실제 배포 artifact 이름은 bootJar 기본값을 따릅니다.
 group = 'com.operation'
 version = '0.0.1-SNAPSHOT'
 
 java {
 	toolchain {
+		// 팀원 로컬 JDK가 달라도 Gradle toolchain이 Java 17 기준으로 컴파일하도록 고정합니다.
 		languageVersion = JavaLanguageVersion.of(17)
 	}
 }
@@ -18,6 +20,7 @@ repositories {
 }
 
 dependencies {
+	// REST API, JPA, MySQL 연결, DTO/JSON 처리를 위한 기본 의존성입니다.
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	compileOnly 'org.projectlombok:lombok'
@@ -30,18 +33,19 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 
-	// Spring Security
+	// Spring Security: JWT 필터와 관리자 API 보호에 사용합니다.
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 
-	// JWT 토큰 처리 (JJWT)
+	// JWT 토큰 생성/검증에 사용하는 JJWT입니다.
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
-	// 패스워드 암호화용 (이미 추가되어 있다면 패스)
+	// 요청 DTO 검증 확장에 대비해 포함해 둔 validation starter입니다.
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 }
 
 tasks.named('test') {
+	// JUnit Platform 기반 테스트 실행 설정입니다.
 	useJUnitPlatform()
 }

@@ -9,8 +9,10 @@ import java.util.Set;
 @Component
 public class OperationAreaResolver {
 
+    /** 알 수 없는 권역 코드나 좌표는 서울로 보정합니다. */
     public static final String DEFAULT_AREA_CODE = "seoul";
 
+    /** 프론트 권역 카탈로그와 백엔드 저장 값이 어긋나지 않도록 허용 목록을 한곳에서 관리합니다. */
     private static final Set<String> VALID_AREA_CODES = Set.of(
             "seoul",
             "gangwon",
@@ -23,6 +25,10 @@ public class OperationAreaResolver {
             "jeju"
     );
 
+    /**
+     * 위경도가 어느 권역에 속하는지 판정하기 위한 근사 폴리곤입니다.
+     * 행정 경계 정밀 데이터가 아니라 서비스 초기 분류용 값이므로, 필요하면 공식 GeoJSON으로 교체해야 합니다.
+     */
     private static final Map<String, List<Point>> AREA_POLYGONS = Map.of(
             "seoul", List.of(
                     new Point(126.02, 37.06),
@@ -110,6 +116,7 @@ public class OperationAreaResolver {
             )
     );
 
+    /** 폴리곤이 겹치는 곳에서 우선 판정할 순서입니다. */
     private static final List<String> AREA_MATCH_ORDER = List.of(
             "seoul",
             "gangwon",
@@ -122,6 +129,7 @@ public class OperationAreaResolver {
             "jeju"
     );
 
+    /** 좌표가 포함된 권역을 찾고, 어느 권역에도 들어가지 않으면 요청 권역을 정규화해 반환합니다. */
     public String resolveAreaCode(double lat, double lng, String requestedAreaCode) {
         for (String areaCode : AREA_MATCH_ORDER) {
             if (isInsidePolygon(lng, lat, AREA_POLYGONS.get(areaCode))) {
@@ -131,12 +139,14 @@ public class OperationAreaResolver {
         return normalizeAreaCode(requestedAreaCode);
     }
 
+    /** 특정 좌표가 주어진 권역 폴리곤 안에 있는지 확인합니다. */
     public boolean isInsideAreaCode(String areaCode, double lat, double lng) {
         String normalizedAreaCode = normalizeAreaCode(areaCode);
         List<Point> polygon = AREA_POLYGONS.get(normalizedAreaCode);
         return polygon != null && isInsidePolygon(lng, lat, polygon);
     }
 
+    /** null, 공백, 미등록 코드를 모두 기본 권역으로 보정합니다. */
     public String normalizeAreaCode(String areaCode) {
         if (areaCode == null || areaCode.isBlank()) {
             return DEFAULT_AREA_CODE;
@@ -146,6 +156,7 @@ public class OperationAreaResolver {
         return VALID_AREA_CODES.contains(normalized) ? normalized : DEFAULT_AREA_CODE;
     }
 
+    /** ray casting 알고리즘으로 점이 다각형 내부에 있는지 계산합니다. */
     private boolean isInsidePolygon(double lng, double lat, List<Point> polygon) {
         boolean inside = false;
         for (int i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {

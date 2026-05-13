@@ -1,11 +1,11 @@
 import { createApp } from 'vue'
-import { createPinia } from 'pinia' // 📌 Pinia 생성 함수 가져오기
+import { createPinia } from 'pinia'
 import App from './App.vue'
-import router from './router'       // 📌 우리가 만든 라우터 가져오기 (index.js는 생략 가능)
+import router from './router'
 
 const app = createApp(App)
 
-// 앱에 Pinia와 Router를 장착합니다! (순서 주의: mount 보다 먼저 해야 합니다)
+// 전역 상태(Pinia)와 화면 전환(router)은 mount 전에 등록해야 모든 view에서 사용할 수 있습니다.
 app.use(createPinia())
 app.use(router)
 

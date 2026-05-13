@@ -25,6 +25,7 @@ public class Mission {
      사용자 화면 및 안내 가이드에 표시될 공식 명칭  */
     private String title;
 
+    /** 지도 카드와 브리핑에서 쓰는 미션별 짧은 서사 또는 현장 설명입니다. */
     @Column(columnDefinition = "TEXT")
     private String description;
 
@@ -54,11 +55,11 @@ public class Mission {
      AI 대화 세션 또는 정답 입력란에서 검증할 최종 통과용 텍스트 */
     private String answerKeyword;
 
-    /** 같은 챕터끼리 묶어주는 ID*/
+    /** 같은 챕터끼리 묶어주는 ID. 현재 흐름은 regionId 중심이며, 확장용으로 남겨둔 필드입니다. */
     @Column(name = "chapter_id")
     private Long chapterId;
 
-    /** true면 힌트를 다 모으기 전까지 지도에서 숨김*/
+    /** true면 힌트를 다 모으기 전까지 지도에서 숨기는 최종 미션입니다. */
     @Column(name = "is_final")
     private boolean isFinal = false;
 

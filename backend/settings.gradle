@@ -1,1 +1,2 @@
+// Gradle에서 인식하는 백엔드 루트 프로젝트명입니다.
 rootProject.name = 'seoul'

@@ -1,5 +1,6 @@
 <template>
   <div class="tactical-fullscreen">
+    <!-- 모바일 현장 사용을 우선한 전술 단말 형태의 지도 화면입니다. -->
     <div class="device-frame">
       <header class="device-header">
         <div class="status-lights">
@@ -129,6 +130,7 @@ const sessionStore = useSessionStore();
 const isAdmin = computed(() => sessionStore.userInfo?.isAdmin || false);
 const userId = computed(() => sessionStore.userId);
 
+// 지도 상단/하단 HUD와 현재 선택 미션 상태입니다.
 const regionName = ref('조회 중...');
 const isArrived = ref(false);
 const currentTargetName = ref('타겟 미지정 (마커를 선택하세요)');
@@ -157,9 +159,11 @@ let activeTooltipOverlay = null;
 let hintFoldTimer = null;
 let hintDismissTimer = null;
 
+// 최종 미션 해금 후 Tmap 경로를 한 번만 자동 실행하기 위한 상태입니다.
 let polylineOverlay = null;
 const isNavLaunched = ref(false);
 
+// 단서 획득 카드의 접힘/사라짐 타이머를 정리합니다.
 const clearHintRevealTimers = () => {
   if (hintFoldTimer) {
     clearTimeout(hintFoldTimer);
@@ -171,6 +175,7 @@ const clearHintRevealTimers = () => {
   }
 };
 
+// Vision 인증 결과를 지도 중앙에 표시한 뒤 단서 버튼 쪽으로 접어 사라지게 합니다.
 const showHintReveal = ({ status = 'success', title = '현장 단서', message = '' }) => {
   clearHintRevealTimers();
   hintReveal.value = {
@@ -195,6 +200,7 @@ const showHintReveal = ({ status = 'success', title = '현장 단서', message =
   }, dismissDelay);
 };
 
+// 사용자가 단서 카드를 누르면 기다리지 않고 즉시 접히게 합니다.
 const foldHintRevealNow = () => {
   if (!hintReveal.value) return;
 
@@ -206,6 +212,7 @@ const foldHintRevealNow = () => {
   }, 760);
 };
 
+// 프론트 실시간 거리 표시와 이동 거리 기록에 사용하는 하버사인 거리 계산입니다.
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
   const R = 6371e3;
@@ -218,8 +225,10 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return Math.floor(R * c);
 };
 
+// 작전별 시간/이동거리 기록은 userId+regionId 기준 localStorage에 저장합니다.
 const getMetricKey = () => `operation-seoul:mission-metrics:${userId.value || 1}:${regionId}`;
 
+// 채팅에서 점수 계산 payload로 보내기 위해 누적 이동 기록을 읽습니다.
 const readMissionMetrics = () => {
   try {
     const saved = localStorage.getItem(getMetricKey());
@@ -235,10 +244,12 @@ const readMissionMetrics = () => {
   };
 };
 
+// GPS watcher가 갱신한 작전 진행 metric을 저장합니다.
 const writeMissionMetrics = (metrics) => {
   localStorage.setItem(getMetricKey(), JSON.stringify(metrics));
 };
 
+// GPS 좌표가 정상적으로 이동한 경우에만 누적 이동 거리에 더합니다.
 const recordRoutePosition = (lat, lng) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
@@ -260,7 +271,7 @@ const recordRoutePosition = (lat, lng) => {
   writeMissionMetrics(metrics);
 };
 
-// 🟢 백엔드/프론트 통신(isFinal -> final) 버그 원천 차단 헬퍼 함수
+// 백엔드/프론트 통신에서 isFinal/final 필드명이 달라져도 같은 의미로 처리하는 helper입니다.
 const getIsFinal = (m) => m && (m.missionType === 'FINAL' || m.isFinal === true || m.final === true);
 const getIsUnlocked = (m) => m && (m.isUnlocked === true || m.unlocked === true);
 
@@ -272,7 +283,7 @@ const arrivalProgressText = computed(() => {
   return `REMAIN ${remainingArrivalDistance.value}m`;
 });
 
-// 🟢 [완벽 복구] 힌트 1개부터 최종 거리 추적
+// 힌트를 1개 이상 모은 뒤 최종 목적지까지의 거리를 HUD에 표시합니다.
 const finalDistance = computed(() => {
   const fMission = missions.value.find(m => getIsFinal(m));
 
@@ -282,7 +293,7 @@ const finalDistance = computed(() => {
   return calculateDistance(currentLat.value, currentLng.value, fMission.targetLat, fMission.targetLng) + 'm';
 });
 
-// 🗺️ 카카오맵 위에 Tmap 도보 경로(Polyline) 그리기 로직 (직선 & 네온 스타일)
+// Kakao 지도 위에 Tmap 도보 경로 Polyline을 그립니다. 실패하면 직선 fallback을 표시합니다.
 const drawTmapRoute = async (mission) => {
   if (!currentLat.value || !currentLng.value || !mission.targetLat || !mission.targetLng) return;
 
@@ -361,7 +372,7 @@ const drawTmapRoute = async (mission) => {
   }
 };
 
-// 🟢 [완벽 복구] 힌트를 모두 모으면 즉시 네비게이션 자동 실행
+// 힌트 3개로 최종 미션이 해금되면 경로를 자동으로 한 번 표시합니다.
 const checkAndDrawNavigation = () => {
   const fMission = missions.value.find(m => getIsFinal(m));
 
@@ -372,6 +383,7 @@ const checkAndDrawNavigation = () => {
   }
 };
 
+// 마커 클릭 시 현재 목표를 바꾸고, 이미 도착 반경 안인지 즉시 계산합니다.
 const handleMissionClick = (mission) => {
   if (activeTooltipOverlay) {
     activeTooltipOverlay.setMap(null);
@@ -395,6 +407,7 @@ const handleMissionClick = (mission) => {
   }
 };
 
+// 미션별 radiusInMeters가 없으면 힌트 50m, 최종 30m 기본값을 사용합니다.
 const getArrivalRadius = (mission) => {
   if (!mission) return 50;
   const radius = Number(mission.radiusInMeters ?? mission.radius ?? 0);
@@ -402,6 +415,7 @@ const getArrivalRadius = (mission) => {
   return getIsFinal(mission) ? 30 : 50;
 };
 
+// 이미 클리어한 힌트 마커를 누르면 단서 tooltip을 보여줍니다.
 const toggleTooltip = (mission, latLng) => {
   if (activeTooltipOverlay && activeTooltipOverlay.getTitle() === mission.id.toString()) {
     activeTooltipOverlay.setMap(null);
@@ -435,6 +449,7 @@ const toggleTooltip = (mission, latLng) => {
   activeTooltipOverlay.getTitle = () => mission.id.toString();
 };
 
+// 지역 내 미션 목록과 사용자 진행 상태를 불러와 지도 마커를 다시 그립니다.
 const loadMissionsData = async () => {
   try {
     const misRes = await apiClient.get(`/v1/regions/${regionId}/missions`, {
@@ -457,13 +472,12 @@ const loadMissionsData = async () => {
       const isFinalFlag = getIsFinal(mission);
       const isUnlockedFlag = getIsUnlocked(mission);
 
-      // 🚨 최종 목적지인데 아직 해금 안 됐다면 맵에 핀을 절대 그리지 않음!
+      // 최종 목적지인데 아직 해금 안 됐다면 맵에 핀을 그리지 않습니다.
       if (isFinalFlag && !isUnlockedFlag) return;
 
       const isCleared = mission.sessionStatus === 'CLEARED';
       const content = document.createElement('div');
 
-      // 🟢 드디어 최종 목적지가 붉은 핀으로 나타납니다!
       content.className = isCleared ? 'custom-marker cleared' : (isFinalFlag ? 'custom-marker final' : 'custom-marker');
 
       const position = new window.kakao.maps.LatLng(mission.targetLat, mission.targetLng);
@@ -497,6 +511,7 @@ const loadMissionsData = async () => {
   }
 };
 
+// 브라우저 GPS를 감시합니다. 권한이 없거나 지연되면 첫 미션 근처 fallback 좌표를 사용합니다.
 const startGpsTracking = () => {
   const executeFakeGpsFallback = () => {
     let baseLat = 37.5665;
@@ -577,7 +592,7 @@ const startGpsTracking = () => {
         isArrived.value = targetDistance.value <= getArrivalRadius(currentMission.value);
       }
 
-      // 내 위치 갱신 후, 선이 그려져있다면 업데이트, 안 그려져있고 조건 맞으면 그림
+      // 내 위치 갱신 후, 선이 그려져 있으면 업데이트하고 조건이 맞으면 새로 그립니다.
       const fMission = missions.value.find(m => getIsFinal(m));
       if (fMission && getIsUnlocked(fMission)) {
         if (polylineOverlay) {
@@ -593,6 +608,7 @@ const startGpsTracking = () => {
   }
 };
 
+// index.html에서 Kakao Maps SDK가 로드될 때까지 짧게 대기합니다.
 const waitForKakaoMapSdk = () => {
   return new Promise((resolve, reject) => {
     if (window.kakao?.maps?.Map && window.kakao?.maps?.LatLng) {
@@ -617,6 +633,7 @@ const waitForKakaoMapSdk = () => {
   });
 };
 
+// Kakao 지도는 컨테이너 크기가 변한 뒤 relayout을 호출해야 정상 표시됩니다.
 const syncMapLayout = async (center = null) => {
   if (!map) return;
 
@@ -637,6 +654,7 @@ const syncMapLayout = async (center = null) => {
   });
 };
 
+// Kakao 지도 인스턴스를 만들고 Region/Mission 데이터를 불러온 뒤 GPS 추적을 시작합니다.
 const initializeMap = async () => {
   if (!mapContainer.value) {
     throw new Error('지도 컨테이너를 찾을 수 없습니다.');
@@ -692,11 +710,13 @@ const goToChat = () => {
   }
 };
 
+// 관리자 테스트 편의를 위해 실제 GPS 도착 판정 없이 도착 상태로 바꿉니다.
 const forceArrival = () => {
   if(!currentMission.value) return;
   isArrived.value = true;
 };
 
+// CameraScanner의 data URL을 File로 변환한 뒤 Vision 인증 API에 업로드합니다.
 const uploadImage = async (imageFile) => {
   if (!currentMission.value?.id) {
     showHintReveal({

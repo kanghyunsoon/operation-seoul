@@ -15,10 +15,10 @@ public class AiCourseResponseDto {
     // 1. Region(홈 뷰 작전 카드) 테이블에 들어갈 데이터
     // ==========================================
 
-    // 작전명 (예: "작전명: 정동길의 그림자")
+    // 작전명 (예: "작전명 정동길의 그림자"). Region.name으로 저장됩니다.
     private String regionName;
 
-    // 작전 배경 스토리 및 설명 (예: "당신은 비밀요원입니다. 이준 열사의 밀서를 찾아...")
+    // 작전 배경 스토리 및 설명. Home 카드와 Briefing 화면의 기본 서사로 사용됩니다.
     private String regionDescription;
 
     // ==========================================
@@ -51,7 +51,7 @@ public class AiCourseResponseDto {
         // (예: "742" 또는 "독립선언서")
         private String answerKeyword;
 
-        // 최종 목적지 여부 플래그 (true일 경우 힌트 3개를 모으기 전까지 지도에서 숨겨집니다)
+        // 최종 목적지 여부 플래그. true일 경우 힌트 3개를 모으기 전까지 지도에서 숨겨집니다.
         private boolean isFinal;
     }
 }

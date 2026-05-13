@@ -26,6 +26,8 @@ public class LocationController {
 
     /**
      * [기능: 맵 뷰 데이터 로딩 - 힌트 및 목적지 조회]
+     * 인증 사용자가 있으면 토큰의 userId를 기준으로 세션 상태를 반영하고,
+     * 개발 중 직접 호출을 위해 userId query parameter도 fallback으로 허용합니다.
      */
     @GetMapping("/regions/{regionId}/missions")
     public ResponseEntity<List<MissionResponse>> getMissions(
@@ -39,6 +41,7 @@ public class LocationController {
 
     /**
      * [기능: 미션 장소 도착 여부 검증]
+     * 현재 MapView는 프론트 거리 계산을 주로 사용하지만, 위치 판정 기준을 서버에서 검증할 때 호출할 수 있습니다.
      */
     @PostMapping("/missions/{missionId}/arrive")
     public ResponseEntity<Boolean> checkArrival(
@@ -59,9 +62,12 @@ public class LocationController {
 
 /**
  * [DTO: 위치 정보 요청 규격]
+ * GPS 좌표만 받는 단순 요청이므로 컨트롤러 파일 내부 package-private 클래스로 둡니다.
  */
 @Data
 class LocationRequest {
+    /** 사용자 단말에서 측정한 현재 위도입니다. */
     private Double userLat;
+    /** 사용자 단말에서 측정한 현재 경도입니다. */
     private Double userLng;
 }

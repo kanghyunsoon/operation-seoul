@@ -24,7 +24,8 @@ public class MissionService {
 
     /**
      * 유저의 진행 상황을 반영한 지역별 미션(힌트) 목록 조회
-     * * @param regionId 조회할 지역 ID
+     *
+     * @param regionId 조회할 지역 ID
      * @param userId 요청을 보낸 유저 ID (인증 토큰에서 추출)
      * @return 해금 및 마스킹 처리가 완료된 MissionResponse 리스트
      */
@@ -54,6 +55,7 @@ public class MissionService {
 
     /**
      * 내부 헬퍼 메서드: 특정 미션에 대한 유저의 상태값을 반환 (없으면 null)
+     * GameSession이 없다는 것은 사용자가 아직 해당 미션을 시도하지 않았다는 뜻입니다.
      */
     private String getUserSessionStatus(Long missionId, Long userId) {
         return gameSessionRepository.findByUserIdAndMissionId(userId, missionId)
@@ -63,6 +65,7 @@ public class MissionService {
 
     /**
      * 내부 헬퍼 메서드: 유저가 해당 미션을 완전히 클리어(CLEARED) 했는지 검증
+     * 최종 미션 해금 조건 계산에 사용합니다.
      */
     private boolean isMissionClearedByUser(Long missionId, Long userId) {
         return "CLEARED".equals(getUserSessionStatus(missionId, userId));

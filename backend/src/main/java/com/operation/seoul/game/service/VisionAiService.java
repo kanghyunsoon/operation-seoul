@@ -31,6 +31,10 @@ public class VisionAiService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
+    /**
+     * 업로드 이미지가 미션의 목표 단서를 충분히 담았는지 확인하고 성공 시 세션을 클리어합니다.
+     * 관리자는 현장 테스트 편의를 위해 Vision 판정 없이 통과할 수 있습니다.
+     */
     public Map<String, Object> verifyAndRecordMission(Long missionId, MultipartFile image, Long userId, boolean isAdmin) {
         boolean isSuccess = isAdmin || validateKeyword(missionId, image);
 
@@ -65,6 +69,10 @@ public class VisionAiService {
         );
     }
 
+    /**
+     * Google Vision 라벨 결과와 미션의 visionKeyword를 Gemini로 의미 비교합니다.
+     * 현재는 사물/장면 라벨 중심이며, 간판 문구 인증이 필요하면 TEXT_DETECTION을 추가해야 합니다.
+     */
     public boolean validateKeyword(Long missionId, MultipartFile image) {
         try {
             Mission mission = missionRepository.findById(missionId)
@@ -73,11 +81,11 @@ public class VisionAiService {
             String targetKeyword = mission.getVisionKeyword();
             if (targetKeyword == null || targetKeyword.isEmpty()) return true;
 
-            // 1. Google Vision API로 사진에서 데이터(글자+사물) 추출
+            // 1. Google Vision API로 사진에서 사물/장면 라벨 추출
             String extractedData = getLabelsFromVision(image);
             System.out.println("🧐 Vision API 추출 라벨: " + extractedData);
 
-            // 2. Gemini를 이용한 의미론적 비교 (403 에러 안 나게 수정됨)
+            // 2. Gemini를 이용한 의미론적 비교
             return judgeMatchWithGemini(extractedData, targetKeyword);
 
         } catch (Exception e) {
@@ -86,6 +94,7 @@ public class VisionAiService {
         }
     }
 
+    /** Google Vision LABEL_DETECTION 결과를 쉼표로 이어 붙인 소문자 문자열로 반환합니다. */
     private String getLabelsFromVision(MultipartFile image) throws Exception {
         String url = "https://vision.googleapis.com/v1/images:annotate?key=" + visionApiKey;
         String base64Image = Base64.getEncoder().encodeToString(image.getBytes());
@@ -112,7 +121,7 @@ public class VisionAiService {
         return sb.toString().toLowerCase();
     }
 
-    // 🚨 Gemini 403 에러 해결: 헤더로 API 키 전달하도록 수정!
+    /** Vision 라벨들이 목표 단서를 설명하는지 Gemini에게 TRUE/FALSE로만 판정하게 합니다. */
     private boolean judgeMatchWithGemini(String labels, String target) throws Exception {
         String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
 
@@ -128,7 +137,7 @@ public class VisionAiService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", geminiApiKey.trim()); // 🔑 HTTP Header로 API 키 전송
+        headers.set("x-goog-api-key", geminiApiKey.trim());
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);

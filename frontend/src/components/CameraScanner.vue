@@ -1,5 +1,6 @@
 <template>
   <div class="scanner-container">
+    <!-- 실제 카메라 스트림을 직접 제어하지 않고 모바일 브라우저의 capture 파일 입력을 사용합니다. -->
     <div class="scanner-overlay">
       <div class="scan-frame">
         <div class="radar-scan-line"></div>
@@ -32,13 +33,16 @@
 <script setup>
 import { ref } from 'vue';
 
+// 부모 화면(MapView/AiChatView)은 capture 이벤트로 data URL을 받아 서버에 업로드합니다.
 const emit = defineEmits(['capture']);
 const fileInput = ref(null);
 
+// 스타일링된 버튼 클릭을 숨겨진 file input 클릭으로 연결합니다.
 const triggerFileInput = () => {
   fileInput.value.click();
 };
 
+// 모바일에서는 카메라 촬영 결과, 데스크톱에서는 파일 선택 결과를 data URL로 변환합니다.
 const processFile = (event) => {
   const file = event.target.files[0];
   if (!file) return;

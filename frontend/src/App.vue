@@ -1,4 +1,5 @@
 <template>
+  <!-- 모든 화면은 router/index.js의 현재 route가 결정합니다. App.vue는 전역 shell 역할만 합니다. -->
   <router-view />
 </template>
 
