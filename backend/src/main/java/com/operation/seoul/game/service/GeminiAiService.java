@@ -48,8 +48,11 @@ public class GeminiAiService {
                 [생성 규칙]
                 1. 최종 목적지와 직접 근거가 있는 실제 사건, 공식 사건명, 유명한 일화, 유래, 개통, 조성, 축제 탄생 중 하나를 정답으로 정하세요.
                    answerKeyword는 장소명, 인물명, 건물명이 아니라 최종 목적지에서 설명 가능한 사건/일화/역사적 행위/유래의 압축 키워드여야 합니다.
+                   answerKeyword는 플레이어가 최종 채팅에서 직접 입력할 수 있는 2~8자 내외의 짧은 대표 표현이어야 합니다.
+                   "산업철도의 관광자원화"처럼 의미는 정확하지만 너무 학술적이거나 긴 표현은 answerKeyword로 쓰지 말고 realStory에서 해설하세요.
                    전국적으로 유명한 역사 사건을 아무 장소에나 붙이면 안 됩니다. 최종 목적지의 안내문, 공식 설명, 지명 유래, 교통/관광 콘텐츠의 탄생 배경으로 설명 가능한 경우에만 선택하세요.
                    최종 목적지가 현대 관광지나 열차/축제/테마 공간이면, 무관한 근현대 정치 사건 대신 해당 관광지의 조성, 노선 개통, 지역 산업, 지명 유래, 설화, 축제 탄생과 직접 연결된 키워드를 정하세요.
+                   현대 관광지/교통/축제/테마 콘텐츠가 최종 목적지라면 answerKeyword는 짧고 맞힐 수 있는 대표 표현으로 정하고, 의미가 같은 근접 표현으로도 자연스럽게 유추 가능해야 합니다.
                    좋은 예는 "최종 목적지의 공식 해설로 바로 설명 가능한 사건/유래/개통/조성 키워드"입니다. 나쁜 예는 "장소와 직접 관련 없는 유명 사건", "장소명", "인물명", "건물명"입니다.
                    answerKeyword는 최종 채팅에서 맞혀야 하는 비밀 정답입니다. regionName, regionDescription, clue에는 절대 직접 쓰지 마세요.
 
@@ -161,31 +164,33 @@ public class GeminiAiService {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String clueContext = buildCollectedClueContext(getClearedClues(mission, userId));
         String fieldClue = getFinalFieldClue(mission);
+        boolean genericHintRequest = isGenericHintRequest(userQuestion);
         String prompt = String.format("""
                 당신은 역사 추리 게임의 최종 채팅 진행자입니다.
-                정답 키워드: "%s"
                 최종 장소: "%s"
                 현장 관찰 단서: "%s"
                 실제 역사 기록 요약: "%s"
                 플레이어가 수집한 단서: %s
                 플레이어 질문: "%s"
+                질문 유형: %s
 
                 [응답 규칙]
-                - 한국어로 2문장 이하, 170자 이하.
-                - 질문 내용이 정답과 관련 있는지 "관련 있음", "부분적으로 관련 있음", "거리가 있음" 중 하나의 표현으로 알려주세요.
-                - 관련이 있으면 어떤 역사적 축과 가까운지 한 문장으로 설명하세요.
-                - 정답 키워드 자체는 절대 말하지 마세요.
-                - 장소명, 인물명, 시대 배경은 힌트로 언급할 수 있지만 결론을 직접 확정하지 마세요.
+                - 한국어로 1~2문장, 130자 이하.
+                - 질문 유형이 "일반 힌트 요청"이면 관련성 판정을 하지 말고, 수집한 단서 중 한 장면을 암시적으로 다시 배열하세요.
+                - 질문 유형이 "가설 검증 요청"이면 "관련 있음", "부분적으로 관련 있음", "거리가 있음" 중 하나로 시작해도 됩니다.
+                - 정답 단어, 정답의 동의어, 정답을 정의하는 설명문을 쓰지 마세요.
+                - "A가 B로 변했다", "무엇이 무엇으로 바뀌었다"처럼 결론 구조를 완성하지 마세요.
+                - 단어 후보를 던지지 말고 관찰 순서, 대비되는 이미지, 빠진 연결고리만 말하세요.
                 """,
-                mission.getAnswerKeyword(),
                 mission.getTitle(),
                 fieldClue,
-                summarizeForPrompt(mission.getRealStory(), 500),
+                summarizeForPrompt(mission.getRealStory(), 320),
                 clueContext,
-                userQuestion
+                userQuestion,
+                genericHintRequest ? "일반 힌트 요청" : "가설 검증 요청"
         );
 
-        return streamPrompt(geminiUrl(), prompt);
+        return streamPrompt(geminiUrl(), prompt, answer -> sanitizeHintAnswer(answer, mission, genericHintRequest));
     }
 
     public boolean isHintQuestion(String userAnswer) {
@@ -208,6 +213,48 @@ public class GeminiAiService {
                 || trimmed.contains("누구")
                 || trimmed.contains("어떻게")
                 || trimmed.contains("힌트");
+    }
+
+    private boolean isGenericHintRequest(String userQuestion) {
+        String normalized = normalizeAnswer(userQuestion);
+        if (normalized.isBlank()) {
+            return false;
+        }
+        boolean asksForHint = normalized.contains("힌트")
+                || normalized.contains("모르겠")
+                || normalized.contains("감이안")
+                || normalized.contains("도와")
+                || normalized.contains("막혔");
+        boolean asksRelation = normalized.contains("관련")
+                || normalized.contains("맞아")
+                || normalized.contains("인가")
+                || normalized.contains("일까")
+                || normalized.contains("이거")
+                || normalized.contains("이게");
+        return asksForHint && !asksRelation;
+    }
+
+    private String sanitizeHintAnswer(String answer, Mission mission, boolean genericHintRequest) {
+        if (answer == null || answer.isBlank()) {
+            return buildSafeHintFallback();
+        }
+
+        String normalizedAnswer = normalizeAnswer(answer);
+        String normalizedKeyword = normalizeAnswer(mission.getAnswerKeyword());
+        boolean exposesKeyword = !normalizedKeyword.isBlank() && normalizedAnswer.contains(normalizedKeyword);
+        boolean usesJudgementPhraseOnGenericHint = genericHintRequest && containsAny(
+                normalizedAnswer,
+                "정답과관련", "정답에관련", "매우관련", "질문하신내용", "관련있습니다", "관련있음", "정답은", "키워드는"
+        );
+
+        if (exposesKeyword || usesJudgementPhraseOnGenericHint) {
+            return buildSafeHintFallback();
+        }
+        return answer.trim();
+    }
+
+    private String buildSafeHintFallback() {
+        return "지금은 결론보다 배열이 중요하다. 가장 먼저 얻은 단서가 만든 균열과 마지막 현장 표식이 만나는 지점을 다시 좁혀라.";
     }
 
     public Map<String, Object> generateClearReport(Long missionId, Long userId) {
@@ -265,13 +312,27 @@ public class GeminiAiService {
         String prompt = String.format("""
                 정답 키워드: "%s"
                 대원 답변: "%s"
-                판정 기준: 답변이 정답 키워드 자체이거나 같은 역사 사건/일화의 공식 명칭을 명확히 말한 경우만 TRUE입니다.
-                관련 인물, 장소, 시대 배경만 말한 경우는 FALSE입니다.
+                판정 기준: 답변이 정답 키워드 자체이거나 같은 역사 사건/일화/전환 개념의 공식 명칭을 명확히 말한 경우만 TRUE입니다.
+                띄어쓰기, 조사, 약간의 어순 차이, 같은 짧은 복합어의 앞뒤 순서가 바뀐 표현은 의미가 같으면 TRUE입니다.
+                단, 정답을 구성하는 일부 단어만 말했거나 넓은 분야/장소/인물/시대 배경만 말한 경우는 FALSE입니다.
+                답변이 애매하면 TRUE로 확장하지 말고 FALSE입니다.
                 TRUE 또는 FALSE만 출력하세요.
                 """, answerKeyword, userAnswer);
 
         String result = callGeminiStandard(geminiUrl(), prompt);
         return result != null && "TRUE".equalsIgnoreCase(result.trim());
+    }
+
+    private boolean containsAny(String value, String... needles) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        for (String needle : needles) {
+            if (value.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<Map<String, String>> getClearedClues(Mission finalMission, Long userId) {
@@ -438,11 +499,18 @@ public class GeminiAiService {
     }
 
     private ResponseBodyEmitter streamPrompt(String url, String prompt) {
+        return streamPrompt(url, prompt, null);
+    }
+
+    private ResponseBodyEmitter streamPrompt(String url, String prompt, java.util.function.UnaryOperator<String> sanitizer) {
         ResponseBodyEmitter emitter = new ResponseBodyEmitter(120000L);
 
         new Thread(() -> {
             try {
                 String aiResponseText = callGeminiStandard(url, prompt);
+                if (sanitizer != null) {
+                    aiResponseText = sanitizer.apply(aiResponseText);
+                }
                 if (aiResponseText != null) {
                     for (char c : aiResponseText.toCharArray()) {
                         emitter.send(String.valueOf(c));

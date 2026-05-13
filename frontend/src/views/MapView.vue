@@ -22,6 +22,20 @@
           💡 획득한 단서 {{ collectedHints }} / {{ requiredHints }}
         </button>
 
+        <Transition name="hint-reveal">
+          <div
+            v-if="hintReveal"
+            class="hint-reveal-card"
+            :class="[hintReveal.status, { folding: hintReveal.folding }]"
+          >
+            <p class="hint-reveal-kicker">
+              {{ hintReveal.status === 'error' ? '분석 실패' : '단서 해금' }}
+            </p>
+            <strong>{{ hintReveal.title }}</strong>
+            <p class="hint-reveal-text">{{ hintReveal.message }}</p>
+          </div>
+        </Transition>
+
         <div v-if="collectedHints >= 1" class="coord-overlay top-right" :class="{ 'final-dist-blink': isArrived }">
           최종 TGT DIST: {{ finalDistance }}
         </div>
@@ -122,6 +136,7 @@ const showHintModal = ref(false);
 const isScannerOpen = ref(false);
 const collectedHints = ref(0);
 const requiredHints = ref(3);
+const hintReveal = ref(null);
 
 const currentMission = ref(null);
 const clearedMissions = ref([]);
@@ -138,9 +153,46 @@ let userMarker = null;
 let gpsWatcherId = null;
 let markerOverlays = [];
 let activeTooltipOverlay = null;
+let hintFoldTimer = null;
+let hintDismissTimer = null;
 
 let polylineOverlay = null;
 const isNavLaunched = ref(false);
+
+const clearHintRevealTimers = () => {
+  if (hintFoldTimer) {
+    clearTimeout(hintFoldTimer);
+    hintFoldTimer = null;
+  }
+  if (hintDismissTimer) {
+    clearTimeout(hintDismissTimer);
+    hintDismissTimer = null;
+  }
+};
+
+const showHintReveal = ({ status = 'success', title = '현장 단서', message = '' }) => {
+  clearHintRevealTimers();
+  hintReveal.value = {
+    status,
+    title,
+    message: message || (status === 'error' ? '다시 시도하십시오.' : '단서가 해금되었습니다.'),
+    folding: false
+  };
+
+  const foldDelay = status === 'error' ? 2400 : 3600;
+  const dismissDelay = status === 'error' ? 3300 : 4700;
+
+  hintFoldTimer = setTimeout(() => {
+    if (hintReveal.value) {
+      hintReveal.value = { ...hintReveal.value, folding: true };
+    }
+  }, foldDelay);
+
+  hintDismissTimer = setTimeout(() => {
+    hintReveal.value = null;
+    clearHintRevealTimers();
+  }, dismissDelay);
+};
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
@@ -617,6 +669,7 @@ onUnmounted(() => {
   if (gpsWatcherId && navigator.geolocation) {
     navigator.geolocation.clearWatch(gpsWatcherId);
   }
+  clearHintRevealTimers();
 });
 
 const goToChat = () => {
@@ -633,6 +686,15 @@ const forceArrival = () => {
 };
 
 const uploadImage = async (imageFile) => {
+  if (!currentMission.value?.id) {
+    showHintReveal({
+      status: 'error',
+      title: '대상 미지정',
+      message: '먼저 지도에서 분석할 현장 마커를 선택하십시오.'
+    });
+    return;
+  }
+
   let finalFile = imageFile;
 
   if (typeof imageFile === 'string' && imageFile.startsWith('data:image')) {
@@ -645,13 +707,31 @@ const uploadImage = async (imageFile) => {
       while (n--) { u8arr[n] = bstr.charCodeAt(n); }
       finalFile = new File([u8arr], 'capture.png', { type: mime });
     } catch (e) {
+      isScannerOpen.value = false;
+      await nextTick();
+      showHintReveal({
+        status: 'error',
+        title: '이미지 오류',
+        message: '촬영 데이터를 분석 파일로 변환하지 못했습니다.'
+      });
       return;
     }
   }
 
-  if (!finalFile || !(finalFile instanceof File)) return;
+  if (!finalFile || !(finalFile instanceof File)) {
+    isScannerOpen.value = false;
+    await nextTick();
+    showHintReveal({
+      status: 'error',
+      title: '이미지 오류',
+      message: '분석할 수 있는 촬영 파일이 없습니다.'
+    });
+    return;
+  }
 
   try {
+    const completedMissionId = currentMission.value.id;
+    const completedMissionTitle = currentMission.value.title || '현장 단서';
     const formData = new FormData();
     formData.append('image', finalFile);
     formData.append('userId', userId.value);
@@ -665,17 +745,30 @@ const uploadImage = async (imageFile) => {
     });
 
     if (response.data.success) {
-      alert(`[분석 성공] 단서를 찾았습니다! 목표 확인 완료.`);
       await loadMissionsData();
+      const acquiredMission = missions.value.find(m => String(m.id) === String(completedMissionId));
+      showHintReveal({
+        status: 'success',
+        title: acquiredMission?.title || completedMissionTitle,
+        message: acquiredMission?.clue || acquiredMission?.description || response.data?.message || '단서가 해금되었습니다.'
+      });
       currentMission.value = null;
       currentTargetName.value = '타겟 미지정 (마커를 선택하세요)';
       isArrived.value = false;
       targetDistance.value = 0;
     } else {
-       alert("[분석 실패] 목표물을 정확히 프레임에 담아주십시오.");
+      showHintReveal({
+        status: 'error',
+        title: '분석 실패',
+        message: response.data?.message || '목표물을 정확히 프레임에 담아주십시오.'
+      });
     }
   } catch (error) {
-    alert("본부와의 통신 연결이 원활하지 않습니다.");
+    showHintReveal({
+      status: 'error',
+      title: '통신 오류',
+      message: '본부와의 통신 연결이 원활하지 않습니다. 잠시 후 다시 시도하십시오.'
+    });
   } finally {
     isScannerOpen.value = false;
   }
@@ -738,6 +831,68 @@ const uploadImage = async (imageFile) => {
   font-family: inherit; transition: all 0.2s ease;
 }
 .hint-collection-btn:hover { background-color: #00ffcc; color: #000; }
+
+.hint-reveal-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1002;
+  width: min(82%, 430px);
+  max-height: 58%;
+  overflow: hidden;
+  padding: 18px 20px;
+  transform: translate(-50%, -50%) scale(1);
+  transform-origin: top left;
+  background: rgba(3, 12, 18, 0.94);
+  border: 2px solid #00ffcc;
+  border-radius: 8px;
+  color: #dffef8;
+  box-shadow: 0 0 22px rgba(0, 255, 204, 0.45), inset 0 0 18px rgba(0, 255, 204, 0.08);
+  pointer-events: none;
+  transition: top 0.75s ease, left 0.75s ease, transform 0.75s ease, opacity 0.75s ease;
+}
+.hint-reveal-card.error {
+  border-color: #ff4444;
+  box-shadow: 0 0 22px rgba(255, 68, 68, 0.35), inset 0 0 18px rgba(255, 68, 68, 0.08);
+}
+.hint-reveal-card.folding {
+  top: 20px;
+  left: 22px;
+  transform: translate(0, 0) scale(0.16);
+  opacity: 0;
+}
+.hint-reveal-kicker {
+  margin: 0 0 8px;
+  color: #ffaa00;
+  font-size: 0.74rem;
+  font-weight: bold;
+  letter-spacing: 0;
+}
+.hint-reveal-card.error .hint-reveal-kicker { color: #ff6b6b; }
+.hint-reveal-card strong {
+  display: block;
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1.35;
+  margin-bottom: 10px;
+}
+.hint-reveal-text {
+  margin: 0;
+  color: #c7fff4;
+  font-size: 0.88rem;
+  line-height: 1.62;
+  white-space: pre-line;
+}
+.hint-reveal-card.error .hint-reveal-text { color: #ffd6d6; }
+.hint-reveal-enter-active,
+.hint-reveal-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.hint-reveal-enter-from,
+.hint-reveal-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -46%) scale(0.96);
+}
 
 .coord-overlay { position: absolute; background: rgba(0,0,0,0.8); padding: 5px 10px; font-size: 0.8rem; z-index: 11; font-weight: bold; }
 .top-right { top: 15px; right: 15px; border-right: 2px solid #00ffcc; }
