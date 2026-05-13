@@ -27,6 +27,7 @@
             v-if="hintReveal"
             class="hint-reveal-card"
             :class="[hintReveal.status, { folding: hintReveal.folding }]"
+            @click="foldHintRevealNow"
           >
             <p class="hint-reveal-kicker">
               {{ hintReveal.status === 'error' ? '분석 실패' : '단서 해금' }}
@@ -192,6 +193,17 @@ const showHintReveal = ({ status = 'success', title = '현장 단서', message =
     hintReveal.value = null;
     clearHintRevealTimers();
   }, dismissDelay);
+};
+
+const foldHintRevealNow = () => {
+  if (!hintReveal.value) return;
+
+  clearHintRevealTimers();
+  hintReveal.value = { ...hintReveal.value, folding: true };
+  hintDismissTimer = setTimeout(() => {
+    hintReveal.value = null;
+    clearHintRevealTimers();
+  }, 760);
 };
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -848,7 +860,8 @@ const uploadImage = async (imageFile) => {
   border-radius: 8px;
   color: #dffef8;
   box-shadow: 0 0 22px rgba(0, 255, 204, 0.45), inset 0 0 18px rgba(0, 255, 204, 0.08);
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   transition: top 0.75s ease, left 0.75s ease, transform 0.75s ease, opacity 0.75s ease;
 }
 .hint-reveal-card.error {
