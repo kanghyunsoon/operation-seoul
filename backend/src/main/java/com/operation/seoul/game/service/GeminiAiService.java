@@ -67,21 +67,22 @@ public class GeminiAiService {
                    재미 요소는 Discovery/Exploration, Challenge, Thrill/Sensation을 섞고, 기능 설명이나 플레이 방법 설명은 쓰지 마세요.
 
                 4. regionDescription은 브리핑 화면에 그대로 표시할 "스토리 시작 전 배경 서사"입니다.
+                   regionName은 "작전명 [한국어 제목]" 형식으로만 쓰고, "Operation:", "오퍼레이션", 영어 부제는 붙이지 마세요.
                    모든 미션에 반복될 수 있는 고정 오프닝(예: "요원, 본부 암호 채널을 개방한다")은 쓰지 마세요.
                    "기록보관소", "서버", "본부가 승인한다", "작전 투입" 같은 범용 작전 설명으로 시작하지 마세요.
                    지역명, 마커, 좌표, TourAPI, 사진 촬영, AI 채팅, 이동 방법 같은 시스템 설명은 쓰지 마세요.
                    힌트 후보 POI의 이름, visionKeyword, "안내판/비석/조형물/전시관" 같은 현장 단서명을 나열하지 마세요.
-                   정답 사건을 설명하지 말고, 그 사건이 벌어지기 전 인물들이 어떤 갈등, 상실, 선택을 겪었는지 한 편의 프리퀄처럼 쓰세요.
-                   플레이어가 왜 이 이야기에 들어가야 하는지 인물의 실종, 복수, 약속, 사라진 장부, 뒤바뀐 기록 같은 구체적 동기로 보여주세요.
-                   반드시 3~4문단으로 나누고 문단 사이에는 \\n\\n을 넣으세요.
-                   1문단은 시대/사회/지역 배경 위에서 인물이 처한 상황을 보여주세요.
-                   2문단은 사건 이전에 벌어진 결정적 상실이나 이상 징후를 보여주세요.
-                   3문단은 남겨진 물건이나 약속 때문에 이야기가 현재 플레이어에게 이어지는 이유를 보여주세요.
-                   필요하면 4문단에서 플레이어가 풀어야 할 질문을 던지되 정답은 숨기세요.
-                   방탈출 시나리오의 "전체 스토리"처럼 읽혀야 하며, 작전 보고서나 세계관 설정 요약처럼 쓰면 안 됩니다.
+                   정답 사건을 설명하지 말고, 그 사건이 벌어지기 전 실제 배경에서 어떤 필요, 갈등, 선택이 쌓였는지 보여주세요.
+                   실종, 살인, 복수, 유령, 범죄, 사라진 역무원 같은 강한 장르 장치는 실제 배경과 직접 근거가 있을 때만 쓰세요.
+                   근거 없는 비극을 만들지 말고, 누락된 기록/엇갈린 증언/남겨진 약속 정도의 낮은 긴장으로 플레이어가 왜 추적해야 하는지 보여주세요.
+                   반드시 3문단으로 나누고 문단 사이에는 \\n\\n을 넣으세요.
+                   1문단은 시대/사회/지역 배경과 그 장소가 중요해진 이유를 보여주세요.
+                   2문단은 사건 이전에 사람들이 겪은 필요, 갈등, 변화의 압력을 보여주세요.
+                   3문단은 남겨진 기록이나 풀리지 않은 질문 때문에 이야기가 현재 플레이어에게 이어지는 이유를 보여주세요.
+                   방탈출 시나리오의 "전체 스토리"처럼 읽혀야 하지만, 과하게 시적이거나 장르 소설처럼 부풀리면 안 됩니다.
                    하라체는 마지막 한 문장 정도에만 쓰고, 대부분은 자연스러운 서사형 문장으로 이어 가세요.
                    "입니다", "했습니다", "하십시오" 같은 존댓말을 섞지 말고 문체를 단정형/하라체로 통일하세요.
-                   "기억하라", "의심하라", "침묵" 같은 단어를 반복하지 마세요.
+                   "기억하라", "의심하라", "침묵", "사라진", "찢어진", "검은" 같은 단어를 반복하지 마세요.
                    세팅, 주인공, 목표, 플롯이 자연스럽게 느껴져야 합니다. 결과에는 항목명이나 번호를 쓰지 말고 한 편의 도입부처럼 쓰세요.
                    정답 단어와 최종 목적지명은 직접 쓰지 말고, 정답을 맞출 정도로 결정적인 연도/인물/문구도 피하세요.
 
@@ -308,19 +309,68 @@ public class GeminiAiService {
         if (normalizedAnswer.equals(normalizedKeyword) || normalizedAnswer.contains(normalizedKeyword)) {
             return true;
         }
+        if (isSameShortKoreanCompoundIgnoringOrder(normalizedKeyword, normalizedAnswer)) {
+            return true;
+        }
 
         String prompt = String.format("""
                 정답 키워드: "%s"
                 대원 답변: "%s"
+                실제 역사 기록 요약: "%s"
                 판정 기준: 답변이 정답 키워드 자체이거나 같은 역사 사건/일화/전환 개념의 공식 명칭을 명확히 말한 경우만 TRUE입니다.
-                띄어쓰기, 조사, 약간의 어순 차이, 같은 짧은 복합어의 앞뒤 순서가 바뀐 표현은 의미가 같으면 TRUE입니다.
+                띄어쓰기, 조사, 약간의 어순 차이, 어색하지만 같은 뜻을 가리키는 짧은 조어는 의미가 같으면 TRUE입니다.
+                정답의 핵심 명사와 답변의 핵심 명사가 같은 문맥에서 상위어/하위어/인접 개념이고, 나머지 행위나 변화 방향이 같으면 TRUE입니다.
                 단, 정답을 구성하는 일부 단어만 말했거나 넓은 분야/장소/인물/시대 배경만 말한 경우는 FALSE입니다.
                 답변이 애매하면 TRUE로 확장하지 말고 FALSE입니다.
                 TRUE 또는 FALSE만 출력하세요.
-                """, answerKeyword, userAnswer);
+                """, answerKeyword, userAnswer, summarizeForPrompt(mission.getRealStory(), 360));
 
         String result = callGeminiStandard(geminiUrl(), prompt);
         return result != null && "TRUE".equalsIgnoreCase(result.trim());
+    }
+
+    private boolean isSameShortKoreanCompoundIgnoringOrder(String normalizedKeyword, String normalizedAnswer) {
+        if (normalizedKeyword == null || normalizedAnswer == null) {
+            return false;
+        }
+        if (normalizedKeyword.length() < 4 || normalizedKeyword.length() > 10) {
+            return false;
+        }
+        if (normalizedKeyword.length() != normalizedAnswer.length()) {
+            return false;
+        }
+        if (!normalizedKeyword.matches("[가-힣]+") || !normalizedAnswer.matches("[가-힣]+")) {
+            return false;
+        }
+
+        String keywordSuffix = extractComparableSuffix(normalizedKeyword);
+        String answerSuffix = extractComparableSuffix(normalizedAnswer);
+        if (keywordSuffix.isBlank() || !keywordSuffix.equals(answerSuffix)) {
+            return false;
+        }
+
+        String keywordBody = normalizedKeyword.substring(0, normalizedKeyword.length() - keywordSuffix.length());
+        String answerBody = normalizedAnswer.substring(0, normalizedAnswer.length() - answerSuffix.length());
+        if (keywordBody.length() < 2 || answerBody.length() < 2) {
+            return false;
+        }
+        return sortCharacters(keywordBody).equals(sortCharacters(answerBody));
+    }
+
+    private String extractComparableSuffix(String value) {
+        for (String suffix : List.of("도입", "개통", "조성", "건립", "설립", "창건", "복원", "재건", "이전", "철거", "폐지", "개항", "개방", "운동", "봉기", "의거", "전투", "선언", "협정", "조약", "사건", "축제", "탄생", "유래", "화")) {
+            if (value.endsWith(suffix)) {
+                return suffix;
+            }
+        }
+        return "";
+    }
+
+    private String sortCharacters(String value) {
+        return value.chars()
+                .sorted()
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString();
     }
 
     private boolean containsAny(String value, String... needles) {
