@@ -127,7 +127,7 @@ public class MissionFactory {
     private AiCourseResponseDto generateStoryFromGemini(String finalSpot, double finalLat, double finalLng, List<Map<String, Object>> subs) {
         try {
             // 💡 지휘관님 요청: Gemini 3.1 Flash Lite Preview 버전으로 변경 완료
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + geminiApiKey;
 
             String promptText = String.format(
                     "당신은 '오퍼레이션 코리아' 작전 지휘관입니다. 다음 4개의 장소를 순서대로 방문하여 힌트를 얻는 '독립운동 혹은 첩보 밀서 전달' 컨셉의 방탈출 시나리오를 만드세요.\n" +

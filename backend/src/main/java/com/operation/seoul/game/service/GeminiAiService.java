@@ -434,6 +434,6 @@ public class GeminiAiService {
     }
 
     private String geminiUrl() {
-        return "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + geminiApiKey.trim();
+        return "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + geminiApiKey.trim();
     }
 }
