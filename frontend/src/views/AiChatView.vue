@@ -107,6 +107,7 @@ const isWaiting = ref(false);
 const questionCount = ref(0);
 const chatContainer = ref(null);
 const isScannerOpen = ref(false);
+const finalMissionInfo = ref(null);
 
 const questionRemaining = computed(() => Math.max(0, 20 - questionCount.value));
 const { displayedText, isTyping, isFinished, addChunk, finishTyping, reset } = useTypingBuffer(30);
@@ -174,16 +175,46 @@ const typeWriterEffect = (text) => {
   }, 100);
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await loadFinalMissionInfo();
+
   const capturedImage = sessionStorage.getItem('capturedImage');
   if (capturedImage) {
     chatHistory.value.push({ sender: 'user', type: 'image', text: capturedImage });
     sessionStorage.removeItem('capturedImage');
-    typeWriterEffect("<span style='color:#08bdba'>[AUTH_GRANTED]</span><br>목표 지점 확인. 작전 지역 진입을 환영한다 요원.<br>수집한 단서를 이용해 질문하거나 암호를 해독하라.");
+    typeWriterEffect(buildInitialMessage("<span style='color:#08bdba'>[AUTH_GRANTED]</span><br>목표 지점 확인. 작전 지역 진입을 환영한다 요원."));
   } else {
-    typeWriterEffect("작전 지역 진입을 확인했다. 수집한 단서를 이용해 질문하면 본부 데이터베이스를 통해 지원하겠다. 단, 적들의 도청 위험이 있어 조력 횟수는 20회로 제한한다. 최종 암호를 입력하라.");
+    typeWriterEffect(buildInitialMessage("작전 지역 진입을 확인했다. 수집한 단서를 이용해 질문하면 본부 데이터베이스를 통해 지원하겠다."));
   }
 });
+
+const loadFinalMissionInfo = async () => {
+  try {
+    const response = await apiClient.get(`/v1/regions/${regionId.value}/missions`, {
+      params: { userId: userId.value || 1 }
+    });
+    finalMissionInfo.value = response.data.find(mission => String(mission.id) === String(sessionId.value)) || null;
+  } catch (error) {
+    console.warn('Final mission field clue load failed:', error);
+  }
+};
+
+const buildInitialMessage = (prefix) => {
+  const fieldTarget = finalMissionInfo.value?.visionKeyword || '현장 표식';
+  const fieldClue = finalMissionInfo.value?.fieldClue
+      || '최종 지점의 안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건 키워드를 유추하라.';
+
+  return `${prefix}<br><span style='color:#f8d66d'>[FIELD_CLUE]</span> ${escapeHtml(fieldTarget)}: ${escapeHtml(fieldClue)}<br>단, 적들의 도청 위험이 있어 조력 횟수는 20회로 제한한다. 최종 암호를 입력하라.`;
+};
+
+const escapeHtml = (value) => {
+  return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+};
 
 const handleManualCapture = async (imageDataUrl) => {
   isScannerOpen.value = false;

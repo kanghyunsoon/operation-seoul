@@ -60,6 +60,8 @@ public class GeminiAiService {
 
                 4. final mission의 visionKeyword는 사진 인증용이 아니라 현장에서 찾아볼 만한 단서 대상입니다.
                    예: "현판", "비석", "문양", "동상", "기둥", "안내판", "문"
+                   final mission의 clue에는 최종 현장에서 직접 둘러보며 확인할 표식, 비문, 안내문, 연도, 인명 단서를 적어 주세요.
+                   answerKeyword를 직접 쓰지 말고, 플레이어가 현장 단서를 보고 사건 키워드를 추론하도록 아주 모호하게 안내하세요.
 
                 5. realStory는 최종 클리어 후 보여줄 역사 해설입니다.
                    사건의 실제 배경, 최종 장소와의 관련성, 플레이어가 모은 힌트의 의미를 8~12문장으로 쓰세요.
@@ -83,6 +85,7 @@ public class GeminiAiService {
                       "lat": 37.0,
                       "lng": 127.0,
                       "visionKeyword": "[최종 현장 단서 대상]",
+                      "clue": "[최종 현장에서 둘러볼 표식/비문/안내문/연도/인명 단서 지시문. 정답 직접 노출 금지]",
                       "answerKeyword": "[장소명이 아닌 사건/일화 키워드]",
                       "realStory": "[역사 해설]",
                       "isFinal": true
@@ -96,18 +99,20 @@ public class GeminiAiService {
 
     public ResponseBodyEmitter streamNarration(Long missionId, String userAnswer, boolean isCorrect) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
+        String fieldClue = getFinalFieldClue(mission);
         String prompt = String.format("""
                 당신은 Operation KOREA의 본부 오퍼레이터입니다.
                 미션: %s
+                현장 관찰 단서: "%s"
                 대원 입력: "%s"
                 정답 여부: %s
 
                 [응답 규칙]
                 - 한국어로 2문장 이하, 120자 이하.
                 - 정답이면 성공을 짧게 알리고 자세한 해설은 종료 기록에서 제공된다고 안내하세요.
-                - 오답이면 단정적인 정답 공개 없이, 수집한 단서와 현장 관찰을 다시 연결해 보라고 안내하세요.
+                - 오답이면 단정적인 정답 공개 없이, 수집한 단서와 현장 관찰 단서를 다시 연결해 보라고 안내하세요.
                 - 마크다운 제목이나 목록은 쓰지 마세요.
-                """, mission.getTitle(), userAnswer, isCorrect);
+                """, mission.getTitle(), fieldClue, userAnswer, isCorrect);
 
         return streamPrompt(geminiUrl(), prompt);
     }
@@ -115,10 +120,12 @@ public class GeminiAiService {
     public ResponseBodyEmitter streamHintAnswer(Long missionId, Long userId, String userQuestion) {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String clueContext = buildCollectedClueContext(getClearedClues(mission, userId));
+        String fieldClue = getFinalFieldClue(mission);
         String prompt = String.format("""
                 당신은 역사 추리 게임의 최종 채팅 진행자입니다.
                 정답 키워드: "%s"
                 최종 장소: "%s"
+                현장 관찰 단서: "%s"
                 실제 역사 기록 요약: "%s"
                 플레이어가 수집한 단서: %s
                 플레이어 질문: "%s"
@@ -132,6 +139,7 @@ public class GeminiAiService {
                 """,
                 mission.getAnswerKeyword(),
                 mission.getTitle(),
+                fieldClue,
                 summarizeForPrompt(mission.getRealStory(), 500),
                 clueContext,
                 userQuestion
@@ -273,6 +281,16 @@ public class GeminiAiService {
                     .append(summarizeForPrompt(clue.getOrDefault("clue", ""), 120));
         }
         return builder.toString();
+    }
+
+    private String getFinalFieldClue(Mission mission) {
+        if (mission.getClue() != null && !mission.getClue().isBlank()) {
+            return mission.getClue();
+        }
+        if (mission.getVisionKeyword() != null && !mission.getVisionKeyword().isBlank()) {
+            return "현장에서 '" + mission.getVisionKeyword() + "' 단서를 찾아 안내문, 비문, 표식과 함께 대조하세요.";
+        }
+        return "최종 지점의 안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건의 이름을 유추하세요.";
     }
 
     private String summarizeForPrompt(String text, int maxLength) {

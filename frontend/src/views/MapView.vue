@@ -62,7 +62,7 @@
         <div v-if="isArrived && getIsFinal(currentMission)" class="target-guide">
           최종 현장 단서: <span class="highlight">{{ currentMission?.visionKeyword || '현장 표식' }}</span>
           <br>
-          수집한 단서와 현장 표식을 바탕으로 사건 키워드를 추론하세요.
+          <span class="field-clue-text">{{ currentMission?.fieldClue || '안내문, 비문, 표식, 연도, 인명 단서를 둘러보고 사건 키워드를 추론하세요.' }}</span>
         </div>
         <button v-if="isArrived && getIsFinal(currentMission)" @click="goToChat" class="capture-btn final-btn">
           [ 최종 분석 채널 접속 ]
@@ -746,6 +746,7 @@ const uploadImage = async (imageFile) => {
 
 .target-guide { margin-bottom: 8px; font-size: 0.9rem; color: #bbb; }
 .target-guide .highlight { color: #ffaa00; font-weight: bold; }
+.field-clue-text { display: inline-block; margin-top: 6px; color: #dbeafe; line-height: 1.5; }
 
 .override-btn { width: 100%; padding: 15px; background: transparent; color: #ffaa00; border: 1px solid #ffaa00; font-family: inherit; font-weight: bold; border-radius: 4px; cursor: pointer; }
 .override-btn:hover { background: rgba(255, 170, 0, 0.2); }

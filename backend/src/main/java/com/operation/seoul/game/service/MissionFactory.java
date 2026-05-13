@@ -68,6 +68,7 @@ public class MissionFactory {
             mission.setTargetLat(dto.getLat());
             mission.setTargetLng(dto.getLng());
             mission.setVisionKeyword(dto.getVisionKeyword());
+            mission.setClue(dto.getClue());
             mission.setAnswerKeyword(dto.getAnswerKeyword());
             mission.setFinal(dto.isFinal());
             mission.setRadiusInMeters(50.0);
