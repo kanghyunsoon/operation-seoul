@@ -382,7 +382,54 @@ public class AdminMissionController {
                 || normalizedAnswer.contains(targetTitle))) {
             return true;
         }
+        if (isLikelyUnrelatedFamousEvent(normalizedAnswer, targetSpot)) {
+            return true;
+        }
         return isCommonPlaceOrPersonAnswer(normalizedAnswer);
+    }
+
+    private boolean isLikelyUnrelatedFamousEvent(String normalizedAnswer, Map<String, String> targetSpot) {
+        String targetContext = normalizeForSecretCheck(String.join(" ",
+                targetSpot.getOrDefault("title", ""),
+                targetSpot.getOrDefault("addr1", ""),
+                targetSpot.getOrDefault("addr2", ""),
+                targetSpot.getOrDefault("address", ""),
+                targetSpot.getOrDefault("overview", "")
+        ));
+
+        Map<String, Set<String>> eventAnchors = Map.of(
+                normalizeForSecretCheck("을사늑약"), Set.of(
+                        normalizeForSecretCheck("중명전"),
+                        normalizeForSecretCheck("덕수궁"),
+                        normalizeForSecretCheck("정동"),
+                        normalizeForSecretCheck("대한제국"),
+                        normalizeForSecretCheck("을사")
+                ),
+                normalizeForSecretCheck("아관파천"), Set.of(
+                        normalizeForSecretCheck("러시아공사관"),
+                        normalizeForSecretCheck("정동"),
+                        normalizeForSecretCheck("덕수궁"),
+                        normalizeForSecretCheck("고종")
+                ),
+                normalizeForSecretCheck("대한제국선포"), Set.of(
+                        normalizeForSecretCheck("환구단"),
+                        normalizeForSecretCheck("황궁우"),
+                        normalizeForSecretCheck("덕수궁"),
+                        normalizeForSecretCheck("대한제국")
+                ),
+                normalizeForSecretCheck("임오군란"), Set.of(
+                        normalizeForSecretCheck("구식군대"),
+                        normalizeForSecretCheck("별기군"),
+                        normalizeForSecretCheck("운현궁"),
+                        normalizeForSecretCheck("임오")
+                )
+        );
+
+        Set<String> requiredAnchors = eventAnchors.get(normalizedAnswer);
+        if (requiredAnchors == null) {
+            return false;
+        }
+        return requiredAnchors.stream().noneMatch(targetContext::contains);
     }
 
     private boolean isCommonPlaceOrPersonAnswer(String normalizedAnswer) {
