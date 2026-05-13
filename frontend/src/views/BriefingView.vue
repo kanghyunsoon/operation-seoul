@@ -103,7 +103,7 @@ onMounted(async () => {
     startTyping();
   } catch (error) {
     console.error("데이터 로드 실패:", error);
-    fullText.value = "본부와의 통신이 원활하지 않음을 인지하라.\n\n봉인된 기록이 완전히 복호화되지 않았음을 기억하라. 잠시 후 다시 접속하라.";
+    fullText.value = "본부와의 통신이 불안정하다.\n\n봉인된 기록은 아직 완전히 복호화되지 않았다. 잠시 후 암호 채널을 다시 개방하라.";
     startTyping();
   }
 });
@@ -145,91 +145,242 @@ const startMission = () => {
 
 const buildBriefingText = (region) => {
   const scenario = buildNarrativeScenario(region);
-  const finalThread = buildFinalStoryThread();
 
-  return [
-    '요원, 봉인된 기록을 수신하라.',
-    scenario,
-    finalThread
-  ].join('\n\n');
+  return formatBriefingBlock(scenario);
 };
 
 const buildNarrativeScenario = (region) => {
   const generatedStory = compactText(region.description, 700);
   if (isUsableNarrative(generatedStory)) {
-    return normalizeImperativeTone(generatedStory);
+    return normalizeDirectiveTone(generatedStory);
   }
 
-  const fragments = hintMissions.value
-    .map(buildStoryFragment)
-    .filter(Boolean);
+  return buildStoryPrequel(region);
+};
 
-  if (!fragments.length) {
-    return '오래된 문이 안쪽에서 잠기고, 이름 없는 기록만 어둠 속에 남았음을 기억하라. 누군가 지워 둔 문장 사이에서 사건의 그림자가 다시 움직이기 시작했음을 의심하라.';
+const buildStoryPrequel = (region) => {
+  const theme = resolveStoryTheme(region);
+  if (theme === 'railIndustry') {
+    return buildRailIndustryPrequel(region);
   }
+  if (theme === 'royalModern') {
+    return buildRoyalModernPrequel(region);
+  }
+  if (theme === 'warMemory') {
+    return buildWarMemoryPrequel(region);
+  }
+  if (theme === 'coastalMemory') {
+    return buildCoastalMemoryPrequel(region);
+  }
+  if (theme === 'localTourism') {
+    return buildLocalTourismPrequel(region);
+  }
+  return buildArchivePrequel(region);
+};
 
+const buildRailIndustryPrequel = (region) => {
+  const operationName = getOperationName(region);
   return [
-    '오래된 기록은 닫힌 방처럼 침묵하고, 첫 문장은 이미 누군가에 의해 찢겨 나갔음을 기억하라.',
-    fragments.join(' '),
-    '서로 맞지 않는 장면들이 하나의 사건을 가리키고 있음을 의심하라. 마지막 이름은 아직 어둠 속에 남겨 두라.'
-  ].join('\n\n');
+    operationName ? `작전명 ${operationName}.` : '',
+    '눈이 길게 남는 동쪽 산맥 아래에서 철길은 생계를 나르는 약속이었다. 새벽마다 검은 가루를 뒤집어쓴 작업복들이 역 앞에 모였고, 가족들은 돌아올 시간을 열차 소리로 가늠했다.',
+    '관광의 불빛이 그 길 위에 덧칠되기 훨씬 전, 한 역무원이 낡은 운행일지에서 사라진 칸을 발견했다. 그 칸에는 화물의 무게도 승객의 이름도 아닌, 누군가 일부러 지운 겨울밤의 기록이 남아 있었다.',
+    '역무원은 그 사실을 알린 뒤 마지막 열차를 확인하러 나갔고 돌아오지 않았다. 남겨진 것은 찢어진 일지 몇 장과 서로 다른 장소를 가리키는 짧은 문장들뿐이다.',
+    '이 이야기는 그가 사라진 다음 날 아침부터 시작된다. 너는 철길 위에 덧씌워진 밝은 이름 아래로 내려가, 왜 한 시대의 노동과 이동의 기억이 하나의 결말을 감추게 되었는지 밝혀내야 한다.'
+  ].filter(Boolean).join('\n\n');
 };
 
-const buildStoryFragment = (mission) => {
-  const narrative = compactText(mission.description, 180);
-  if (isUsableNarrative(narrative)) {
-    return normalizeImperativeTone(narrative);
-  }
-
-  const signal = getStorySignal(mission);
-  return `낡은 ${signal}이 한 번 지워진 장면을 다시 비추고 있음을 기억하라. 그 흔적이 결말을 말하지 않고 침묵만 남겼음을 의심하라.`;
+const buildRoyalModernPrequel = (region) => {
+  const operationName = getOperationName(region);
+  return [
+    operationName ? `작전명 ${operationName}.` : '',
+    '궁의 불이 하나둘 꺼지던 밤, 서고를 지키던 하급 관리가 봉인되지 않은 문서 한 장을 발견했다. 문서에는 왕의 이름도, 외교관의 서명도 없었지만 붉은 인장이 찍힌 자리가 칼로 긁혀 있었다.',
+    '다음 날 아침, 관리의 자리는 비어 있었고 책상에는 같은 문장을 여러 번 베껴 쓴 종이만 남아 있었다. 그는 누가 명령했는지 쓰지 못한 채, 오래된 질서가 무너지는 순간을 조각으로만 남겼다.',
+    '본편은 그가 숨긴 문서가 다시 발견되며 시작된다. 너는 권력의 복도에 남은 빈칸을 따라가며, 한 시대가 왜 다른 이름으로 덮였는지 밝혀야 한다.'
+  ].filter(Boolean).join('\n\n');
 };
 
-const buildFinalStoryThread = () => {
-  const final = finalMission.value;
-  if (!final) {
-    return '마지막 장면은 아직 도착하지 않았음을 기억하라. 결말을 먼저 열지 말고, 닫힌 기록이 스스로 균열을 낼 때까지 의심하라.';
-  }
-
-  if (getIsUnlockedMission(final)) {
-    const finalNarrative = compactText(final.description, 220);
-    if (isUsableNarrative(finalNarrative)) {
-      return normalizeImperativeTone(finalNarrative);
-    }
-    return `마지막 장면에 남은 ${getStorySignal(final)}이 앞선 기록들을 하나의 사건으로 묶고 있음을 기억하라. 그 이름을 너무 일찍 부르지 말고, 침묵이 끝까지 남긴 균열을 의심하라.`;
-  }
-
-  return '마지막 장면은 아직 봉인되어 있음을 기억하라. 흩어진 장면들이 충분히 서로를 부를 때, 감춰진 결말도 스스로 어둠 밖으로 밀려날 것이라 의심하라.';
+const buildWarMemoryPrequel = (region) => {
+  const operationName = getOperationName(region);
+  return [
+    operationName ? `작전명 ${operationName}.` : '',
+    '포성이 멎은 뒤에도 어떤 마을에는 밤마다 같은 발소리가 남았다. 피난 수첩에는 돌아오지 못한 사람들의 이름이 줄을 잇고, 마지막 장만 누군가 찢어 간 흔적이 남아 있었다.',
+    '수첩을 보관하던 노인은 죽기 전, 그 마지막 장에 전투의 승패가 아니라 살아남은 사람들이 감추어야 했던 약속이 적혀 있었다고 말했다. 그러나 그는 끝내 그 약속의 이름을 말하지 않았다.',
+    '이 이야기는 사라진 마지막 장을 찾는 데서 시작된다. 너는 전쟁의 큰 이름 뒤에 가려진 개인의 기억을 복원하고, 왜 그 약속이 지금까지 봉인되었는지 밝혀야 한다.'
+  ].filter(Boolean).join('\n\n');
 };
 
-const getStorySignal = (mission) => {
-  if (mission?.visionKeyword) {
-    return `'${mission.visionKeyword}'`;
+const buildCoastalMemoryPrequel = (region) => {
+  const operationName = getOperationName(region);
+  return [
+    operationName ? `작전명 ${operationName}.` : '',
+    '바람이 거센 해안 마을에는 오래전부터 불빛을 보고 돌아오지 못한 사람들에 대한 이야기가 전해졌다. 낡은 항해 일지에는 날씨와 파도 대신, 같은 밤을 가리키는 짧은 표시만 반복되어 있었다.',
+    '일지를 맡아 보관하던 등대지기는 어느 날 새벽, 표시가 가리키는 방향을 확인하러 나간 뒤 사라졌다. 그의 방에는 젖은 모래와 찢긴 지도, 그리고 아직 마르지 않은 잉크 자국이 남았다.',
+    '본편은 그가 마지막으로 본 불빛에서 시작된다. 너는 바다 위에 흩어진 기억을 모아, 한 마을이 왜 그 밤을 다른 이야기로 바꾸어 전해 왔는지 밝혀야 한다.'
+  ].filter(Boolean).join('\n\n');
+};
+
+const buildLocalTourismPrequel = (region) => {
+  const operationName = getOperationName(region);
+  return [
+    operationName ? `작전명 ${operationName}.` : '',
+    '사람들이 떠난 뒤 비어 가던 마을은 어느 해부터 축제와 간판, 새로운 이름으로 다시 불리기 시작했다. 그러나 오래된 장부에는 그 이름이 생기기 전 사라진 골목과 지워진 가게들이 그대로 남아 있었다.',
+    '장부를 정리하던 기획자는 새 지도와 옛 지도가 맞지 않는다는 사실을 발견했다. 그는 마을이 되살아난 이유보다, 무엇을 잊어야 되살아날 수 있었는지를 먼저 기록했다.',
+    '이 이야기는 축제가 시작되기 전날 밤에서 열린다. 너는 밝은 표면 아래 묻힌 생활의 흔적을 따라가며, 새 이름이 덮어 버린 오래된 결말을 찾아야 한다.'
+  ].filter(Boolean).join('\n\n');
+};
+
+const buildArchivePrequel = (region) => {
+  const operationName = getOperationName(region);
+  return [
+    operationName ? `작전명 ${operationName}.` : '',
+    '오래된 기록을 정리하던 조사원이 같은 날짜가 서로 다른 이름으로 남아 있다는 사실을 발견했다. 한 기록은 사건이 끝났다고 말했고, 다른 기록은 아직 시작되지 않았다고 적혀 있었다.',
+    '조사원은 두 기록 사이에 빠진 하루를 찾기 위해 현장으로 향했지만, 그날 밤 이후 연락이 끊겼다. 책상 위에는 찢긴 메모와 순서가 뒤바뀐 사진 몇 장만 남아 있었다.',
+    '본편은 그가 찾지 못한 하루에서 시작된다. 너는 흩어진 장면을 제자리에 놓고, 왜 누군가 이 이야기의 시작을 바꾸려 했는지 밝혀야 한다.'
+  ].filter(Boolean).join('\n\n');
+};
+
+const getOperationName = (region) => {
+  const name = compactText(region?.name, 36);
+  if (!name || name.includes('작전명 봉인된 현장')) return '';
+  return name.replace(/^작전명\s*/g, '').trim();
+};
+
+const resolveStoryTheme = (region) => {
+  const source = [
+    region?.name,
+    finalMission.value?.title,
+    finalMission.value?.briefingContext,
+    ...missions.value.map(mission => `${mission.title || ''} ${mission.description || ''}`)
+  ].join(' ');
+
+  if (/열차|철도|철길|역|레일|기차|영동선|탄광|석탄|광산/.test(source)) {
+    return 'railIndustry';
   }
-  if (mission?.fieldClue) {
-    return compactText(mission.fieldClue, 90);
+  if (/궁|왕|왕실|대한제국|조선|개항|외세|성곽|성문|관아/.test(source)) {
+    return 'royalModern';
   }
-  return '이름 없는 표식';
+  if (/전쟁|전투|피난|휴전|호국|전적|참전/.test(source)) {
+    return 'warMemory';
+  }
+  if (/바다|해안|항구|항만|등대|섬|포구|어촌/.test(source)) {
+    return 'coastalMemory';
+  }
+  if (/관광|축제|마을|시장|골목|문화|테마|콘텐츠/.test(source)) {
+    return 'localTourism';
+  }
+  return 'archive';
 };
 
 const isUsableNarrative = (text) => {
   if (!text) return false;
-  const blockedTerms = ['마커', '좌표', 'TourAPI', '사진', '촬영', 'AI', '채팅', '이동', '지역', '지도', '힌트 노드', '투입 지시', '판독 기준'];
+  const blockedTerms = ['마커', '좌표', 'TourAPI', '사진', '촬영', 'AI', '채팅', '이동', '지역', '지도', '힌트 노드', '투입 지시', '판독 기준', '안내판', '비석', '조형물', '전시관', '놀이터'];
   const mixedToneTerms = ['습니다', '입니다', '하세요', '하십시오', '하시오'];
   return !blockedTerms.some(term => text.includes(term))
-    && !mixedToneTerms.some(term => text.includes(term));
+    && !mixedToneTerms.some(term => text.includes(term))
+    && !containsFinalTargetName(text)
+    && !isMechanicalBriefing(text);
+};
+
+const containsFinalTargetName = (text) => {
+  const finalTitle = finalMission.value?.title;
+  return Boolean(finalTitle && text?.includes(finalTitle));
+};
+
+const isMechanicalBriefing = (text) => {
+  const rememberCount = (text.match(/기억하라/g) || []).length;
+  const suspectCount = (text.match(/의심하라/g) || []).length;
+  const silenceCount = (text.match(/침묵/g) || []).length;
+  return rememberCount + suspectCount >= 3
+    || silenceCount >= 3
+    || text.includes('한 번 지워진 장면을 다시 비추고')
+    || text.includes('서로 맞지 않는 장면들이')
+    || text.includes('기록보관소 지하 서버')
+    || text.includes('출처 불명의 음성 파일')
+    || text.includes('파일을 남긴 기록관')
+    || text.includes('본부는 이 조작된 이야기')
+    || text.includes('배경 기록은 일부만 복호화');
+};
+
+const normalizeDirectiveTone = (text) => {
+  return normalizeImperativeTone(cleanBriefingText(text))
+    .replace(/있음을 기억하라/g, '있다')
+    .replace(/했음을 기억하라/g, '했다')
+    .replace(/였음을 기억하라/g, '였다')
+    .replace(/있음을 의심하라/g, '있을 가능성이 높다')
+    .replace(/했음을 의심하라/g, '했다는 신호다')
+    .replace(/침묵만 남겼음을 의심하라/g, '결말을 숨긴 채 멈춰 있다');
+};
+
+const cleanBriefingText = (text) => {
+  return String(text || '')
+    .replace(/요원,\s*본부 암호 채널을 개방한다\.?/g, '')
+    .replace(/작전명\s*\[([^\]]+)\]/g, '작전명 $1')
+    .replace(/\[([^\]]+)\]/g, '$1')
+    .replace(/'핵심 기록'/g, '핵심 기록')
+    .replace(/'최종 현장'/g, '최종 현장');
 };
 
 const normalizeImperativeTone = (text) => {
   return String(text || '')
+    .replace(/이었습니다/g, '이었다')
+    .replace(/였습니다/g, '였다')
+    .replace(/있었습니다/g, '있었다')
+    .replace(/없었습니다/g, '없었다')
+    .replace(/했습니다/g, '했다')
+    .replace(/되었습니다/g, '되었다')
+    .replace(/었습니다/g, '었다')
+    .replace(/았습니다/g, '았다')
+    .replace(/됩니다/g, '된다')
+    .replace(/있습니다/g, '있다')
+    .replace(/없습니다/g, '없다')
+    .replace(/합니다/g, '한다')
     .replace(/하십시오/g, '하라')
     .replace(/하세요/g, '하라')
     .replace(/해 주세요/g, '하라')
-    .replace(/합니다/g, '하라')
     .replace(/입니다/g, '이다')
     .replace(/하십시오/g, '하라')
     .replace(/하시오/g, '하라')
     .replace(/시오/g, '라');
+};
+
+const formatBriefingBlock = (text) => {
+  const normalized = cleanBriefingText(text).trim();
+  if (!normalized) return '';
+
+  return normalized
+    .split(/\n{2,}/)
+    .flatMap(splitReadableParagraphs)
+    .filter(Boolean)
+    .join('\n\n');
+};
+
+const splitReadableParagraphs = (block) => {
+  const sentences = splitSentences(block);
+  const paragraphs = [];
+  let current = [];
+  let currentLength = 0;
+
+  sentences.forEach(sentence => {
+    const nextLength = currentLength + sentence.length;
+    if (current.length && (current.length >= 2 || nextLength > 170)) {
+      paragraphs.push(current.join(' '));
+      current = [];
+      currentLength = 0;
+    }
+    current.push(sentence);
+    currentLength += sentence.length;
+  });
+
+  if (current.length) {
+    paragraphs.push(current.join(' '));
+  }
+  return paragraphs;
+};
+
+const splitSentences = (text) => {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return [];
+  return normalized.match(/[^.!?]+[.!?]?/g)?.map(sentence => sentence.trim()).filter(Boolean) || [normalized];
 };
 
 const getIsFinalMission = (mission) => {

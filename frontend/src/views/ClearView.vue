@@ -445,6 +445,7 @@ h3 {
 .clue-card span {
   color: #c5d1cf;
   line-height: 1.6;
+  white-space: pre-line;
 }
 
 .adaptation-box {
