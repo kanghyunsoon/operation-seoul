@@ -84,7 +84,7 @@ TourAPI와 AI를 결합해 전국 관광지를 위치 기반 야외 방탈출 �
 
 | 역할 | 담당자 | 현재 진행사항 | 다음 작업 |
 | --- | --- | --- | --- |
-| 팀원 1 / 팀장 | 이름 기입 | 게이미피케이션 구조, AI 프롬프트, DB 모델, 보안/인증, 제출 산출물 총괄 | 리뷰/랭킹/팔로우 정책 확정, MyBatis 전환 여부 판단, 발표자료 완성 |
+| 팀원 1 / 팀장 | 이름 기입 | 게이미피케이션 구조, AI 프롬프트, MyBatis DB 모델, 보안/인증, 제출 산출물 총괄 | 리뷰/랭킹/팔로우 정책 확정, 발표자료 완성 |
 | 팀원 2 / 지도·로케이션 | 이름 기입 | Kakao 지도, GPS 도착 판정, 지역 선택, TourAPI 후보, 주변 POI, 이동 동선, DB 연계 보조 | 무장애/두루누비 기반 코스 필터링, 현장 QA, 지도 화면 안정화 |
 | 공통 | 전체 | 기능 통합, 시연 플로우 점검, README/기획서 정리 | 화면 캡처, DB seed, 시연 패키징, 발표 리허설 |
 
@@ -137,7 +137,7 @@ TourAPI와 AI를 결합해 전국 관광지를 위치 기반 야외 방탈출 �
 | --- | --- | --- |
 | Frontend | Vue 3, Vite, Pinia, Vue Router, Axios | Vue 3 사용 가능 |
 | Backend | Java 17, Spring Boot, Spring MVC, Spring Security | Spring 중심 구성 가능 |
-| Persistence | Spring Data JPA, MySQL | 과제 제약이 JPA 금지라면 MyBatis 전환 필요 |
+| Persistence | MyBatis, MySQL, `schema.sql` | JPA 제거 완료. 초기 테이블은 SQL 스크립트로 관리 |
 | 지도/위치 | Kakao Maps JavaScript API, Tmap Pedestrian API, Geolocation API | 외부 API 키 관리 필요 |
 | AI/데이터 | Gemini API, Google Cloud Vision API, TourAPI | AI 활용 로그와 프롬프트 근거 제출 필요 |
 
@@ -230,7 +230,7 @@ java -classpath .\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWra
 
 | 우선순위 | 작업 | 설명 |
 | --- | --- | --- |
-| 높음 | 제출 제약 검토 | JPA 사용 금지 조건이 확정이면 MyBatis로 전환해야 합니다. |
+| 높음 | 제출 제약 검토 | JPA 제거 및 MyBatis 전환 완료. JSP 필수 여부만 추가 확인 필요 |
 | 높음 | 리뷰 기능 | 공통 필수 요구사항이면 미션별 리뷰 API/UI를 우선 추가합니다. |
 | 높음 | 시연 패키지 | IDE 없이 실행 가능한 jar, 설정 파일, DB seed, start script 준비 |
 | 높음 | 화면 캡처 | 핵심 화면 5~10개 캡처 후 발표자료에 삽입 |

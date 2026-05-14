@@ -133,9 +133,9 @@ flowchart TB
 | Spring 중심 구성 | Spring Boot 사용 | 유지 |
 | Vue 3 | Vue 3 사용 | 유지 |
 | MySQL | MySQL 사용 | 유지 |
-| MyBatis 중심 | 현재 JPA 사용 | 제출 기준이 엄격하면 Repository 계층을 MyBatis mapper로 전환 |
+| MyBatis 중심 | JPA 제거 및 MyBatis Mapper 전환 완료 | `schema.sql`과 Mapper SQL 기준으로 DB 구조 관리 |
 | JSP | 현재 SPA 구조 | 과제 요구가 JSP 필수인지 확인 필요 |
-| JPA/React/S3 제한 | JPA 사용 중, React/S3 미사용 | JPA 제한 여부 확인 후 리스크 처리 |
+| JPA/React/S3 제한 | JPA 제거 완료, React/S3 미사용 | JSP 필수 여부만 추가 확인 |
 
 ## 8. 공공 API 확장 담당 계획
 
@@ -181,7 +181,7 @@ flowchart TB
 | 산출물 완료 | README, WBS, 간트차트, 유스케이스, 화면 설계, PPT, AI 로그 준비 |
 | 시연 완료 | IDE 없이 `start.bat` 또는 명령어 1~2개로 실행 가능 |
 | 데이터 준비 | 관리자 계정과 샘플 작전이 DB에 준비됨 |
-| 리스크 설명 | JPA/MyBatis, 추가 공공 API, 미구현 커뮤니티 기능의 상태를 발표에서 명확히 구분 |
+| 리스크 설명 | JSP 필수 여부, 추가 공공 API, 미구현 커뮤니티 기능의 상태를 발표에서 명확히 구분 |
 
 ## 12. 발표 시 역할 분담
 

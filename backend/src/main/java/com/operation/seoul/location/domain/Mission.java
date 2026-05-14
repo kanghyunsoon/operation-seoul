@@ -1,20 +1,17 @@
 package com.operation.seoul.location.domain;
 
-import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-/**[Entity: 미션 정보 관리 모델]
- 용도: 현장 방문 미션의 위치 정보, 인증 키워드, 상태값 정의
- 특징: 데이터베이스 'mission' 테이블과 매핑되어 미션 비즈니스 로직의 기초 데이터 제공 */
-@Entity
+/**
+ * [Domain: 미션 정보 관리 모델]
+ * 용도: 현장 방문 미션의 위치 정보, 인증 키워드, 상태값 정의
+ * 특징: MyBatis 매퍼를 통해 데이터베이스 `mission` 테이블과 매핑됩니다.
+ */
 @Getter @Setter
 public class Mission {
 
-    /**미션 고유 식별 번호
-     자동 생성 전략(IDENTITY)을 사용하여 데이터베이스 레벨에서 PK 관리 */
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** 미션 고유 식별 번호입니다. MySQL AUTO_INCREMENT 기본키와 매핑됩니다. */
     private Long id;
 
     /**소속 지역 식별자
@@ -26,7 +23,6 @@ public class Mission {
     private String title;
 
     /** 지도 카드와 브리핑에서 쓰는 미션별 짧은 서사 또는 현장 설명입니다. */
-    @Column(columnDefinition = "TEXT")
     private String description;
 
     /**목표 지점 위도
@@ -47,7 +43,6 @@ public class Mission {
     private String visionKeyword;
 
     /** 일반 힌트 미션 클리어 후 플레이어에게 공개할 단서 */
-    @Column(columnDefinition = "TEXT")
     private String clue;
 
 
@@ -56,14 +51,21 @@ public class Mission {
     private String answerKeyword;
 
     /** 같은 챕터끼리 묶어주는 ID. 현재 흐름은 regionId 중심이며, 확장용으로 남겨둔 필드입니다. */
-    @Column(name = "chapter_id")
     private Long chapterId;
 
     /** true면 힌트를 다 모으기 전까지 지도에서 숨기는 최종 미션입니다. */
-    @Column(name = "is_final")
-    private boolean isFinal = false;
+    private boolean finalMission = false;
 
     /** 미션 성공 후 보여줄 TourAPI 기반 '진짜 역사/정보' */
-    @Column(name = "real_story", length = 2000)
     private String realStory;
+
+    /** 기존 서비스 코드의 `mission.isFinal()` 호출과 호환되는 최종 미션 getter입니다. */
+    public boolean isFinal() {
+        return finalMission;
+    }
+
+    /** 기존 서비스 코드의 `mission.setFinal(...)` 호출과 호환되는 최종 미션 setter입니다. */
+    public void setFinal(boolean finalMission) {
+        this.finalMission = finalMission;
+    }
 }
