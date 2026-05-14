@@ -1,7 +1,7 @@
 # Operation KOREA 발표용 통합 기획서
 
 작성 기준: 2026-05-14  
-참고 자료: `2026 관광데이터 활용 공모전 제안서_Operation_KOREA.pdf`, 현재 구현 코드, README
+
 
 ## 1. 아이디어 도출
 
