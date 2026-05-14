@@ -65,7 +65,7 @@ Operation KOREA는 국내 관광의 체류 시간 부족과 지역 편중 문제
 | --- | --- |
 | Specific | TourAPI 기반 관광지를 AI 미션 코스로 변환하고, 사용자가 지도/카메라/채팅으로 완주하는 MVP를 구현한다. |
 | Measurable | 지역 1개 이상, 작전 1개 이상, 힌트 미션 3개 + 최종 미션 1개 플로우를 완주 가능하게 한다. |
-| Achievable | Vue 3, Spring, MySQL, TourAPI, Kakao Map, Gemini, Vision API를 활용해 MVP 범위로 제한한다. |
+| Achievable | Vue 3, Spring, MyBatis, MySQL, TourAPI, Kakao Map, Gemini, Vision API를 활용해 MVP 범위로 제한한다. |
 | Relevant | 지역 체류시간 증대, 역사 학습, 관광 데이터 활용이라는 제안서 목표와 직접 연결한다. |
 | Time-bound | 발표 전까지 README, WBS, 간트차트, 유스케이스, 화면 설계, 발표자료 초안을 완성한다. |
 
@@ -326,7 +326,7 @@ gantt
 
 | 리스크 | 영향도 | 가능성 | 대응 전략 |
 | --- | --- | --- | --- |
-| JPA 사용과 과제 제약 충돌 | 높음 | 중간 | MyBatis 전환 작업을 별도 WBS로 분리하고 제출 전 기준 확인 |
+| JSP 필수 여부 불명확 | 중간 | 중간 | 현재는 Vue 3 SPA + Spring REST 구조이며, JSP가 필수 제출 조건인지 확인 후 별도 화면 단위로 전환 |
 | API 키/도메인 설정 오류 | 높음 | 높음 | `.env.example`, `application-example.properties`, 시연 체크리스트 유지 |
 | 카카오맵 미표시 | 높음 | 중간 | JavaScript 키 도메인, SDK URL, fallback 오류 화면 확인 |
 | AI가 정답을 직접 노출 | 중간 | 중간 | 프롬프트 금지 규칙과 후처리 sanitize 유지 |
@@ -356,6 +356,7 @@ flowchart TB
     User[사용자 브라우저]
     Vue[Vue 3 + Vite]
     Spring[Spring Backend]
+    MyBatis[MyBatis Mapper]
     MySQL[(MySQL)]
     TourAPI[TourAPI]
     Multi[다국어 관광정보]
@@ -371,7 +372,7 @@ flowchart TB
     Vue --> Spring
     Vue --> Kakao
     Vue --> Tmap
-    Spring --> MySQL
+    Spring --> MyBatis --> MySQL
     Spring --> TourAPI
     Spring -.확장.-> Multi
     Spring -.확장.-> Barrier
@@ -381,7 +382,7 @@ flowchart TB
     Spring --> Vision
 ```
 
-주의: 현재 구현은 Spring Data JPA를 사용합니다. 제출 제약에서 JPA가 불가하면 Persistence 계층을 MyBatis mapper 중심으로 전환해야 합니다.
+주의: 현재 구현은 JPA를 제거하고 MyBatis Mapper + MySQL + `schema.sql` 기반으로 전환했습니다. JSP가 필수 조건이면 Vue 화면과 겹치는 범위를 별도 단위로 재정의해야 합니다.
 
 ## 10. 사용자 여정 지도
 
@@ -454,7 +455,7 @@ flowchart TB
 | 7 | 데이터 활용 | TourAPI, Kakao, Tmap, Vision, Gemini, 향후 다국어/무장애/두루누비/기상 API |
 | 8 | 차별점 | Fiction + Fact, 전국 확장, 지역 상권 동선 |
 | 9 | 커뮤니티 확장 | 리뷰, 팔로우/팔로잉, 랭킹, 사용자 생성 미션 |
-| 10 | 기술 구조 | Vue/Spring/MySQL/API 구조 |
+| 10 | 기술 구조 | Vue/Spring/MyBatis/MySQL/API 구조 |
 | 11 | 시연 | 로그인, 지역 선택, 지도, 채팅, 클리어 |
 | 12 | 일정/WBS | 현재 진행과 남은 작업 |
 | 13 | 발전 방향 | B2G 스마트 로컬 테마파크, 지역 리워드, 지자체 인사이트, UGC |
@@ -533,7 +534,7 @@ TourAPI 국문 관광정보 외에 다국어 관광정보, 무장애 관광정�
 
 1. 팀원 실명과 역할을 README에 반영한다.
 2. 리뷰 기능이 공통 필수 요구사항이면 최소 API/UI를 추가한다.
-3. JPA 금지 조건이 확정이면 MyBatis 전환 여부를 결정한다.
+3. JSP가 필수 제출 조건인지 확인하고, 필요하면 Vue 화면과 겹치지 않는 범위부터 JSP 뷰를 분리한다.
 4. 핵심 화면 5~10개를 캡처해 PPT와 화면 설계 섹션에 넣는다.
 5. 시연용 DB seed와 `start.bat`를 만든다.
 6. 카카오맵/AI/API 키가 시연 PC 도메인과 환경에서 정상 동작하는지 점검한다.

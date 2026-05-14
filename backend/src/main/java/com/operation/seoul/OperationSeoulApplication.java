@@ -16,7 +16,12 @@ public class OperationSeoulApplication {
      */
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(OperationSeoulApplication.class);
-        application.setDefaultProperties(Map.of("spring.profiles.default", "local"));
+        application.setDefaultProperties(Map.of(
+                "spring.profiles.default", "local",
+                "spring.sql.init.mode", "always",
+                "spring.sql.init.encoding", "UTF-8",
+                "mybatis.configuration.map-underscore-to-camel-case", "true"
+        ));
         application.run(args);
     }
 

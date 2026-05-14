@@ -10,7 +10,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
 	toolchain {
-		// 팀원 로컬 JDK가 달라도 Gradle toolchain이 Java 17 기준으로 컴파일하도록 고정합니다.
+		// 시연 PC의 로컬 JDK 상태와 무관하게 Java 17 기준으로 컴파일합니다.
 		languageVersion = JavaLanguageVersion.of(17)
 	}
 }
@@ -20,13 +20,12 @@ repositories {
 }
 
 dependencies {
-	// REST API, JPA, MySQL 연결, DTO/JSON 처리를 위한 기본 의존성입니다.
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// REST API와 MyBatis 기반 DB 접근을 위한 기본 의존성입니다. 과제 제약에 맞춰 JPA는 사용하지 않습니다.
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:4.0.0'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -41,7 +40,7 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
-	// 요청 DTO 검증 확장에 대비해 포함해 둔 validation starter입니다.
+	// 요청 DTO 검증 확장에 대비한 validation starter입니다.
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 }
 
