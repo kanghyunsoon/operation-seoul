@@ -1,212 +1,178 @@
-# Operation: SEOUL
+# Operation KOREA
 
-AI 기반 위치 추적형 야외 방탈출 서비스입니다. 사용자는 지역별 작전을 선택하고, 지도에서 현장 미션을 수행하며, 사진 인증과 AI 채팅을 통해 최종 역사 키워드를 추론합니다.
+TourAPI와 AI를 결합해 전국 관광지를 위치 기반 야외 방탈출 미션으로 전환하는 관광 게이미피케이션 서비스입니다. 사용자는 지역 작전을 선택하고, 지도 기반 현장 미션을 수행하며, AI 채팅을 통해 최종 역사 키워드를 추론합니다.
 
-## 1. 현재 진행 요약
+작성 기준: 2026-05-14
 
-작성 기준: 2026-05-13
+## 1. 프로젝트 개요
 
-### 완료된 기능
+| 항목 | 내용 |
+| --- | --- |
+| 서비스명 | Operation KOREA |
+| 한 줄 소개 | 관광지 방문을 AI 추리 미션, GPS 이동, 현장 인증, 역사 해설로 연결하는 체류형 관광 플랫폼 |
+| 문제 정의 | 유명 랜드마크 단기 방문 위주의 국내 관광은 지역 상권 유입과 체류 시간 증대에 한계가 있습니다. |
+| 핵심 해결 | TourAPI 공공데이터와 AI 시나리오 생성을 활용해 유명 관광지와 주변 POI를 하나의 미션 동선으로 연결합니다. |
+| 주요 사용자 | MZ세대 여행자, 가족 단위 관광객, 지역 관광 담당자, 향후 외국인 자유여행객 |
+| PoC 방향 | 서울 정동길을 시작점으로 삼되, TourAPI 기반 전국 확장을 목표로 합니다. |
 
-| 영역 | 진행 상태 | 구현 파일 |
+## 2. 제안서 반영 요약
+
+제안서의 핵심 방향은 단순 관광 정보 제공이 아니라, 관광객이 직접 걷고 추리하고 인증하는 경험형 관광 모델입니다.
+
+| 제안서 항목 | README 반영 내용 |
+| --- | --- |
+| 국내 관광 위기와 랜드마크 편중 | 지역별 작전 카드, 주변 POI 힌트 미션, 체류형 동선으로 해결 |
+| MZ 경험 소비와 SNS 인증 | 미션 클리어 카드, 점수, 시간, 역사 아카이브 제공 |
+| 가족 단위 에듀테인먼트 | 역사 사실 기반 AI 추리와 클리어 리포트 제공 |
+| 지역 상권 체류 유도 | 최종지 주변 subSpot을 힌트 미션으로 연결 |
+| TourAPI 자동화 파이프라인 | 관리자 후보지 스캔, AI 작전 생성, DB 저장 흐름 구현 |
+| Fiction + Fact 융합 | 게임 중에는 첩보/방탈출 서사, 클리어 후에는 실제 역사 해설 제공 |
+
+## 3. 팀원별 진행사항
+
+실제 제출 전 `이름 기입` 영역을 팀원 실명으로 바꿔야 합니다.
+
+| 역할 | 담당자 | 현재 진행사항 | 다음 작업 |
+| --- | --- | --- | --- |
+| PM / 기획 | 이름 기입 | 제안서 기반 문제 정의, 사용자 가치, 산출물 목록 정리 | 발표자료 최종 스토리라인과 데모 시나리오 확정 |
+| Frontend | 이름 기입 | Intro/Home/Briefing/Map/Chat/Clear 화면, 지도 UX, 힌트 카드, 클리어 카드 구현 | 핵심 화면 캡처, 반응형 QA, 화면 설계 문서 보강 |
+| Backend | 이름 기입 | 인증, 지역/미션 API, 관리자 작전 생성, 세션/점수/클리어 리포트 구현 | 과제 제약에 맞춘 MyBatis 전환 검토, API 응답 표준화 |
+| AI / Data | 이름 기입 | Gemini 작전 생성, 힌트/정답 판정, Vision 인증, TourAPI 후보 수집 구현 | 프롬프트 로그 정리, 실제 역사 사실 검증 기준 강화 |
+| QA / Demo | 이름 기입 | 로컬 빌드 검증, 지도/카메라/채팅 플로우 점검 | 시연 PC 실행 패키지, DB seed, 장애 대응 체크리스트 준비 |
+
+## 4. 현재 구현 기능
+
+| 영역 | 구현 상태 | 주요 파일 |
 | --- | --- | --- |
-| 인증 | 회원가입, 로그인, JWT 발급, 요청 인터셉터, 라우터 가드 구현 완료 | `AuthController`, `JwtTokenProvider`, `JwtAuthenticationFilter`, `sessionStore.js`, `router/index.js` |
-| 권한 | 관리자 여부를 JWT 인증 사용자 기준으로 판별하고 `/api/v1/admin/**` 보호 | `SecurityConfig`, `CurrentUserResolver` |
-| 지역 선택 | 전국 권역 선택 화면, GPS 기반 사용자 위치 표시, 권역별 작전 카드 조회 구현 | `HomeView.vue`, `RegionController`, `OperationAreaResolver` |
-| 작전 생성 | 관리자 후보지 스캔, TourAPI 후보 수집, Kakao 주변 POI 보강, Tmap 도보 거리 필터, Gemini 작전 JSON 생성 구현 | `AdminMissionController`, `TourApiService`, `GeminiAiService` |
-| 미션 저장 | AI 응답을 `Region`, `Mission`으로 저장하고 최종 정답 노출을 막는 마스킹 로직 구현 | `AdminMissionController`, `Mission`, `Region` |
-| 브리핑 | 지역 설명과 미션 데이터를 기반으로 타자기 브리핑 화면 구현 | `BriefingView.vue` |
-| 지도 진행 | Kakao 지도, 커스텀 마커, GPS 거리 계산, 최종 미션 해금, Tmap 경로 표시, 단서 모달 구현 | `MapView.vue` |
-| 현장 인증 | 카메라/파일 캡처, Vision API 라벨 추출, Gemini 의미 비교, 성공 시 세션 클리어 저장 | `CameraScanner.vue`, `VisionAiService`, `GameSessionController` |
-| AI 채팅 | 최종 미션 채팅, Gemini 스트리밍 응답, 힌트 질문 판별, 정답 판정, 질문 횟수 제한 UI 구현 | `AiChatView.vue`, `GeminiAiService`, `useTypingBuffer.js` |
-| 클리어 화면 | 점수, 소요 시간, 이동 거리, 실제 역사 리포트, 단서별 해설 표시 구현 | `ClearView.vue`, `GameSessionController`, `GeminiAiService` |
-| 진행 기록 | `GameSession`으로 미션 상태, 시작/완료 시간, 거리, 점수 저장 | `GameSession`, `GameSessionRepository` |
+| 회원관리 | 회원가입, 로그인, JWT 발급, 라우터 가드 구현 | `AuthController`, `JwtTokenProvider`, `JwtAuthenticationFilter`, `sessionStore.js` |
+| 권한관리 | 관리자 API 보호, 현재 사용자 권한 해석 | `SecurityConfig`, `CurrentUserResolver` |
+| 지역 선택 | 전국 권역 지도, GPS 표시, 지역별 작전 카드 | `HomeView.vue`, `RegionController`, `OperationAreaResolver` |
+| 작전 생성 | TourAPI 후보 조회, Kakao 주변 POI 보강, Tmap 거리 필터, Gemini 시나리오 생성 | `AdminMissionController`, `TourApiService`, `GeminiAiService` |
+| 브리핑 | AI 생성 regionDescription 기반 작전 브리핑 | `BriefingView.vue` |
+| 지도 미션 | Kakao 지도, 마커, 도착 판정, 힌트 획득, 최종 미션 해금 | `MapView.vue` |
+| 현장 인증 | 카메라 캡처, Vision API 분석, Gemini 의미 비교 | `CameraScanner.vue`, `VisionAiService` |
+| AI 채팅 | 힌트 질문, 가설 검증, 정답 판정, 스트리밍 응답 | `AiChatView.vue`, `GeminiAiService` |
+| 클리어 화면 | 점수, 소요 시간, 이동 거리, 실제 역사 해설, 단서 해석 | `ClearView.vue`, `GameSessionController` |
 
-### 진행 중이거나 주의가 필요한 부분
-
-| 항목 | 현재 상태 | 다음 판단 |
-| --- | --- | --- |
-| 테스트 | 자동화 테스트가 아직 없습니다. | 백엔드 서비스 단위 테스트와 프론트 핵심 플로우 테스트를 우선 추가해야 합니다. |
-| DB 마이그레이션 | `spring.jpa.hibernate.ddl-auto=update`에 의존합니다. | 팀 개발/배포 전 Flyway 또는 Liquibase 도입이 필요합니다. |
-| Vision 인증 | 현재는 Google Vision `LABEL_DETECTION` 결과를 Gemini가 목표 키워드와 의미 비교합니다. | 간판/문구 인증이 중요하면 `TEXT_DETECTION` 또는 혼합 방식으로 확장해야 합니다. |
-| 지도 권역 | 프론트/백엔드의 권역 폴리곤은 서비스용 근사값입니다. | 실제 행정 경계 정확도가 필요하면 공식 GeoJSON으로 교체해야 합니다. |
-| API 키 | 실제 키는 `application-local.properties`, `.env`에 두고 Git에 올리지 않습니다. | 신규 팀원은 예시 파일을 복사해 개인 키를 넣어야 합니다. |
-| 관리자 계정 | `User.isAdmin` 필드는 있으나 관리자 승격 UI/API는 없습니다. | DB에서 직접 변경하거나 별도 관리자 관리 API를 추가해야 합니다. |
-
-## 2. 전체 사용자 흐름
+## 5. 사용자 흐름
 
 1. 사용자가 `/intro`에서 회원가입 또는 로그인합니다.
-2. 로그인 후 `/home`에서 작전 권역을 선택합니다.
-3. 일반 사용자는 권역별 작전 카드를 확인하고 브리핑으로 진입합니다.
-4. 관리자는 후보지 스캔 모달에서 TourAPI 후보지를 고르고 AI 작전을 생성할 수 있습니다.
-5. `/briefing`에서 지역 작전 배경을 읽고 `/map`으로 이동합니다.
-6. 지도에서 힌트 마커를 선택하고 현장 도착 범위에 들어가면 카메라 인증을 수행합니다.
-7. 힌트 미션 3개가 클리어되면 최종 미션 위치가 해금되고 경로가 표시됩니다.
-8. 최종 현장에서 `/chat/:sessionId`로 이동해 AI와 대화하며 정답 키워드를 입력합니다.
-9. 정답이 맞으면 `/clear/:missionId`에서 실제 역사 해설, 단서 해석, 점수 기록을 확인합니다.
+2. `/home`에서 전국 권역 중 작전 지역을 선택합니다.
+3. 일반 사용자는 지역별 작전 카드로 진입하고, 관리자는 후보지를 선택해 AI 작전을 생성합니다.
+4. `/briefing`에서 작전 배경을 읽고 `/map`으로 이동합니다.
+5. 지도에서 힌트 마커를 선택하고 현장 도착 범위에 들어가면 카메라 인증을 수행합니다.
+6. 힌트 미션을 완료하면 획득 단서가 누적되고 최종 미션이 해금됩니다.
+7. 최종 현장에서 `/chat/:sessionId`로 이동해 AI와 대화하며 정답 키워드를 추론합니다.
+8. 정답 입력 후 `/clear/:missionId`에서 역사 해설, 단서 해석, 점수 기록을 확인합니다.
 
-## 3. 기술 스택
+## 6. 기술 스택
 
-| 구분 | 기술 |
-| --- | --- |
-| Frontend | Vue 3, Vite, Pinia, Vue Router, Axios |
-| Backend | Java 17, Spring Boot 4, Spring MVC, Spring Data JPA, Spring Security |
-| Database | MySQL |
-| 지도/위치 | Kakao Maps JavaScript API, Tmap Pedestrian API, Geolocation API |
-| AI/데이터 | Google Gemini API, Google Cloud Vision API, 한국관광공사 TourAPI |
+| 구분 | 현재 구현 | 제출 제약 검토 |
+| --- | --- | --- |
+| Frontend | Vue 3, Vite, Pinia, Vue Router, Axios | Vue 3 사용 가능 |
+| Backend | Java 17, Spring Boot, Spring MVC, Spring Security | Spring 중심 구성 가능 |
+| Persistence | Spring Data JPA, MySQL | 과제 제약이 JPA 금지라면 MyBatis 전환 필요 |
+| 지도/위치 | Kakao Maps JavaScript API, Tmap Pedestrian API, Geolocation API | 외부 API 키 관리 필요 |
+| AI/데이터 | Gemini API, Google Cloud Vision API, TourAPI | AI 활용 로그와 프롬프트 근거 제출 필요 |
 
-## 4. 프로젝트 구조
+## 7. 프로젝트 구조
 
 ```text
 operation-seoul
 ├── backend
 │   ├── src/main/java/com/operation/seoul
-│   │   ├── auth        # 로그인, 회원가입, JWT, 현재 사용자 해석
-│   │   ├── game        # 게임 세션, AI 작전 생성, Vision 인증, Gemini 채팅
-│   │   ├── global      # Spring Security, CORS, 공통 설정
-│   │   └── location    # 지역, 미션, 위치 검증, 권역 판별
+│   │   ├── auth        # 회원관리, JWT, 현재 사용자 해석
+│   │   ├── game        # 게임 세션, AI 생성, Vision 인증, 채팅
+│   │   ├── global      # 보안, CORS, 공통 설정
+│   │   └── location    # 지역, 미션, 위치/권역 판별
 │   └── src/main/resources
 │       └── application-example.properties
 ├── frontend
 │   ├── src
-│   │   ├── api         # Axios 공통 인스턴스
-│   │   ├── components  # 카메라 스캐너 등 공용 컴포넌트
-│   │   ├── composables # 타자기 버퍼 같은 재사용 로직
-│   │   ├── router      # 화면 라우팅과 로그인 가드
-│   │   ├── stores      # Pinia 세션 상태
-│   │   └── views       # Intro, Home, Briefing, Map, Chat, Clear
-│   └── .env.example
+│   │   ├── api
+│   │   ├── components
+│   │   ├── composables
+│   │   ├── router
+│   │   ├── stores
+│   │   └── views
+├── docs
+│   └── PROJECT_PLANNING.md
 └── README.md
 ```
 
-## 5. 로컬 실행
+## 8. 로컬 실행
 
-### 5.1 백엔드 설정
+### Backend
 
 ```powershell
 Copy-Item backend/src/main/resources/application-example.properties backend/src/main/resources/application-local.properties
-```
-
-`backend/src/main/resources/application-local.properties`를 열어 아래 값을 채웁니다.
-
-| Key | 설명 |
-| --- | --- |
-| `spring.datasource.url` | MySQL 접속 URL |
-| `spring.datasource.username` | MySQL 사용자 |
-| `spring.datasource.password` | MySQL 비밀번호 |
-| `gemini.api.key` | Gemini API 키 |
-| `google.vision.key` | Google Cloud Vision API 키 |
-| `tourapi.key` | 한국관광공사 TourAPI 키 |
-| `kakao.rest.api.key` | Kakao REST API 키 |
-| `tmap.app.key` | Tmap App Key |
-| `jwt.secret` | JWT 서명용 32자 이상 비밀키 |
-| `app.cors.allowed-origins` | 허용할 프론트엔드 origin |
-
-실행:
-
-```powershell
 cd backend
-java -jar gradle/wrapper/gradle-wrapper.jar bootRun
+java -classpath .\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain bootRun
 ```
 
-빌드:
+`application-local.properties`에는 DB, Gemini, Vision, TourAPI, Kakao, Tmap, JWT 값을 입력합니다. 비밀값은 Git에 올리지 않습니다.
 
-```powershell
-cd backend
-java -jar gradle/wrapper/gradle-wrapper.jar build
-```
-
-### 5.2 프론트엔드 설정
+### Frontend
 
 ```powershell
 Copy-Item frontend/.env.example frontend/.env
-```
-
-`frontend/.env`를 열어 아래 값을 채웁니다.
-
-| Key | 설명 |
-| --- | --- |
-| `VITE_API_BASE_URL` | 백엔드 API 기본 주소. 기본값은 `http://localhost:8080/api` |
-| `VITE_KAKAO_MAP_KEY` | Kakao Maps JavaScript 키 |
-| `VITE_TMAP_APP_KEY` | Tmap App Key |
-
-실행:
-
-```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-## 6. 주요 API
+### Build Check
 
-### 인증
+```powershell
+cd frontend
+npm run build
+
+cd ..\backend
+java -classpath .\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain test
+```
+
+## 9. 주요 API
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| `POST` | `/api/v1/auth/register` | 신규 사용자 등록 |
+| `POST` | `/api/v1/auth/register` | 회원가입 |
 | `POST` | `/api/v1/auth/login` | 로그인 및 JWT 발급 |
-
-### 지역/미션
-
-| Method | Path | 설명 |
-| --- | --- | --- |
-| `GET` | `/api/v1/regions` | 전체 지역 원본 조회 |
-| `GET` | `/api/v1/regions/cards?areaCode=seoul` | 홈 화면 작전 카드 조회 |
-| `GET` | `/api/v1/regions/{regionId}` | 특정 지역 상세 조회 |
-| `GET` | `/api/v1/regions/{regionId}/missions` | 지역 내 미션 목록과 해금 상태 조회 |
-| `POST` | `/api/v1/missions/{missionId}/arrive` | GPS 도착 여부 검증 |
-
-### 게임 세션
-
-| Method | Path | 설명 |
-| --- | --- | --- |
-| `POST` | `/api/v1/sessions/{missionId}/vision` | 사진 인증 후 미션 클리어 기록 |
-| `POST` | `/api/v1/sessions/{missionId}/chat/stream` | Gemini 스트리밍 채팅 및 정답 판정 |
-| `GET` | `/api/v1/sessions/{missionId}/status` | 최종 미션 클리어 여부 조회 |
+| `GET` | `/api/v1/regions/cards?areaCode={code}` | 지역별 작전 카드 조회 |
+| `GET` | `/api/v1/regions/{regionId}/missions` | 미션 목록과 해금 상태 조회 |
+| `POST` | `/api/v1/sessions/{missionId}/vision` | 현장 사진 인증 |
+| `POST` | `/api/v1/sessions/{missionId}/chat/stream` | AI 채팅 및 정답 판정 |
 | `GET` | `/api/v1/sessions/{missionId}/clear-report` | 클리어 리포트 조회 |
-
-### 관리자
-
-| Method | Path | 설명 |
-| --- | --- | --- |
-| `GET` | `/api/v1/admin/missions/region-candidates?areaCode=seoul` | 권역별 TourAPI 후보지 조회 |
+| `GET` | `/api/v1/admin/missions/region-candidates` | 관리자 후보지 조회 |
 | `POST` | `/api/v1/admin/missions/generate-selected` | 선택 후보지 기반 AI 작전 생성 |
-| `DELETE` | `/api/v1/admin/missions/regions/{regionId}` | 작전 지역과 하위 미션 삭제 |
 
-## 7. 신규 팀원 온보딩 체크리스트
+## 10. 제출 산출물 위치
 
-1. Java 17, Node.js 20.19 이상 또는 22.12 이상, MySQL을 준비합니다.
-2. `backend/src/main/resources/application-example.properties`를 `application-local.properties`로 복사합니다.
-3. `frontend/.env.example`을 `frontend/.env`로 복사합니다.
-4. Gemini, Google Vision, TourAPI, Kakao, Tmap 키를 개인 환경 파일에 입력합니다.
-5. MySQL에 `operation_seoul` 데이터베이스를 생성합니다.
-6. 백엔드를 `java -jar gradle/wrapper/gradle-wrapper.jar bootRun`으로 실행합니다.
-7. 프론트엔드를 `npm run dev`로 실행합니다.
-8. `/intro`에서 계정을 만들고 로그인합니다.
-9. 관리자 기능을 확인해야 한다면 DB에서 해당 사용자의 `is_admin` 값을 `true`로 바꿉니다.
+| 산출물 | 위치 | 상태 |
+| --- | --- | --- |
+| README | `README.md` | 작성 |
+| 통합 기획서 | `docs/PROJECT_PLANNING.md` | 작성 |
+| WBS | `docs/PROJECT_PLANNING.md` 내 WBS 섹션 | 작성 |
+| 간트차트 | `docs/PROJECT_PLANNING.md` 내 Mermaid Gantt | 작성 |
+| 유스케이스 다이어그램 | `docs/PROJECT_PLANNING.md` 내 Mermaid 다이어그램 | 작성 |
+| 화면 설계 | `docs/PROJECT_PLANNING.md` 내 핵심 화면 8종 | 작성 |
+| 발표 PPT 구성안 | `docs/PROJECT_PLANNING.md` 내 발표자료 섹션 | 작성 |
+| AI 활용 로그 | `docs/PROJECT_PLANNING.md` 내 프롬프트 로그 | 작성 |
 
-## 8. 앞으로 진행해야 할 일
-
-우선순위는 테스트 안정화, 데이터 관리, 배포 준비 순서입니다.
+## 11. 남은 작업
 
 | 우선순위 | 작업 | 설명 |
 | --- | --- | --- |
-| 1 | 자동화 테스트 추가 | `MissionService`, `LocationValidationService`, `GeminiAiService`의 핵심 분기부터 테스트합니다. |
-| 1 | 설정 키 정리 | 모든 외부 키 이름을 백엔드/프론트/문서에서 같은 명명 규칙으로 유지합니다. |
-| 1 | DB 마이그레이션 도입 | JPA `update` 대신 Flyway/Liquibase로 스키마 변경 이력을 관리합니다. |
-| 2 | Vision 인증 고도화 | `LABEL_DETECTION`만으로 부족한 간판/문구 미션을 위해 OCR 병행을 검토합니다. |
-| 2 | 관리자 계정 관리 | DB 직접 수정 대신 관리자 승격/해제 API 또는 초기 관리자 시드 절차를 만듭니다. |
-| 2 | API 에러 응답 표준화 | 문자열 응답과 JSON 응답이 섞여 있어 프론트 처리 규칙을 통일해야 합니다. |
-| 2 | 중복 Vision endpoint 정리 | `/api/v1/sessions/{missionId}/vision`과 `/api/v1/missions/{missionId}/vision` 중 하나로 표준화합니다. |
-| 3 | 실제 야외 QA | GPS 오차, 카메라 권한, 모바일 브라우저, Tmap 실패 시 UX를 현장에서 검증합니다. |
-| 3 | 배포 파이프라인 | EC2/RDS 또는 대체 인프라에 맞춰 프로필, CORS, 비밀값 주입 방식을 정리합니다. |
-| 3 | 접근성/반응형 점검 | 작은 모바일 화면에서 버튼, 텍스트, 지도 오버레이가 겹치지 않는지 확인합니다. |
+| 높음 | 제출 제약 검토 | JPA 사용 금지 조건이 확정이면 MyBatis로 전환해야 합니다. |
+| 높음 | 시연 패키지 | IDE 없이 실행 가능한 jar, 설정 파일, DB seed, start script 준비 |
+| 높음 | 화면 캡처 | 핵심 화면 5~10개 캡처 후 발표자료에 삽입 |
+| 중간 | QA | GPS 오차, 카메라 권한, 카카오맵 키 도메인, AI 응답 실패 케이스 점검 |
+| 중간 | DB 초기 데이터 | 관리자 계정, 샘플 작전, 샘플 미션 seed 절차 정리 |
+| 낮음 | 확장 기능 | 찜/즐겨찾기, 팔로우, 계획/일정관리, 챌린지 관리, AI 추천/코칭 |
 
-## 9. 개발 규칙
+## 12. 개발/문서 규칙
 
-- 비밀값은 절대 Git에 커밋하지 않습니다. `application-local.properties`, `.env`는 개인 로컬 전용입니다.
-- 새 API를 추가하면 README의 주요 API 표와 관련 프론트 호출부 주석을 함께 업데이트합니다.
-- AI 프롬프트를 수정할 때는 정답 키워드가 미리 노출되지 않는지 반드시 확인합니다.
-- 지도/위치 계산 로직을 바꿀 때는 프론트 거리 계산과 백엔드 도착 검증 기준이 함께 맞는지 확인합니다.
-- 단순 UI 문구 변경이 아니라 게임 진행 상태에 영향을 주는 변경은 `GameSession.status`와 화면 분기를 같이 점검합니다.
+- 새 기능을 추가하면 관련 README 또는 `docs` 문서를 함께 수정합니다.
+- 새 클래스, 복잡한 메서드, AI 프롬프트, 외부 API 연동부에는 의도와 제약을 주석으로 남깁니다.
+- AI 프롬프트를 바꿀 때는 정답 키워드 직접 노출 여부와 특정 주제 하드코딩 여부를 확인합니다.
+- 비밀값은 `.env`, `application-local.properties`에만 보관하고 커밋하지 않습니다.
+- 과제 제출 제약과 현재 구현이 충돌하는 부분은 README와 기획서의 리스크 항목에 기록합니다.
