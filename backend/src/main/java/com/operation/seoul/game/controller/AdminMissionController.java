@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -124,6 +125,68 @@ public class AdminMissionController {
         private String areaCode;
     }
 
+    @Data
+    public static class MissionUpdateRequest {
+        private String title;
+        private String description;
+        private Double targetLat;
+        private Double targetLng;
+        private Double radiusInMeters;
+        private String visionKeyword;
+        private String clue;
+        private String answerKeyword;
+        private Long chapterId;
+        private Boolean finalMission;
+        private String realStory;
+    }
+
+    public record AdminRegionMissionsResponse(
+            Region region,
+            List<AdminMissionResponse> missions
+    ) {
+    }
+
+    public record AdminMissionGenerateResponse(
+            String message,
+            Region region,
+            List<AdminMissionResponse> missions
+    ) {
+    }
+
+    public record AdminMissionResponse(
+            Long id,
+            Long regionId,
+            String title,
+            String description,
+            Double targetLat,
+            Double targetLng,
+            Double radiusInMeters,
+            String visionKeyword,
+            String clue,
+            String answerKeyword,
+            Long chapterId,
+            boolean finalMission,
+            String realStory
+    ) {
+        public static AdminMissionResponse from(Mission mission) {
+            return new AdminMissionResponse(
+                    mission.getId(),
+                    mission.getRegionId(),
+                    mission.getTitle(),
+                    mission.getDescription(),
+                    mission.getTargetLat(),
+                    mission.getTargetLng(),
+                    mission.getRadiusInMeters(),
+                    mission.getVisionKeyword(),
+                    mission.getClue(),
+                    mission.getAnswerKeyword(),
+                    mission.getChapterId(),
+                    mission.isFinal(),
+                    mission.getRealStory()
+            );
+        }
+    }
+
     /**
      * 현재 좌표 주변의 역사 관광지 후보를 조회합니다.
      * 초기 개발용 endpoint이며, 권역 단위 스캔은 region-candidates를 주로 사용합니다.
@@ -221,6 +284,58 @@ public class AdminMissionController {
         }
     }
 
+    /** 생성된 작전 카드 안의 미션 원본 목록을 관리자 편집 화면에 제공합니다. */
+    @GetMapping("/regions/{regionId}")
+    public ResponseEntity<?> getRegionMissionsForAdmin(@PathVariable Long regionId) {
+        Region region = regionRepository.findById(regionId).orElse(null);
+        if (region == null) {
+            return ResponseEntity.status(404).body("존재하지 않는 작전입니다.");
+        }
+
+        List<AdminMissionResponse> missions = missionRepository.findByRegionId(regionId).stream()
+                .map(AdminMissionResponse::from)
+                .toList();
+
+        return ResponseEntity.ok(new AdminRegionMissionsResponse(region, missions));
+    }
+
+    /** AI가 생성한 개별 미션을 삭제 없이 즉시 수정합니다. */
+    @PutMapping("/{missionId}")
+    @Transactional
+    public ResponseEntity<?> updateMission(@PathVariable Long missionId,
+                                           @RequestBody MissionUpdateRequest request) {
+        if (request == null) {
+            return ResponseEntity.badRequest().body("수정할 미션 정보가 필요합니다.");
+        }
+
+        String validationError = validateMissionUpdate(request);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(validationError);
+        }
+
+        Mission mission = missionRepository.findById(missionId).orElse(null);
+        if (mission == null) {
+            return ResponseEntity.status(404).body("존재하지 않는 미션입니다.");
+        }
+
+        mission.setTitle(normalizeEditableText(request.getTitle()));
+        mission.setDescription(normalizeEditableText(request.getDescription()));
+        mission.setTargetLat(request.getTargetLat());
+        mission.setTargetLng(request.getTargetLng());
+        mission.setRadiusInMeters(request.getRadiusInMeters());
+        mission.setVisionKeyword(normalizeEditableText(request.getVisionKeyword()));
+        mission.setClue(normalizeEditableText(request.getClue()));
+        mission.setAnswerKeyword(normalizeEditableText(request.getAnswerKeyword()));
+        mission.setChapterId(request.getChapterId());
+        if (request.getFinalMission() != null) {
+            mission.setFinal(request.getFinalMission());
+        }
+        mission.setRealStory(normalizeEditableText(request.getRealStory()));
+
+        missionRepository.update(mission);
+        return ResponseEntity.ok(AdminMissionResponse.from(mission));
+    }
+
     /**
      * 관리자가 선택한 최종 목적지를 기준으로 주변 힌트 후보를 보강하고 Gemini 작전을 생성합니다.
      * AI 응답은 정답 노출 검사를 통과한 뒤 Region/Mission 엔티티로 저장됩니다.
@@ -304,6 +419,7 @@ public class AdminMissionController {
                     "오래된 기록을 정리하던 조사원이 같은 날짜가 서로 다른 이름으로 남아 있다는 사실을 발견했다. 한 기록은 사건이 끝났다고 말했고, 다른 기록은 아직 시작되지 않았다고 적혀 있었다.\n\n조사원은 두 기록 사이에 빠진 하루를 찾기 위해 현장으로 향했지만, 그날 밤 이후 연락이 끊겼다. 책상 위에는 찢긴 메모와 순서가 뒤바뀐 사진 몇 장만 남아 있었다.\n\n본편은 그가 찾지 못한 하루에서 시작된다. 흩어진 장면을 제자리에 놓고, 왜 누군가 이 이야기의 시작을 바꾸려 했는지 밝혀내라."
             ));
             Region savedRegion = regionRepository.save(newRegion);
+            List<AdminMissionResponse> savedMissions = new ArrayList<>();
 
             JsonNode missionsNode = root.path("missions");
             if (missionsNode.isArray()) {
@@ -344,9 +460,11 @@ public class AdminMissionController {
                     }
 
                     missionRepository.save(mission);
+                    savedMissions.add(AdminMissionResponse.from(mission));
                 }
             }
-            return ResponseEntity.ok("AI 작전 생성 완료 [" + areaCode + "]: " + savedRegion.getName());
+            String message = "AI 작전 생성 완료 [" + areaCode + "]: " + savedRegion.getName();
+            return ResponseEntity.ok(new AdminMissionGenerateResponse(message, savedRegion, savedMissions));
         } catch (Exception e) {
             log.error("Mission generation failed", e);
             return ResponseEntity.internalServerError().body("작전 생성 실패: " + e.getMessage());
@@ -372,6 +490,37 @@ public class AdminMissionController {
             log.error("Region delete failed", e);
             return ResponseEntity.internalServerError().body("작전 삭제 실패: " + e.getMessage());
         }
+    }
+
+    private String validateMissionUpdate(MissionUpdateRequest request) {
+        if (normalizeEditableText(request.getTitle()).isBlank()) {
+            return "미션 제목은 필수입니다.";
+        }
+        if (!isValidLatitude(request.getTargetLat())) {
+            return "목표 위도는 -90부터 90 사이의 숫자여야 합니다.";
+        }
+        if (!isValidLongitude(request.getTargetLng())) {
+            return "목표 경도는 -180부터 180 사이의 숫자여야 합니다.";
+        }
+        if (request.getRadiusInMeters() == null
+                || request.getRadiusInMeters().isNaN()
+                || request.getRadiusInMeters().isInfinite()
+                || request.getRadiusInMeters() <= 0) {
+            return "인증 반경은 0보다 큰 숫자여야 합니다.";
+        }
+        return null;
+    }
+
+    private boolean isValidLatitude(Double value) {
+        return value != null && !value.isNaN() && !value.isInfinite() && value >= -90.0 && value <= 90.0;
+    }
+
+    private boolean isValidLongitude(Double value) {
+        return value != null && !value.isNaN() && !value.isInfinite() && value >= -180.0 && value <= 180.0;
+    }
+
+    private String normalizeEditableText(String value) {
+        return value == null ? "" : value.trim();
     }
 
     /** AI 응답의 missions 배열에서 최종 미션 정답 키워드를 꺼냅니다. */
