@@ -58,6 +58,84 @@
         </div>
       </div>
 
+      <div v-if="showMissionEditModal" class="admin-modal-overlay">
+        <div class="admin-modal-content mission-edit-modal">
+          <h3>미션별 수정</h3>
+          <p><strong>{{ missionEditRegion?.name || '작전' }}</strong>에 생성된 미션을 바로 수정합니다.</p>
+
+          <div v-if="isMissionEditLoading" class="mission-edit-loading">미션 정보 로딩 중...</div>
+          <div v-else-if="editableMissions.length === 0" class="mission-edit-loading">수정할 미션이 없습니다.</div>
+
+          <div v-else class="mission-edit-list">
+            <section
+              v-for="mission in editableMissions"
+              :key="mission.id"
+              class="mission-edit-item"
+            >
+              <div class="mission-edit-head">
+                <strong>{{ mission.title || '제목 없음' }}</strong>
+                <span>{{ mission.finalMission ? 'FINAL' : 'HINT' }}</span>
+              </div>
+
+              <label class="edit-field">
+                <span>제목</span>
+                <input v-model.trim="mission.title" type="text" />
+              </label>
+
+              <label class="edit-field">
+                <span>설명</span>
+                <textarea v-model.trim="mission.description" rows="3"></textarea>
+              </label>
+
+              <div class="edit-grid">
+                <label class="edit-field">
+                  <span>위도</span>
+                  <input v-model.number="mission.targetLat" type="number" step="0.000001" />
+                </label>
+                <label class="edit-field">
+                  <span>경도</span>
+                  <input v-model.number="mission.targetLng" type="number" step="0.000001" />
+                </label>
+                <label class="edit-field">
+                  <span>반경(m)</span>
+                  <input v-model.number="mission.radiusInMeters" type="number" min="1" step="1" />
+                </label>
+              </div>
+
+              <label class="edit-field">
+                <span>Vision 키워드</span>
+                <input v-model.trim="mission.visionKeyword" type="text" />
+              </label>
+
+              <label class="edit-field">
+                <span>단서</span>
+                <textarea v-model.trim="mission.clue" rows="3"></textarea>
+              </label>
+
+              <label class="edit-field">
+                <span>정답 키워드</span>
+                <input v-model.trim="mission.answerKeyword" type="text" />
+              </label>
+
+              <label v-if="mission.finalMission" class="edit-field">
+                <span>실제 해설</span>
+                <textarea v-model.trim="mission.realStory" rows="3"></textarea>
+              </label>
+
+              <button
+                class="execute-btn mission-save-btn"
+                :disabled="isMissionUpdating"
+                @click="updateMission(mission)"
+              >
+                {{ isMissionUpdating ? '저장 중...' : '이 미션 저장' }}
+              </button>
+            </section>
+          </div>
+
+          <button @click="closeMissionEditor" class="close-btn" :disabled="isMissionUpdating" style="margin-top: 10px;">닫기</button>
+        </div>
+      </div>
+
       <main v-if="!isAreaSelected" class="area-selector">
         <section class="map-panel">
           <div class="map-shell">
@@ -192,9 +270,14 @@
               </span>
             </div>
 
-            <button v-if="isAdmin" @click.stop="deleteRegion(mission.id, mission.title)" class="delete-btn" title="작전 파기">
-              ✖
-            </button>
+            <div v-if="isAdmin" class="admin-card-actions">
+              <button @click.stop="openMissionEditor(mission)" class="edit-btn" title="미션 수정">
+                수정
+              </button>
+              <button @click.stop="deleteRegion(mission.id, mission.title)" class="delete-btn" title="작전 파기">
+                삭제
+              </button>
+            </div>
           </div>
 
           <div v-if="mission.isCleared" class="clear-stamp" aria-label="해결한 작전">
@@ -464,6 +547,11 @@ const isScanning = ref(false);
 
 const candidates = ref([]);
 const selectedSpot = ref(null);
+const showMissionEditModal = ref(false);
+const missionEditRegion = ref(null);
+const editableMissions = ref([]);
+const isMissionEditLoading = ref(false);
+const isMissionUpdating = ref(false);
 
 // 관리자 모달을 열면 현재 선택 권역의 후보지 스캔을 즉시 시작합니다.
 const openAdminModal = () => {
@@ -479,6 +567,118 @@ const closeAdminModal = () => {
   showAdminModal.value = false;
   candidates.value = [];
   selectedSpot.value = null;
+};
+
+const openMissionEditor = async (missionCard) => {
+  if (!missionCard?.id) return;
+
+  showMissionEditModal.value = true;
+  isMissionEditLoading.value = true;
+  missionEditRegion.value = { id: missionCard.id, name: missionCard.title };
+  editableMissions.value = [];
+
+  try {
+    const response = await apiClient.get(`/v1/admin/missions/regions/${missionCard.id}`);
+    missionEditRegion.value = response.data.region;
+    editableMissions.value = (response.data.missions || []).map(toEditableMission);
+  } catch (error) {
+    console.error(error);
+    alert(error.userMessage || '미션 정보를 불러오지 못했습니다.');
+  } finally {
+    isMissionEditLoading.value = false;
+  }
+};
+
+const openMissionEditorFromPayload = (payload) => {
+  if (!payload?.region) return;
+
+  missionEditRegion.value = payload.region;
+  editableMissions.value = (payload.missions || []).map(toEditableMission);
+  isMissionEditLoading.value = false;
+  showMissionEditModal.value = true;
+};
+
+const closeMissionEditor = () => {
+  if (isMissionUpdating.value) return;
+
+  showMissionEditModal.value = false;
+  missionEditRegion.value = null;
+  editableMissions.value = [];
+};
+
+const toEditableMission = (mission) => ({
+  id: mission.id,
+  title: mission.title || '',
+  description: mission.description || '',
+  targetLat: Number(mission.targetLat ?? 0),
+  targetLng: Number(mission.targetLng ?? 0),
+  radiusInMeters: Number(mission.radiusInMeters ?? 45),
+  visionKeyword: mission.visionKeyword || '',
+  clue: mission.clue || '',
+  answerKeyword: mission.answerKeyword || '',
+  chapterId: mission.chapterId ?? null,
+  finalMission: mission.finalMission === true || mission.isFinal === true || mission.final === true,
+  realStory: mission.realStory || ''
+});
+
+const updateMission = async (mission) => {
+  const payload = buildMissionUpdatePayload(mission);
+  if (!payload) return;
+
+  isMissionUpdating.value = true;
+  try {
+    const response = await apiClient.put(`/v1/admin/missions/${mission.id}`, payload);
+    const updated = toEditableMission(response.data);
+    const index = editableMissions.value.findIndex(item => item.id === mission.id);
+    if (index !== -1) {
+      editableMissions.value[index] = updated;
+    }
+    await fetchMissions();
+    alert('[SYSTEM] 미션 수정이 저장되었습니다.');
+  } catch (error) {
+    console.error(error);
+    alert(error.userMessage || '미션 수정 저장에 실패했습니다.');
+  } finally {
+    isMissionUpdating.value = false;
+  }
+};
+
+const buildMissionUpdatePayload = (mission) => {
+  const title = String(mission.title || '').trim();
+  const targetLat = Number(mission.targetLat);
+  const targetLng = Number(mission.targetLng);
+  const radiusInMeters = Number(mission.radiusInMeters);
+
+  if (!title) {
+    alert('미션 제목은 필수입니다.');
+    return null;
+  }
+  if (!Number.isFinite(targetLat) || targetLat < -90 || targetLat > 90) {
+    alert('위도는 -90부터 90 사이의 숫자여야 합니다.');
+    return null;
+  }
+  if (!Number.isFinite(targetLng) || targetLng < -180 || targetLng > 180) {
+    alert('경도는 -180부터 180 사이의 숫자여야 합니다.');
+    return null;
+  }
+  if (!Number.isFinite(radiusInMeters) || radiusInMeters <= 0) {
+    alert('반경은 0보다 큰 숫자여야 합니다.');
+    return null;
+  }
+
+  return {
+    title,
+    description: String(mission.description || '').trim(),
+    targetLat,
+    targetLng,
+    radiusInMeters,
+    visionKeyword: String(mission.visionKeyword || '').trim(),
+    clue: String(mission.clue || '').trim(),
+    answerKeyword: String(mission.answerKeyword || '').trim(),
+    chapterId: mission.chapterId,
+    finalMission: mission.finalMission === true,
+    realStory: String(mission.realStory || '').trim()
+  };
 };
 
 // 권역별 대표 시드 좌표를 백엔드가 훑어 TourAPI 후보지를 모아 오게 합니다.
@@ -515,10 +715,15 @@ const generateMissionByAi = async () => {
       areaCode: activeArea.value?.code || 'seoul'
     });
 
-    alert(`[SYSTEM] ${response.data}`);
+    const payload = response.data;
+    const message = typeof payload === 'string'
+      ? payload
+      : payload.message || 'AI 작전 생성 완료';
+    alert(`[SYSTEM] ${message}`);
 
     closeAdminModal();
-    fetchMissions();
+    await fetchMissions();
+    openMissionEditorFromPayload(payload);
 
   } catch (error) {
     console.error(error);
@@ -829,21 +1034,30 @@ const handleLogout = () => {
 .normal { color: #f59e0b; }
 .hard { color: #ef4444; }
 
-/* 💡 삭제 버튼용 신규 스타일 (테마 호환) */
-.delete-btn {
-  background: transparent;
-  border: none;
-  color: rgba(239, 68, 68, 0.6);
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  padding: 0;
+.admin-card-actions { display: flex; flex: 0 0 auto; gap: 7px; align-items: center; }
+.edit-btn, .delete-btn {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.62);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
   line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 7px 8px;
+}
+.edit-btn { color: #67e8f9; }
+.delete-btn { color: #fca5a5; }
+.edit-btn:hover {
+  border-color: rgba(103, 232, 249, 0.78);
+  color: #ecfeff;
+  box-shadow: 0 0 10px rgba(103, 232, 249, 0.18);
 }
 .delete-btn:hover {
+  border-color: rgba(239, 68, 68, 0.82);
   color: #ef4444;
-  transform: scale(1.2) rotate(90deg);
-  text-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.16);
 }
 
 .mission-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0 0 10px 0; }
@@ -927,6 +1141,22 @@ const handleLogout = () => {
 .execute-btn { width: 100%; padding: 12px; background: #ff4444; color: #fff; border: none; font-weight: bold; font-family: inherit; border-radius: 6px; cursor: pointer; }
 .execute-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
 .close-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #aaa; color: #aaa; font-family: inherit; border-radius: 6px; cursor: pointer; }
+.mission-edit-modal { max-width: 760px; max-height: min(88vh, 860px); overflow-y: auto; }
+.mission-edit-loading { padding: 20px; border: 1px solid #333; border-radius: 6px; background: #1a1a1a; color: #94a3b8; text-align: center; }
+.mission-edit-list { display: grid; gap: 16px; }
+.mission-edit-item { padding: 16px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; background: rgba(15, 23, 42, 0.72); }
+.mission-edit-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.mission-edit-head strong { min-width: 0; overflow: hidden; color: #fff; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
+.mission-edit-head span { flex: 0 0 auto; padding: 4px 8px; border: 1px solid rgba(103, 232, 249, 0.36); border-radius: 999px; color: #67e8f9; font-size: 0.72rem; font-weight: 800; }
+.edit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.edit-field { display: block; margin-bottom: 10px; }
+.edit-field span { display: block; margin-bottom: 5px; color: #94a3b8; font-size: 0.78rem; font-weight: 800; }
+.edit-field input,
+.edit-field textarea { width: 100%; box-sizing: border-box; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 6px; background: rgba(2, 6, 23, 0.58); color: #f8fafc; font-family: inherit; font-size: 0.88rem; line-height: 1.5; padding: 9px 10px; }
+.edit-field textarea { resize: vertical; min-height: 74px; }
+.edit-field input:focus,
+.edit-field textarea:focus { outline: none; border-color: rgba(103, 232, 249, 0.72); box-shadow: 0 0 0 2px rgba(103, 232, 249, 0.12); }
+.mission-save-btn { margin-top: 4px; background: #0891b2; }
 
 .candidate-label { display: block; margin: 16px 0 7px; color: #aaa; font-size: 0.85rem; }
 .candidate-scroll-area { max-height: 280px; overflow-y: auto; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; }
@@ -956,6 +1186,8 @@ const handleLogout = () => {
   .area-mode .area-choice { padding: 8px 9px; }
   .area-mode .area-choice span { font-size: 0.86rem; }
   .area-mode .area-choice strong { font-size: 0.68rem; }
+  .edit-grid { grid-template-columns: 1fr; }
+  .mission-edit-modal { width: 94%; max-height: 90vh; padding: 18px; }
   .confirm-actions { grid-template-columns: 1fr; }
 }
 </style>
