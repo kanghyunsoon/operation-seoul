@@ -16,8 +16,13 @@ create table if not exists region (
     name varchar(255),
     area_code varchar(32) default 'seoul',
     description text,
+    period_code varchar(32) not null default 'mixed',
+    theme_code varchar(32) not null default 'mystery',
+    created_at datetime not null default current_timestamp,
     primary key (id),
-    index idx_region_area_code (area_code)
+    index idx_region_area_code (area_code),
+    index idx_region_period_theme (period_code, theme_code),
+    index idx_region_created_at (created_at)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create table if not exists mission (

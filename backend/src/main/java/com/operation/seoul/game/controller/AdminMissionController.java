@@ -50,6 +50,10 @@ public class AdminMissionController {
     private static final int MAX_AI_SUB_SPOTS = 15;
     private static final int REGION_CANDIDATE_RADIUS_METERS = 18000;
     private static final int MAX_REGION_CANDIDATES = 60;
+    private static final int MAX_EDIT_SPOT_CANDIDATES = 45;
+    private static final String[] HINT_POI_KEYWORDS = {
+            "카페", "시장", "공원", "서점", "문화", "기념", "박물관", "전시", "역사", "광장", "골목"
+    };
     private static final Map<String, List<AreaSeed>> REGION_CANDIDATE_SEEDS = Map.of(
             "seoul", List.of(
                     new AreaSeed(37.5665, 126.9780),
@@ -138,6 +142,17 @@ public class AdminMissionController {
         private Long chapterId;
         private Boolean finalMission;
         private String realStory;
+    }
+
+    @Data
+    public static class MissionRecomposeRequest {
+        private Map<String, String> selectedSpot;
+    }
+
+    @Data
+    public static class RegionMetadataUpdateRequest {
+        private String periodCode;
+        private String themeCode;
     }
 
     public record AdminRegionMissionsResponse(
@@ -299,6 +314,46 @@ public class AdminMissionController {
         return ResponseEntity.ok(new AdminRegionMissionsResponse(region, missions));
     }
 
+    /** 관리자가 힌트 미션 위치를 고를 수 있도록 최종 지점 주변 후보 스팟을 제공합니다. */
+    @GetMapping("/regions/{regionId}/spot-candidates")
+    public ResponseEntity<?> getMissionSpotCandidates(@PathVariable Long regionId) {
+        Region region = regionRepository.findById(regionId).orElse(null);
+        if (region == null) {
+            return ResponseEntity.status(404).body("존재하지 않는 작전입니다.");
+        }
+
+        List<Mission> missions = missionRepository.findByRegionId(regionId);
+        Mission anchorMission = resolveAnchorMission(missions);
+        if (anchorMission == null || !isValidLatitude(anchorMission.getTargetLat()) || !isValidLongitude(anchorMission.getTargetLng())) {
+            return ResponseEntity.badRequest().body("후보 스팟을 찾을 기준 미션 좌표가 없습니다.");
+        }
+
+        return ResponseEntity.ok(buildEditableSpotCandidates(missions, anchorMission));
+    }
+
+    /** 작전 카드의 대표 시대/테마 메타데이터를 수정합니다. */
+    @PutMapping("/regions/{regionId}/metadata")
+    @Transactional
+    public ResponseEntity<?> updateRegionMetadata(@PathVariable Long regionId,
+                                                  @RequestBody RegionMetadataUpdateRequest request) {
+        if (request == null) {
+            return ResponseEntity.badRequest().body("수정할 메타데이터가 필요합니다.");
+        }
+        Region region = regionRepository.findById(regionId).orElse(null);
+        if (region == null) {
+            return ResponseEntity.status(404).body("존재하지 않는 작전입니다.");
+        }
+
+        region.setPeriodCode(normalizeMetadataCode(request.getPeriodCode(), "mixed"));
+        region.setThemeCode(normalizeMetadataCode(request.getThemeCode(), "mystery"));
+        regionRepository.update(region);
+
+        List<AdminMissionResponse> missions = missionRepository.findByRegionId(regionId).stream()
+                .map(AdminMissionResponse::from)
+                .toList();
+        return ResponseEntity.ok(new AdminRegionMissionsResponse(region, missions));
+    }
+
     /** AI가 생성한 개별 미션을 삭제 없이 즉시 수정합니다. */
     @PutMapping("/{missionId}")
     @Transactional
@@ -336,6 +391,73 @@ public class AdminMissionController {
         return ResponseEntity.ok(AdminMissionResponse.from(mission));
     }
 
+    /** 선택한 스팟 좌표를 적용하고, 해당 힌트 미션의 설명/단서만 AI로 다시 씁니다. */
+    @PostMapping("/{missionId}/recompose")
+    @Transactional
+    public ResponseEntity<?> recomposeMissionWithSpot(@PathVariable Long missionId,
+                                                      @RequestBody MissionRecomposeRequest request) {
+        if (request == null || !hasUsableCoordinates(request.getSelectedSpot())) {
+            return ResponseEntity.badRequest().body("재구성할 스팟 좌표가 필요합니다.");
+        }
+
+        Mission mission = missionRepository.findById(missionId).orElse(null);
+        if (mission == null) {
+            return ResponseEntity.status(404).body("존재하지 않는 미션입니다.");
+        }
+        if (mission.isFinal()) {
+            return ResponseEntity.badRequest().body("최종 미션은 힌트 미션 재구성 대상이 아닙니다.");
+        }
+
+        Region region = regionRepository.findById(mission.getRegionId()).orElse(null);
+        if (region == null) {
+            return ResponseEntity.status(404).body("미션이 속한 작전을 찾을 수 없습니다.");
+        }
+
+        List<Mission> regionMissions = missionRepository.findByRegionId(region.getId());
+        Mission finalMission = regionMissions.stream()
+                .filter(Mission::isFinal)
+                .findFirst()
+                .orElse(null);
+        String finalMissionTitle = finalMission == null ? "" : finalMission.getTitle();
+        Map<String, String> selectedSpot = request.getSelectedSpot();
+        Map<String, String> aiPatch = geminiAiService.generateHintMissionPatch(
+                mission,
+                region,
+                selectedSpot,
+                finalMissionTitle
+        );
+        if (aiPatch == null) {
+            return ResponseEntity.internalServerError().body("AI 미션 재구성에 실패했습니다.");
+        }
+
+        String finalAnswerKeyword = finalMission == null ? "" : finalMission.getAnswerKeyword();
+        mission.setTitle(normalizeEditableText(selectedSpot.getOrDefault("title", mission.getTitle())));
+        mission.setTargetLat(Double.parseDouble(selectedSpot.get("mapY")));
+        mission.setTargetLng(Double.parseDouble(selectedSpot.get("mapX")));
+        mission.setRadiusInMeters(45.0);
+        mission.setVisionKeyword(sanitizeRecomposedText(
+                normalizeEditableText(aiPatch.get("visionKeyword")),
+                finalAnswerKeyword,
+                finalMissionTitle,
+                mission.getVisionKeyword()
+        ));
+        mission.setDescription(sanitizeRecomposedText(
+                normalizeEditableText(aiPatch.get("description")),
+                finalAnswerKeyword,
+                finalMissionTitle,
+                mission.getDescription()
+        ));
+        mission.setClue(sanitizeRecomposedText(
+                normalizeEditableText(aiPatch.get("clue")),
+                finalAnswerKeyword,
+                finalMissionTitle,
+                mission.getClue()
+        ));
+
+        missionRepository.update(mission);
+        return ResponseEntity.ok(AdminMissionResponse.from(mission));
+    }
+
     /**
      * 관리자가 선택한 최종 목적지를 기준으로 주변 힌트 후보를 보강하고 Gemini 작전을 생성합니다.
      * AI 응답은 정답 노출 검사를 통과한 뒤 Region/Mission 엔티티로 저장됩니다.
@@ -356,9 +478,8 @@ public class AdminMissionController {
             double targetLng = Double.parseDouble(targetSpot.get("mapX"));
             String areaCode = operationAreaResolver.resolveAreaCode(targetLat, targetLng, request.getAreaCode());
 
-            String[] keywords = {"카페", "시장", "공원", "서점", "문화", "기념", "박물관", "전시", "역사", "광장", "골목"};
             List<Map<String, String>> localSpots = new ArrayList<>();
-            for (String keyword : keywords) {
+            for (String keyword : HINT_POI_KEYWORDS) {
                 List<Map<String, String>> spots = tourApiService.fetchNearbyLocalPOIs(targetLat, targetLng, 1900, keyword);
                 if (spots != null && !spots.isEmpty()) {
                     localSpots.addAll(spots);
@@ -408,6 +529,8 @@ public class AdminMissionController {
 
             Region newRegion = new Region();
             newRegion.setAreaCode(areaCode);
+            newRegion.setPeriodCode("mixed");
+            newRegion.setThemeCode(resolveDefaultThemeCode(targetSpot));
             newRegion.setName(maskSecretKeyword(
                     root.path("regionName").asText("작전명 봉인된 현장"),
                     finalAnswerKeyword,
@@ -490,6 +613,110 @@ public class AdminMissionController {
             log.error("Region delete failed", e);
             return ResponseEntity.internalServerError().body("작전 삭제 실패: " + e.getMessage());
         }
+    }
+
+    private Mission resolveAnchorMission(List<Mission> missions) {
+        if (missions == null || missions.isEmpty()) {
+            return null;
+        }
+        return missions.stream()
+                .filter(Mission::isFinal)
+                .filter(mission -> isValidLatitude(mission.getTargetLat()) && isValidLongitude(mission.getTargetLng()))
+                .findFirst()
+                .orElseGet(() -> missions.stream()
+                        .filter(mission -> isValidLatitude(mission.getTargetLat()) && isValidLongitude(mission.getTargetLng()))
+                        .findFirst()
+                        .orElse(null));
+    }
+
+    private List<Map<String, String>> buildEditableSpotCandidates(List<Mission> missions, Mission anchorMission) {
+        double anchorLat = anchorMission.getTargetLat();
+        double anchorLng = anchorMission.getTargetLng();
+        List<Map<String, String>> spots = new ArrayList<>();
+
+        for (String keyword : HINT_POI_KEYWORDS) {
+            List<Map<String, String>> found = tourApiService.fetchNearbyLocalPOIs(anchorLat, anchorLng, 2400, keyword);
+            if (found != null && !found.isEmpty()) {
+                spots.addAll(found);
+            }
+        }
+
+        for (Mission mission : missions) {
+            if (!mission.isFinal() && isValidLatitude(mission.getTargetLat()) && isValidLongitude(mission.getTargetLng())) {
+                spots.add(buildExistingMissionSpot(mission));
+            }
+        }
+
+        return spots.stream()
+                .filter(this::hasUsableCoordinates)
+                .collect(Collectors.toMap(
+                        this::spotIdentity,
+                        spot -> spot,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ))
+                .values()
+                .stream()
+                .map(spot -> withDistance(spot, anchorLat, anchorLng))
+                .filter(spot -> Double.parseDouble(spot.get("distanceMeters")) > 50.0)
+                .sorted(java.util.Comparator.comparingDouble(spot -> Double.parseDouble(spot.get("distanceMeters"))))
+                .limit(MAX_EDIT_SPOT_CANDIDATES)
+                .toList();
+    }
+
+    private Map<String, String> buildExistingMissionSpot(Mission mission) {
+        Map<String, String> spot = new HashMap<>();
+        spot.put("title", normalizeEditableText(mission.getTitle()));
+        spot.put("address", "현재 힌트 미션 위치");
+        spot.put("mapY", String.valueOf(mission.getTargetLat()));
+        spot.put("mapX", String.valueOf(mission.getTargetLng()));
+        spot.put("source", "CurrentMission");
+        return spot;
+    }
+
+    private String sanitizeRecomposedText(String text, String finalAnswerKeyword, String finalMissionTitle, String fallback) {
+        String withoutAnswer = maskSecretKeyword(text, finalAnswerKeyword, fallback);
+        return maskSecretKeyword(withoutAnswer, finalMissionTitle, fallback);
+    }
+
+    private String normalizeMetadataCode(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value.trim().toLowerCase();
+    }
+
+    private String resolveDefaultThemeCode(Map<String, String> targetSpot) {
+        String context = normalizeForSecretCheck(String.join(" ",
+                targetSpot.getOrDefault("title", ""),
+                targetSpot.getOrDefault("category", ""),
+                targetSpot.getOrDefault("address", "")
+        ));
+        if (containsAny(context, "궁", "왕", "royal")) {
+            return "royal";
+        }
+        if (containsAny(context, "시장", "상권", "거리", "골목")) {
+            return "market";
+        }
+        if (containsAny(context, "공원", "숲", "산", "호수")) {
+            return "nature";
+        }
+        if (containsAny(context, "문화", "예술", "전시", "박물관", "미술")) {
+            return "culture";
+        }
+        return "mystery";
+    }
+
+    private boolean containsAny(String value, String... needles) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        for (String needle : needles) {
+            if (value.contains(normalizeForSecretCheck(needle))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String validateMissionUpdate(MissionUpdateRequest request) {

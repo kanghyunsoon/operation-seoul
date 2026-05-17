@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.game.domain.GameSession;
 import com.operation.seoul.game.repository.GameSessionRepository;
 import com.operation.seoul.location.domain.Mission;
+import com.operation.seoul.location.domain.Region;
 import com.operation.seoul.location.dto.MissionResponse;
 import com.operation.seoul.location.repository.MissionRepository;
 import lombok.RequiredArgsConstructor;
@@ -145,6 +146,80 @@ public class GeminiAiService {
                 """.formatted(targetSpot, subSpots);
 
         return callGeminiStandard(url, prompt);
+    }
+
+    /** 선택된 스팟에 맞춰 힌트 미션 1개만 다시 작성합니다. */
+    public Map<String, String> generateHintMissionPatch(
+            Mission mission,
+            Region region,
+            Map<String, String> selectedSpot,
+            String finalMissionTitle) {
+        String prompt = """
+                당신은 Operation KOREA의 현장 추리 게임 미션 작가입니다.
+
+                [기존 작전]
+                - 작전명: %s
+                - 작전 배경: %s
+                - 최종 현장명: %s
+
+                [수정할 힌트 미션]
+                - 현재 제목: %s
+                - 현재 설명: %s
+                - 현재 단서: %s
+
+                [새로 선택한 스팟]
+                - 이름: %s
+                - 주소/분류: %s
+                - 좌표: %s, %s
+
+                [작성 규칙]
+                1. 새 스팟을 배경으로 힌트 미션 1개만 다시 쓴다.
+                2. title은 출력하지 말고, 스팟 이름은 시스템이 별도로 적용한다.
+                3. visionKeyword는 현장에서 사진 인증에 쓸 수 있는 짧은 관찰 키워드 1개로 쓴다.
+                4. description은 해당 스팟 분위기를 활용한 방탈출식 장면 2~3문장으로 쓴다.
+                5. clue는 플레이어가 힌트 미션 완료 후 받는 이야기 단서다. 지시문이나 사용법이 아니라 2~4줄의 서사 단서로 쓴다.
+                6. 최종 현장명, 최종 정답, 정답을 직접 암시하는 결정적 표현은 쓰지 않는다.
+                7. JSON만 출력한다.
+
+                {
+                  "visionKeyword": "현장 인증 키워드",
+                  "description": "스팟 기반 미션 설명",
+                  "clue": "힌트 완료 후 제공할 서사 단서"
+                }
+                """.formatted(
+                region == null ? "" : nullSafe(region.getName()),
+                region == null ? "" : summarizeForPrompt(region.getDescription(), 420),
+                nullSafe(finalMissionTitle),
+                nullSafe(mission.getTitle()),
+                summarizeForPrompt(mission.getDescription(), 260),
+                summarizeForPrompt(mission.getClue(), 260),
+                selectedSpot.getOrDefault("title", ""),
+                selectedSpot.getOrDefault("address", selectedSpot.getOrDefault("category", "")),
+                selectedSpot.getOrDefault("mapY", ""),
+                selectedSpot.getOrDefault("mapX", "")
+        );
+
+        String raw = callGeminiStandard(geminiUrl(), prompt);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        try {
+            int startIndex = raw.indexOf('{');
+            int endIndex = raw.lastIndexOf('}');
+            if (startIndex == -1 || endIndex == -1) {
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(raw.substring(startIndex, endIndex + 1));
+            Map<String, String> patch = new HashMap<>();
+            patch.put("visionKeyword", root.path("visionKeyword").asText(""));
+            patch.put("description", root.path("description").asText(""));
+            patch.put("clue", root.path("clue").asText(""));
+            return patch;
+        } catch (Exception e) {
+            log.warn("Hint mission patch JSON parse failed: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -490,6 +565,10 @@ public class GeminiAiService {
             return normalized;
         }
         return normalized.substring(0, maxLength) + "...";
+    }
+
+    private String nullSafe(String value) {
+        return value == null ? "" : value;
     }
 
     /** 클리어 후 보여줄 플레이어 맞춤 리포트를 Gemini JSON으로 생성합니다. */

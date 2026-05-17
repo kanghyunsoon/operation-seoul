@@ -81,7 +81,10 @@ public class RegionController {
                 .id(region.getId())
                 .areaCode(operationAreaResolver.normalizeAreaCode(region.getAreaCode()))
                 .name(region.getName())
-                .description(region.getDescription());
+                .description(region.getDescription())
+                .periodCode(region.getPeriodCode())
+                .themeCode(region.getThemeCode())
+                .createdAt(region.getCreatedAt() == null ? null : region.getCreatedAt().toString());
 
         if (finalMissionOpt.isEmpty()) {
             return builder.cleared(false).build();
