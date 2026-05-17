@@ -1,6 +1,8 @@
 package com.operation.seoul.location.controller;
 
 import com.operation.seoul.auth.security.CurrentUserResolver;
+import com.operation.seoul.community.dto.RegionReviewSummary;
+import com.operation.seoul.community.repository.RegionReviewRepository;
 import com.operation.seoul.game.domain.GameSession;
 import com.operation.seoul.game.repository.GameSessionRepository;
 import com.operation.seoul.location.domain.Mission;
@@ -27,6 +29,7 @@ public class RegionController {
     private final RegionRepository regionRepository;
     private final MissionRepository missionRepository;
     private final GameSessionRepository gameSessionRepository;
+    private final RegionReviewRepository regionReviewRepository;
     private final CurrentUserResolver currentUserResolver;
     private final OperationAreaResolver operationAreaResolver;
 
@@ -85,6 +88,12 @@ public class RegionController {
                 .periodCode(region.getPeriodCode())
                 .themeCode(region.getThemeCode())
                 .createdAt(region.getCreatedAt() == null ? null : region.getCreatedAt().toString());
+
+        RegionReviewSummary reviewSummary = regionReviewRepository.findSummaryByRegionId(region.getId());
+        if (reviewSummary != null) {
+            builder.averageRating(reviewSummary.getAverageRating() == null ? 0.0 : reviewSummary.getAverageRating())
+                    .reviewCount(reviewSummary.getReviewCount() == null ? 0 : reviewSummary.getReviewCount());
+        }
 
         if (finalMissionOpt.isEmpty()) {
             return builder.cleared(false).build();
