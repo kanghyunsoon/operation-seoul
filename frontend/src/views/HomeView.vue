@@ -117,17 +117,21 @@
                     type="button"
                     class="mini-action-btn"
                     :disabled="isSpotCandidateLoading"
-                    @click="fetchMissionSpotCandidates(missionEditRegion?.id)"
+                    @click="showRecommendedSpots(missionEditRegion?.id, { refresh: true })"
                   >
-                    {{ isSpotCandidateLoading ? '불러오는 중' : '새로고침' }}
+                    {{ isSpotCandidateLoading ? '불러오는 중' : spotCandidatesVisible ? '추천 스팟 새로고침' : '추천 스팟 보기' }}
                   </button>
                 </div>
 
-                <div v-if="isSpotCandidateLoading" class="spot-picker-empty">후보 스팟을 불러오는 중...</div>
+                <div v-if="!spotCandidatesVisible" class="spot-picker-empty">추천 스팟 보기를 눌러 후보를 검색합니다.</div>
+                <div v-else-if="isSpotCandidateLoading" class="spot-picker-empty">후보 스팟을 불러오는 중...</div>
                 <div v-else-if="spotCandidates.length === 0" class="spot-picker-empty">선택 가능한 스팟이 없습니다.</div>
-                <div v-else class="spot-picker-list">
+                <template v-else>
+                  <input v-model.trim="spotCandidateSearch" class="spot-search-input" type="search" placeholder="스팟명, 주소 검색" />
+                  <div v-if="filteredSpotCandidates.length === 0" class="spot-picker-empty">검색 조건에 맞는 스팟이 없습니다.</div>
+                  <div v-else class="spot-picker-list">
                   <button
-                    v-for="spot in spotCandidates"
+                    v-for="spot in filteredSpotCandidates"
                     :key="spotKey(spot)"
                     type="button"
                     class="spot-choice"
@@ -138,7 +142,8 @@
                     <span>{{ spot.address || spot.category || '세부 정보 없음' }}</span>
                     <em v-if="spot.distanceMeters">최종지 기준 {{ formatSeedDistance(spot.distanceMeters) }}</em>
                   </button>
-                </div>
+                  </div>
+                </template>
 
                 <div class="spot-picker-actions">
                   <button
@@ -338,6 +343,14 @@
           </select>
         </label>
         <label>
+          <span>상태</span>
+          <select v-model="selectedStatusFilter">
+            <option value="all">전체 상태</option>
+            <option value="active">진행 가능</option>
+            <option value="cleared">해결 완료</option>
+          </select>
+        </label>
+        <label>
           <span>정렬</span>
           <select v-model="contentSort">
             <option value="newest">최신순</option>
@@ -453,6 +466,7 @@ const pendingAreaCode = ref(null);
 const contentSearch = ref('');
 const selectedPeriodFilter = ref('all');
 const selectedThemeFilter = ref('all');
+const selectedStatusFilter = ref('all');
 const contentSort = ref('newest');
 
 const periodOptions = [
@@ -691,6 +705,12 @@ const filteredMissions = computed(() => {
       if (selectedThemeFilter.value !== 'all' && mission.themeCode !== selectedThemeFilter.value) {
         return false;
       }
+      if (selectedStatusFilter.value === 'active' && mission.isCleared) {
+        return false;
+      }
+      if (selectedStatusFilter.value === 'cleared' && !mission.isCleared) {
+        return false;
+      }
       if (!keyword) {
         return true;
       }
@@ -728,6 +748,18 @@ const optionOrder = (options, code) => options.find(option => option.code === co
 const periodLabel = (code) => periodOptions.find(option => option.code === code)?.label || '복합/미분류';
 const themeLabel = (code) => themeOptions.find(option => option.code === code)?.label || '미스터리/복합';
 
+const filteredSpotCandidates = computed(() => {
+  const keyword = normalizeSearch(spotCandidateSearch.value);
+  if (!keyword) {
+    return spotCandidates.value;
+  }
+  return spotCandidates.value.filter((spot) => normalizeSearch([
+    spot.title,
+    spot.address,
+    spot.category
+  ].join(' ')).includes(keyword));
+});
+
 const showAdminModal = ref(false);
 const isGenerating = ref(false);
 const isScanning = ref(false);
@@ -743,6 +775,8 @@ const isRegionMetadataUpdating = ref(false);
 const isMissionRecomposing = ref(null);
 const isSpotCandidateLoading = ref(false);
 const spotCandidates = ref([]);
+const spotCandidatesVisible = ref(false);
+const spotCandidateSearch = ref('');
 const selectedSpotByMissionId = ref({});
 
 // 관리자 모달을 열면 현재 선택 권역의 후보지 스캔을 즉시 시작합니다.
@@ -769,13 +803,14 @@ const openMissionEditor = async (missionCard) => {
   missionEditRegion.value = toEditableRegion({ id: missionCard.id, name: missionCard.title });
   editableMissions.value = [];
   spotCandidates.value = [];
+  spotCandidatesVisible.value = false;
+  spotCandidateSearch.value = '';
   selectedSpotByMissionId.value = {};
 
   try {
     const response = await apiClient.get(`/v1/admin/missions/regions/${missionCard.id}`);
     missionEditRegion.value = toEditableRegion(response.data.region);
     editableMissions.value = (response.data.missions || []).map(toEditableMission);
-    await fetchMissionSpotCandidates(missionCard.id, { silent: true });
   } catch (error) {
     console.error(error);
     alert(error.userMessage || '미션 정보를 불러오지 못했습니다.');
@@ -790,9 +825,11 @@ const openMissionEditorFromPayload = async (payload) => {
   missionEditRegion.value = toEditableRegion(payload.region);
   editableMissions.value = (payload.missions || []).map(toEditableMission);
   selectedSpotByMissionId.value = {};
+  spotCandidates.value = [];
+  spotCandidatesVisible.value = false;
+  spotCandidateSearch.value = '';
   isMissionEditLoading.value = false;
   showMissionEditModal.value = true;
-  await fetchMissionSpotCandidates(payload.region.id, { silent: true });
 };
 
 const closeMissionEditor = () => {
@@ -802,6 +839,8 @@ const closeMissionEditor = () => {
   missionEditRegion.value = null;
   editableMissions.value = [];
   spotCandidates.value = [];
+  spotCandidatesVisible.value = false;
+  spotCandidateSearch.value = '';
   selectedSpotByMissionId.value = {};
 };
 
@@ -863,6 +902,14 @@ const fetchMissionSpotCandidates = async (regionId, options = {}) => {
   } finally {
     isSpotCandidateLoading.value = false;
   }
+};
+
+const showRecommendedSpots = async (regionId, options = {}) => {
+  spotCandidatesVisible.value = true;
+  if (!options.refresh && spotCandidates.value.length > 0) {
+    return;
+  }
+  await fetchMissionSpotCandidates(regionId);
 };
 
 const spotKey = (spot) => `${spot.title || 'spot'}-${spot.mapX || ''}-${spot.mapY || ''}`;
@@ -1431,7 +1478,7 @@ const handleLogout = () => {
 .admin-panel { text-align: center; margin-bottom: 20px; }
 .admin-generate-btn { background: rgba(255, 68, 68, 0.1); color: #ff4444; border: 2px dashed #ff4444; padding: 12px 20px; font-size: 1rem; font-weight: bold; font-family: inherit; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; }
 .admin-generate-btn:hover { background: #ff4444; color: #fff; box-shadow: 0 0 15px #ff4444; }
-.content-filter-bar { display: grid; grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(130px, 0.7fr)); gap: 10px; align-items: end; margin: 0 0 20px; padding: 14px; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; background: rgba(15, 23, 42, 0.46); }
+.content-filter-bar { display: grid; grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(118px, 0.7fr)); gap: 10px; align-items: end; margin: 0 0 20px; padding: 14px; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; background: rgba(15, 23, 42, 0.46); }
 .content-filter-bar label,
 .search-box { display: grid; gap: 6px; min-width: 0; }
 .content-filter-bar span { color: #94a3b8; font-size: 0.74rem; font-weight: 800; }
@@ -1484,6 +1531,7 @@ const handleLogout = () => {
 .secondary-action-btn:disabled,
 .ai-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .spot-picker-empty { padding: 12px; border: 1px dashed rgba(148, 163, 184, 0.25); border-radius: 6px; color: #94a3b8; font-size: 0.82rem; text-align: center; }
+.spot-search-input { width: 100%; box-sizing: border-box; margin-bottom: 8px; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 6px; background: rgba(2, 6, 23, 0.58); color: #f8fafc; font-family: inherit; font-size: 0.82rem; padding: 8px 10px; }
 .spot-picker-list { display: grid; gap: 7px; max-height: 178px; overflow-y: auto; padding-right: 3px; }
 .spot-choice { display: grid; gap: 4px; width: 100%; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 6px; background: rgba(2, 6, 23, 0.44); color: #e2e8f0; cursor: pointer; font-family: inherit; padding: 9px 10px; text-align: left; }
 .spot-choice strong { overflow: hidden; color: #f8fafc; font-size: 0.84rem; text-overflow: ellipsis; white-space: nowrap; }

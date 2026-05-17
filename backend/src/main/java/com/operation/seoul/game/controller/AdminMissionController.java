@@ -529,8 +529,8 @@ public class AdminMissionController {
 
             Region newRegion = new Region();
             newRegion.setAreaCode(areaCode);
-            newRegion.setPeriodCode("mixed");
-            newRegion.setThemeCode(resolveDefaultThemeCode(targetSpot));
+            newRegion.setPeriodCode(resolveDefaultPeriodCode(targetSpot, root));
+            newRegion.setThemeCode(resolveDefaultThemeCode(targetSpot, root));
             newRegion.setName(maskSecretKeyword(
                     root.path("regionName").asText("작전명 봉인된 현장"),
                     finalAnswerKeyword,
@@ -686,23 +686,57 @@ public class AdminMissionController {
         return value.trim().toLowerCase();
     }
 
-    private String resolveDefaultThemeCode(Map<String, String> targetSpot) {
-        String context = normalizeForSecretCheck(String.join(" ",
-                targetSpot.getOrDefault("title", ""),
-                targetSpot.getOrDefault("category", ""),
-                targetSpot.getOrDefault("address", "")
-        ));
-        if (containsAny(context, "궁", "왕", "royal")) {
+    private String resolveDefaultPeriodCode(Map<String, String> targetSpot, JsonNode root) {
+        String context = buildClassificationContext(targetSpot, root);
+        if (containsAny(context, "선사", "고대", "청동기", "철기")) {
+            return "ancient";
+        }
+        if (containsAny(context, "삼국", "백제", "신라", "고구려", "가야")) {
+            return "three_kingdoms";
+        }
+        if (containsAny(context, "고려")) {
+            return "goryeo";
+        }
+        if (containsAny(context, "조선", "한양", "궁궐", "왕실", "세종", "정조", "고종", "경복궁", "창덕궁", "덕수궁")) {
+            return "joseon";
+        }
+        if (containsAny(context, "대한제국", "개항", "일제", "강점", "독립", "의병", "3.1", "삼일", "1910", "1945")) {
+            return "empire_japanese";
+        }
+        if (containsAny(context, "근대", "한국전쟁", "6.25", "민주화", "산업화", "개화", "해방")) {
+            return "modern";
+        }
+        if (containsAny(context, "현대", "올림픽", "월드컵", "2002", "디지털")) {
+            return "contemporary";
+        }
+        return "mixed";
+    }
+
+    private String resolveDefaultThemeCode(Map<String, String> targetSpot, JsonNode root) {
+        String context = buildClassificationContext(targetSpot, root);
+        if (containsAny(context, "궁", "궁궐", "왕", "왕실", "royal")) {
             return "royal";
         }
-        if (containsAny(context, "시장", "상권", "거리", "골목")) {
-            return "market";
+        if (containsAny(context, "독립", "의병", "만세", "대한제국", "일제", "강점")) {
+            return "independence";
         }
-        if (containsAny(context, "공원", "숲", "산", "호수")) {
-            return "nature";
+        if (containsAny(context, "전쟁", "안보", "전투", "피난", "군사", "6.25")) {
+            return "war_security";
+        }
+        if (containsAny(context, "시장", "상권", "거리", "골목", "상점")) {
+            return "market";
         }
         if (containsAny(context, "문화", "예술", "전시", "박물관", "미술")) {
             return "culture";
+        }
+        if (containsAny(context, "건축", "도시", "역", "다리", "건물", "성곽", "문")) {
+            return "architecture";
+        }
+        if (containsAny(context, "공원", "숲", "산", "호수", "강", "정원")) {
+            return "nature";
+        }
+        if (containsAny(context, "생활", "마을", "주거", "음식", "골목")) {
+            return "daily_life";
         }
         return "mystery";
     }
@@ -717,6 +751,32 @@ public class AdminMissionController {
             }
         }
         return false;
+    }
+
+    private String buildClassificationContext(Map<String, String> targetSpot, JsonNode root) {
+        StringBuilder builder = new StringBuilder();
+        if (targetSpot != null) {
+            builder.append(targetSpot.getOrDefault("title", "")).append(' ')
+                    .append(targetSpot.getOrDefault("category", "")).append(' ')
+                    .append(targetSpot.getOrDefault("address", "")).append(' ')
+                    .append(targetSpot.getOrDefault("overview", ""));
+        }
+        if (root != null) {
+            builder.append(' ')
+                    .append(root.path("regionName").asText("")).append(' ')
+                    .append(root.path("regionDescription").asText(""));
+            JsonNode missionsNode = root.path("missions");
+            if (missionsNode.isArray()) {
+                for (JsonNode missionNode : missionsNode) {
+                    builder.append(' ')
+                            .append(missionNode.path("title").asText("")).append(' ')
+                            .append(missionNode.path("description").asText("")).append(' ')
+                            .append(missionNode.path("clue").asText("")).append(' ')
+                            .append(missionNode.path("realStory").asText(""));
+                }
+            }
+        }
+        return normalizeForSecretCheck(builder.toString());
     }
 
     private String validateMissionUpdate(MissionUpdateRequest request) {
