@@ -351,10 +351,20 @@
           </select>
         </label>
         <label>
+          <span>평점</span>
+          <select v-model="selectedRatingFilter">
+            <option value="all">전체 평점</option>
+            <option value="4">4점 이상</option>
+            <option value="3">3점 이상</option>
+            <option value="1">평점 있음</option>
+          </select>
+        </label>
+        <label>
           <span>정렬</span>
           <select v-model="contentSort">
             <option value="newest">최신순</option>
             <option value="oldest">오래된순</option>
+            <option value="rating">평점순</option>
             <option value="period">시기순</option>
             <option value="theme">테마순</option>
             <option value="title">제목순</option>
@@ -411,6 +421,7 @@
           <div class="metadata-row">
             <span>{{ periodLabel(mission.periodCode) }}</span>
             <span>{{ themeLabel(mission.themeCode) }}</span>
+            <span class="rating-chip">★ {{ formatRating(mission.averageRating) }} · {{ mission.reviewCount }}개</span>
           </div>
           <p class="mission-desc" v-html="mission.description"></p>
 
@@ -431,7 +442,7 @@
 
           <div class="card-footer">
             <span class="location-tag">📍 {{ mission.location }}</span>
-            <span class="enter-text">{{ mission.isCleared ? '클리어 기록 보기 ➔' : mission.isReady ? '작전 브리핑 ➔' : '접근 제한' }}</span>
+            <span class="enter-text">{{ mission.isReady ? '리뷰/평점 보기 ➔' : '접근 제한' }}</span>
           </div>
         </div>
       </main>
@@ -467,6 +478,7 @@ const contentSearch = ref('');
 const selectedPeriodFilter = ref('all');
 const selectedThemeFilter = ref('all');
 const selectedStatusFilter = ref('all');
+const selectedRatingFilter = ref('all');
 const contentSort = ref('newest');
 
 const periodOptions = [
@@ -711,6 +723,9 @@ const filteredMissions = computed(() => {
       if (selectedStatusFilter.value === 'cleared' && !mission.isCleared) {
         return false;
       }
+      if (selectedRatingFilter.value !== 'all' && Number(mission.averageRating || 0) < Number(selectedRatingFilter.value)) {
+        return false;
+      }
       if (!keyword) {
         return true;
       }
@@ -727,6 +742,11 @@ const filteredMissions = computed(() => {
 const compareMissionCards = (a, b) => {
   if (contentSort.value === 'oldest') {
     return timestampOf(a.createdAt) - timestampOf(b.createdAt);
+  }
+  if (contentSort.value === 'rating') {
+    return Number(b.averageRating || 0) - Number(a.averageRating || 0)
+      || Number(b.reviewCount || 0) - Number(a.reviewCount || 0)
+      || a.title.localeCompare(b.title, 'ko');
   }
   if (contentSort.value === 'period') {
     return optionOrder(periodOptions, a.periodCode) - optionOrder(periodOptions, b.periodCode)
@@ -1119,6 +1139,8 @@ const fetchMissions = async () => {
       score: region.score,
       elapsedSeconds: region.elapsedSeconds,
       routeDistanceMeters: region.routeDistanceMeters,
+      averageRating: region.averageRating || 0,
+      reviewCount: region.reviewCount || 0,
       isReady: true
     }));
   } catch (error) {
@@ -1160,6 +1182,11 @@ const formatSeedDistance = (meters) => {
 };
 
 // route query의 area가 선택되면 해당 권역 카드 목록을 불러옵니다.
+const formatRating = (value) => {
+  const rating = Number(value || 0);
+  return rating > 0 ? rating.toFixed(1) : '-';
+};
+
 watch(isAreaSelected, (selected) => {
   if (selected) {
     fetchMissions();
@@ -1244,16 +1271,8 @@ const handleMissionClick = (mission) => {
     return;
   }
 
-  if (mission.isCleared && mission.finalMissionId) {
-    router.push({
-      name: 'Clear',
-      params: { missionId: mission.finalMissionId },
-      query: { regionId: mission.id }
-    });
-    return;
-  }
-
-  router.push({ name: 'Briefing', query: { regionId: mission.id } });
+  router.push({ name: 'RegionDetail', params: { regionId: mission.id }, query: { area: activeArea.value?.code || 'seoul' } });
+  return;
 };
 
 // localStorage 세션을 지우고 인트로로 복귀합니다.
@@ -1413,6 +1432,7 @@ const handleLogout = () => {
 .mission-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0 0 10px 0; }
 .metadata-row { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 12px; }
 .metadata-row span { max-width: 100%; overflow: hidden; border: 1px solid rgba(6, 182, 212, 0.22); border-radius: 999px; background: rgba(8, 47, 73, 0.38); color: #a5f3fc; font-size: 0.7rem; font-weight: 800; padding: 4px 8px; text-overflow: ellipsis; white-space: nowrap; }
+.metadata-row .rating-chip { border-color: rgba(245, 158, 11, 0.34); background: rgba(120, 53, 15, 0.28); color: #fcd34d; }
 .mission-desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin: 0 0 20px 0; flex-grow: 1; }
 .clear-stamp {
   align-self: flex-end;
@@ -1478,7 +1498,7 @@ const handleLogout = () => {
 .admin-panel { text-align: center; margin-bottom: 20px; }
 .admin-generate-btn { background: rgba(255, 68, 68, 0.1); color: #ff4444; border: 2px dashed #ff4444; padding: 12px 20px; font-size: 1rem; font-weight: bold; font-family: inherit; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; }
 .admin-generate-btn:hover { background: #ff4444; color: #fff; box-shadow: 0 0 15px #ff4444; }
-.content-filter-bar { display: grid; grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(118px, 0.7fr)); gap: 10px; align-items: end; margin: 0 0 20px; padding: 14px; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; background: rgba(15, 23, 42, 0.46); }
+.content-filter-bar { display: grid; grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(118px, 0.7fr)); gap: 10px; align-items: end; margin: 0 0 20px; padding: 14px; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; background: rgba(15, 23, 42, 0.46); }
 .content-filter-bar label,
 .search-box { display: grid; gap: 6px; min-width: 0; }
 .content-filter-bar span { color: #94a3b8; font-size: 0.74rem; font-weight: 800; }

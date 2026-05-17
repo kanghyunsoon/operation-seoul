@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import IntroView from '@/views/IntroView.vue';
 import HomeView from '@/views/HomeView.vue';
+import RegionDetailView from '@/views/RegionDetailView.vue';
 import BriefingView from '@/views/BriefingView.vue';
 import MapView from '@/views/MapView.vue';
 import AiChatView from '@/views/AiChatView.vue';
@@ -26,6 +27,12 @@ const routes = [
     name: 'Home',
     component: HomeView,
     meta: { requiresAuth: true } // 로그인 필수
+  },
+  {
+    path: '/regions/:regionId',
+    name: 'RegionDetail',
+    component: RegionDetailView,
+    meta: { requiresAuth: true }
   },
   {
     path: '/briefing',
