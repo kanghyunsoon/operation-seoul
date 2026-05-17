@@ -75,17 +75,35 @@
         </form>
 
         <div v-if="filteredReviews.length === 0" class="empty-box">조건에 맞는 리뷰가 없습니다.</div>
-        <article v-for="review in filteredReviews" :key="review.id" class="review-item">
+        <div v-else-if="!selectedReview" class="review-board" role="list">
+          <button
+            v-for="review in filteredReviews"
+            :key="review.id"
+            type="button"
+            class="review-row"
+            :class="{ selected: selectedReviewId === review.id }"
+            role="listitem"
+            @click="openReviewDetail(review)"
+          >
+            <span class="review-rating">★ {{ review.rating }}</span>
+            <span class="review-title">{{ reviewSummaryText(review.content) }}</span>
+            <span class="review-author">{{ review.authorNickname || '요원' }}</span>
+            <span class="review-time">{{ formatElapsed(review.clearElapsedSeconds) }}</span>
+          </button>
+        </div>
+
+        <aside v-else class="review-detail-panel">
+          <button type="button" class="ghost-btn small" @click="closeReviewDetail">목록으로</button>
           <div class="item-head">
-            <strong>{{ review.authorNickname || '요원' }}</strong>
-            <span>★ {{ review.rating }} · {{ formatElapsed(review.clearElapsedSeconds) }}</span>
+            <strong>{{ selectedReview.authorNickname || '요원' }}</strong>
+            <span>★ {{ selectedReview.rating }} · {{ formatElapsed(selectedReview.clearElapsedSeconds) }}</span>
           </div>
-          <p>{{ review.content }}</p>
-          <div v-if="review.mine" class="item-actions">
-            <button type="button" class="ghost-btn small" @click="editReview(review)">수정</button>
-            <button type="button" class="danger-btn small" @click="deleteReview(review.id)">삭제</button>
+          <p>{{ selectedReview.content }}</p>
+          <div v-if="selectedReview.mine" class="item-actions">
+            <button type="button" class="ghost-btn small" @click="editReview(selectedReview)">수정</button>
+            <button type="button" class="danger-btn small" @click="deleteReview(selectedReview.id)">삭제</button>
           </div>
-        </article>
+        </aside>
       </section>
 
       <section class="community-panel">
@@ -153,6 +171,7 @@ const questionForm = ref({ title: '', content: '' });
 const answerDrafts = ref({});
 const isReviewSaving = ref(false);
 const isQuestionSaving = ref(false);
+const selectedReviewId = ref(null);
 
 const finalMissionId = computed(() => missions.value.find(mission => mission.missionType === 'FINAL' || mission.isFinal === true || mission.final === true)?.id || null);
 const filteredReviews = computed(() => {
@@ -160,6 +179,7 @@ const filteredReviews = computed(() => {
   const minimum = Number(reviewRatingFilter.value);
   return reviewState.value.reviews.filter(review => Number(review.rating || 0) >= minimum);
 });
+const selectedReview = computed(() => filteredReviews.value.find(review => review.id === selectedReviewId.value) || null);
 
 onMounted(async () => {
   await Promise.all([fetchRegion(), fetchMissions(), fetchReviews(), fetchQuestions()]);
@@ -185,6 +205,9 @@ const fetchReviews = async () => {
   const mine = (response.data.reviews || []).find(review => review.mine);
   if (mine) {
     reviewForm.value = { rating: mine.rating, content: mine.content };
+  }
+  if (selectedReviewId.value && !(response.data.reviews || []).some(review => review.id === selectedReviewId.value)) {
+    selectedReviewId.value = null;
   }
 };
 
@@ -214,10 +237,27 @@ const editReview = (review) => {
   reviewForm.value = { rating: review.rating, content: review.content };
 };
 
+const openReviewDetail = (review) => {
+  selectedReviewId.value = review.id;
+};
+
+const closeReviewDetail = () => {
+  selectedReviewId.value = null;
+};
+
+const reviewSummaryText = (content) => {
+  const text = String(content || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '내용 없는 리뷰';
+  return text.length > 42 ? `${text.slice(0, 42)}...` : text;
+};
+
 const deleteReview = async (reviewId) => {
   if (!confirm('리뷰를 삭제할까요?')) return;
   await apiClient.delete(`/v1/regions/${regionId}/reviews/${reviewId}`);
   reviewForm.value = { rating: 5, content: '' };
+  if (selectedReviewId.value === reviewId) {
+    selectedReviewId.value = null;
+  }
   await fetchReviews();
 };
 
@@ -313,11 +353,19 @@ textarea { resize: vertical; min-height: 84px; }
 .small { min-height: 30px; padding: 6px 9px; font-size: 0.78rem; }
 .muted, .empty-box { color: #94a3b8; font-size: 0.84rem; }
 .empty-box { padding: 16px; border: 1px dashed rgba(148, 163, 184, 0.28); border-radius: 6px; text-align: center; }
-.review-item, .question-item { padding: 14px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 8px; background: rgba(2, 6, 23, 0.34); margin-top: 10px; }
+.review-board { display: grid; gap: 8px; }
+.review-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) 110px 132px; gap: 10px; align-items: center; width: 100%; min-height: 44px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 6px; background: rgba(2, 6, 23, 0.34); color: #e2e8f0; cursor: pointer; font: inherit; padding: 9px 11px; text-align: left; }
+.review-row:hover, .review-row.selected { border-color: rgba(103, 232, 249, 0.5); background: rgba(8, 47, 73, 0.42); }
+.review-rating { color: #fcd34d; font-weight: 900; }
+.review-title, .review-author, .review-time { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-title { color: #f8fafc; font-weight: 800; }
+.review-author, .review-time { color: #94a3b8; font-size: 0.82rem; }
+.review-detail-panel, .question-item { padding: 14px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 8px; background: rgba(2, 6, 23, 0.34); margin-top: 10px; }
+.review-detail-panel > .ghost-btn { margin-bottom: 12px; }
 .item-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .item-head strong { min-width: 0; overflow: hidden; color: #f8fafc; text-overflow: ellipsis; white-space: nowrap; }
 .item-head span { flex: 0 0 auto; color: #fcd34d; font-size: 0.82rem; font-weight: 800; }
-.review-item p, .question-item p { margin: 0; color: #cbd5e1; line-height: 1.6; }
+.review-detail-panel p, .question-item p { margin: 0; color: #cbd5e1; line-height: 1.6; }
 .item-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 .answer-list { display: grid; gap: 8px; margin: 12px 0; }
 .answer-item { padding: 10px; border-left: 2px solid rgba(103, 232, 249, 0.48); background: rgba(8, 47, 73, 0.24); }
@@ -327,6 +375,8 @@ textarea { resize: vertical; min-height: 84px; }
   .detail-header, .detail-layout { grid-template-columns: 1fr; }
   .community-panel { grid-column: auto; }
   .review-form { grid-template-columns: 1fr; }
+  .review-row { grid-template-columns: 56px minmax(0, 1fr); }
+  .review-author, .review-time { display: none; }
   .panel-head { align-items: stretch; flex-direction: column; }
   .review-controls { flex-direction: column; }
 }
