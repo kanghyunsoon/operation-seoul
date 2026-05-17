@@ -63,6 +63,29 @@
           <h3>미션별 수정</h3>
           <p><strong>{{ missionEditRegion?.name || '작전' }}</strong>에 생성된 미션을 바로 수정합니다.</p>
 
+          <div v-if="missionEditRegion" class="region-metadata-editor">
+            <label>
+              <span>대표 시대</span>
+              <select v-model="missionEditRegion.periodCode">
+                <option v-for="period in periodOptions" :key="period.code" :value="period.code">{{ period.label }}</option>
+              </select>
+            </label>
+            <label>
+              <span>대표 테마</span>
+              <select v-model="missionEditRegion.themeCode">
+                <option v-for="theme in themeOptions" :key="theme.code" :value="theme.code">{{ theme.label }}</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              class="secondary-action-btn"
+              :disabled="isRegionMetadataUpdating"
+              @click="updateRegionMetadata"
+            >
+              {{ isRegionMetadataUpdating ? '저장 중...' : '시대/테마 저장' }}
+            </button>
+          </div>
+
           <div v-if="isMissionEditLoading" class="mission-edit-loading">미션 정보 로딩 중...</div>
           <div v-else-if="editableMissions.length === 0" class="mission-edit-loading">수정할 미션이 없습니다.</div>
 
@@ -86,6 +109,56 @@
                 <span>설명</span>
                 <textarea v-model.trim="mission.description" rows="3"></textarea>
               </label>
+
+              <div v-if="!mission.finalMission" class="spot-picker">
+                <div class="spot-picker-head">
+                  <strong>힌트 스팟 선택</strong>
+                  <button
+                    type="button"
+                    class="mini-action-btn"
+                    :disabled="isSpotCandidateLoading"
+                    @click="fetchMissionSpotCandidates(missionEditRegion?.id)"
+                  >
+                    {{ isSpotCandidateLoading ? '불러오는 중' : '새로고침' }}
+                  </button>
+                </div>
+
+                <div v-if="isSpotCandidateLoading" class="spot-picker-empty">후보 스팟을 불러오는 중...</div>
+                <div v-else-if="spotCandidates.length === 0" class="spot-picker-empty">선택 가능한 스팟이 없습니다.</div>
+                <div v-else class="spot-picker-list">
+                  <button
+                    v-for="spot in spotCandidates"
+                    :key="spotKey(spot)"
+                    type="button"
+                    class="spot-choice"
+                    :class="{ selected: isMissionSpotSelected(mission, spot) }"
+                    @click="selectMissionSpot(mission, spot)"
+                  >
+                    <strong>{{ spot.title || '이름 없음' }}</strong>
+                    <span>{{ spot.address || spot.category || '세부 정보 없음' }}</span>
+                    <em v-if="spot.distanceMeters">최종지 기준 {{ formatSeedDistance(spot.distanceMeters) }}</em>
+                  </button>
+                </div>
+
+                <div class="spot-picker-actions">
+                  <button
+                    type="button"
+                    class="secondary-action-btn"
+                    :disabled="!getSelectedMissionSpot(mission) || isMissionUpdating || isMissionRecomposing"
+                    @click="applySelectedSpotToMission(mission)"
+                  >
+                    선택 스팟 좌표 적용
+                  </button>
+                  <button
+                    type="button"
+                    class="ai-action-btn"
+                    :disabled="!getSelectedMissionSpot(mission) || isMissionUpdating || isMissionRecomposing"
+                    @click="recomposeMissionWithAi(mission)"
+                  >
+                    {{ isMissionRecomposing === mission.id ? 'AI 재구성 중...' : '선택 스팟으로 AI 재구성' }}
+                  </button>
+                </div>
+              </div>
 
               <div class="edit-grid">
                 <label class="edit-field">
@@ -132,7 +205,7 @@
             </section>
           </div>
 
-          <button @click="closeMissionEditor" class="close-btn" :disabled="isMissionUpdating" style="margin-top: 10px;">닫기</button>
+          <button @click="closeMissionEditor" class="close-btn" :disabled="isMissionUpdating || isMissionRecomposing" style="margin-top: 10px;">닫기</button>
         </div>
       </div>
 
@@ -245,14 +318,50 @@
         </section>
       </main>
 
-      <main v-else class="mission-grid">
+      <section v-if="isAreaSelected" class="content-filter-bar">
+        <div class="search-box">
+          <span>검색</span>
+          <input v-model.trim="contentSearch" type="search" placeholder="작전명, 설명 검색" />
+        </div>
+        <label>
+          <span>시대</span>
+          <select v-model="selectedPeriodFilter">
+            <option value="all">전체 시대</option>
+            <option v-for="period in periodOptions" :key="period.code" :value="period.code">{{ period.label }}</option>
+          </select>
+        </label>
+        <label>
+          <span>테마</span>
+          <select v-model="selectedThemeFilter">
+            <option value="all">전체 테마</option>
+            <option v-for="theme in themeOptions" :key="theme.code" :value="theme.code">{{ theme.label }}</option>
+          </select>
+        </label>
+        <label>
+          <span>정렬</span>
+          <select v-model="contentSort">
+            <option value="newest">최신순</option>
+            <option value="oldest">오래된순</option>
+            <option value="period">시기순</option>
+            <option value="theme">테마순</option>
+            <option value="title">제목순</option>
+          </select>
+        </label>
+      </section>
+
+      <main v-if="isAreaSelected" class="mission-grid">
         <section v-if="missions.length === 0" class="empty-area-state">
           <p class="eyebrow">{{ activeArea.name }} NETWORK</p>
           <h2>아직 등록된 작전이 없습니다.</h2>
           <p>지휘부 계정으로 이 지역의 후보지를 자동 스캔해 첫 작전을 생성할 수 있습니다.</p>
         </section>
+        <section v-else-if="filteredMissions.length === 0" class="empty-area-state">
+          <p class="eyebrow">FILTER RESULT</p>
+          <h2>조건에 맞는 작전이 없습니다.</h2>
+          <p>검색어나 시대/테마 필터를 조정하세요.</p>
+        </section>
         <div
-            v-for="mission in missions"
+            v-for="mission in filteredMissions"
             :key="mission.id"
             class="glass-card"
             :class="{ 'analyzing': !mission.isReady, 'cleared-card': mission.isCleared }"
@@ -286,6 +395,10 @@
           </div>
 
           <h2 class="mission-title">{{ mission.title }}</h2>
+          <div class="metadata-row">
+            <span>{{ periodLabel(mission.periodCode) }}</span>
+            <span>{{ themeLabel(mission.themeCode) }}</span>
+          </div>
           <p class="mission-desc" v-html="mission.description"></p>
 
           <div v-if="mission.isCleared" class="clear-summary">
@@ -337,6 +450,33 @@ const sessionStore = useSessionStore();
 // 작전 카드 목록과 권역 선택 UI의 현재 선택 상태입니다.
 const missions = ref([]);
 const pendingAreaCode = ref(null);
+const contentSearch = ref('');
+const selectedPeriodFilter = ref('all');
+const selectedThemeFilter = ref('all');
+const contentSort = ref('newest');
+
+const periodOptions = [
+  { code: 'ancient', label: '고대', order: 10 },
+  { code: 'three_kingdoms', label: '삼국', order: 20 },
+  { code: 'goryeo', label: '고려', order: 30 },
+  { code: 'joseon', label: '조선', order: 40 },
+  { code: 'empire_japanese', label: '개항기/일제강점기', order: 50 },
+  { code: 'modern', label: '근현대', order: 60 },
+  { code: 'contemporary', label: '현대', order: 70 },
+  { code: 'mixed', label: '복합/미분류', order: 99 }
+];
+
+const themeOptions = [
+  { code: 'royal', label: '궁궐/왕실', order: 10 },
+  { code: 'independence', label: '독립/근대사', order: 20 },
+  { code: 'war_security', label: '전쟁/안보', order: 30 },
+  { code: 'market', label: '시장/상권', order: 40 },
+  { code: 'culture', label: '문화예술', order: 50 },
+  { code: 'architecture', label: '건축/도시', order: 60 },
+  { code: 'nature', label: '자연/공원', order: 70 },
+  { code: 'daily_life', label: '생활사', order: 80 },
+  { code: 'mystery', label: '미스터리/복합', order: 99 }
+];
 // SVG 지도는 실제 지도가 아니라 권역 선택용 근사 지도이므로, 투영 bounds를 상수로 둡니다.
 const MAP_VIEW = { width: 420, height: 620, padding: 28 };
 const MAP_BOUNDS = { minLng: 124.7, maxLng: 130.2, minLat: 33.0, maxLat: 38.75 };
@@ -541,6 +681,53 @@ const isAdmin = computed(() => {
 });
 
 // 관리자 모달에서 후보지 스캔과 AI 작전 생성을 제어하는 상태입니다.
+const filteredMissions = computed(() => {
+  const keyword = normalizeSearch(contentSearch.value);
+  return [...missions.value]
+    .filter((mission) => {
+      if (selectedPeriodFilter.value !== 'all' && mission.periodCode !== selectedPeriodFilter.value) {
+        return false;
+      }
+      if (selectedThemeFilter.value !== 'all' && mission.themeCode !== selectedThemeFilter.value) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      return normalizeSearch([
+        mission.title,
+        mission.description,
+        periodLabel(mission.periodCode),
+        themeLabel(mission.themeCode)
+      ].join(' ')).includes(keyword);
+    })
+    .sort(compareMissionCards);
+});
+
+const compareMissionCards = (a, b) => {
+  if (contentSort.value === 'oldest') {
+    return timestampOf(a.createdAt) - timestampOf(b.createdAt);
+  }
+  if (contentSort.value === 'period') {
+    return optionOrder(periodOptions, a.periodCode) - optionOrder(periodOptions, b.periodCode)
+      || a.title.localeCompare(b.title, 'ko');
+  }
+  if (contentSort.value === 'theme') {
+    return optionOrder(themeOptions, a.themeCode) - optionOrder(themeOptions, b.themeCode)
+      || a.title.localeCompare(b.title, 'ko');
+  }
+  if (contentSort.value === 'title') {
+    return a.title.localeCompare(b.title, 'ko');
+  }
+  return timestampOf(b.createdAt) - timestampOf(a.createdAt);
+};
+
+const normalizeSearch = (value) => String(value || '').replace(/\s+/g, '').toLowerCase();
+const timestampOf = (value) => value ? new Date(value).getTime() || 0 : 0;
+const optionOrder = (options, code) => options.find(option => option.code === code)?.order ?? 999;
+const periodLabel = (code) => periodOptions.find(option => option.code === code)?.label || '복합/미분류';
+const themeLabel = (code) => themeOptions.find(option => option.code === code)?.label || '미스터리/복합';
+
 const showAdminModal = ref(false);
 const isGenerating = ref(false);
 const isScanning = ref(false);
@@ -552,6 +739,11 @@ const missionEditRegion = ref(null);
 const editableMissions = ref([]);
 const isMissionEditLoading = ref(false);
 const isMissionUpdating = ref(false);
+const isRegionMetadataUpdating = ref(false);
+const isMissionRecomposing = ref(null);
+const isSpotCandidateLoading = ref(false);
+const spotCandidates = ref([]);
+const selectedSpotByMissionId = ref({});
 
 // 관리자 모달을 열면 현재 선택 권역의 후보지 스캔을 즉시 시작합니다.
 const openAdminModal = () => {
@@ -574,13 +766,16 @@ const openMissionEditor = async (missionCard) => {
 
   showMissionEditModal.value = true;
   isMissionEditLoading.value = true;
-  missionEditRegion.value = { id: missionCard.id, name: missionCard.title };
+  missionEditRegion.value = toEditableRegion({ id: missionCard.id, name: missionCard.title });
   editableMissions.value = [];
+  spotCandidates.value = [];
+  selectedSpotByMissionId.value = {};
 
   try {
     const response = await apiClient.get(`/v1/admin/missions/regions/${missionCard.id}`);
-    missionEditRegion.value = response.data.region;
+    missionEditRegion.value = toEditableRegion(response.data.region);
     editableMissions.value = (response.data.missions || []).map(toEditableMission);
+    await fetchMissionSpotCandidates(missionCard.id, { silent: true });
   } catch (error) {
     console.error(error);
     alert(error.userMessage || '미션 정보를 불러오지 못했습니다.');
@@ -589,21 +784,52 @@ const openMissionEditor = async (missionCard) => {
   }
 };
 
-const openMissionEditorFromPayload = (payload) => {
+const openMissionEditorFromPayload = async (payload) => {
   if (!payload?.region) return;
 
-  missionEditRegion.value = payload.region;
+  missionEditRegion.value = toEditableRegion(payload.region);
   editableMissions.value = (payload.missions || []).map(toEditableMission);
+  selectedSpotByMissionId.value = {};
   isMissionEditLoading.value = false;
   showMissionEditModal.value = true;
+  await fetchMissionSpotCandidates(payload.region.id, { silent: true });
 };
 
 const closeMissionEditor = () => {
-  if (isMissionUpdating.value) return;
+  if (isMissionUpdating.value || isMissionRecomposing.value) return;
 
   showMissionEditModal.value = false;
   missionEditRegion.value = null;
   editableMissions.value = [];
+  spotCandidates.value = [];
+  selectedSpotByMissionId.value = {};
+};
+
+const toEditableRegion = (region) => ({
+  ...(region || {}),
+  periodCode: region?.periodCode || 'mixed',
+  themeCode: region?.themeCode || 'mystery'
+});
+
+const updateRegionMetadata = async () => {
+  if (!missionEditRegion.value?.id) return;
+
+  isRegionMetadataUpdating.value = true;
+  try {
+    const response = await apiClient.put(`/v1/admin/missions/regions/${missionEditRegion.value.id}/metadata`, {
+      periodCode: missionEditRegion.value.periodCode || 'mixed',
+      themeCode: missionEditRegion.value.themeCode || 'mystery'
+    });
+    missionEditRegion.value = toEditableRegion(response.data.region);
+    editableMissions.value = (response.data.missions || []).map(toEditableMission);
+    await fetchMissions();
+    alert('[SYSTEM] 작전 시대/테마가 저장되었습니다.');
+  } catch (error) {
+    console.error(error);
+    alert(error.userMessage || '작전 시대/테마 저장에 실패했습니다.');
+  } finally {
+    isRegionMetadataUpdating.value = false;
+  }
 };
 
 const toEditableMission = (mission) => ({
@@ -621,6 +847,83 @@ const toEditableMission = (mission) => ({
   realStory: mission.realStory || ''
 });
 
+const fetchMissionSpotCandidates = async (regionId, options = {}) => {
+  if (!regionId) return;
+
+  isSpotCandidateLoading.value = true;
+  try {
+    const response = await apiClient.get(`/v1/admin/missions/regions/${regionId}/spot-candidates`);
+    spotCandidates.value = response.data || [];
+  } catch (error) {
+    console.error(error);
+    spotCandidates.value = [];
+    if (!options.silent) {
+      alert(error.userMessage || '후보 스팟을 불러오지 못했습니다.');
+    }
+  } finally {
+    isSpotCandidateLoading.value = false;
+  }
+};
+
+const spotKey = (spot) => `${spot.title || 'spot'}-${spot.mapX || ''}-${spot.mapY || ''}`;
+
+const selectMissionSpot = (mission, spot) => {
+  selectedSpotByMissionId.value = {
+    ...selectedSpotByMissionId.value,
+    [mission.id]: spot
+  };
+};
+
+const getSelectedMissionSpot = (mission) => selectedSpotByMissionId.value[mission.id] || null;
+
+const isMissionSpotSelected = (mission, spot) => {
+  const selected = getSelectedMissionSpot(mission);
+  return selected != null && spotKey(selected) === spotKey(spot);
+};
+
+const applySelectedSpotToMission = (mission) => {
+  const spot = getSelectedMissionSpot(mission);
+  if (!spot) return;
+
+  mission.title = spot.title || mission.title;
+  mission.targetLat = Number(spot.mapY);
+  mission.targetLng = Number(spot.mapX);
+  if (!mission.radiusInMeters || mission.radiusInMeters <= 0) {
+    mission.radiusInMeters = 45;
+  }
+};
+
+const replaceEditableMission = (mission) => {
+  const index = editableMissions.value.findIndex(item => item.id === mission.id);
+  if (index !== -1) {
+    editableMissions.value[index] = mission;
+  }
+};
+
+const recomposeMissionWithAi = async (mission) => {
+  const spot = getSelectedMissionSpot(mission);
+  if (!spot) {
+    alert('AI 재구성에 사용할 스팟을 먼저 선택하세요.');
+    return;
+  }
+
+  isMissionRecomposing.value = mission.id;
+  try {
+    const response = await apiClient.post(`/v1/admin/missions/${mission.id}/recompose`, {
+      selectedSpot: spot
+    });
+    const updated = toEditableMission(response.data);
+    replaceEditableMission(updated);
+    await fetchMissions();
+    alert('[SYSTEM] 선택한 스팟 기준으로 미션을 AI 재구성했습니다.');
+  } catch (error) {
+    console.error(error);
+    alert(error.userMessage || 'AI 미션 재구성에 실패했습니다.');
+  } finally {
+    isMissionRecomposing.value = null;
+  }
+};
+
 const updateMission = async (mission) => {
   const payload = buildMissionUpdatePayload(mission);
   if (!payload) return;
@@ -629,10 +932,7 @@ const updateMission = async (mission) => {
   try {
     const response = await apiClient.put(`/v1/admin/missions/${mission.id}`, payload);
     const updated = toEditableMission(response.data);
-    const index = editableMissions.value.findIndex(item => item.id === mission.id);
-    if (index !== -1) {
-      editableMissions.value[index] = updated;
-    }
+    replaceEditableMission(updated);
     await fetchMissions();
     alert('[SYSTEM] 미션 수정이 저장되었습니다.');
   } catch (error) {
@@ -723,7 +1023,7 @@ const generateMissionByAi = async () => {
 
     closeAdminModal();
     await fetchMissions();
-    openMissionEditorFromPayload(payload);
+    await openMissionEditorFromPayload(payload);
 
   } catch (error) {
     console.error(error);
@@ -760,6 +1060,9 @@ const fetchMissions = async () => {
       id: region.id,
       title: region.name,
       description: region.description,
+      periodCode: region.periodCode || 'mixed',
+      themeCode: region.themeCode || 'mystery',
+      createdAt: region.createdAt,
       difficulty: 'NORMAL',
       location: region.cleared ? '클리어 기록 보관함' : '현장 작전 구역',
       status: region.cleared ? 'CLEARED' : 'ACTIVE',
@@ -1061,6 +1364,8 @@ const handleLogout = () => {
 }
 
 .mission-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0 0 10px 0; }
+.metadata-row { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 12px; }
+.metadata-row span { max-width: 100%; overflow: hidden; border: 1px solid rgba(6, 182, 212, 0.22); border-radius: 999px; background: rgba(8, 47, 73, 0.38); color: #a5f3fc; font-size: 0.7rem; font-weight: 800; padding: 4px 8px; text-overflow: ellipsis; white-space: nowrap; }
 .mission-desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin: 0 0 20px 0; flex-grow: 1; }
 .clear-stamp {
   align-self: flex-end;
@@ -1126,6 +1431,14 @@ const handleLogout = () => {
 .admin-panel { text-align: center; margin-bottom: 20px; }
 .admin-generate-btn { background: rgba(255, 68, 68, 0.1); color: #ff4444; border: 2px dashed #ff4444; padding: 12px 20px; font-size: 1rem; font-weight: bold; font-family: inherit; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; }
 .admin-generate-btn:hover { background: #ff4444; color: #fff; box-shadow: 0 0 15px #ff4444; }
+.content-filter-bar { display: grid; grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(130px, 0.7fr)); gap: 10px; align-items: end; margin: 0 0 20px; padding: 14px; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; background: rgba(15, 23, 42, 0.46); }
+.content-filter-bar label,
+.search-box { display: grid; gap: 6px; min-width: 0; }
+.content-filter-bar span { color: #94a3b8; font-size: 0.74rem; font-weight: 800; }
+.content-filter-bar input,
+.content-filter-bar select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 6px; background: rgba(2, 6, 23, 0.64); color: #f8fafc; font-family: inherit; font-size: 0.84rem; min-height: 38px; padding: 8px 10px; }
+.content-filter-bar input:focus,
+.content-filter-bar select:focus { outline: none; border-color: rgba(6, 182, 212, 0.72); box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.12); }
 
 .admin-modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; z-index: 9999; }
 .admin-modal-content { background: #111; border: 2px solid #ff4444; padding: 25px; border-radius: 12px; width: 90%; max-width: 560px; color: #fff; }
@@ -1142,6 +1455,10 @@ const handleLogout = () => {
 .execute-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
 .close-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #aaa; color: #aaa; font-family: inherit; border-radius: 6px; cursor: pointer; }
 .mission-edit-modal { max-width: 760px; max-height: min(88vh, 860px); overflow-y: auto; }
+.region-metadata-editor { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin: 14px 0 16px; padding: 12px; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; background: rgba(2, 6, 23, 0.38); }
+.region-metadata-editor label { display: grid; gap: 6px; }
+.region-metadata-editor span { color: #94a3b8; font-size: 0.76rem; font-weight: 800; }
+.region-metadata-editor select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 6px; background: rgba(2, 6, 23, 0.64); color: #f8fafc; font-family: inherit; min-height: 36px; padding: 7px 9px; }
 .mission-edit-loading { padding: 20px; border: 1px solid #333; border-radius: 6px; background: #1a1a1a; color: #94a3b8; text-align: center; }
 .mission-edit-list { display: grid; gap: 16px; }
 .mission-edit-item { padding: 16px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; background: rgba(15, 23, 42, 0.72); }
@@ -1157,6 +1474,24 @@ const handleLogout = () => {
 .edit-field input:focus,
 .edit-field textarea:focus { outline: none; border-color: rgba(103, 232, 249, 0.72); box-shadow: 0 0 0 2px rgba(103, 232, 249, 0.12); }
 .mission-save-btn { margin-top: 4px; background: #0891b2; }
+.spot-picker { margin: 12px 0 14px; padding: 12px; border: 1px solid rgba(103, 232, 249, 0.2); border-radius: 8px; background: rgba(8, 47, 73, 0.32); }
+.spot-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.spot-picker-head strong { color: #e0f2fe; font-size: 0.9rem; }
+.mini-action-btn,
+.secondary-action-btn,
+.ai-action-btn { border: 1px solid rgba(148, 163, 184, 0.34); border-radius: 5px; background: rgba(15, 23, 42, 0.76); color: #cbd5e1; cursor: pointer; font-family: inherit; font-size: 0.74rem; font-weight: 800; padding: 7px 9px; }
+.mini-action-btn:disabled,
+.secondary-action-btn:disabled,
+.ai-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.spot-picker-empty { padding: 12px; border: 1px dashed rgba(148, 163, 184, 0.25); border-radius: 6px; color: #94a3b8; font-size: 0.82rem; text-align: center; }
+.spot-picker-list { display: grid; gap: 7px; max-height: 178px; overflow-y: auto; padding-right: 3px; }
+.spot-choice { display: grid; gap: 4px; width: 100%; border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 6px; background: rgba(2, 6, 23, 0.44); color: #e2e8f0; cursor: pointer; font-family: inherit; padding: 9px 10px; text-align: left; }
+.spot-choice strong { overflow: hidden; color: #f8fafc; font-size: 0.84rem; text-overflow: ellipsis; white-space: nowrap; }
+.spot-choice span,
+.spot-choice em { overflow: hidden; color: #94a3b8; font-size: 0.72rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.spot-choice.selected { border-color: rgba(34, 211, 238, 0.8); background: rgba(14, 116, 144, 0.42); box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.1); }
+.spot-picker-actions { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; margin-top: 10px; }
+.ai-action-btn { border-color: rgba(34, 211, 238, 0.45); color: #67e8f9; }
 
 .candidate-label { display: block; margin: 16px 0 7px; color: #aaa; font-size: 0.85rem; }
 .candidate-scroll-area { max-height: 280px; overflow-y: auto; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; }
@@ -1186,7 +1521,10 @@ const handleLogout = () => {
   .area-mode .area-choice { padding: 8px 9px; }
   .area-mode .area-choice span { font-size: 0.86rem; }
   .area-mode .area-choice strong { font-size: 0.68rem; }
+  .content-filter-bar { grid-template-columns: 1fr; }
+  .region-metadata-editor { grid-template-columns: 1fr; }
   .edit-grid { grid-template-columns: 1fr; }
+  .spot-picker-actions { grid-template-columns: 1fr; }
   .mission-edit-modal { width: 94%; max-height: 90vh; padding: 18px; }
   .confirm-actions { grid-template-columns: 1fr; }
 }

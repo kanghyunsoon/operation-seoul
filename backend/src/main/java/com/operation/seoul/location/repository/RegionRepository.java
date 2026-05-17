@@ -37,7 +37,7 @@ public interface RegionRepository {
     }
 
     @Select("""
-            select id, name, area_code, description
+            select id, name, area_code, description, period_code, theme_code, created_at
             from region
             order by id desc
             """)
@@ -45,12 +45,15 @@ public interface RegionRepository {
             @Result(property = "id", column = "id", id = true),
             @Result(property = "name", column = "name"),
             @Result(property = "areaCode", column = "area_code"),
-            @Result(property = "description", column = "description")
+            @Result(property = "description", column = "description"),
+            @Result(property = "periodCode", column = "period_code"),
+            @Result(property = "themeCode", column = "theme_code"),
+            @Result(property = "createdAt", column = "created_at")
     })
     List<Region> findAll();
 
     @Select("""
-            select id, name, area_code, description
+            select id, name, area_code, description, period_code, theme_code, created_at
             from region
             where id = #{id}
             limit 1
@@ -63,7 +66,7 @@ public interface RegionRepository {
      * 기존 데이터 중 areaCode가 비어 있는 서울 데이터는 서울 권역에서 계속 보이도록 보정합니다.
      */
     @Select("""
-            select id, name, area_code, description
+            select id, name, area_code, description, period_code, theme_code, created_at
             from region
             where area_code = #{areaCode}
                or (#{areaCode} = 'seoul' and (area_code is null or area_code = ''))
@@ -76,8 +79,8 @@ public interface RegionRepository {
     boolean existsById(Long id);
 
     @Insert("""
-            insert into region (name, area_code, description)
-            values (#{name}, #{areaCode}, #{description})
+            insert into region (name, area_code, description, period_code, theme_code)
+            values (#{name}, #{areaCode}, #{description}, #{periodCode}, #{themeCode})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Region region);
@@ -86,7 +89,9 @@ public interface RegionRepository {
             update region
             set name = #{name},
                 area_code = #{areaCode},
-                description = #{description}
+                description = #{description},
+                period_code = #{periodCode},
+                theme_code = #{themeCode}
             where id = #{id}
             """)
     int update(Region region);

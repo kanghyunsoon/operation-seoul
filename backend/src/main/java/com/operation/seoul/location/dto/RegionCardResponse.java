@@ -14,6 +14,9 @@ public class RegionCardResponse {
     private String name;
     /** 브리핑 진입 전 카드에 표시하는 작전 배경 설명입니다. */
     private String description;
+    private String periodCode;
+    private String themeCode;
+    private String createdAt;
     /** 클리어 기록 화면으로 이동할 때 사용할 최종 Mission id입니다. */
     private Long finalMissionId;
     /** 현재 사용자가 이 작전의 최종 미션을 클리어했는지 여부입니다. */
