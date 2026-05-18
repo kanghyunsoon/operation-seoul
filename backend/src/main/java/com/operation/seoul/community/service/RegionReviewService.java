@@ -84,7 +84,11 @@ public class RegionReviewService {
         Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionReview review = requireReview(regionId, reviewId);
         requireOwnerOrAdmin(review.getUserId(), userId);
-        reviewRepository.deleteById(reviewId);
+        reviewRepository.deleteLikesByReviewId(reviewId);
+        int deleted = reviewRepository.deleteById(reviewId);
+        if (deleted == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "리뷰를 삭제하지 못했습니다.");
+        }
     }
 
     public RegionReviewResponse toggleReviewLike(Long regionId, Long reviewId, Long fallbackUserId) {

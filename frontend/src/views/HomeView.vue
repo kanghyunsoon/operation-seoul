@@ -402,6 +402,27 @@
               </span>
             </div>
 
+            <div class="card-actions">
+              <button
+                  type="button"
+                  class="card-action-btn"
+                  :class="{ active: mission.favorited }"
+                  title="찜"
+                  @click.stop="toggleRegionFavorite(mission)"
+              >
+                ♥ {{ mission.favoriteCount || 0 }}
+              </button>
+              <button
+                  type="button"
+                  class="card-action-btn like"
+                  :class="{ active: mission.liked }"
+                  title="좋아요"
+                  @click.stop="toggleRegionLike(mission)"
+              >
+                👍 {{ mission.likeCount || 0 }}
+              </button>
+            </div>
+
             <div v-if="isAdmin" class="admin-card-actions">
               <button @click.stop="openMissionEditor(mission)" class="edit-btn" title="미션 수정">
                 수정
@@ -1123,29 +1144,65 @@ const fetchMissions = async () => {
         areaCode: activeArea.value?.code || 'seoul'
       }
     });
-    missions.value = response.data.map(region => ({
-      id: region.id,
-      title: region.name,
-      description: region.description,
-      periodCode: region.periodCode || 'mixed',
-      themeCode: region.themeCode || 'mystery',
-      createdAt: region.createdAt,
-      difficulty: 'NORMAL',
-      location: region.cleared ? '클리어 기록 보관함' : '현장 작전 구역',
-      status: region.cleared ? 'CLEARED' : 'ACTIVE',
-      isCleared: region.cleared === true,
-      finalMissionId: region.finalMissionId,
-      answerKeyword: region.answerKeyword,
-      score: region.score,
-      elapsedSeconds: region.elapsedSeconds,
-      routeDistanceMeters: region.routeDistanceMeters,
-      averageRating: region.averageRating || 0,
-      reviewCount: region.reviewCount || 0,
-      isReady: true
-    }));
+    missions.value = response.data.map(toMissionCard);
   } catch (error) {
     console.error('[시스템 오류] 선택 지역 작전 목록 동기화 실패.', error);
     missions.value = [];
+  }
+};
+
+const toMissionCard = (region) => ({
+  id: region.id,
+  title: region.name,
+  description: region.description,
+  periodCode: region.periodCode || 'mixed',
+  themeCode: region.themeCode || 'mystery',
+  createdAt: region.createdAt,
+  difficulty: 'NORMAL',
+  location: region.cleared ? '클리어 기록 보관함' : '현장 작전 구역',
+  status: region.cleared ? 'CLEARED' : 'ACTIVE',
+  isCleared: region.cleared === true,
+  finalMissionId: region.finalMissionId,
+  answerKeyword: region.answerKeyword,
+  score: region.score,
+  elapsedSeconds: region.elapsedSeconds,
+  routeDistanceMeters: region.routeDistanceMeters,
+  averageRating: region.averageRating || 0,
+  reviewCount: region.reviewCount || 0,
+  likeCount: region.likeCount || 0,
+  liked: region.liked === true,
+  favoriteCount: region.favoriteCount || 0,
+  favorited: region.favorited === true,
+  isReady: true
+});
+
+const replaceMissionCard = (region) => {
+  const updated = toMissionCard(region);
+  const index = missions.value.findIndex(mission => mission.id === updated.id);
+  if (index !== -1) {
+    missions.value[index] = updated;
+  }
+};
+
+const toggleRegionLike = async (mission) => {
+  try {
+    const response = await apiClient.post(`/v1/regions/${mission.id}/like`, null, {
+      params: { userId: sessionStore.userId || 1 }
+    });
+    replaceMissionCard(response.data);
+  } catch (error) {
+    alert(error.userMessage || '좋아요 처리에 실패했습니다.');
+  }
+};
+
+const toggleRegionFavorite = async (mission) => {
+  try {
+    const response = await apiClient.post(`/v1/regions/${mission.id}/favorite`, null, {
+      params: { userId: sessionStore.userId || 1 }
+    });
+    replaceMissionCard(response.data);
+  } catch (error) {
+    alert(error.userMessage || '찜 처리에 실패했습니다.');
   }
 };
 
@@ -1403,7 +1460,35 @@ const handleLogout = () => {
 .normal { color: #f59e0b; }
 .hard { color: #ef4444; }
 
+.card-actions,
 .admin-card-actions { display: flex; flex: 0 0 auto; gap: 7px; align-items: center; }
+.card-action-btn {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.62);
+  color: #cbd5e1;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 7px 9px;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.card-action-btn.active {
+  border-color: rgba(244, 114, 182, 0.68);
+  background: rgba(157, 23, 77, 0.22);
+  color: #f9a8d4;
+}
+.card-action-btn.like.active {
+  border-color: rgba(56, 189, 248, 0.68);
+  background: rgba(14, 116, 144, 0.28);
+  color: #bae6fd;
+}
+.card-action-btn:hover {
+  border-color: rgba(103, 232, 249, 0.72);
+  color: #ecfeff;
+}
 .edit-btn, .delete-btn {
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 5px;

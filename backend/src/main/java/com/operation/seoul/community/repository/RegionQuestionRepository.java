@@ -133,7 +133,7 @@ public interface RegionQuestionRepository {
     int updateQuestion(RegionQuestion question);
 
     @Delete("delete from region_question where id = #{id}")
-    int deleteQuestionById(Long id);
+    int deleteQuestionById(@Param("id") Long id);
 
     @Insert("""
             insert into region_answer (question_id, user_id, content)
@@ -151,7 +151,7 @@ public interface RegionQuestionRepository {
     int updateAnswer(RegionAnswer answer);
 
     @Delete("delete from region_answer where id = #{id}")
-    int deleteAnswerById(Long id);
+    int deleteAnswerById(@Param("id") Long id);
 
     @Select("""
             select count(*)

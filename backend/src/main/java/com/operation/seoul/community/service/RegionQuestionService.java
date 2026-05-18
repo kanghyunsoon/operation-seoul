@@ -65,7 +65,10 @@ public class RegionQuestionService {
         Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionQuestion question = requireQuestion(regionId, questionId);
         requireOwnerOrAdmin(question.getUserId(), userId);
-        questionRepository.deleteQuestionById(questionId);
+        int deleted = questionRepository.deleteQuestionById(questionId);
+        if (deleted == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "문의글을 삭제하지 못했습니다.");
+        }
     }
 
     public RegionQuestionResponse toggleQuestionLike(Long regionId, Long questionId, Long fallbackUserId) {
@@ -92,10 +95,10 @@ public class RegionQuestionService {
         return findAnswerResponse(questionId, answer.getId(), userId);
     }
 
-    public RegionAnswerResponse updateAnswer(Long regionId, Long questionId, Long answerId, RegionAnswerRequest request) {
+    public RegionAnswerResponse updateAnswer(Long regionId, Long questionId, Long answerId, RegionAnswerRequest request, Long fallbackUserId) {
         requireRegion(regionId);
         requireQuestion(regionId, questionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionAnswer answer = requireAnswer(questionId, answerId);
         requireOwnerOrAdmin(answer.getUserId(), userId);
         answer.setContent(cleanText(request.getContent()));
@@ -103,13 +106,16 @@ public class RegionQuestionService {
         return findAnswerResponse(questionId, answerId, userId);
     }
 
-    public void deleteAnswer(Long regionId, Long questionId, Long answerId) {
+    public void deleteAnswer(Long regionId, Long questionId, Long answerId, Long fallbackUserId) {
         requireRegion(regionId);
         requireQuestion(regionId, questionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionAnswer answer = requireAnswer(questionId, answerId);
         requireOwnerOrAdmin(answer.getUserId(), userId);
-        questionRepository.deleteAnswerById(answerId);
+        int deleted = questionRepository.deleteAnswerById(answerId);
+        if (deleted == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "답변을 삭제하지 못했습니다.");
+        }
     }
 
     private RegionQuestionResponse findQuestionResponse(Long regionId, Long questionId, Long userId) {

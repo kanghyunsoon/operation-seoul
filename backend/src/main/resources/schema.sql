@@ -170,3 +170,31 @@ create table if not exists region_review_like (
         foreign key (user_id) references users (id)
         on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists region_like (
+    region_id bigint not null,
+    user_id bigint not null,
+    created_at datetime not null default current_timestamp,
+    primary key (region_id, user_id),
+    index idx_region_like_user (user_id),
+    constraint fk_region_like_region
+        foreign key (region_id) references region (id)
+        on delete cascade,
+    constraint fk_region_like_user
+        foreign key (user_id) references users (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists region_favorite (
+    region_id bigint not null,
+    user_id bigint not null,
+    created_at datetime not null default current_timestamp,
+    primary key (region_id, user_id),
+    index idx_region_favorite_user (user_id),
+    constraint fk_region_favorite_region
+        foreign key (region_id) references region (id)
+        on delete cascade,
+    constraint fk_region_favorite_user
+        foreign key (user_id) references users (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;

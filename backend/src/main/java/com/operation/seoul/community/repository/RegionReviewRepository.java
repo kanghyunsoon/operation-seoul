@@ -129,7 +129,10 @@ public interface RegionReviewRepository {
     int update(RegionReview review);
 
     @Delete("delete from region_review where id = #{id}")
-    int deleteById(Long id);
+    int deleteById(@Param("id") Long id);
+
+    @Delete("delete from region_review_like where review_id = #{reviewId}")
+    int deleteLikesByReviewId(@Param("reviewId") Long reviewId);
 
     @Select("""
             select count(*)

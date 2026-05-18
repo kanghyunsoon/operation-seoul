@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -71,6 +72,34 @@ public class RegionController {
         return ResponseEntity.ok(regionOpt.get());
     }
 
+    @PostMapping("/{id}/like")
+    public ResponseEntity<RegionCardResponse> toggleRegionLike(
+            @PathVariable Long id,
+            @RequestParam(value = "userId", defaultValue = "1") Long userId) {
+        Region region = requireRegion(id);
+        Long effectiveUserId = currentUserResolver.resolveUserId(userId);
+        if (regionRepository.countLikeByRegionIdAndUserId(id, effectiveUserId) > 0) {
+            regionRepository.deleteRegionLike(id, effectiveUserId);
+        } else {
+            regionRepository.insertRegionLike(id, effectiveUserId);
+        }
+        return ResponseEntity.ok(buildRegionCard(region, effectiveUserId));
+    }
+
+    @PostMapping("/{id}/favorite")
+    public ResponseEntity<RegionCardResponse> toggleRegionFavorite(
+            @PathVariable Long id,
+            @RequestParam(value = "userId", defaultValue = "1") Long userId) {
+        Region region = requireRegion(id);
+        Long effectiveUserId = currentUserResolver.resolveUserId(userId);
+        if (regionRepository.countFavoriteByRegionIdAndUserId(id, effectiveUserId) > 0) {
+            regionRepository.deleteRegionFavorite(id, effectiveUserId);
+        } else {
+            regionRepository.insertRegionFavorite(id, effectiveUserId);
+        }
+        return ResponseEntity.ok(buildRegionCard(region, effectiveUserId));
+    }
+
     /**
      * Region 엔티티를 홈 카드 DTO로 변환합니다.
      * 최종 미션의 GameSession이 CLEARED일 때만 클리어 기록을 노출합니다.
@@ -87,6 +116,10 @@ public class RegionController {
                 .description(region.getDescription())
                 .periodCode(region.getPeriodCode())
                 .themeCode(region.getThemeCode())
+                .likeCount(regionRepository.countLikesByRegionId(region.getId()))
+                .liked(regionRepository.countLikeByRegionIdAndUserId(region.getId(), userId) > 0)
+                .favoriteCount(regionRepository.countFavoritesByRegionId(region.getId()))
+                .favorited(regionRepository.countFavoriteByRegionIdAndUserId(region.getId(), userId) > 0)
                 .createdAt(region.getCreatedAt() == null ? null : region.getCreatedAt().toString());
 
         RegionReviewSummary reviewSummary = regionReviewRepository.findSummaryByRegionId(region.getId());
@@ -113,5 +146,10 @@ public class RegionController {
                 .routeDistanceMeters(session.getRouteDistanceMeters()));
 
         return builder.build();
+    }
+
+    private Region requireRegion(Long id) {
+        return regionRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "작전을 찾을 수 없습니다."));
     }
 }
