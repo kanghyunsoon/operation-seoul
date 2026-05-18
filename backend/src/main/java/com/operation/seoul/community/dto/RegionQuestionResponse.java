@@ -16,5 +16,7 @@ public class RegionQuestionResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private boolean mine;
+    private int likeCount;
+    private boolean liked;
     private List<RegionAnswerResponse> answers;
 }

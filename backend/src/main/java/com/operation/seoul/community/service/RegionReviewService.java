@@ -31,11 +31,11 @@ public class RegionReviewService {
     private final RegionReviewRepository reviewRepository;
     private final CurrentUserResolver currentUserResolver;
 
-    public RegionReviewListResponse getReviews(Long regionId, String sort) {
+    public RegionReviewListResponse getReviews(Long regionId, String sort, Long fallbackUserId) {
         requireRegion(regionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         String normalizedSort = normalizeSort(sort);
-        List<RegionReviewResponse> reviews = reviewRepository.findResponsesByRegionId(regionId, normalizedSort);
+        List<RegionReviewResponse> reviews = reviewRepository.findResponsesByRegionId(regionId, normalizedSort, userId);
         reviews.forEach(review -> review.setMine(review.getUserId().equals(userId)));
         RegionReviewSummary summary = reviewRepository.findSummaryByRegionId(regionId);
         RegionReview myReview = reviewRepository.findByRegionIdAndUserId(regionId, userId);
@@ -49,9 +49,9 @@ public class RegionReviewService {
                 .build();
     }
 
-    public RegionReviewResponse createReview(Long regionId, RegionReviewRequest request) {
+    public RegionReviewResponse createReview(Long regionId, RegionReviewRequest request, Long fallbackUserId) {
         requireRegion(regionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         requireCleared(regionId, userId);
         if (reviewRepository.findByRegionIdAndUserId(regionId, userId) != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 이 작전에 리뷰를 작성했습니다.");
@@ -66,9 +66,9 @@ public class RegionReviewService {
         return findVisibleReview(regionId, review.getId(), userId);
     }
 
-    public RegionReviewResponse updateReview(Long regionId, Long reviewId, RegionReviewRequest request) {
+    public RegionReviewResponse updateReview(Long regionId, Long reviewId, RegionReviewRequest request, Long fallbackUserId) {
         requireRegion(regionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionReview review = requireReview(regionId, reviewId);
         requireOwnerOrAdmin(review.getUserId(), userId);
         requireCleared(regionId, review.getUserId());
@@ -79,12 +79,24 @@ public class RegionReviewService {
         return findVisibleReview(regionId, reviewId, userId);
     }
 
-    public void deleteReview(Long regionId, Long reviewId) {
+    public void deleteReview(Long regionId, Long reviewId, Long fallbackUserId) {
         requireRegion(regionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionReview review = requireReview(regionId, reviewId);
         requireOwnerOrAdmin(review.getUserId(), userId);
         reviewRepository.deleteById(reviewId);
+    }
+
+    public RegionReviewResponse toggleReviewLike(Long regionId, Long reviewId, Long fallbackUserId) {
+        requireRegion(regionId);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
+        requireReview(regionId, reviewId);
+        if (reviewRepository.countLikeByReviewIdAndUserId(reviewId, userId) > 0) {
+            reviewRepository.deleteReviewLike(reviewId, userId);
+        } else {
+            reviewRepository.insertReviewLike(reviewId, userId);
+        }
+        return findVisibleReview(regionId, reviewId, userId);
     }
 
     public RegionReviewSummary getSummary(Long regionId) {
@@ -113,7 +125,7 @@ public class RegionReviewService {
     }
 
     private RegionReviewResponse findVisibleReview(Long regionId, Long reviewId, Long userId) {
-        return reviewRepository.findResponsesByRegionId(regionId, "latest").stream()
+        return reviewRepository.findResponsesByRegionId(regionId, "latest", userId).stream()
                 .filter(item -> item.getId().equals(reviewId))
                 .peek(item -> item.setMine(item.getUserId().equals(userId)))
                 .findFirst()

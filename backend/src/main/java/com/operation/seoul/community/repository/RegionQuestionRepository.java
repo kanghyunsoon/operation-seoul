@@ -63,7 +63,16 @@ public interface RegionQuestionRepository {
                    q.title,
                    q.content,
                    q.created_at,
-                   q.updated_at
+                   q.updated_at,
+                   (select count(*)
+                    from region_question_like ql
+                    where ql.question_id = q.id) as like_count,
+                   exists (
+                    select 1
+                    from region_question_like my_like
+                    where my_like.question_id = q.id
+                      and my_like.user_id = #{userId}
+                   ) as liked
             from region_question q
             join users u on u.id = q.user_id
             where q.region_id = #{regionId}
@@ -77,9 +86,11 @@ public interface RegionQuestionRepository {
             @Result(property = "title", column = "title"),
             @Result(property = "content", column = "content"),
             @Result(property = "createdAt", column = "created_at"),
-            @Result(property = "updatedAt", column = "updated_at")
+            @Result(property = "updatedAt", column = "updated_at"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "liked", column = "liked")
     })
-    List<RegionQuestionResponse> findQuestionResponsesByRegionId(Long regionId);
+    List<RegionQuestionResponse> findQuestionResponsesByRegionId(@Param("regionId") Long regionId, @Param("userId") Long userId);
 
     @Select("""
             select a.id,
@@ -141,4 +152,25 @@ public interface RegionQuestionRepository {
 
     @Delete("delete from region_answer where id = #{id}")
     int deleteAnswerById(Long id);
+
+    @Select("""
+            select count(*)
+            from region_question_like
+            where question_id = #{questionId}
+              and user_id = #{userId}
+            """)
+    int countLikeByQuestionIdAndUserId(@Param("questionId") Long questionId, @Param("userId") Long userId);
+
+    @Insert("""
+            insert ignore into region_question_like (question_id, user_id)
+            values (#{questionId}, #{userId})
+            """)
+    int insertQuestionLike(@Param("questionId") Long questionId, @Param("userId") Long userId);
+
+    @Delete("""
+            delete from region_question_like
+            where question_id = #{questionId}
+              and user_id = #{userId}
+            """)
+    int deleteQuestionLike(@Param("questionId") Long questionId, @Param("userId") Long userId);
 }
