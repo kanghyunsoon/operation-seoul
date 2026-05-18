@@ -24,10 +24,10 @@ public class RegionQuestionService {
     private final RegionQuestionRepository questionRepository;
     private final CurrentUserResolver currentUserResolver;
 
-    public List<RegionQuestionResponse> getQuestions(Long regionId) {
+    public List<RegionQuestionResponse> getQuestions(Long regionId, Long fallbackUserId) {
         requireRegion(regionId);
-        Long userId = currentUserResolver.resolveUserId(null);
-        List<RegionQuestionResponse> questions = questionRepository.findQuestionResponsesByRegionId(regionId);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
+        List<RegionQuestionResponse> questions = questionRepository.findQuestionResponsesByRegionId(regionId, userId);
         questions.forEach(question -> {
             question.setMine(question.getUserId().equals(userId));
             List<RegionAnswerResponse> answers = questionRepository.findAnswerResponsesByQuestionId(question.getId());
@@ -37,9 +37,9 @@ public class RegionQuestionService {
         return questions;
     }
 
-    public RegionQuestionResponse createQuestion(Long regionId, RegionQuestionRequest request) {
+    public RegionQuestionResponse createQuestion(Long regionId, RegionQuestionRequest request, Long fallbackUserId) {
         requireRegion(regionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionQuestion question = new RegionQuestion();
         question.setRegionId(regionId);
         question.setUserId(userId);
@@ -49,9 +49,9 @@ public class RegionQuestionService {
         return findQuestionResponse(regionId, question.getId(), userId);
     }
 
-    public RegionQuestionResponse updateQuestion(Long regionId, Long questionId, RegionQuestionRequest request) {
+    public RegionQuestionResponse updateQuestion(Long regionId, Long questionId, RegionQuestionRequest request, Long fallbackUserId) {
         requireRegion(regionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionQuestion question = requireQuestion(regionId, questionId);
         requireOwnerOrAdmin(question.getUserId(), userId);
         question.setTitle(cleanText(request.getTitle()));
@@ -60,18 +60,30 @@ public class RegionQuestionService {
         return findQuestionResponse(regionId, questionId, userId);
     }
 
-    public void deleteQuestion(Long regionId, Long questionId) {
+    public void deleteQuestion(Long regionId, Long questionId, Long fallbackUserId) {
         requireRegion(regionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionQuestion question = requireQuestion(regionId, questionId);
         requireOwnerOrAdmin(question.getUserId(), userId);
         questionRepository.deleteQuestionById(questionId);
     }
 
-    public RegionAnswerResponse createAnswer(Long regionId, Long questionId, RegionAnswerRequest request) {
+    public RegionQuestionResponse toggleQuestionLike(Long regionId, Long questionId, Long fallbackUserId) {
         requireRegion(regionId);
         requireQuestion(regionId, questionId);
-        Long userId = currentUserResolver.resolveUserId(null);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
+        if (questionRepository.countLikeByQuestionIdAndUserId(questionId, userId) > 0) {
+            questionRepository.deleteQuestionLike(questionId, userId);
+        } else {
+            questionRepository.insertQuestionLike(questionId, userId);
+        }
+        return findQuestionResponse(regionId, questionId, userId);
+    }
+
+    public RegionAnswerResponse createAnswer(Long regionId, Long questionId, RegionAnswerRequest request, Long fallbackUserId) {
+        requireRegion(regionId);
+        requireQuestion(regionId, questionId);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         RegionAnswer answer = new RegionAnswer();
         answer.setQuestionId(questionId);
         answer.setUserId(userId);
@@ -101,7 +113,7 @@ public class RegionQuestionService {
     }
 
     private RegionQuestionResponse findQuestionResponse(Long regionId, Long questionId, Long userId) {
-        return questionRepository.findQuestionResponsesByRegionId(regionId).stream()
+        return questionRepository.findQuestionResponsesByRegionId(regionId, userId).stream()
                 .filter(item -> item.getId().equals(questionId))
                 .peek(item -> {
                     item.setMine(item.getUserId().equals(userId));

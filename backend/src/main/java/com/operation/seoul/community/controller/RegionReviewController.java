@@ -29,8 +29,9 @@ public class RegionReviewController {
     @GetMapping
     public ResponseEntity<RegionReviewListResponse> getReviews(
             @PathVariable Long regionId,
-            @RequestParam(value = "sort", defaultValue = "latest") String sort) {
-        return ResponseEntity.ok(reviewService.getReviews(regionId, sort));
+            @RequestParam(value = "sort", defaultValue = "latest") String sort,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.ok(reviewService.getReviews(regionId, sort, userId));
     }
 
     @GetMapping("/summary")
@@ -41,21 +42,34 @@ public class RegionReviewController {
     @PostMapping
     public ResponseEntity<RegionReviewResponse> createReview(
             @PathVariable Long regionId,
-            @Valid @RequestBody RegionReviewRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.createReview(regionId, request));
+            @Valid @RequestBody RegionReviewRequest request,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.createReview(regionId, request, userId));
     }
 
     @PutMapping("/{reviewId}")
     public ResponseEntity<RegionReviewResponse> updateReview(
             @PathVariable Long regionId,
             @PathVariable Long reviewId,
-            @Valid @RequestBody RegionReviewRequest request) {
-        return ResponseEntity.ok(reviewService.updateReview(regionId, reviewId, request));
+            @Valid @RequestBody RegionReviewRequest request,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.ok(reviewService.updateReview(regionId, reviewId, request, userId));
     }
 
     @DeleteMapping("/{reviewId}")
-    public ResponseEntity<Void> deleteReview(@PathVariable Long regionId, @PathVariable Long reviewId) {
-        reviewService.deleteReview(regionId, reviewId);
+    public ResponseEntity<Void> deleteReview(
+            @PathVariable Long regionId,
+            @PathVariable Long reviewId,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        reviewService.deleteReview(regionId, reviewId, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{reviewId}/like")
+    public ResponseEntity<RegionReviewResponse> toggleReviewLike(
+            @PathVariable Long regionId,
+            @PathVariable Long reviewId,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.ok(reviewService.toggleReviewLike(regionId, reviewId, userId));
     }
 }

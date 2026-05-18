@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -28,37 +29,53 @@ public class RegionQuestionController {
     private final RegionQuestionService questionService;
 
     @GetMapping
-    public ResponseEntity<List<RegionQuestionResponse>> getQuestions(@PathVariable Long regionId) {
-        return ResponseEntity.ok(questionService.getQuestions(regionId));
+    public ResponseEntity<List<RegionQuestionResponse>> getQuestions(
+            @PathVariable Long regionId,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.ok(questionService.getQuestions(regionId, userId));
     }
 
     @PostMapping
     public ResponseEntity<RegionQuestionResponse> createQuestion(
             @PathVariable Long regionId,
-            @Valid @RequestBody RegionQuestionRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(questionService.createQuestion(regionId, request));
+            @Valid @RequestBody RegionQuestionRequest request,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(questionService.createQuestion(regionId, request, userId));
     }
 
     @PutMapping("/{questionId}")
     public ResponseEntity<RegionQuestionResponse> updateQuestion(
             @PathVariable Long regionId,
             @PathVariable Long questionId,
-            @Valid @RequestBody RegionQuestionRequest request) {
-        return ResponseEntity.ok(questionService.updateQuestion(regionId, questionId, request));
+            @Valid @RequestBody RegionQuestionRequest request,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.ok(questionService.updateQuestion(regionId, questionId, request, userId));
     }
 
     @DeleteMapping("/{questionId}")
-    public ResponseEntity<Void> deleteQuestion(@PathVariable Long regionId, @PathVariable Long questionId) {
-        questionService.deleteQuestion(regionId, questionId);
+    public ResponseEntity<Void> deleteQuestion(
+            @PathVariable Long regionId,
+            @PathVariable Long questionId,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        questionService.deleteQuestion(regionId, questionId, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{questionId}/like")
+    public ResponseEntity<RegionQuestionResponse> toggleQuestionLike(
+            @PathVariable Long regionId,
+            @PathVariable Long questionId,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.ok(questionService.toggleQuestionLike(regionId, questionId, userId));
     }
 
     @PostMapping("/{questionId}/answers")
     public ResponseEntity<RegionAnswerResponse> createAnswer(
             @PathVariable Long regionId,
             @PathVariable Long questionId,
-            @Valid @RequestBody RegionAnswerRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(questionService.createAnswer(regionId, questionId, request));
+            @Valid @RequestBody RegionAnswerRequest request,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(questionService.createAnswer(regionId, questionId, request, userId));
     }
 
     @PutMapping("/{questionId}/answers/{answerId}")

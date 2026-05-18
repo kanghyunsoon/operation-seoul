@@ -17,4 +17,6 @@ public class RegionReviewResponse {
     private Long clearElapsedSeconds;
     private Integer clearScore;
     private boolean mine;
+    private int likeCount;
+    private boolean liked;
 }

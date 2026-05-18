@@ -69,6 +69,25 @@ create table if not exists game_session (
         on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
+create table if not exists clear_report (
+    id bigint not null auto_increment,
+    user_id bigint not null,
+    mission_id bigint not null,
+    report text not null,
+    clue_explanations_json mediumtext,
+    created_at datetime not null default current_timestamp,
+    updated_at datetime null,
+    primary key (id),
+    unique key uk_clear_report_user_mission (user_id, mission_id),
+    index idx_clear_report_mission_id (mission_id),
+    constraint fk_clear_report_user
+        foreign key (user_id) references users (id)
+        on delete cascade,
+    constraint fk_clear_report_mission
+        foreign key (mission_id) references mission (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
 create table if not exists region_review (
     id bigint not null auto_increment,
     region_id bigint not null,
@@ -120,6 +139,34 @@ create table if not exists region_answer (
         foreign key (question_id) references region_question (id)
         on delete cascade,
     constraint fk_region_answer_user
+        foreign key (user_id) references users (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists region_question_like (
+    question_id bigint not null,
+    user_id bigint not null,
+    created_at datetime not null default current_timestamp,
+    primary key (question_id, user_id),
+    index idx_region_question_like_user (user_id),
+    constraint fk_region_question_like_question
+        foreign key (question_id) references region_question (id)
+        on delete cascade,
+    constraint fk_region_question_like_user
+        foreign key (user_id) references users (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists region_review_like (
+    review_id bigint not null,
+    user_id bigint not null,
+    created_at datetime not null default current_timestamp,
+    primary key (review_id, user_id),
+    index idx_region_review_like_user (user_id),
+    constraint fk_region_review_like_review
+        foreign key (review_id) references region_review (id)
+        on delete cascade,
+    constraint fk_region_review_like_user
         foreign key (user_id) references users (id)
         on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;

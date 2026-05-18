@@ -2,6 +2,20 @@
   <main class="clear-view">
     <!-- 최종 미션 성공 후 실제 역사 해설과 단서별 각색 의도를 보여주는 결과 화면입니다. -->
     <section class="clear-panel">
+      <template v-if="isLoading">
+        <p class="eyebrow">LOADING CLEAR RECORD</p>
+        <h1>클리어 기록 불러오는 중</h1>
+        <p class="status-message">기록과 단서 해설을 복호화하고 있습니다. 잠시만 기다려 주세요.</p>
+      </template>
+
+      <template v-else-if="loadError || report.cleared === false">
+        <p class="eyebrow">CLEAR RECORD LOCKED</p>
+        <h1>{{ report.title || '기록 확인 불가' }}</h1>
+        <p class="status-message">{{ loadError || report.message || '클리어하지 못한 사건입니다.' }}</p>
+        <button class="primary-action" @click="goRegionDetail">작전 상세로</button>
+      </template>
+
+      <template v-else>
       <p class="eyebrow">MISSION CLEARED</p>
       <h1>{{ report.title || '작전 완료' }}</h1>
       <p class="keyword">핵심 키워드: {{ report.answerKeyword || '분석 완료' }}</p>
@@ -60,6 +74,7 @@
 
         <button class="primary-action" @click="goHome">홈으로</button>
       </article>
+      </template>
     </section>
   </main>
 </template>
@@ -86,6 +101,8 @@ const selectedClue = ref(null);
 const typedHistory = ref('');
 const isTyping = ref(false);
 const step = ref('history');
+const isLoading = ref(true);
+const loadError = ref('');
 
 let typingTimer = null;
 const revealTimers = [];
@@ -142,7 +159,7 @@ const selectedClueExplanation = computed(() => {
   const keyword = report.value.answerKeyword || '핵심 사건';
   const clueTitle = selectedClue.value.title || '수집한 단서';
   const clueText = selectedClue.value.clue || selectedClue.value.description || '현장에서 확보한 단서';
-  const relation = buildDynamicClueRelation(clueTitle, clueText, keyword, finalTitle);
+  const relation = buildClueHistoricalRelation(clueTitle, clueText, keyword, finalTitle);
 
   return [
     `${clueTitle}에서 확인한 단서는 "${clueText}"였습니다.`,
@@ -154,21 +171,30 @@ const selectedClueExplanation = computed(() => {
 
 // 클리어 리포트와 미션 목록을 병렬로 가져오고 역사 해설 타자기 효과를 시작합니다.
 onMounted(async () => {
-  const [reportResponse, missionsResponse] = await Promise.all([
-    apiClient.get(`/v1/sessions/${missionId.value}/clear-report`, {
-      params: { userId: userId.value || 1 }
-    }),
-    apiClient.get(`/v1/regions/${regionId.value}/missions`, {
-      params: { userId: userId.value || 1 }
-    })
-  ]);
+  try {
+    const [reportResponse, missionsResponse] = await Promise.all([
+      apiClient.get(`/v1/sessions/${missionId.value}/clear-report`, {
+        params: { userId: userId.value || 1 }
+      }),
+      apiClient.get(`/v1/regions/${regionId.value}/missions`, {
+        params: { userId: userId.value || 1 }
+      })
+    ]);
 
-  report.value = reportResponse.data;
-  clues.value = missionsResponse.data.filter(mission =>
-    mission.sessionStatus === 'CLEARED' && !getIsFinalMission(mission) && (mission.clue || mission.description)
-  );
+    report.value = reportResponse.data || {};
+    clues.value = (missionsResponse.data || []).filter(mission =>
+      mission.sessionStatus === 'CLEARED' && !getIsFinalMission(mission) && (mission.clue || mission.description)
+    );
 
-  startTypewriter();
+    if (report.value.cleared === false) {
+      return;
+    }
+    startTypewriter();
+  } catch (error) {
+    loadError.value = error.userMessage || '클리어 기록을 불러오지 못했습니다.';
+  } finally {
+    isLoading.value = false;
+  }
 });
 
 onBeforeUnmount(() => {
@@ -198,6 +224,7 @@ const startTypewriter = () => {
 
 // 역사 해설을 다 본 뒤 단서 카드를 순차적으로 노출합니다.
 const showClues = () => {
+  if (isLoading.value || report.value.cleared === false) return;
   step.value = 'clues';
   visibleClues.value = [];
   selectedClue.value = null;
@@ -223,6 +250,10 @@ const getIsFinalMission = (mission) => {
 // 결과 확인 후 홈으로 돌아갑니다.
 const goHome = () => {
   router.push({ name: 'Home' });
+};
+
+const goRegionDetail = () => {
+  router.push({ name: 'RegionDetail', params: { regionId: regionId.value } });
 };
 
 // 긴 리포트를 한 문장씩 읽기 쉬운 문단으로 나눕니다.
@@ -370,6 +401,13 @@ h3 {
   margin-bottom: 18px;
   font-size: 1.08rem;
   font-weight: 700;
+}
+
+.status-message {
+  max-width: 720px;
+  color: #adc3c0;
+  font-size: 1.08rem;
+  line-height: 1.7;
 }
 
 .score-summary {

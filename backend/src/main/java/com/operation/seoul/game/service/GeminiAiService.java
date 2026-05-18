@@ -2,7 +2,9 @@ package com.operation.seoul.game.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.operation.seoul.game.domain.ClearReport;
 import com.operation.seoul.game.domain.GameSession;
+import com.operation.seoul.game.repository.ClearReportRepository;
 import com.operation.seoul.game.repository.GameSessionRepository;
 import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.domain.Region;
@@ -31,6 +33,7 @@ public class GeminiAiService {
 
     private final MissionRepository missionRepository;
     private final GameSessionRepository gameSessionRepository;
+    private final ClearReportRepository clearReportRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -360,6 +363,32 @@ public class GeminiAiService {
         String realStory = mission.getRealStory();
         List<Map<String, String>> clearedClues = getClearedClues(mission, userId);
         GameSession finalSession = gameSessionRepository.findByUserIdAndMissionId(userId, missionId).orElse(null);
+        boolean cleared = finalSession != null && "CLEARED".equals(finalSession.getStatus());
+
+        if (!cleared) {
+            return Map.of(
+                    "missionId", mission.getId(),
+                    "title", mission.getTitle(),
+                    "cleared", false,
+                    "message", "클리어하지 못한 사건입니다.",
+                    "answerKeyword", "",
+                    "report", "",
+                    "clueExplanations", Map.of(),
+                    "score", 0,
+                    "elapsedSeconds", 0L,
+                    "routeDistanceMeters", 0.0
+            );
+        }
+
+        ClearReport savedReport = clearReportRepository.findByUserIdAndMissionId(userId, missionId);
+        if (savedReport != null) {
+            return buildClearReportResponse(
+                    mission,
+                    finalSession,
+                    savedReport.getReport(),
+                    parseClueExplanations(savedReport.getClueExplanationsJson())
+            );
+        }
 
         String report = realStory;
         Map<String, List<String>> clueExplanations = new HashMap<>();
@@ -381,16 +410,56 @@ public class GeminiAiService {
             clueExplanations = buildFallbackClueExplanations(clearedClues, answerKeyword, mission.getTitle());
         }
 
+        ClearReport newReport = new ClearReport();
+        newReport.setUserId(userId);
+        newReport.setMissionId(missionId);
+        newReport.setReport(report);
+        newReport.setClueExplanationsJson(writeClueExplanations(clueExplanations));
+        clearReportRepository.upsert(newReport);
+
+        return buildClearReportResponse(mission, finalSession, report, clueExplanations);
+    }
+
+    private Map<String, Object> buildClearReportResponse(
+            Mission mission,
+            GameSession finalSession,
+            String report,
+            Map<String, List<String>> clueExplanations) {
         return Map.of(
                 "missionId", mission.getId(),
                 "title", mission.getTitle(),
-                "answerKeyword", answerKeyword == null ? "" : answerKeyword,
+                "cleared", true,
+                "answerKeyword", mission.getAnswerKeyword() == null ? "" : mission.getAnswerKeyword(),
                 "report", report,
                 "clueExplanations", clueExplanations,
                 "score", finalSession != null && finalSession.getScore() != null ? finalSession.getScore() : 0,
                 "elapsedSeconds", finalSession != null && finalSession.getElapsedSeconds() != null ? finalSession.getElapsedSeconds() : 0L,
                 "routeDistanceMeters", finalSession != null && finalSession.getRouteDistanceMeters() != null ? finalSession.getRouteDistanceMeters() : 0.0
         );
+    }
+
+    private Map<String, List<String>> parseClueExplanations(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            Map<String, List<String>> parsed = new HashMap<>();
+            root.properties().forEach(entry -> parsed.put(entry.getKey(), normalizeParagraphList(entry.getValue())));
+            return parsed;
+        } catch (Exception e) {
+            log.warn("Saved clear report clue JSON parse failed: {}", e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private String writeClueExplanations(Map<String, List<String>> clueExplanations) {
+        try {
+            return objectMapper.writeValueAsString(clueExplanations == null ? Map.of() : clueExplanations);
+        } catch (Exception e) {
+            log.warn("Clear report clue JSON write failed: {}", e.getMessage());
+            return "{}";
+        }
     }
 
     /**

@@ -57,7 +57,16 @@ public interface RegionReviewRepository {
                    r.created_at,
                    r.updated_at,
                    gs.elapsed_seconds as clear_elapsed_seconds,
-                   gs.score as clear_score
+                   gs.score as clear_score,
+                   (select count(*)
+                    from region_review_like rl
+                    where rl.review_id = r.id) as like_count,
+                   exists (
+                    select 1
+                    from region_review_like my_like
+                    where my_like.review_id = r.id
+                      and my_like.user_id = #{userId}
+                   ) as liked
             from region_review r
             join users u on u.id = r.user_id
             left join mission fm on fm.region_id = r.region_id and fm.is_final = true
@@ -82,9 +91,11 @@ public interface RegionReviewRepository {
             @Result(property = "createdAt", column = "created_at"),
             @Result(property = "updatedAt", column = "updated_at"),
             @Result(property = "clearElapsedSeconds", column = "clear_elapsed_seconds"),
-            @Result(property = "clearScore", column = "clear_score")
+            @Result(property = "clearScore", column = "clear_score"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "liked", column = "liked")
     })
-    List<RegionReviewResponse> findResponsesByRegionId(@Param("regionId") Long regionId, @Param("sort") String sort);
+    List<RegionReviewResponse> findResponsesByRegionId(@Param("regionId") Long regionId, @Param("sort") String sort, @Param("userId") Long userId);
 
     @Select("""
             select region_id,
@@ -119,4 +130,25 @@ public interface RegionReviewRepository {
 
     @Delete("delete from region_review where id = #{id}")
     int deleteById(Long id);
+
+    @Select("""
+            select count(*)
+            from region_review_like
+            where review_id = #{reviewId}
+              and user_id = #{userId}
+            """)
+    int countLikeByReviewIdAndUserId(@Param("reviewId") Long reviewId, @Param("userId") Long userId);
+
+    @Insert("""
+            insert ignore into region_review_like (review_id, user_id)
+            values (#{reviewId}, #{userId})
+            """)
+    int insertReviewLike(@Param("reviewId") Long reviewId, @Param("userId") Long userId);
+
+    @Delete("""
+            delete from region_review_like
+            where review_id = #{reviewId}
+              and user_id = #{userId}
+            """)
+    int deleteReviewLike(@Param("reviewId") Long reviewId, @Param("userId") Long userId);
 }
