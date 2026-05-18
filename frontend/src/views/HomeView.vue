@@ -25,7 +25,7 @@
 
       <div v-if="showAdminModal" class="admin-modal-overlay">
         <div class="admin-modal-content">
-          <h3>🤖 지역 후보지 자동 스캔</h3>
+          <h3>✨ 지역 후보지 자동 스캔</h3>
           <p><strong>{{ activeArea.name }}</strong> 작전권역의 역사 명소 후보지를 자동으로 수집합니다.</p>
           <div class="scan-summary">
             <span>대상 권역</span>
@@ -419,7 +419,7 @@
                   title="좋아요"
                   @click.stop="toggleRegionLike(mission)"
               >
-                👍 {{ mission.likeCount || 0 }}
+                😄 {{ mission.likeCount || 0 }}
               </button>
             </div>
 
