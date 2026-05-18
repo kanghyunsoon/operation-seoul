@@ -330,7 +330,6 @@ const reviewPage = ref(1);
 const questionPage = ref(1);
 const boardPageSize = 10;
 
-const operationBriefText = '요원, 지금 즉시 서울의 심장부로 침투하라. 어둠이 내려앉은 왕의 거처 주변에서, 역사의 흐름을 뒤바꾼 그날 밤의 흔적이 발견되었다는 첩보를 입수했다. 보이지 않는 손에 의해 왕이 강제로 거처를 옮겨야 했던 그 비극적인 도주 경로를 추적해야 한다. 적의 눈을 피해 담장을 따라 이동하며 단서를 수집하고, 진실이 묻힌 최종 지점에서 마지막 암호를 해독하라. 실패는 허용되지 않는다. 역사는 승자의 기록이 아니라, 살아남은 자의 증언임을 명심하라.';
 const detailSections = [
   { key: 'entry', title: '진입점 확인', description: '작전 내용과 시작' },
   { key: 'reviews', title: '평점과 후기', description: '클리어 요원 리뷰' },
@@ -338,6 +337,14 @@ const detailSections = [
   { key: 'clear', title: '클리어 기록 보기', description: '완료한 사건 기록' }
 ];
 
+const operationBriefText = computed(() => {
+  const description = compactDisplayText(region.value?.description, 900);
+  if (description) {
+    return description;
+  }
+  const title = compactDisplayText(region.value?.name, 80) || '선택한 작전';
+  return `${title}의 작전 내용이 아직 복호화되지 않았습니다. 브리핑 화면에서 현재 등록된 미션 단서와 현장 정보를 확인하세요.`;
+});
 const finalMission = computed(() => missions.value.find(mission => mission.missionType === 'FINAL' || mission.isFinal === true || mission.final === true) || null);
 const finalMissionId = computed(() => finalMission.value?.id || null);
 const hasClearedFinalMission = computed(() => finalMission.value?.sessionStatus === 'CLEARED');
@@ -597,6 +604,17 @@ const sectionCount = (key) => {
 
 const normalizeSearch = (value) => {
   return String(value || '').replace(/\s+/g, '').toLowerCase();
+};
+
+const compactDisplayText = (value, maxLength) => {
+  const normalized = String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (!normalized) return '';
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength).trim()}...` : normalized;
 };
 
 const paginateItems = (items, page) => {
