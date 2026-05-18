@@ -83,16 +83,18 @@ public class RegionQuestionController {
             @PathVariable Long regionId,
             @PathVariable Long questionId,
             @PathVariable Long answerId,
-            @Valid @RequestBody RegionAnswerRequest request) {
-        return ResponseEntity.ok(questionService.updateAnswer(regionId, questionId, answerId, request));
+            @Valid @RequestBody RegionAnswerRequest request,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.ok(questionService.updateAnswer(regionId, questionId, answerId, request, userId));
     }
 
     @DeleteMapping("/{questionId}/answers/{answerId}")
     public ResponseEntity<Void> deleteAnswer(
             @PathVariable Long regionId,
             @PathVariable Long questionId,
-            @PathVariable Long answerId) {
-        questionService.deleteAnswer(regionId, questionId, answerId);
+            @PathVariable Long answerId,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        questionService.deleteAnswer(regionId, questionId, answerId, userId);
         return ResponseEntity.noContent().build();
     }
 }

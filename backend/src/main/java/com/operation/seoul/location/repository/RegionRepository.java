@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Result;
 import org.apache.ibatis.annotations.ResultMap;
 import org.apache.ibatis.annotations.Results;
@@ -98,4 +99,52 @@ public interface RegionRepository {
 
     @Delete("delete from region where id = #{id}")
     int deleteById(Long id);
+
+    @Select("select count(*) from region_like where region_id = #{regionId}")
+    int countLikesByRegionId(Long regionId);
+
+    @Select("""
+            select count(*)
+            from region_like
+            where region_id = #{regionId}
+              and user_id = #{userId}
+            """)
+    int countLikeByRegionIdAndUserId(@Param("regionId") Long regionId, @Param("userId") Long userId);
+
+    @Insert("""
+            insert ignore into region_like (region_id, user_id)
+            values (#{regionId}, #{userId})
+            """)
+    int insertRegionLike(@Param("regionId") Long regionId, @Param("userId") Long userId);
+
+    @Delete("""
+            delete from region_like
+            where region_id = #{regionId}
+              and user_id = #{userId}
+            """)
+    int deleteRegionLike(@Param("regionId") Long regionId, @Param("userId") Long userId);
+
+    @Select("select count(*) from region_favorite where region_id = #{regionId}")
+    int countFavoritesByRegionId(Long regionId);
+
+    @Select("""
+            select count(*)
+            from region_favorite
+            where region_id = #{regionId}
+              and user_id = #{userId}
+            """)
+    int countFavoriteByRegionIdAndUserId(@Param("regionId") Long regionId, @Param("userId") Long userId);
+
+    @Insert("""
+            insert ignore into region_favorite (region_id, user_id)
+            values (#{regionId}, #{userId})
+            """)
+    int insertRegionFavorite(@Param("regionId") Long regionId, @Param("userId") Long userId);
+
+    @Delete("""
+            delete from region_favorite
+            where region_id = #{regionId}
+              and user_id = #{userId}
+            """)
+    int deleteRegionFavorite(@Param("regionId") Long regionId, @Param("userId") Long userId);
 }

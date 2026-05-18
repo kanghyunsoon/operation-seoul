@@ -19,6 +19,10 @@ public class RegionCardResponse {
     private String createdAt;
     private double averageRating;
     private int reviewCount;
+    private int likeCount;
+    private boolean liked;
+    private int favoriteCount;
+    private boolean favorited;
     /** 클리어 기록 화면으로 이동할 때 사용할 최종 Mission id입니다. */
     private Long finalMissionId;
     /** 현재 사용자가 이 작전의 최종 미션을 클리어했는지 여부입니다. */

@@ -476,14 +476,24 @@ const reviewSummaryText = (content) => {
 
 const deleteReview = async (reviewId) => {
   if (!confirm('리뷰를 삭제할까요?')) return;
-  await apiClient.delete(`/v1/regions/${regionId}/reviews/${reviewId}`, {
-    params: { userId: sessionStore.userId || 1 }
-  });
-  reviewForm.value = { rating: 5, content: '' };
-  if (selectedReviewId.value === reviewId) {
-    selectedReviewId.value = null;
+  try {
+    await apiClient.delete(`/v1/regions/${regionId}/reviews/${reviewId}`, {
+      params: { userId: sessionStore.userId || 1 }
+    });
+    reviewState.value = {
+      ...reviewState.value,
+      reviews: reviewState.value.reviews.filter(review => review.id !== reviewId),
+      reviewCount: Math.max(0, Number(reviewState.value.reviewCount || 0) - 1),
+      myReviewId: reviewState.value.myReviewId === reviewId ? null : reviewState.value.myReviewId
+    };
+    reviewForm.value = { rating: 5, content: '' };
+    if (selectedReviewId.value === reviewId) {
+      selectedReviewId.value = null;
+    }
+    await fetchReviews();
+  } catch (error) {
+    alert(error.userMessage || '리뷰 삭제에 실패했습니다.');
   }
-  await fetchReviews();
 };
 
 const toggleReviewLike = async (review) => {
@@ -516,10 +526,18 @@ const submitQuestion = async () => {
 
 const deleteQuestion = async (questionId) => {
   if (!confirm('문의글을 삭제할까요?')) return;
-  await apiClient.delete(`/v1/regions/${regionId}/questions/${questionId}`, {
-    params: { userId: sessionStore.userId || 1 }
-  });
-  await fetchQuestions();
+  try {
+    await apiClient.delete(`/v1/regions/${regionId}/questions/${questionId}`, {
+      params: { userId: sessionStore.userId || 1 }
+    });
+    questions.value = questions.value.filter(question => question.id !== questionId);
+    if (selectedQuestionId.value === questionId) {
+      selectedQuestionId.value = null;
+    }
+    await fetchQuestions();
+  } catch (error) {
+    alert(error.userMessage || '문의글 삭제에 실패했습니다.');
+  }
 };
 
 const submitAnswer = async (question) => {
@@ -544,8 +562,18 @@ const toggleQuestionLike = async (question) => {
 };
 
 const deleteAnswer = async (questionId, answerId) => {
-  await apiClient.delete(`/v1/regions/${regionId}/questions/${questionId}/answers/${answerId}`);
-  await fetchQuestions();
+  try {
+    await apiClient.delete(`/v1/regions/${regionId}/questions/${questionId}/answers/${answerId}`, {
+      params: { userId: sessionStore.userId || 1 }
+    });
+    const question = questions.value.find(item => item.id === questionId);
+    if (question) {
+      question.answers = (question.answers || []).filter(answer => answer.id !== answerId);
+    }
+    await fetchQuestions();
+  } catch (error) {
+    alert(error.userMessage || '답변 삭제에 실패했습니다.');
+  }
 };
 
 const startMission = () => {
