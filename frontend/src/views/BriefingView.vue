@@ -154,9 +154,9 @@ const buildBriefingText = (region) => {
   return formatBriefingBlock(scenario);
 };
 
-// AI 생성 서사가 시스템 설명처럼 보이면 플레이어 몰입을 위해 주제별 prequel로 대체합니다.
+// 저장된 작전 설명을 우선 사용합니다. 로컬 추론 템플릿은 엉뚱한 지역 서사를 만들 수 있어 최소 fallback으로만 씁니다.
 const buildNarrativeScenario = (region) => {
-  const generatedStory = compactText(region.description, 700);
+  const generatedStory = compactText(region.description, 1200);
   if (isUsableNarrative(generatedStory)) {
     return normalizeDirectiveTone(generatedStory);
   }
@@ -164,24 +164,8 @@ const buildNarrativeScenario = (region) => {
   return buildStoryPrequel(region);
 };
 
-// 지역/미션 키워드를 보고 브리핑 fallback 테마를 선택합니다.
+// 저장된 설명이 없거나 명백히 깨졌을 때만 작전명 기반의 일반 fallback을 사용합니다.
 const buildStoryPrequel = (region) => {
-  const theme = resolveStoryTheme(region);
-  if (theme === 'railIndustry') {
-    return buildRailIndustryPrequel(region);
-  }
-  if (theme === 'royalModern') {
-    return buildRoyalModernPrequel(region);
-  }
-  if (theme === 'warMemory') {
-    return buildWarMemoryPrequel(region);
-  }
-  if (theme === 'coastalMemory') {
-    return buildCoastalMemoryPrequel(region);
-  }
-  if (theme === 'localTourism') {
-    return buildLocalTourismPrequel(region);
-  }
   return buildArchivePrequel(region);
 };
 
@@ -252,47 +236,10 @@ const getOperationName = (region) => {
   return name.replace(/^작전명\s*/g, '').trim();
 };
 
-// 최종 미션명, briefingContext, 미션 설명을 합쳐 지역 작전의 큰 테마를 추론합니다.
-const resolveStoryTheme = (region) => {
-  const source = [
-    region?.name,
-    finalMission.value?.title,
-    finalMission.value?.briefingContext,
-    ...missions.value.map(mission => `${mission.title || ''} ${mission.description || ''}`)
-  ].join(' ');
-
-  if (/열차|철도|철길|역|레일|기차|영동선|탄광|석탄|광산/.test(source)) {
-    return 'railIndustry';
-  }
-  if (/궁|왕|왕실|대한제국|조선|개항|외세|성곽|성문|관아/.test(source)) {
-    return 'royalModern';
-  }
-  if (/전쟁|전투|피난|휴전|호국|전적|참전/.test(source)) {
-    return 'warMemory';
-  }
-  if (/바다|해안|항구|항만|등대|섬|포구|어촌/.test(source)) {
-    return 'coastalMemory';
-  }
-  if (/관광|축제|마을|시장|골목|문화|테마|콘텐츠/.test(source)) {
-    return 'localTourism';
-  }
-  return 'archive';
-};
-
-// 시스템 용어, 안내 문장, 최종 장소명이 노출된 텍스트는 브리핑으로 쓰지 않습니다.
+// 명백히 비어 있거나 내부 오류 문구인 경우만 fallback 처리합니다.
 const isUsableNarrative = (text) => {
   if (!text) return false;
-  const blockedTerms = ['마커', '좌표', 'TourAPI', '사진', '촬영', 'AI', '채팅', '이동', '지역', '지도', '힌트 노드', '투입 지시', '판독 기준', '안내판', '비석', '조형물', '전시관', '놀이터'];
-  const mixedToneTerms = ['습니다', '입니다', '하세요', '하십시오', '하시오'];
-  return !blockedTerms.some(term => text.includes(term))
-    && !mixedToneTerms.some(term => text.includes(term))
-    && !containsFinalTargetName(text)
-    && !isMechanicalBriefing(text);
-};
-
-const containsFinalTargetName = (text) => {
-  const finalTitle = finalMission.value?.title;
-  return Boolean(finalTitle && text?.includes(finalTitle));
+  return !isMechanicalBriefing(text);
 };
 
 const isMechanicalBriefing = (text) => {
