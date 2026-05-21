@@ -683,23 +683,35 @@ public class AdminMissionController {
         if (value == null || value.isBlank()) {
             return fallback;
         }
-        return value.trim().toLowerCase();
+        String normalized = value.trim().toLowerCase();
+        return switch (normalized) {
+            case "prehistoric" -> "ancient";
+            case "japanese", "colonial", "empire", "opening", "opening_japanese", "modern_occupation" -> "empire_japanese";
+            case "war", "security" -> "war_security";
+            case "life", "daily", "daily_history" -> "daily_life";
+            default -> normalized;
+        };
     }
 
     private String resolveDefaultPeriodCode(Map<String, String> targetSpot, JsonNode root) {
-        String context = buildClassificationContext(targetSpot, root);
-
-        // 선사
-        if (containsAny(context,
-                "구석기", "신석기", "청동기", "철기", "선사")) {
-            return "prehistoric";
+        String aiPeriodCode = normalizeMetadataCode(root == null ? null : root.path("periodCode").asText(null), "");
+        if (isSupportedPeriodCode(aiPeriodCode)) {
+            return aiPeriodCode;
         }
 
-        // 고대
+        String context = buildClassificationContext(targetSpot, root);
+
+        // 선사/고대는 화면 분류상 모두 고대로 묶습니다.
+        if (containsAny(context,
+                "구석기", "신석기", "청동기", "철기", "선사", "고대", "원삼국")) {
+            return "ancient";
+        }
+
+        // 삼국/통일신라/발해
         if (containsAny(context,
                 "고조선", "삼국", "백제", "신라", "고구려",
                 "가야", "통일신라", "발해")) {
-            return "ancient";
+            return "three_kingdoms";
         }
 
         // 고려
@@ -716,27 +728,39 @@ public class AdminMissionController {
             return "joseon";
         }
 
-        // 근대
+        // 개항기/대한제국/일제강점기
         if (containsAny(context,
                 "대한제국", "개항", "개화기",
                 "일제", "강점", "독립운동",
                 "의병", "3.1", "삼일",
                 "1910", "1945")) {
-            return "modern";
+            return "empire_japanese";
         }
 
         // 현대
         if (containsAny(context,
                 "광복", "해방", "한국전쟁",
                 "6.25", "민주화", "산업화",
-                "올림픽", "월드컵", "디지털")) {
+                "올림픽", "월드컵", "디지털", "축제")) {
             return "contemporary";
+        }
+
+        // 근현대 일반
+        if (containsAny(context,
+                "근대", "근현대", "근대문화", "철도", "기차", "열차", "역사", "탄광", "광산",
+                "항구", "항만", "등대", "시장 형성", "상권 형성")) {
+            return "modern";
         }
 
         return "mixed";
     }
 
     private String resolveDefaultThemeCode(Map<String, String> targetSpot, JsonNode root) {
+        String aiThemeCode = normalizeMetadataCode(root == null ? null : root.path("themeCode").asText(null), "");
+        if (isSupportedThemeCode(aiThemeCode)) {
+            return aiThemeCode;
+        }
+
         String context = buildClassificationContext(targetSpot, root);
         if (containsAny(context, "궁", "궁궐", "왕실", "경복궁", "창덕궁", "덕수궁")) {
             return "royal";
@@ -746,6 +770,15 @@ public class AdminMissionController {
         }
         if (containsAny(context, "전쟁", "안보", "전투", "피난", "군사", "6.25", "한국전쟁")) {
             return "war_security";
+        }
+        if (containsAny(context, "철도", "철길", "열차", "기차", "역", "레일", "탄광", "광산", "석탄", "산업")) {
+            return "daily_life";
+        }
+        if (containsAny(context, "바다", "해안", "항구", "항만", "등대", "섬", "포구", "어촌", "선착장")) {
+            return "nature";
+        }
+        if (containsAny(context, "관광", "축제", "테마", "콘텐츠", "마을 재생", "문화자원", "지역 산업")) {
+            return "culture";
         }
         if (containsAny(context, "시장", "전통시장", "재래시장", "상점가", "거리", "골목", "상점")) {
             return "market";
@@ -763,6 +796,33 @@ public class AdminMissionController {
             return "daily_life";
         }
         return "mystery";
+    }
+
+    private boolean isSupportedPeriodCode(String value) {
+        return Set.of(
+                "ancient",
+                "three_kingdoms",
+                "goryeo",
+                "joseon",
+                "empire_japanese",
+                "modern",
+                "contemporary",
+                "mixed"
+        ).contains(value);
+    }
+
+    private boolean isSupportedThemeCode(String value) {
+        return Set.of(
+                "royal",
+                "independence",
+                "war_security",
+                "market",
+                "culture",
+                "architecture",
+                "nature",
+                "daily_life",
+                "mystery"
+        ).contains(value);
     }
 
     private boolean containsAny(String value, String... needles) {
