@@ -688,51 +688,75 @@ public class AdminMissionController {
 
     private String resolveDefaultPeriodCode(Map<String, String> targetSpot, JsonNode root) {
         String context = buildClassificationContext(targetSpot, root);
-        if (containsAny(context, "선사", "고대", "청동기", "철기")) {
+
+        // 선사
+        if (containsAny(context,
+                "구석기", "신석기", "청동기", "철기", "선사")) {
+            return "prehistoric";
+        }
+
+        // 고대
+        if (containsAny(context,
+                "고조선", "삼국", "백제", "신라", "고구려",
+                "가야", "통일신라", "발해")) {
             return "ancient";
         }
-        if (containsAny(context, "삼국", "백제", "신라", "고구려", "가야")) {
-            return "three_kingdoms";
-        }
-        if (containsAny(context, "고려")) {
+
+        // 고려
+        if (containsAny(context,
+                "고려", "팔만대장경", "고려청자")) {
             return "goryeo";
         }
-        if (containsAny(context, "조선", "한양", "궁궐", "왕실", "세종", "정조", "고종", "경복궁", "창덕궁", "덕수궁")) {
+
+        // 조선
+        if (containsAny(context,
+                "조선", "한양", "궁궐", "왕실",
+                "세종", "정조", "고종",
+                "경복궁", "창덕궁", "덕수궁")) {
             return "joseon";
         }
-        if (containsAny(context, "대한제국", "개항", "일제", "강점", "독립", "의병", "3.1", "삼일", "1910", "1945")) {
-            return "empire_japanese";
-        }
-        if (containsAny(context, "근대", "한국전쟁", "6.25", "민주화", "산업화", "개화", "해방")) {
+
+        // 근대
+        if (containsAny(context,
+                "대한제국", "개항", "개화기",
+                "일제", "강점", "독립운동",
+                "의병", "3.1", "삼일",
+                "1910", "1945")) {
             return "modern";
         }
-        if (containsAny(context, "현대", "올림픽", "월드컵", "2002", "디지털")) {
+
+        // 현대
+        if (containsAny(context,
+                "광복", "해방", "한국전쟁",
+                "6.25", "민주화", "산업화",
+                "올림픽", "월드컵", "디지털")) {
             return "contemporary";
         }
+
         return "mixed";
     }
 
     private String resolveDefaultThemeCode(Map<String, String> targetSpot, JsonNode root) {
         String context = buildClassificationContext(targetSpot, root);
-        if (containsAny(context, "궁", "궁궐", "왕", "왕실", "royal")) {
+        if (containsAny(context, "궁", "궁궐", "왕실", "경복궁", "창덕궁", "덕수궁")) {
             return "royal";
         }
-        if (containsAny(context, "독립", "의병", "만세", "대한제국", "일제", "강점")) {
+        if (containsAny(context, "독립운동", "의병", "만세", "대한제국", "일제강점기")) {
             return "independence";
         }
-        if (containsAny(context, "전쟁", "안보", "전투", "피난", "군사", "6.25")) {
+        if (containsAny(context, "전쟁", "안보", "전투", "피난", "군사", "6.25", "한국전쟁")) {
             return "war_security";
         }
-        if (containsAny(context, "시장", "상권", "거리", "골목", "상점")) {
+        if (containsAny(context, "시장", "전통시장", "재래시장", "상점가", "거리", "골목", "상점")) {
             return "market";
         }
-        if (containsAny(context, "문화", "예술", "전시", "박물관", "미술")) {
+        if (containsAny(context, "미술관", "전시관", "공연", "예술", "전시", "박물관", "미술")) {
             return "culture";
         }
-        if (containsAny(context, "건축", "도시", "역", "다리", "건물", "성곽", "문")) {
+        if (containsAny(context, "한옥", "건축", "도시", "철도", "다리", "건물", "성곽")) {
             return "architecture";
         }
-        if (containsAny(context, "공원", "숲", "산", "호수", "강", "정원")) {
+        if (containsAny(context, "공원", "숲", "산림", "등산", "국립공원", "호수", "강", "정원", "생태")) {
             return "nature";
         }
         if (containsAny(context, "생활", "마을", "주거", "음식", "골목")) {
