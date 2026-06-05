@@ -64,7 +64,7 @@ public class CaseFileService {
                 .finalQuestion(episode.getFinalQuestion())
                 .overview(CaseFileResponse.Overview.builder()
                         .briefingTitle("Operation Korea 사건파일")
-                        .summary("북촌의 한 사진사가 의문의 죽음을 맞았다. 남은 것은 마지막 사진과 흩어진 기록뿐이다.")
+                        .summary("정동의 한 사진사가 의문의 죽음을 맞았다. 남은 것은 마지막 사진과 흩어진 기록뿐이다.")
                         .goal("현장 단서와 사건 자료를 대조해 사진사를 죽음으로 이끈 진짜 흉기를 밝혀라.")
                         .fictionSynopsis(episode.getFictionSynopsis())
                         .build())

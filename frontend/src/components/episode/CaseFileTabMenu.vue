@@ -22,4 +22,5 @@ const go = (name) => router.push({ name, params: { episodeId: props.episodeId } 
 .case-tabs { width: min(100%, 430px); margin: 0 auto 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 6px; border: 1px solid rgba(148,163,184,.22); border-radius: 16px; background: rgba(15,23,42,.72); }
 button { min-height: 40px; border: 0; border-radius: 12px; background: transparent; color: #cbd5e1; font: inherit; font-weight: 900; }
 button.active { background: #b45309; color: #fff7ed; box-shadow: 0 8px 18px rgba(180,83,9,.25); }
+@media (max-width: 370px) { button { font-size: .84rem; } }
 </style>
