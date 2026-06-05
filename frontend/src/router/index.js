@@ -6,80 +6,58 @@ import BriefingView from '@/views/BriefingView.vue';
 import MapView from '@/views/MapView.vue';
 import AiChatView from '@/views/AiChatView.vue';
 import ClearView from '@/views/ClearView.vue';
-
+import EpisodeListView from '@/views/EpisodeListView.vue';
+import EpisodeDetailView from '@/views/EpisodeDetailView.vue';
+import EpisodeBriefingView from '@/views/EpisodeBriefingView.vue';
+import EpisodeMapView from '@/views/EpisodeMapView.vue';
+import EpisodeCaseFileView from '@/views/EpisodeCaseFileView.vue';
+import FinalDeductionView from '@/views/FinalDeductionView.vue';
+import ClearReportView from '@/views/ClearReportView.vue';
+import AdminReviewsView from '@/views/AdminReviewsView.vue';
+import AdminUsersView from '@/views/AdminUsersView.vue';
+import AdminEpisodesView from '@/views/AdminEpisodesView.vue';
 import { useSessionStore } from '@/stores/sessionStore.js';
 
-// 서비스의 전체 화면 흐름입니다.
-// Intro -> Home -> Briefing -> Map -> Chat -> Clear 순서가 기본 게임 루프입니다.
 const routes = [
-  {
-    path: '/',
-    redirect: '/intro'
-  },
-  {
-    path: '/intro',
-    name: 'Intro',
-    component: IntroView,
-    meta: { requiresAuth: false }
-  },
-  {
-    path: '/home',
-    name: 'Home',
-    component: HomeView,
-    meta: { requiresAuth: true } // 로그인 필수
-  },
-  {
-    path: '/regions/:regionId',
-    name: 'RegionDetail',
-    component: RegionDetailView,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/briefing',
-    name: 'Briefing',
-    component: BriefingView,
-    meta: { requiresAuth: true }, // 로그인 필수
-    props: route => ({ missionId: route.query.missionId })
-  },
-  {
-    path: '/map',
-    name: 'Map',
-    component: MapView,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/chat/:sessionId',
-    name: 'Chat',
-    component: AiChatView,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/clear/:missionId',
-    name: 'Clear',
-    component: ClearView,
-    meta: { requiresAuth: true }
-  }
+  { path: '/', redirect: '/intro' },
+  { path: '/intro', name: 'Intro', component: IntroView, meta: { requiresAuth: false } },
+  { path: '/episodes', name: 'EpisodeList', component: EpisodeListView, meta: { requiresAuth: true } },
+  { path: '/episodes/:episodeId', name: 'EpisodeDetail', component: EpisodeDetailView, meta: { requiresAuth: true } },
+  { path: '/episodes/:episodeId/briefing', name: 'EpisodeBriefing', component: EpisodeBriefingView, meta: { requiresAuth: true } },
+  { path: '/episodes/:episodeId/map', name: 'EpisodeMap', component: EpisodeMapView, meta: { requiresAuth: true } },
+  { path: '/episodes/:episodeId/case-file', name: 'EpisodeCaseFile', component: EpisodeCaseFileView, meta: { requiresAuth: true } },
+  { path: '/episodes/:episodeId/deduction', name: 'FinalDeduction', component: FinalDeductionView, meta: { requiresAuth: true } },
+  { path: '/episodes/:episodeId/clear-report', name: 'EpisodeClearReport', component: ClearReportView, meta: { requiresAuth: true } },
+  { path: '/admin/users', name: 'AdminUsers', component: AdminUsersView, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/reviews', name: 'AdminReviews', component: AdminReviewsView, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/episodes', name: 'AdminEpisodes', component: AdminEpisodesView, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/home', name: 'Home', component: HomeView, meta: { requiresAuth: true } },
+  { path: '/regions/:regionId', name: 'RegionDetail', component: RegionDetailView, meta: { requiresAuth: true } },
+  { path: '/briefing', name: 'Briefing', component: BriefingView, meta: { requiresAuth: true }, props: route => ({ missionId: route.query.missionId }) },
+  { path: '/map', name: 'Map', component: MapView, meta: { requiresAuth: true } },
+  { path: '/chat/:sessionId', name: 'Chat', component: AiChatView, meta: { requiresAuth: true } },
+  { path: '/clear/:missionId', name: 'Clear', component: ClearView, meta: { requiresAuth: true } }
 ];
-
-
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes
 });
 
-// 로그인 필수 화면은 sessionStore의 토큰 존재 여부로 막습니다.
-// 이미 로그인한 사용자가 Intro로 돌아오면 Home으로 돌려보내 UX 흐름을 단순화합니다.
-router.beforeEach((to, from) => {
+router.beforeEach(async (to) => {
   const sessionStore = useSessionStore();
-
-  if (to.meta.requiresAuth && !sessionStore.isLoggedIn) {
-    alert('로그인이 필요한 서비스입니다.');
-    return { name: 'Intro' };
-  } else if (to.name === 'Intro' && sessionStore.isLoggedIn) {
-    return { name: 'Home' };
+  if (to.meta.requiresAuth) {
+    await sessionStore.ensureInitialized();
+    if (!sessionStore.isLoggedIn) {
+      return { name: 'Intro' };
+    }
+    if (to.meta.requiresAdmin && !sessionStore.isAdmin) {
+      return { name: 'EpisodeList' };
+    }
   }
-
+  if (to.name === 'Intro' && sessionStore.isLoggedIn) {
+    return { name: 'EpisodeList' };
+  }
   return true;
 });
 

@@ -1,43 +1,100 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
 
-// 로그인 세션을 관리하는 전역 store입니다.
-// 새로고침 후에도 인증 상태가 유지되도록 token/userInfo를 localStorage에 동기화합니다.
 export const useSessionStore = defineStore('session', () => {
-    const token = ref(localStorage.getItem('accessToken') || null);
-    const userInfo = ref(normalizeUserInfo(JSON.parse(localStorage.getItem('userInfo')) || null));
+  const token = ref(localStorage.getItem('accessToken') || null);
+  const userInfo = ref(normalizeUserInfo(safeParse(localStorage.getItem('userInfo'))));
+  const initialized = ref(false);
 
-    const isLoggedIn = computed(() => !!token.value);
+  const isLoggedIn = computed(() => !!token.value);
+  const isAuthenticated = computed(() => !!token.value && !!userInfo.value);
+  const currentUser = computed(() => userInfo.value);
+  const userId = computed(() => userInfo.value?.id || null);
+  const isAdmin = computed(() => userInfo.value?.isAdmin === true || userInfo.value?.role === 'ROLE_ADMIN');
 
-    const userId = computed(() => userInfo.value?.id || null);
+  const login = (payload) => {
+    const authPayload = payload?.data || payload;
+    const normalizedUser = normalizeUserInfo(authPayload.user);
+    token.value = authPayload.token;
+    userInfo.value = normalizedUser;
+    initialized.value = true;
 
-    // AuthController.login 응답을 받아 프론트 상태와 localStorage를 동시에 갱신합니다.
-    const login = (payload) => {
-        const normalizedUser = normalizeUserInfo(payload.user);
-        token.value = payload.token;
-        userInfo.value = normalizedUser;
+    localStorage.setItem('accessToken', authPayload.token);
+    localStorage.setItem('userInfo', JSON.stringify(normalizedUser));
+  };
 
-        localStorage.setItem('accessToken', payload.token);
-        localStorage.setItem('userInfo', JSON.stringify(normalizedUser));
-    };
+  const setCurrentUser = (user) => {
+    const normalizedUser = normalizeUserInfo(user);
+    userInfo.value = normalizedUser;
+    initialized.value = true;
+    if (normalizedUser) {
+      localStorage.setItem('userInfo', JSON.stringify(normalizedUser));
+    }
+  };
 
-    // 로그아웃 또는 401 응답 시 모든 인증 정보를 제거합니다.
-    const logout = () => {
-        token.value = null;
-        userInfo.value = null;
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('userInfo');
-    };
+  const fetchCurrentUser = async () => {
+    if (!token.value) {
+      initialized.value = true;
+      return null;
+    }
+    const { userApi } = await import('@/api/userApi');
+    const user = await userApi.me();
+    setCurrentUser(user);
+    return user;
+  };
 
-    return { token, userInfo, userId, isLoggedIn, login, logout };
+  const ensureInitialized = async () => {
+    if (initialized.value) return userInfo.value;
+    if (!token.value) {
+      initialized.value = true;
+      return null;
+    }
+    try {
+      return await fetchCurrentUser();
+    } catch (error) {
+      logout();
+      return null;
+    }
+  };
+
+  const logout = () => {
+    token.value = null;
+    userInfo.value = null;
+    initialized.value = true;
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('userInfo');
+  };
+
+  return {
+    token,
+    userInfo,
+    currentUser,
+    userId,
+    isLoggedIn,
+    isAuthenticated,
+    isAdmin,
+    initialized,
+    login,
+    logout,
+    fetchCurrentUser,
+    ensureInitialized,
+    setCurrentUser
+  };
 });
 
-// 백엔드/Lombok 직렬화 방식에 따라 isAdmin 또는 admin으로 내려올 수 있어 프론트에서 통일합니다.
 const normalizeUserInfo = (user) => {
-    if (!user) return null;
+  if (!user) return null;
+  return {
+    ...user,
+    isAdmin: user.isAdmin === true || user.admin === true || user.role === 'ROLE_ADMIN',
+  };
+};
 
-    return {
-        ...user,
-        isAdmin: user.isAdmin === true || user.admin === true,
-    };
+const safeParse = (value) => {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 };

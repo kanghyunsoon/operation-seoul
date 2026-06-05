@@ -1,0 +1,72 @@
+<template>
+  <aside v-if="spot" class="spot-sheet">
+    <div class="sheet-bar"></div>
+
+    <div class="spot-head">
+      <div>
+        <p class="role" :class="spot.publicMarkerType">{{ roleLabel(spot.publicMarkerType) }}</p>
+        <h2>{{ spot.placeName }}</h2>
+      </div>
+      <span class="state" :class="{ done: spot.completed, visited: spot.visited }">
+        {{ spot.completed ? '완료' : spot.visited ? '도착 확인' : '미방문' }}
+      </span>
+    </div>
+
+    <p class="story">{{ spot.storyText }}</p>
+    <p class="address">{{ spot.address }}</p>
+
+    <div v-if="arrivalResult" class="arrival-message" :class="{ success: arrivalResult.arrived, final: arrivalResult.canStartDeduction }">
+      {{ arrivalResult.message }}
+    </div>
+
+    <div class="actions">
+      <button type="button" class="tmap" @click="$emit('navigate', spot)">Tmap 내비 시작</button>
+      <button type="button" @click="$emit('arrive', spot)">도착 판정</button>
+      <button type="button" :disabled="!spot.visited" @click="$emit('open-puzzle', spot)">퍼즐 열기</button>
+      <button type="button" class="deduction" :disabled="!arrivalResult?.canStartDeduction" @click="$emit('start-deduction')">최종 추리</button>
+    </div>
+  </aside>
+</template>
+
+<script setup>
+defineProps({
+  spot: { type: Object, default: null },
+  arrivalResult: { type: Object, default: null }
+});
+
+defineEmits(['navigate', 'arrive', 'open-puzzle', 'start-deduction']);
+
+const roleLabel = (type) => ({
+  START: '시작 장소',
+  ANSWER_HINT: '정답 힌트',
+  DESTINATION_HINT: '목적지 힌트',
+  STORY: '스토리 단서',
+  FINAL_CANDIDATE: '조사 후보'
+}[type] || type);
+</script>
+
+<style scoped>
+.spot-sheet { position: fixed; left: 50%; bottom: 0; z-index: 30; width: min(100%, 430px); transform: translateX(-50%); box-sizing: border-box; padding: 12px 16px 18px; border: 1px solid rgba(148, 163, 184, .22); border-radius: 22px 22px 0 0; background: rgba(15, 23, 42, .96); color: #e5edf8; box-shadow: 0 -18px 40px rgba(0,0,0,.38); }
+.sheet-bar { width: 44px; height: 4px; margin: 0 auto 12px; border-radius: 999px; background: #475569; }
+.spot-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+h2 { margin: 3px 0 0; color: #fff; font-size: 1.15rem; }
+.role { margin: 0; font-size: .74rem; font-weight: 900; }
+.role.START { color: #60a5fa; }
+.role.ANSWER_HINT { color: #fb923c; }
+.role.DESTINATION_HINT { color: #c084fc; }
+.role.STORY { color: #4ade80; }
+.role.FINAL_CANDIDATE { color: #cbd5e1; }
+.state { flex: 0 0 auto; border: 1px solid rgba(148,163,184,.28); border-radius: 999px; padding: 5px 8px; color: #94a3b8; font-size: .74rem; font-weight: 800; }
+.state.visited { border-color: rgba(56,189,248,.45); color: #7dd3fc; }
+.state.done { border-color: rgba(34,197,94,.45); color: #86efac; }
+.story { margin: 12px 0 8px; color: #dbeafe; line-height: 1.55; }
+.address { margin: 0; color: #94a3b8; font-size: .82rem; }
+.arrival-message { margin-top: 10px; padding: 10px; border-radius: 10px; background: rgba(71,85,105,.22); color: #cbd5e1; font-size: .84rem; line-height: 1.45; }
+.arrival-message.success { background: rgba(14,116,144,.26); color: #a5f3fc; }
+.arrival-message.final { background: rgba(127,29,29,.34); color: #fecaca; }
+.actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 14px; }
+button { min-height: 42px; border: 1px solid rgba(148,163,184,.28); border-radius: 12px; background: rgba(30,41,59,.88); color: #f8fafc; font: inherit; font-weight: 850; }
+button:disabled { opacity: .45; }
+.tmap { border-color: rgba(59,130,246,.5); background: rgba(30,64,175,.55); }
+.deduction { border-color: rgba(248,113,113,.42); background: rgba(127,29,29,.3); }
+</style>
