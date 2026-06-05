@@ -1,6 +1,8 @@
 package com.operation.seoul.auth.security;
 
 import com.operation.seoul.auth.domain.User;
+import com.operation.seoul.global.exception.ApiException;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -8,27 +10,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class CurrentUserResolver {
 
-    /**
-     * JWT 인증 정보가 있으면 인증된 사용자 id를 우선 사용하고,
-     * 개발 중 호환을 위해 query/body에 전달된 fallback id를 보조로 사용합니다.
-     */
-    public Long resolveUserId(Long fallbackUserId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return fallbackUserId != null ? fallbackUserId : 1L;
+    public Long resolveUserId(Long ignoredFallbackUserId) {
+        return requireCurrentUser().getId();
     }
 
-    /**
-     * 인증된 사용자 권한을 기준으로 관리자 여부를 판단합니다.
-     * 로그인 전 개발용 호출이 남아 있어 fallback 값을 허용하지만, 운영 판단은 토큰 기준입니다.
-     */
-    public boolean resolveIsAdmin(boolean fallbackIsAdmin) {
+    public boolean resolveIsAdmin(boolean ignoredFallbackIsAdmin) {
+        return requireCurrentUser().isAdmin();
+    }
+
+    public User requireCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.isAdmin();
+            if (!user.isActive()) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_INACTIVE", "이용이 제한된 계정입니다.");
+            }
+            return user;
         }
-        return fallbackIsAdmin;
+        throw new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_REQUIRED", "다시 로그인해 주세요.");
     }
 }

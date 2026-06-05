@@ -1,77 +1,49 @@
 <template>
-  <div class="intro-container">
-    <!-- 로그인/회원가입을 한 화면에서 전환하는 진입 화면입니다. -->
+  <main class="intro-container">
     <div class="bg-shape circle-1"></div>
     <div class="bg-shape circle-2"></div>
 
-    <div class="login-card">
-      <div class="header">
-        <h1 class="title">OPERATION<span class="highlight">: SEOUL</span></h1>
-        <p class="subtitle">현장 요원 시스템에 연결합니다</p>
-      </div>
+    <section class="login-card">
+      <header class="header">
+        <p class="eyebrow">FIELD ACCESS</p>
+        <h1 class="title">OPERATION<span> KOREA</span></h1>
+        <p class="subtitle">사건파일형 야외 방탈출에 접속합니다.</p>
+      </header>
 
-      <form @submit.prevent="handleSubmit" class="auth-form">
-        <div class="input-group">
-          <label for="email">Agent Email</label>
-          <div class="input-wrapper">
-            <input
-                id="email"
-                v-model="email"
-                type="email"
-                required
-                placeholder="이메일을 입력하세요"
-                autocomplete="off"
-            />
-          </div>
-        </div>
+      <form class="auth-form" @submit.prevent="handleSubmit">
+        <label class="input-group" for="email">
+          이메일
+          <input id="email" v-model.trim="email" type="email" required placeholder="agent@example.com" autocomplete="email" />
+        </label>
 
-        <div class="input-group">
-          <label for="password">Password</label>
-          <div class="input-wrapper">
-            <input
-                id="password"
-                v-model="password"
-                type="password"
-                required
-                placeholder="비밀번호를 입력하세요"
-            />
-          </div>
-        </div>
+        <label class="input-group" for="password">
+          비밀번호
+          <input id="password" v-model="password" type="password" required placeholder="8자 이상 입력" autocomplete="current-password" />
+        </label>
 
-        <transition name="fade">
-          <div v-if="!isLoginMode" class="input-group">
-            <label for="nickname">Codename</label>
-            <div class="input-wrapper">
-              <input
-                  id="nickname"
-                  v-model="nickname"
-                  type="text"
-                  required
-                  placeholder="사용할 코드네임을 입력하세요"
-              />
-            </div>
-          </div>
-        </transition>
+        <label v-if="!isLoginMode" class="input-group" for="nickname">
+          닉네임
+          <input id="nickname" v-model.trim="nickname" type="text" required placeholder="수사관 닉네임" autocomplete="nickname" />
+        </label>
 
-        <button type="submit" class="submit-btn">
-          {{ isLoginMode ? 'SYSTEM ACCESS' : 'REGISTER AGENT' }}
+        <button type="submit" class="submit-btn" :disabled="submitting">
+          {{ submitting ? '처리 중' : isLoginMode ? '로그인' : '회원가입' }}
         </button>
       </form>
 
-      <div class="toggle-mode">
-        <button type="button" @click="toggleMode" class="text-btn">
-          {{ isLoginMode ? '새로운 요원으로 등록하시겠습니까?' : '이미 등록된 요원이신가요?' }}
-        </button>
-      </div>
-    </div>
-  </div>
+      <p v-if="formMessage" class="form-message" :class="formMessageType">{{ formMessage }}</p>
+
+      <button type="button" class="text-btn" @click="toggleMode">
+        {{ isLoginMode ? '처음이라면 회원가입하기' : '이미 계정이 있다면 로그인하기' }}
+      </button>
+    </section>
+  </main>
 </template>
 
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore.js';
-// 실제 백엔드 연동 시 사용할 API 인스턴스
 import apiClient from '@/api/axiosInstance';
 
 const router = useRouter();
@@ -81,235 +53,81 @@ const isLoginMode = ref(true);
 const email = ref('');
 const password = ref('');
 const nickname = ref('');
+const formMessage = ref('');
+const formMessageType = ref('info');
+const submitting = ref(false);
 
-// 로그인/회원가입 모드를 전환할 때 이전 입력값이 남아 잘못 제출되지 않도록 모두 초기화합니다.
-const toggleMode = () => {
+function toggleMode() {
   isLoginMode.value = !isLoginMode.value;
   email.value = '';
   password.value = '';
   nickname.value = '';
-};
+  formMessage.value = '';
+}
 
-// AuthController의 /login 또는 /register를 호출하고, 로그인 성공 시 Pinia 세션에 JWT를 저장합니다.
-const handleSubmit = async () => {
+async function handleSubmit() {
+  if (!email.value || !password.value || (!isLoginMode.value && !nickname.value)) {
+    setMessage('필수 입력값을 확인해 주세요.', 'error');
+    return;
+  }
+  if (password.value.length < 8) {
+    setMessage('비밀번호는 최소 길이와 형식 조건을 만족해야 합니다.', 'error');
+    return;
+  }
+
+  submitting.value = true;
   try {
     if (isLoginMode.value) {
-      const response = await apiClient.post('/v1/auth/login', {
-        email: email.value,
-        password: password.value
-      });
-
-      // 백엔드에서 받은 토큰과 유저 정보를 Pinia 스토어에 저장합니다.
-      sessionStore.login({
-        token: response.data.token,
-        user: response.data.user
-      });
-
-      alert('요원 인증 완료. HQ 터미널에 접속합니다.');
-      router.push({name: 'Home'});
-
+      const response = await apiClient.post('/v1/auth/login', { email: email.value, password: password.value });
+      sessionStore.login(response.data.data || response.data);
+      setMessage(response.data.message || '로그인되었습니다.', 'success');
+      router.push({ name: 'EpisodeList' });
     } else {
       const response = await apiClient.post('/v1/auth/register', {
         email: email.value,
         password: password.value,
-        nickname: nickname.value
+        nickname: nickname.value,
       });
-
-      alert('신규 요원 등록이 완료되었습니다. 이제 로그인해주십시오.');
-      toggleMode();
+      setMessage(response.data.message || '회원가입이 완료되었습니다. 로그인해 주세요.', 'success');
+      isLoginMode.value = true;
+      password.value = '';
+      nickname.value = '';
     }
   } catch (error) {
-      // 로그인과 회원가입은 실패 원인이 달라 사용자 메시지를 분리합니다.
-      if (isLoginMode.value) {
-        alert(getLoginErrorMessage(error));
-      } else {
-        alert('등록 실패: 이미 사용 중인 이메일이거나 서버 오류입니다.');
-      }
-      console.error(error);
+    setMessage(error.userMessage || (isLoginMode.value ? '이메일 또는 비밀번호를 확인해 주세요.' : '회원가입을 완료할 수 없습니다.'), 'error');
+  } finally {
+    submitting.value = false;
   }
-};
+}
 
-// 서버 연결 실패, 인증 실패, 권한 실패를 신규 팀원이 디버깅하기 쉬운 문구로 구분합니다.
-const getLoginErrorMessage = (error) => {
-  if (!error.response) {
-    return '시스템 연결 실패: 백엔드 서버 주소 또는 CORS 설정을 확인하십시오.';
-  }
-
-  if (error.response.status === 401) {
-    return '시스템 접근 거부: 등록되지 않은 요원이거나 암호가 틀렸습니다.';
-  }
-
-  if (error.response.status === 403) {
-    return '시스템 접근 거부: 현재 계정에 접근 권한이 없습니다.';
-  }
-
-  return `시스템 접근 실패: 서버 오류가 발생했습니다. [${error.response.status}]`;
-};
+function setMessage(text, type) {
+  formMessage.value = text;
+  formMessageType.value = type;
+}
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-
-.intro-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: #0b0f19; /* 깊은 남색 계열의 다크 테마 */
-  font-family: 'Noto Sans KR', sans-serif;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 배경 장식 (모던한 느낌의 빛 번짐 효과) */
-.bg-shape {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  z-index: 0;
-}
-.circle-1 {
-  width: 300px;
-  height: 300px;
-  background: rgba(6, 182, 212, 0.2); /* Cyan 빛 */
-  top: -50px;
-  left: -50px;
-}
-.circle-2 {
-  width: 400px;
-  height: 400px;
-  background: rgba(59, 130, 246, 0.15); /* Blue 빛 */
-  bottom: -100px;
-  right: -100px;
-}
-
-/* Glassmorphism 로그인 카드 */
-.login-card {
-  position: relative;
-  z-index: 1;
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  padding: 40px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-}
-
-.header {
-  text-align: center;
-  margin-bottom: 35px;
-}
-
-.title {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #ffffff;
-  margin: 0 0 8px 0;
-  letter-spacing: 1px;
-}
-
-.title .highlight {
-  color: #06b6d4; /* 세련된 포인트 컬러 */
-}
-
-.subtitle {
-  font-size: 0.9rem;
-  color: #94a3b8;
-  margin: 0;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.input-group label {
-  font-size: 0.85rem;
-  color: #cbd5e1;
-  font-weight: 500;
-}
-
-.input-wrapper input {
-  width: 100%;
-  padding: 14px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  color: #ffffff;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  box-sizing: border-box;
-}
-
-.input-wrapper input::placeholder {
-  color: #475569;
-}
-
-.input-wrapper input:focus {
-  outline: none;
-  border-color: #06b6d4;
-  background: rgba(0, 0, 0, 0.4);
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
-}
-
-.submit-btn {
-  margin-top: 10px;
-  padding: 14px;
-  background: #06b6d4;
-  color: #ffffff;
-  border: none;
-  border-radius: 10px;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.3s ease, transform 0.1s ease;
-  letter-spacing: 0.5px;
-}
-
-.submit-btn:hover {
-  background: #0891b2;
-}
-
-.submit-btn:active {
-  transform: scale(0.98);
-}
-
-.toggle-mode {
-  margin-top: 25px;
-  text-align: center;
-}
-
-.text-btn {
-  background: none;
-  border: none;
-  color: #64748b;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: color 0.3s ease;
-}
-
-.text-btn:hover {
-  color: #06b6d4;
-}
-
-/* Vue Transition 애니메이션 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
+.intro-container { position: relative; min-height: 100vh; box-sizing: border-box; display: grid; place-items: center; overflow: hidden; padding: 24px 16px; background: radial-gradient(circle at 20% 12%, rgba(245,158,11,.24), transparent 30%), linear-gradient(155deg, #17110b, #0f172a 58%, #020617); color: #f8fafc; font-family: 'Noto Sans KR', Georgia, serif; }
+.bg-shape { position: absolute; border-radius: 999px; filter: blur(4px); opacity: .55; }
+.circle-1 { width: 260px; height: 260px; left: -80px; top: -70px; background: rgba(180,83,9,.34); }
+.circle-2 { width: 220px; height: 220px; right: -70px; bottom: 8%; background: rgba(20,184,166,.2); }
+.login-card { position: relative; width: min(100%, 420px); padding: 28px 22px; border: 1px solid rgba(245,158,11,.24); border-radius: 24px; background: rgba(15,23,42,.78); box-shadow: 0 28px 80px rgba(0,0,0,.34); backdrop-filter: blur(14px); }
+.header { margin-bottom: 24px; }
+.eyebrow { margin: 0 0 8px; color: #f59e0b; font-size: .76rem; font-weight: 900; letter-spacing: .16em; }
+.title { margin: 0; font-size: clamp(2.1rem, 12vw, 3.7rem); line-height: .95; }
+.title span { color: #f59e0b; }
+.subtitle { margin: 12px 0 0; color: #cbd5e1; }
+.auth-form { display: grid; gap: 14px; }
+.input-group { display: grid; gap: 7px; color: #e5e7eb; font-weight: 800; }
+input { min-height: 48px; box-sizing: border-box; width: 100%; border: 1px solid rgba(148,163,184,.32); border-radius: 14px; background: rgba(2,6,23,.56); color: #f8fafc; padding: 0 14px; font: inherit; }
+input:focus { outline: 2px solid rgba(245,158,11,.45); border-color: transparent; }
+.submit-btn { min-height: 50px; margin-top: 8px; border: 0; border-radius: 14px; background: #b45309; color: white; font: inherit; font-weight: 900; }
+.submit-btn:disabled { opacity: .65; }
+.form-message { margin: 16px 0 0; padding: 12px 14px; border-radius: 14px; background: rgba(30,64,175,.2); color: #bfdbfe; }
+.form-message.success { background: rgba(22,163,74,.16); color: #bbf7d0; }
+.form-message.error { background: rgba(220,38,38,.18); color: #fecaca; }
+.text-btn { display: block; width: 100%; min-height: 44px; margin-top: 14px; border: 0; background: transparent; color: #fde68a; font: inherit; font-weight: 900; }
+@media (max-width: 390px) {
+  .login-card { padding: 24px 18px; }
 }
 </style>
