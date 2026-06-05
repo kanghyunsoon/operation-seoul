@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
+  <rect width="960" height="640" fill="#1f2937"/>
+  <rect x="70" y="56" width="820" height="528" rx="28" fill="#fef3c7"/>
+  <rect x="108" y="96" width="744" height="124" rx="16" fill="#111827"/>
+  <text x="132" y="148" fill="#f59e0b" font-family="Georgia,serif" font-size="32" font-weight="700">OPERATION KOREA</text>
+  <text x="132" y="190" fill="#e5e7eb" font-family="Arial,sans-serif" font-size="22">GENERATED MEMO MATERIAL</text>
+  <rect x="170" y="292" width="210" height="180" rx="16" fill="#fffbeb" stroke="#f59e0b" stroke-width="10"/>
+  <path d="M198 342h150M198 386h116M198 430h132" stroke="#78350f" stroke-width="12" stroke-linecap="round"/>
+  <rect x="458" y="318" width="288" height="34" rx="17" fill="#f59e0b"/>
+  <rect x="458" y="382" width="350" height="28" rx="14" fill="#78350f" opacity=".35"/>
+  <rect x="458" y="434" width="284" height="28" rx="14" fill="#78350f" opacity=".24"/>
+  <text x="132" y="548" fill="#111827" font-family="Arial,sans-serif" font-size="28" font-weight="700">MEMO CARD</text>
+  <text x="132" y="584" fill="#78350f" font-family="Arial,sans-serif" font-size="20">fictional placeholder image</text>
+</svg>

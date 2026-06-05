@@ -568,7 +568,7 @@ public class AdminEpisodeService {
                     .latitude(place.getLatitude())
                     .longitude(place.getLongitude())
                     .markerType(role)
-                    .publicMarkerType("FINAL".equals(role) ? "FINAL_CANDIDATE" : role)
+                    .publicMarkerType(publicMarkerType(place.getPublicMarkerType(), "FINAL".equals(role), i, places.size(), role))
                     .clueRole(toClueRole(role))
                     .finalPlace("FINAL".equals(role))
                     .storyText(blank(place.getDescription(), "현장 자료를 확인하고 사건 단서를 대조한다."))
@@ -607,6 +607,7 @@ public class AdminEpisodeService {
                         .map(mission -> AiEpisodeDraftResponse.EvidenceDraft.builder()
                                 .title(mission.getRewardClue() + " 단서 카드")
                                 .type("ANSWER_HINT".equals(mission.getClueRole()) ? "ANSWER_CLUE" : "NOTE")
+                                .imageUrl(generatedEvidenceImage(mission.getRewardClue() + " case card", "ANSWER_HINT".equals(mission.getClueRole()) ? "ANSWER_CLUE" : "NOTE"))
                                 .textSummary("퍼즐 성공 시 해금되는 사건 자료 초안입니다.")
                                 .sourceMissionOrder(mission.getOrder())
                                 .build())
@@ -638,11 +639,7 @@ public class AdminEpisodeService {
         if (finalCount < 1) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "FINAL_PLACE_REQUIRED", "실제 최종 장소가 최소 1개 필요합니다.");
         }
-        String title = blank(draft.getEpisodeTitle(), "EP.NEW 사건파일");
-        boolean duplicateTitle = adminEpisodeRepository.findAllEpisodes().stream().anyMatch(episode -> title.equals(episode.getTitle()));
-        if (duplicateTitle) {
-            throw new ApiException(HttpStatus.CONFLICT, "DUPLICATE_EPISODE_TITLE", "이미 같은 제목의 에피소드가 있습니다.");
-        }
+        String title = resolveDraftTitle(draft, missions);
 
         Episode episode = new Episode();
         episode.setTitle(title);
@@ -686,7 +683,7 @@ public class AdminEpisodeService {
             spot.setMarkerType(markerType);
             spot.setFinalPlace(finalPlace);
             spot.setClueRole(finalPlace ? "FINAL_PLACE" : validateValue(blank(mission.getClueRole(), toClueRole(markerType)), CLUE_ROLES, "INVALID_CLUE_ROLE", "지원하지 않는 clueRole입니다."));
-            spot.setPublicMarkerType(finalPlace ? "FINAL_CANDIDATE" : validateValue(blank(mission.getPublicMarkerType(), markerType), PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType에는 FINAL을 사용할 수 없습니다."));
+            spot.setPublicMarkerType(publicMarkerType(mission.getPublicMarkerType(), finalPlace, i, missions.size(), markerType));
             spot.setStoryText(mission.getStoryText());
             spot.setArrivalRadius(mission.getArrivalRadius() == null ? 50.0 : Math.max(10.0, mission.getArrivalRadius()));
             adminEpisodeRepository.insertSpot(spot);
@@ -828,6 +825,7 @@ public class AdminEpisodeService {
             evidence.setEpisodeId(episodeId);
             evidence.setTitle(blank(draft.getTitle(), "검수 필요 자료 " + (i + 1)));
             evidence.setType(validateValue(blank(draft.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "지원하지 않는 증거 타입입니다."));
+            evidence.setImageUrl(safeDraftImageUrl(draft.getImageUrl(), evidence.getTitle(), evidence.getType()));
             evidence.setTextSummary(blank(draft.getTextSummary(), "AI 초안 기반 사건자료입니다. 운영 공개 전 현장 검수 필요."));
             evidence.setSourceSpotId(spot == null ? null : spot.getId());
             evidence.setRelatedSuspectId(suspects.isEmpty() ? null : suspects.get(Math.min(i, suspects.size() - 1)).getId());
@@ -1018,6 +1016,54 @@ public class AdminEpisodeService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EPISODE_PUBLISH_NOT_READY", "공개할 수 없습니다: " + String.join(" / ", errors));
         }
     }
+
+    @Transactional
+    public AdminEpisodeDetailResponse createEpisode(AdminEpisodeUpdateRequest request) {
+        AdminEpisodeUpdateRequest safeRequest = request == null ? new AdminEpisodeUpdateRequest() : request;
+        String uniqueSuffix = String.valueOf(System.currentTimeMillis());
+        String title = blank(safeRequest.getTitle(), "새 사건파일 초안 " + uniqueSuffix);
+        String candidateTitle = title;
+        boolean duplicateTitle = adminEpisodeRepository.findAllEpisodes().stream()
+                .anyMatch(episode -> candidateTitle.equals(episode.getTitle()));
+        if (duplicateTitle) {
+            title = title + " " + uniqueSuffix;
+        }
+
+        Episode episode = new Episode();
+        episode.setTitle(title);
+        episode.setSubtitle(blank(safeRequest.getSubtitle(), "관리자 초안"));
+        episode.setEra(blank(safeRequest.getEra(), "검수 필요"));
+        episode.setGenre(blank(safeRequest.getGenre(), "야외 방탈출 / 사건파일"));
+        episode.setDifficulty(blank(safeRequest.getDifficulty(), "NORMAL"));
+        episode.setEstimatedTime(blank(safeRequest.getEstimatedTime(), "약 2~3시간"));
+        episode.setEstimatedDistance(blank(safeRequest.getEstimatedDistance(), "검수 필요"));
+        episode.setFictionSynopsis(blank(safeRequest.getFictionSynopsis(), "관리자 초안입니다. 공개 전 사건 시놉시스를 작성하세요."));
+        episode.setFinalAnswerType(blank(safeRequest.getFinalAnswerType(), "TEXT"));
+        episode.setFinalAnswer(blank(safeRequest.getFinalAnswer(), "검수 필요"));
+        episode.setFinalAnswerAliases(blank(safeRequest.getFinalAnswerAliases(), ""));
+        episode.setFinalQuestion(blank(safeRequest.getFinalQuestion(), "최종 질문을 입력하세요."));
+        episode.setFinalTruthSummary(blank(safeRequest.getFinalTruthSummary(), "클리어 리포트용 진실 요약을 입력하세요."));
+        episode.setActualHistorySummary(blank(safeRequest.getActualHistorySummary(), "실제 역사 해설을 입력하세요."));
+        episode.setDeductionSecretFacts(blank(safeRequest.getDeductionSecretFacts(), "최종 추리에서 사용할 내부 사실을 입력하세요."));
+        episode.setDeductionForbiddenReveals(blank(safeRequest.getDeductionForbiddenReveals(), "최종 정답과 실제 최종 장소를 직접 노출하지 않습니다."));
+        episode.setMaxDeductionQuestions(safeRequest.getMaxDeductionQuestions() == null ? 20 : Math.max(1, safeRequest.getMaxDeductionQuestions()));
+        episode.setRecommendedPlayers(blank(safeRequest.getRecommendedPlayers(), "2~4명"));
+        episode.setTeamRoleGuide(blank(safeRequest.getTeamRoleGuide(), "역할 안내를 입력하세요."));
+        episode.setNoticeText(blank(safeRequest.getNoticeText(), "운영 주의사항을 입력하세요. 공개 전 현장 검수를 완료하세요."));
+        episode.setStatus("DRAFT");
+        adminEpisodeRepository.insertEpisode(episode);
+        return getEpisode(episode.getId());
+    }
+
+    @Transactional
+    public void deleteEpisode(Long episodeId) {
+        Episode episode = requireEpisode(episodeId);
+        if ("PUBLISHED".equals(episode.getStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PUBLISHED_EPISODE_DELETE_BLOCKED", "공개 중인 사건파일은 삭제할 수 없습니다. 먼저 ARCHIVED로 변경하세요.");
+        }
+        adminEpisodeRepository.deleteEpisode(episodeId);
+    }
+
     private Episode requireEpisode(Long episodeId) {
         Episode episode = adminEpisodeRepository.findEpisode(episodeId);
         if (episode == null) {
@@ -1065,6 +1111,15 @@ public class AdminEpisodeService {
         return "ANSWER_HINT";
     }
 
+    private String publicMarkerType(String requested, boolean finalPlace, int index, int total, String markerType) {
+        if (finalPlace || index == total - 2) {
+            return "FINAL_CANDIDATE";
+        }
+        String fallback = "FINAL".equals(markerType) ? "FINAL_CANDIDATE" : markerType;
+        String value = blank(requested, fallback);
+        return validateValue(value, PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType에는 FINAL을 사용할 수 없습니다.");
+    }
+
     private String toClueRole(String markerType) {
         return switch (markerType) {
             case "START" -> "START";
@@ -1109,6 +1164,66 @@ public class AdminEpisodeService {
             case "STORY" -> "마지막 사진";
             default -> "조사 시작";
         };
+    }
+
+    private String resolveDraftTitle(AiEpisodeDraftResponse.EpisodeDraft draft, List<AiEpisodeDraftResponse.MissionDraft> missions) {
+        String candidate = blank(draft.getEpisodeTitle(), "");
+        if (!isGenericDraftTitle(candidate)) {
+            return uniqueDraftTitle(candidate);
+        }
+        String anchor = missions.stream()
+                .filter(mission -> Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equals(mission.getMarkerType()))
+                .map(AiEpisodeDraftResponse.MissionDraft::getPlaceName)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElseGet(() -> missions.stream()
+                        .map(AiEpisodeDraftResponse.MissionDraft::getPlaceName)
+                        .filter(value -> value != null && !value.isBlank())
+                        .findFirst()
+                        .orElse("Operation KOREA"));
+        return uniqueDraftTitle("EP.NEW " + anchor + " 사건");
+    }
+
+    private boolean isGenericDraftTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return true;
+        }
+        String normalized = title.toLowerCase(Locale.ROOT).replace(" ", "");
+        return normalized.contains("ep.new") || normalized.contains("draft") || normalized.contains("episode");
+    }
+
+    private String uniqueDraftTitle(String title) {
+        String base = blank(title, "EP.NEW Operation KOREA 사건");
+        boolean duplicate = adminEpisodeRepository.findAllEpisodes().stream().anyMatch(episode -> base.equals(episode.getTitle()));
+        if (!duplicate) {
+            return base;
+        }
+        return base + " " + (System.currentTimeMillis() % 100000);
+    }
+
+    private String safeDraftImageUrl(String imageUrl, String title, String type) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return generatedEvidenceImage(title, type);
+        }
+        String trimmed = imageUrl.trim();
+        if (trimmed.startsWith("data:") || trimmed.length() > 900) {
+            return generatedEvidenceImage(title, type);
+        }
+        return trimmed;
+    }
+
+    private String generatedEvidenceImage(String title, String type) {
+        return switch (normalizeType(type)) {
+            case "PHOTO" -> "/generated-case-card-photo.svg";
+            case "MEMO", "POST_IT" -> "/generated-case-card-memo.svg";
+            case "DOCUMENT", "EVIDENCE", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE" -> "/generated-case-card-document.svg";
+            case "SUSPECT_CLUE" -> "/generated-case-card-suspect.svg";
+            default -> "/generated-case-card-note.svg";
+        };
+    }
+
+    private String normalizeType(String type) {
+        return type == null ? "" : type.trim().toUpperCase(Locale.ROOT);
     }
 
     private String blank(String value, String fallback) {

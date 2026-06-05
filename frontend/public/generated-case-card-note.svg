@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
+  <rect width="960" height="640" fill="#1a2e05"/>
+  <rect x="70" y="56" width="820" height="528" rx="28" fill="#ecfccb"/>
+  <rect x="108" y="96" width="744" height="124" rx="16" fill="#111827"/>
+  <text x="132" y="148" fill="#84cc16" font-family="Georgia,serif" font-size="32" font-weight="700">OPERATION KOREA</text>
+  <text x="132" y="190" fill="#e5e7eb" font-family="Arial,sans-serif" font-size="22">GENERATED NOTE MATERIAL</text>
+  <rect x="162" y="294" width="238" height="158" rx="18" fill="#f7fee7" stroke="#84cc16" stroke-width="10"/>
+  <path d="M198 346h160M198 390h128M198 434h146" stroke="#365314" stroke-width="12" stroke-linecap="round"/>
+  <rect x="458" y="318" width="288" height="34" rx="17" fill="#84cc16"/>
+  <rect x="458" y="382" width="350" height="28" rx="14" fill="#365314" opacity=".35"/>
+  <rect x="458" y="434" width="284" height="28" rx="14" fill="#365314" opacity=".24"/>
+  <text x="132" y="548" fill="#111827" font-family="Arial,sans-serif" font-size="28" font-weight="700">NOTE CARD</text>
+  <text x="132" y="584" fill="#365314" font-family="Arial,sans-serif" font-size="20">fictional placeholder image</text>
+</svg>

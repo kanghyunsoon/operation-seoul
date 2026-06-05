@@ -25,6 +25,7 @@ public class AiEpisodeDraftRequest {
         private List<String> keywords;
         private String adminMemo;
         private String role;
+        private String publicMarkerType;
         private Double arrivalRadius;
     }
 }

@@ -83,6 +83,7 @@ public class AiEpisodeDraftResponse {
     public static class EvidenceDraft {
         private String title;
         private String type;
+        private String imageUrl;
         private String textSummary;
         private Integer sourceMissionOrder;
     }
