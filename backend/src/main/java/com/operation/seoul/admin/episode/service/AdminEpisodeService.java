@@ -74,6 +74,7 @@ public class AdminEpisodeService {
     private final ObjectMapper objectMapper;
     private final TourApiService tourApiService;
     private final OperationAreaResolver operationAreaResolver;
+    private final KakaoLocalCandidateService kakaoLocalCandidateService;
 
     public List<AdminEpisodeListResponse> getEpisodes() {
         return adminEpisodeRepository.findAllEpisodes().stream()
@@ -134,6 +135,24 @@ public class AdminEpisodeService {
                 .sorted(java.util.Comparator.comparing(AdminPlaceCandidateResponse::getTitle))
                 .limit(MAX_CANDIDATES)
                 .toList();
+    }
+
+    public AiEpisodeDraftRequest enrichSiteData(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null || request.getPlaces().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SITE_ENRICHMENT_INPUT", "보강할 장소 목록이 필요합니다.");
+        }
+        AiEpisodeDraftRequest enriched = new AiEpisodeDraftRequest();
+        enriched.setArea(request.getArea());
+        enriched.setEra(request.getEra());
+        enriched.setTheme(request.getTheme());
+        enriched.setTargetAudience(request.getTargetAudience());
+        enriched.setPlayTime(request.getPlayTime());
+        List<AiEpisodeDraftRequest.PlaceInput> places = new ArrayList<>();
+        for (AiEpisodeDraftRequest.PlaceInput place : request.getPlaces()) {
+            places.add(enrichPlace(place));
+        }
+        enriched.setPlaces(places);
+        return enriched;
     }
 
     public AdminEpisodeDetailResponse getEpisode(Long episodeId) {
@@ -585,8 +604,9 @@ public class AdminEpisodeService {
 
         AiEpisodeDraftResponse.EpisodeDraft draft = AiEpisodeDraftResponse.EpisodeDraft.builder()
                 .episodeTitle("EP.NEW " + blank(request.getTheme(), "사라진 기록") + " 사건")
+                .subtitle(draftSubtitle(request, places))
                 .genre(blank(request.getTheme(), "야외 방탈출 / 역사 미스터리"))
-                .era(blank(request.getEra(), "시대 미정"))
+                .era(draftEra(request, places))
                 .fictionSynopsis(blank(request.getArea(), "선택 지역") + "에 남겨진 기록을 따라 사라진 증거의 정체를 추적한다.")
                 .finalAnswerType("EVIDENCE")
                 .finalAnswer("봉인된 기록 조각")
@@ -626,6 +646,39 @@ public class AdminEpisodeService {
     }
 
     @Transactional
+    private String draftSubtitle(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        String area = blank(request.getArea(), "selected area");
+        String anchor = places.stream()
+                .filter(place -> "FINAL".equals(normalizeRole(place.getRole(), places.indexOf(place), places.size())))
+                .map(AiEpisodeDraftRequest.PlaceInput::getName)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElseGet(() -> places.isEmpty() ? "field site" : blank(places.get(places.size() - 1).getName(), "field site"));
+        return area + " clues converge on " + anchor;
+    }
+
+    private String draftEra(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        if (!missing(request.getEra()) && !containsCompact(request.getEra(), "????") && !containsCompact(request.getEra(), "?????")) {
+            return request.getEra().trim();
+        }
+        String joined = places.stream()
+                .map(place -> String.join(" ",
+                        blank(place.getDescription(), ""),
+                        blank(place.getAdminMemo(), ""),
+                        place.getKeywords() == null ? "" : String.join(" ", place.getKeywords())))
+                .collect(Collectors.joining(" "));
+        if (containsCompact(joined, "????") || containsCompact(joined, "??") || containsCompact(joined, "1905") || containsCompact(joined, "1897")) {
+            return "???? ??";
+        }
+        if (containsCompact(joined, "??") || containsCompact(joined, "?") || containsCompact(joined, "??")) {
+            return "?? ??";
+        }
+        if (containsCompact(joined, "??") || containsCompact(joined, "??") || containsCompact(joined, "??")) {
+            return "?? ???";
+        }
+        return "??? ?? ??? ??";
+    }
+
     public AdminEpisodeDetailResponse saveAiDraft(AiEpisodeDraftSaveRequest request) {
         AiEpisodeDraftResponse.EpisodeDraft draft = request == null ? null : request.getDraft();
         if (draft == null) {
@@ -643,8 +696,8 @@ public class AdminEpisodeService {
 
         Episode episode = new Episode();
         episode.setTitle(title);
-        episode.setSubtitle("AI 초안 저장본");
-        episode.setEra(draft.getEra());
+        episode.setSubtitle(blank(draft.getSubtitle(), "AI draft case file"));
+        episode.setEra(blank(draft.getEra(), "Admin review required"));
         episode.setGenre(draft.getGenre());
         episode.setDifficulty("NORMAL");
         episode.setEstimatedTime("90~120분");
@@ -1089,6 +1142,187 @@ public class AdminEpisodeService {
             throw new ApiException(HttpStatus.BAD_REQUEST, code, message);
         }
         return normalized;
+    }
+
+    private AiEpisodeDraftRequest.PlaceInput enrichPlace(AiEpisodeDraftRequest.PlaceInput source) {
+        List<AdminPlaceCandidateResponse> rankedNearby = rankedNearbyCandidates(source);
+        AiEpisodeDraftRequest.PlaceInput target = new AiEpisodeDraftRequest.PlaceInput();
+        target.setName(source.getName());
+        target.setAddress(source.getAddress());
+        target.setLatitude(source.getLatitude());
+        target.setLongitude(source.getLongitude());
+        target.setDescription(enrichedDescription(source, rankedNearby));
+        target.setVisibleElements(mergeDistinct(source.getVisibleElements(), inferredVisibleElements(source, rankedNearby)));
+        target.setNumbers(source.getNumbers() == null ? List.of() : source.getNumbers());
+        target.setKeywords(mergeDistinct(source.getKeywords(), focusedKeywords(source, rankedNearby)));
+        target.setAdminMemo(enrichedAdminMemo(source, rankedNearby));
+        target.setRole(source.getRole());
+        target.setPublicMarkerType(source.getPublicMarkerType());
+        target.setArrivalRadius(source.getArrivalRadius());
+        return target;
+    }
+
+    private List<AdminPlaceCandidateResponse> rankedNearbyCandidates(AiEpisodeDraftRequest.PlaceInput place) {
+        if (place.getLatitude() == null || place.getLongitude() == null) {
+            return List.of();
+        }
+        try {
+            return kakaoLocalCandidateService.getNearbyCandidates(place.getLatitude(), place.getLongitude(), 900).stream()
+                    .sorted((left, right) -> Double.compare(siteSignalScore(right, place), siteSignalScore(left, place)))
+                    .limit(8)
+                    .toList();
+        } catch (ApiException e) {
+            return List.of(AdminPlaceCandidateResponse.builder()
+                    .title("external-search-failed:" + e.getCode())
+                    .description(e.getMessage())
+                    .source("RAG_ERROR")
+                    .build());
+        }
+    }
+
+    private double siteSignalScore(AdminPlaceCandidateResponse candidate, AiEpisodeDraftRequest.PlaceInput anchor) {
+        String value = compact(String.join(" ",
+                blank(candidate.getTitle(), ""),
+                blank(candidate.getAddress(), ""),
+                blank(candidate.getSource(), ""),
+                blank(candidate.getDescription(), "")));
+        double score = 0;
+        if (containsCompact(value, "??") || containsCompact(value, "???") || containsCompact(value, "???") || containsCompact(value, "??") || containsCompact(value, "??")) score += 45;
+        if (containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??")) score += 34;
+        if (containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??")) score += 28;
+        if (containsCompact(value, "KakaoLocal:CT1") || containsCompact(value, "KakaoLocal:AT4")) score += 30;
+        if (containsCompact(value, "KakaoLocal:CE7") || containsCompact(value, "KakaoLocal:FD6")) score += 20;
+        double distance = distanceMeters(anchor.getLatitude(), anchor.getLongitude(), candidate.getLatitude(), candidate.getLongitude());
+        if (Double.isFinite(distance)) {
+            if (distance >= 80 && distance <= 700) score += 25;
+            score -= Math.min(25, distance / 120.0);
+        }
+        return score;
+    }
+
+    private String enrichedDescription(AiEpisodeDraftRequest.PlaceInput source, List<AdminPlaceCandidateResponse> rankedNearby) {
+        String base = blank(source.getDescription(), "Selected operation spot.");
+        String topSignals = rankedNearby.stream()
+                .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
+                .limit(3)
+                .map(AdminPlaceCandidateResponse::getTitle)
+                .collect(Collectors.joining(", "));
+        if (topSignals.isBlank()) {
+            return base;
+        }
+        return base + " Nearby verification focus: " + topSignals + ".";
+    }
+
+    private List<String> focusedKeywords(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
+        List<String> values = new ArrayList<>();
+        if (!missing(place.getName())) values.add(place.getName());
+        if (!missing(place.getAddress())) values.add(place.getAddress());
+        rankedNearby.stream()
+                .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
+                .limit(5)
+                .forEach(candidate -> {
+                    values.add(candidate.getTitle());
+                    values.add(categoryKeyword(candidate));
+                });
+        values.add("site-verification-focus");
+        values.add("nearby-famous-place-signal");
+        return values;
+    }
+
+    private List<String> inferredVisibleElements(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
+        List<String> values = new ArrayList<>();
+        values.add("place name sign to verify on site");
+        values.add("address and entrance area to verify on site");
+        rankedNearby.stream()
+                .filter(candidate -> !"RAG_ERROR".equals(candidate.getSource()))
+                .limit(4)
+                .map(this::categoryVisibleElement)
+                .forEach(values::add);
+        values.add("nearby route context to verify on site");
+        return values;
+    }
+
+    private String enrichedAdminMemo(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
+        List<String> memo = new ArrayList<>();
+        if (!missing(place.getAdminMemo())) {
+            memo.add(place.getAdminMemo());
+        }
+        memo.add("RAG/site enrichment narrowed the admin verification scope using nearby Kakao Local signals.");
+        memo.add("Use these signals only as candidate verification targets. Do not treat signs, numbers, sculptures, or opening hours as confirmed until on-site inspection.");
+        if (place.getLatitude() == null || place.getLongitude() == null) {
+            memo.add("No coordinates: external search could not run. Add latitude/longitude before publishing.");
+            return String.join("\n", memo);
+        }
+        if (rankedNearby.isEmpty()) {
+            memo.add("No nearby signals found within 900m. Admin should add manual field notes.");
+            return String.join("\n", memo);
+        }
+        List<AdminPlaceCandidateResponse> usable = rankedNearby.stream()
+                .filter(candidate -> !"RAG_ERROR".equals(candidate.getSource()))
+                .limit(5)
+                .toList();
+        if (usable.isEmpty()) {
+            rankedNearby.stream().findFirst().ifPresent(candidate -> memo.add(candidate.getTitle() + " - " + blank(candidate.getDescription(), "external search failed")));
+            return String.join("\n", memo);
+        }
+        memo.add("Top verification targets:");
+        for (int i = 0; i < usable.size(); i++) {
+            AdminPlaceCandidateResponse candidate = usable.get(i);
+            memo.add((i + 1) + ". " + candidate.getTitle()
+                    + " / " + categoryKeyword(candidate)
+                    + " / approx " + Math.round(distanceMeters(place.getLatitude(), place.getLongitude(), candidate.getLatitude(), candidate.getLongitude())) + "m"
+                    + " / verify: " + categoryVisibleElement(candidate));
+        }
+        memo.add("Recommended puzzle basis: use only admin-confirmed visibleElements/numbers after field check. Until then, AI may create story clues and verification placeholders, not factual observation claims.");
+        return String.join("\n", memo);
+    }
+
+    private String categoryKeyword(AdminPlaceCandidateResponse candidate) {
+        String source = blank(candidate.getSource(), "");
+        String value = compact(blank(candidate.getTitle(), "") + " " + blank(candidate.getAddress(), "") + " " + source);
+        if (source.contains("CT1") || containsCompact(value, "??") || containsCompact(value, "???") || containsCompact(value, "???") || containsCompact(value, "??")) return "culture-exhibition";
+        if (source.contains("AT4") || containsCompact(value, "??") || containsCompact(value, "??")) return "tour-history";
+        if (source.contains("CE7") || containsCompact(value, "??") || containsCompact(value, "??")) return "cafe-rest-point";
+        if (source.contains("FD6") || containsCompact(value, "??") || containsCompact(value, "??")) return "local-food-business";
+        if (containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??")) return "open-public-space";
+        return "nearby-place-signal";
+    }
+
+    private String categoryVisibleElement(AdminPlaceCandidateResponse candidate) {
+        String keyword = categoryKeyword(candidate);
+        return switch (keyword) {
+            case "culture-exhibition" -> "exhibition/building name sign to verify";
+            case "tour-history" -> "tourist information board to verify";
+            case "cafe-rest-point" -> "cafe storefront/sign to verify";
+            case "local-food-business" -> "local shop storefront/sign to verify";
+            case "open-public-space" -> "public space marker/path sign to verify";
+            default -> "nearby place name/address sign to verify";
+        };
+    }
+
+    private double distanceMeters(Double lat1, Double lng1, Double lat2, Double lng2) {
+        if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) {
+            return Double.POSITIVE_INFINITY;
+        }
+        double earthRadius = 6_371_000;
+        double phi1 = Math.toRadians(lat1);
+        double phi2 = Math.toRadians(lat2);
+        double deltaPhi = Math.toRadians(lat2 - lat1);
+        double deltaLambda = Math.toRadians(lng2 - lng1);
+        double h = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2)
+                + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+        return earthRadius * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    }
+
+    private List<String> mergeDistinct(List<String> first, List<String> second) {
+        Map<String, String> unique = new LinkedHashMap<>();
+        if (first != null) {
+            first.stream().filter(value -> value != null && !value.isBlank()).forEach(value -> unique.putIfAbsent(value.trim(), value.trim()));
+        }
+        if (second != null) {
+            second.stream().filter(value -> value != null && !value.isBlank()).forEach(value -> unique.putIfAbsent(value.trim(), value.trim()));
+        }
+        return new ArrayList<>(unique.values());
     }
 
     private AdminEpisodeProgressStats safeStats(Long episodeId) {

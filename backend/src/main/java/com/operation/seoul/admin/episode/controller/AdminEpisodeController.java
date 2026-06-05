@@ -185,6 +185,11 @@ public class AdminEpisodeController {
     }
 
 
+    @PostMapping("/ai-draft/enrich-site-data")
+    public ResponseEntity<ApiResponse<AiEpisodeDraftRequest>> enrichSiteData(@RequestBody AiEpisodeDraftRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Site data enrichment completed. Real on-site inspection is still required before publishing.", adminEpisodeService.enrichSiteData(request)));
+    }
+
     @PostMapping("/ai-draft/gemini")
     public ResponseEntity<ApiResponse<AiEpisodeDraftResponse>> createGeminiDraft(@RequestBody AiEpisodeDraftRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("Gemini 에피소드 초안이 생성되었습니다. 저장 전 관리자 검수가 필요합니다.", adminEpisodeGeminiService.createGeminiDraft(request)));

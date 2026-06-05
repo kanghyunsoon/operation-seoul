@@ -124,10 +124,11 @@ public class EpisodePlayService {
         requireEpisode(episodeId);
         MissionSpot spot = requireSpot(spotId, episodeId);
         UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
-        if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled) {
+        boolean adminBypass = user != null && user.isAdmin();
+        if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled && !adminBypass) {
             throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "Dev arrival is disabled on this server.");
         }
-        boolean devMode = Boolean.TRUE.equals(request.getDevMode());
+        boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
         double distance = devMode ? 0.0 : calculateDistanceMeters(request.getUserLat(), request.getUserLng(), spot.getLatitude(), spot.getLongitude());
         boolean arrived = devMode || distance <= safeRadius(spot.getArrivalRadius());
 

@@ -142,11 +142,15 @@ public class AdminEpisodeGeminiService {
                 - OBSERVATION puzzles may use only visibleElements, keywords, description, and adminMemo.
                 - Never create puzzles that ask for the first/second/nth/last letter, syllable, initial consonant, or substring of a place name or business name.
                 - Never use the place name or a fragment of the place name as a puzzle answer.
+                - Never make rewardClue by extracting letters, syllables, initials, or substrings from a place name or business name.
+                - rewardClue must be a fictional clue token or clue word that does not depend on the spelling of any selected place.
                 - If provided field data is too weak for a real puzzle, create an admin-review placeholder puzzle with answer "검수필요" instead of inventing a field observation.
                 - Do not make a real historical person the culprit.
                 - Do not present a real historical event as a distorted fact.
                 - The final answer must be a clear noun phrase inside the fictional case, not a place name, real person, real event, verb, sentence, or abstract single word.
                 - The real final place is an internal role only. Public marker for that place must be FINAL_CANDIDATE.
+                - A final-place mission story must read like a normal investigation candidate. It must not say or imply "this is the final place", "final deduction starts here", or "the answer location".
+                - Do not describe the real final place as the final destination in storyText, rewardClue, destination hints, finalTruthSummary, actualHistorySummary, or deductionSecretFacts.
                 - At least one non-final destination candidate should also use publicMarkerType FINAL_CANDIDATE so the real final place is hidden among candidates.
                 - Create 4 answer clues when enough ANSWER_HINT places exist, and 2 destination clues when enough DESTINATION_HINT places exist.
                 - Hints must have 3 levels and must not directly reveal the answer.
@@ -156,6 +160,7 @@ public class AdminEpisodeGeminiService {
                 JSON schema:
                 {
                   "episodeTitle": "string",
+                  "subtitle": "string",
                   "genre": "string",
                   "era": "string",
                   "fictionSynopsis": "string",
@@ -370,9 +375,12 @@ public class AdminEpisodeGeminiService {
                     Validate whether the draft follows these rules:
                     - It must not expose the internal final place publicly.
                     - publicMarkerType must never be FINAL.
+                    - publicMarkerType FINAL_CANDIDATE is allowed and required for the internal final place; do not report FINAL_CANDIDATE itself as final place exposure.
                     - The final answer must not be a real place, historical person, real event, verb, sentence, or abstract single word.
                   - Puzzles must use only provided visibleElements, numbers, keywords, description, and adminMemo.
-                  - If a puzzle is an admin-review placeholder with answer "검수필요", do not report INSUFFICIENT_PUZZLE_DATA. Report INFO if needed.
+                  - If a puzzle is an admin-review/RAG-required placeholder with answer "검수필요", do not report it as ERROR.
+                  - Do not emit one PLACEHOLDER_PUZZLE finding per mission; summarize missing field evidence as one INFO finding named SITE_DATA_REVIEW_REQUIRED.
+                  - If unsafe place-name extraction has already been replaced with generic clue keys such as answer-clue-2, destination-clue-5, or story-clue-3, do not report CLUE_USES_PLACE_NAME_TEXT_EXTRACTION.
                   - If a puzzle asks for a letter/syllable/substring from a place or business name, report QUESTION_USES_PLACE_NAME_TEXT, not HINT_REVEALS_ANSWER.
                     - NUMBER_LOCK must not use numbers absent from input.
                     - Hints must not directly reveal puzzle answers or the final answer.
@@ -394,15 +402,20 @@ public class AdminEpisodeGeminiService {
     }
 
     private List<String> normalizeAndValidateDraft(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
-        if (draft == null || draft.getMissions() == null || draft.getMissions().size() != request.getPlaces().size()) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_DRAFT_MISSION_MISMATCH", "Gemini draft must include exactly one mission per selected place.");
-        }
         List<String> warnings = new ArrayList<>();
+        if (draft == null) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_DRAFT_SCHEMA_INVALID", "Gemini draft does not match the required schema.");
+        }
+        reconcileMissionCount(draft, request, warnings);
         if (!FINAL_ANSWER_TYPES.contains(normalize(draft.getFinalAnswerType()))) {
             draft.setFinalAnswerType("HIDDEN_TRUTH");
             warnings.add("finalAnswerType was normalized to HIDDEN_TRUTH.");
         } else {
             draft.setFinalAnswerType(normalize(draft.getFinalAnswerType()));
+        }
+        if (blank(draft.getSubtitle())) {
+            draft.setSubtitle(defaultSubtitle(draft, request));
+            warnings.add("subtitle was generated from selected route context.");
         }
         if (draft.getMaxDeductionQuestions() == null || draft.getMaxDeductionQuestions() <= 0) {
             draft.setMaxDeductionQuestions(20);
@@ -435,11 +448,12 @@ public class AdminEpisodeGeminiService {
             mission.setClueRole(isFinal ? "FINAL_PLACE" : toClueRole(role));
             mission.setFinalPlace(isFinal);
             mission.setArrivalRadius(place.getArrivalRadius() == null ? 50.0 : place.getArrivalRadius());
+            sanitizeFinalPlaceNarrative(mission, role, i, warnings);
             mission.setPuzzleType(PUZZLE_TYPES.contains(normalize(mission.getPuzzleType())) ? normalize(mission.getPuzzleType()) : recommendedPuzzleType(place));
             mission.setAnswerFormat(ANSWER_FORMATS.contains(normalize(mission.getAnswerFormat())) ? normalize(mission.getAnswerFormat()) : answerFormat(place));
             if (usesPlaceNameTextPuzzle(mission, place) || shouldUseAdminReviewPuzzle(mission, place)) {
                 applyAdminReviewPuzzle(mission, place);
-                warnings.add("Mission " + (i + 1) + " puzzle was replaced with an admin-review placeholder because field data was too weak or unsafe.");
+                warnings.add("미션 " + (i + 1) + "은 현장 근거가 부족해 검수용 문제로 대체되었습니다. RAG 보강 또는 관리자 현장 메모로 확인 범위를 좁힌 뒤 공개 전 문제를 확정하세요.");
             }
             if (blank(mission.getAnswer())) {
                 mission.setAnswer(fallbackAnswer(place));
@@ -449,6 +463,7 @@ public class AdminEpisodeGeminiService {
                 mission.setRewardClue(fallbackReward(role, i));
                 warnings.add("Mission " + (i + 1) + " reward clue used fallback.");
             }
+            sanitizePlaceNameDependentReward(mission, request, role, i, warnings);
             sanitizeFinalAnswerLeaks(draft, mission, role, i, warnings);
             if (mission.getHints() == null || mission.getHints().size() < 3) {
                 warnings.add("Mission " + (i + 1) + " has fewer than 3 hints and needs admin editing.");
@@ -463,6 +478,66 @@ public class AdminEpisodeGeminiService {
         ensureMinimumSuspects(draft, warnings);
         ensureMissionEvidences(draft, request, warnings);
         return warnings;
+    }
+
+    private void reconcileMissionCount(
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            AiEpisodeDraftRequest request,
+            List<String> warnings) {
+        List<AiEpisodeDraftResponse.MissionDraft> missions = draft.getMissions() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(draft.getMissions());
+        int expected = request.getPlaces().size();
+        if (missions.size() > expected) {
+            missions = new ArrayList<>(missions.subList(0, expected));
+            warnings.add("Gemini returned extra missions; extras were removed to match selected places.");
+        }
+        while (missions.size() < expected) {
+            int index = missions.size();
+            AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(index);
+            String role = normalizeRole(place.getRole(), index, expected);
+            missions.add(AiEpisodeDraftResponse.MissionDraft.builder()
+                    .order(index + 1)
+                    .placeName(place.getName())
+                    .address(place.getAddress())
+                    .latitude(place.getLatitude())
+                    .longitude(place.getLongitude())
+                    .markerType(role)
+                    .publicMarkerType(publicMarkerType(place.getPublicMarkerType(), "FINAL".equals(role), index, expected, role))
+                    .clueRole("FINAL".equals(role) ? "FINAL_PLACE" : toClueRole(role))
+                    .finalPlace("FINAL".equals(role))
+                    .storyText(blank(place.getDescription()) ? "관리자 검수 후 현장 스토리를 입력하세요." : place.getDescription())
+                    .arrivalRadius(place.getArrivalRadius() == null ? 50.0 : place.getArrivalRadius())
+                    .puzzleType(recommendedPuzzleType(place))
+                    .questionText("관리자 검수 후 실제 현장 요소 기반 문제를 입력하세요.")
+                    .answer(fallbackAnswer(place))
+                    .answerFormat(answerFormat(place))
+                    .rewardClue(fallbackReward(role, index))
+                    .hints(List.of(
+                            "현장 검수 전 임시 힌트입니다.",
+                            "visibleElements, numbers, keywords, adminMemo를 기반으로 구체화하세요.",
+                            "정답을 직접 노출하지 않는 최종 힌트로 교체하세요."
+                    ))
+                    .groundRule("Generated locally because Gemini omitted this selected place.")
+                    .build());
+        }
+        if (draft.getMissions() == null || draft.getMissions().size() != expected) {
+            warnings.add("Mission count was normalized to exactly one mission per selected place.");
+        }
+        draft.setMissions(missions);
+    }
+
+    private String defaultSubtitle(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
+        List<AiEpisodeDraftRequest.PlaceInput> places = request == null || request.getPlaces() == null ? List.of() : request.getPlaces();
+        String start = places.isEmpty() ? "첫 단서" : places.get(0).getName();
+        String finalPlace = places.stream()
+                .filter(place -> "FINAL".equals(normalize(place.getRole())))
+                .map(AiEpisodeDraftRequest.PlaceInput::getName)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElseGet(() -> places.isEmpty() ? "마지막 후보지" : places.get(places.size() - 1).getName());
+        String genre = blank(draft.getGenre()) ? "사건파일" : draft.getGenre();
+        return start + "에서 " + finalPlace + "로 이어지는 " + genre;
     }
 
     private String extractJson(String text) {
@@ -535,6 +610,59 @@ public class AdminEpisodeGeminiService {
         };
     }
 
+    private void sanitizeFinalPlaceNarrative(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            String role,
+            int index,
+            List<String> warnings) {
+        boolean finalRole = "FINAL".equals(role) || Boolean.TRUE.equals(mission.getFinalPlace());
+        boolean revealsFinal = containsAny(mission.getStoryText(),
+                "최종 장소", "최종장소", "최종 목적지", "최종목적지", "마지막 장소", "마지막장소",
+                "정답 장소", "정답장소", "최종 추리", "최종추리", "final place", "final destination",
+                "answer location");
+        boolean repeatsFinalPlaceName = finalRole && textContains(mission.getStoryText(), mission.getPlaceName());
+        if (!finalRole && !revealsFinal) {
+            return;
+        }
+        if (revealsFinal || repeatsFinalPlaceName || blank(mission.getStoryText())) {
+            mission.setStoryText("이 장소는 여러 단서가 겹치는 조사 후보지입니다. 현장에서는 사건 메모와 주변 분위기만 조용히 확인하세요.");
+            warnings.add("Mission " + (index + 1) + " story was sanitized so the internal final place is not revealed.");
+        }
+    }
+
+    private void sanitizePlaceNameDependentReward(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            AiEpisodeDraftRequest request,
+            String role,
+            int index,
+            List<String> warnings) {
+        if (mission == null || request == null || request.getPlaces() == null) {
+            return;
+        }
+        String reward = compact(mission.getRewardClue());
+        if (reward.isBlank() || isGenericRewardKey(reward)) {
+            return;
+        }
+        boolean rewardFromPlaceName = request.getPlaces().stream()
+                .map(AiEpisodeDraftRequest.PlaceInput::getName)
+                .filter(name -> !blank(name))
+                .map(this::compact)
+                .anyMatch(placeName -> reward.length() <= 4 && placeName.contains(reward));
+        boolean textExtractionQuestion = containsAny(mission.getQuestionText(),
+                "글자", "음절", "초성", "첫 글자", "첫글자", "마지막 글자", "마지막글자",
+                "몇 번째", "몇번째", "n번째", "substring", "syllable", "initial");
+        if (rewardFromPlaceName || textExtractionQuestion) {
+            mission.setRewardClue(fallbackReward(role, index));
+            warnings.add("Mission " + (index + 1) + " reward clue depended on place-name text and was replaced with a generic clue key.");
+        }
+    }
+
+    private boolean isGenericRewardKey(String reward) {
+        return reward.startsWith("answer-clue-")
+                || reward.startsWith("destination-clue-")
+                || reward.startsWith("story-clue-");
+    }
+
     private boolean usesPlaceNameTextPuzzle(AiEpisodeDraftResponse.MissionDraft mission, AiEpisodeDraftRequest.PlaceInput place) {
         String placeName = place.getName();
         if (blank(placeName)) {
@@ -544,7 +672,11 @@ public class AdminEpisodeGeminiService {
         String question = compact(mission.getQuestionText());
         String answer = compact(mission.getAnswer());
         boolean referencesPlaceName = question.contains(compactPlaceName);
-        boolean asksCharacterExtraction = containsAny(question, "글자", "음절", "초성", "첫", "두번째", "두번째", "세번째", "네번째", "마지막", "몇번째", "n번째");
+        boolean asksCharacterExtraction = containsAny(question,
+                "\uAE00\uC790", "\uC74C\uC808", "\uCD08\uC131", "\uCCAB\uAE00\uC790",
+                "\uCCAB\uBC88\uC9F8", "\uB450\uBC88\uC9F8", "\uC138\uBC88\uC9F8",
+                "\uB124\uBC88\uC9F8", "\uB9C8\uC9C0\uB9C9", "\uBA87\uBC88\uC9F8",
+                "n\uBC88\uC9F8", "substring", "syllable", "initial");
         boolean answerFromPlaceName = !answer.isBlank() && compactPlaceName.contains(answer);
         return referencesPlaceName && (asksCharacterExtraction || answerFromPlaceName);
     }
@@ -653,13 +785,13 @@ public class AdminEpisodeGeminiService {
             evidences.add(AiEpisodeDraftResponse.EvidenceDraft.builder()
                     .title("검수 필요 사건자료 " + (i + 1))
                     .type(i % 3 == 0 ? "PHOTO" : i % 3 == 1 ? "MEMO" : "NOTE")
-                    .imageUrl("")
+                    .imageUrl(generatedEvidenceImage(i % 3 == 0 ? "PHOTO" : i % 3 == 1 ? "MEMO" : "NOTE"))
                     .textSummary(blank(place.getName()) ? "현장 검수 후 작성할 사건자료 초안입니다." : place.getName() + " 조사 후 해금되는 사건자료 초안입니다.")
                     .sourceMissionOrder(i + 1)
                     .build());
         }
         if (draft.getEvidences() == null || draft.getEvidences().size() < targetCount) {
-            warnings.add("Evidence cards were fewer than mission spots and were completed with placeholder case-file materials.");
+            warnings.add("증거/메모/사진 카드가 부족해 기본 사건자료 카드가 자동 추가되었습니다.");
         }
         draft.setEvidences(evidences);
     }
@@ -703,15 +835,33 @@ public class AdminEpisodeGeminiService {
     }
 
     private boolean suppressGeminiFinding(AiEpisodeDraftValidationResponse.Finding finding, AiEpisodeDraftResponse.EpisodeDraft draft) {
-        if (finding == null || finding.getCode() == null || finding.getMissionOrder() == null || draft == null || draft.getMissions() == null) {
+        if (finding == null || finding.getCode() == null || draft == null || draft.getMissions() == null) {
+            return false;
+        }
+        String code = normalize(finding.getCode());
+        if ("SITE_DATA_REVIEW_REQUIRED".equals(code) && allMissionsAreAdminReviewPlaceholders(draft)) {
+            return true;
+        }
+        if (finding.getMissionOrder() == null) {
             return false;
         }
         if (finding.getMissionOrder() <= 0 || finding.getMissionOrder() > draft.getMissions().size()) {
             return false;
         }
         AiEpisodeDraftResponse.MissionDraft mission = draft.getMissions().get(finding.getMissionOrder() - 1);
-        String code = normalize(finding.getCode());
-        if ("INSUFFICIENT_PUZZLE_DATA".equals(code) && isAdminReviewPlaceholder(mission)) {
+        if (List.of("INSUFFICIENT_PUZZLE_DATA", "PLACEHOLDER_PUZZLE").contains(code) && isAdminReviewPlaceholder(mission)) {
+            return true;
+        }
+        if ("CLUE_USES_PLACE_NAME_TEXT_EXTRACTION".equals(code)
+                && (isGenericRewardKey(compact(mission.getRewardClue())) || isAdminReviewPlaceholder(mission))) {
+            return true;
+        }
+        if ("FINAL_PLACE_REVEALED_IN_STORY".equals(code) && !storyRevealsFinalPlace(mission)) {
+            return true;
+        }
+        if ("FINAL_PLACE_EXPOSED_PUBLICLY".equals(code)
+                && Boolean.TRUE.equals(mission.getFinalPlace())
+                && "FINAL_CANDIDATE".equals(normalize(mission.getPublicMarkerType()))) {
             return true;
         }
         if (List.of("FULL_FINAL_ANSWER_AS_REWARD", "HINT_REVEALS_ANSWER").contains(code)) {
@@ -723,9 +873,37 @@ public class AdminEpisodeGeminiService {
         return false;
     }
 
+    private boolean allMissionsAreAdminReviewPlaceholders(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        return draft != null
+                && draft.getMissions() != null
+                && !draft.getMissions().isEmpty()
+                && draft.getMissions().stream().allMatch(this::isAdminReviewPlaceholder);
+    }
+
+    private boolean storyRevealsFinalPlace(AiEpisodeDraftResponse.MissionDraft mission) {
+        if (mission == null) {
+            return false;
+        }
+        return containsAny(mission.getStoryText(),
+                "최종 장소", "최종장소", "최종 목적지", "최종목적지", "마지막 장소", "마지막장소",
+                "정답 장소", "정답장소", "최종 추리", "최종추리", "final place", "final destination",
+                "answer location")
+                || (Boolean.TRUE.equals(mission.getFinalPlace()) && textContains(mission.getStoryText(), mission.getPlaceName()));
+    }
+
     private boolean isAdminReviewPlaceholder(AiEpisodeDraftResponse.MissionDraft mission) {
         return mission != null
                 && ("검수필요".equals(mission.getAnswer()) || compact(mission.getQuestionText()).contains("관리자현장검수"));
+    }
+
+    private String generatedEvidenceImage(String type) {
+        return switch (normalize(type)) {
+            case "PHOTO" -> "/generated-case-card-photo.svg";
+            case "MEMO", "POST_IT" -> "/generated-case-card-memo.svg";
+            case "DOCUMENT", "EVIDENCE", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE" -> "/generated-case-card-document.svg";
+            case "SUSPECT_CLUE" -> "/generated-case-card-suspect.svg";
+            default -> "/generated-case-card-note.svg";
+        };
     }
 
     private int calculateRiskScore(List<AiEpisodeDraftValidationResponse.Finding> findings) {

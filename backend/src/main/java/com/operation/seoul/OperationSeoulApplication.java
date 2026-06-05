@@ -25,7 +25,7 @@ public class OperationSeoulApplication {
         application.run(args);
     }
 
-    /**
+    /**m
      * 외부 AI API 응답과 내부 DTO 변환에서 공통으로 사용하는 JSON 매퍼입니다.
      */
     @Bean

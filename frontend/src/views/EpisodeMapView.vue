@@ -51,6 +51,9 @@
 
     <button class="floating clue" type="button" @click="showClues = true">단서</button>
     <button class="floating refresh" type="button" @click="loadAll">갱신</button>
+    <button v-if="sessionStore.isAdmin && selectedSpot" class="floating admin-skip" type="button" @click="adminSkipArrival(selectedSpot)">
+      관리자 스킵
+    </button>
 
     <PuzzleCard :puzzle="puzzle" :message="puzzleMessage" :correct="puzzleCorrect" @submit="submitPuzzle" />
 
@@ -71,6 +74,7 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { episodeApi } from '@/api/episodeApi';
+import { useSessionStore } from '@/stores/sessionStore';
 import SpotBottomSheet from '@/components/episode/SpotBottomSheet.vue';
 import PuzzleCard from '@/components/episode/PuzzleCard.vue';
 import ClueBoard from '@/components/episode/ClueBoard.vue';
@@ -78,6 +82,7 @@ import CaseFileTabMenu from '@/components/episode/CaseFileTabMenu.vue';
 
 const route = useRoute();
 const router = useRouter();
+const sessionStore = useSessionStore();
 const episodeId = route.params.episodeId;
 
 const mapContainer = ref(null);
@@ -248,6 +253,21 @@ async function arriveAtSpot(spot) {
   }
 }
 
+async function adminSkipArrival(spot) {
+  try {
+    const result = await episodeApi.arrive(episodeId, spot.spotId, {
+      userLat: spot.latitude,
+      userLng: spot.longitude,
+      devMode: true
+    });
+    arrivalResults.value = { ...arrivalResults.value, [spot.spotId]: result };
+    setStatus(result.message || '관리자 권한으로 도착 처리를 스킵했습니다.', result.arrived ? 'success' : 'info');
+    await loadAll();
+  } catch (error) {
+    setStatus(error.userMessage || '관리자 도착 스킵에 실패했습니다.', 'error');
+  }
+}
+
 async function openPuzzle(spot) {
   try {
     puzzle.value = await episodeApi.getPuzzle(spot.spotId);
@@ -356,6 +376,7 @@ h1 { margin: 2px 0 0; font-size: 1.08rem; }
 .floating { position: fixed; z-index: 25; right: calc(50% - min(50%, 215px) + 14px); border: 0; border-radius: 999px; min-width: 54px; min-height: 46px; color: #fff; font-weight: 900; box-shadow: 0 12px 24px rgba(0,0,0,.32); }
 .floating.clue { bottom: 250px; background: #b45309; }
 .floating.refresh { bottom: 304px; background: #0369a1; }
+.floating.admin-skip { bottom: 358px; background: #15803d; padding: 0 14px; }
 @media (max-width: 370px) {
   .map-page { padding-bottom: 300px; }
   .topbar { align-items: flex-start; }
@@ -364,5 +385,6 @@ h1 { margin: 2px 0 0; font-size: 1.08rem; }
   .spot-list-item small { grid-column: 2; }
   .floating.clue { bottom: 300px; }
   .floating.refresh { bottom: 354px; }
+  .floating.admin-skip { bottom: 408px; }
 }
 </style>

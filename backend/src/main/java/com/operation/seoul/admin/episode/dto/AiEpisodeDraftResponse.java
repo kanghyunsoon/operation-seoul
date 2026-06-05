@@ -24,6 +24,7 @@ public class AiEpisodeDraftResponse {
     @AllArgsConstructor
     public static class EpisodeDraft {
         private String episodeTitle;
+        private String subtitle;
         private String genre;
         private String era;
         private String fictionSynopsis;
