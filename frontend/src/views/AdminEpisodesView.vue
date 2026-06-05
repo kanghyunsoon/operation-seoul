@@ -415,7 +415,7 @@
             <article :class="{ done: selectedCandidates.length >= 8 }">
               <b>3</b>
               <strong>8~9개 장소 선택</strong>
-              <span>마지막 선택 장소는 내부 최종 장소입니다.</span>
+              <span>TourAPI 기준 장소가 내부 최종 장소입니다.</span>
             </article>
             <article :class="{ done: Boolean(draftResult?.draft) }">
               <b>4</b>
@@ -468,7 +468,7 @@
                 <button type="button" class="ghost-btn" :disabled="selectedCandidates.length < 8" @click="applyCandidatesToDraft">선택 장소를 초안 입력에 적용</button>
               </div>
             </div>
-            <p class="candidate-help">기준 장소 포함 8~9개를 선택하세요. 마지막 선택 장소가 내부 최종 장소가 되고, 공개 화면에는 일반 조사 후보처럼만 표시됩니다.</p>
+            <p class="candidate-help">기준 장소 포함 8~9개를 선택하세요. TourAPI 기준 장소가 내부 최종 장소가 되고, 공개 화면에는 일반 조사 후보처럼만 표시됩니다.</p>
             <div class="selection-summary">
               <strong>선택 {{ selectedCandidates.length }}개 / 권장 8~9개</strong>
               <span :class="{ ready: selectedCandidates.length >= 8 && selectedCandidates.length <= 9 }">
@@ -490,11 +490,11 @@
             <div v-if="selectedCandidates.length" class="selected-route">
               <h4>선택 장소 역할 미리보기</h4>
               <ol>
-                <li v-for="(candidate, index) in selectedCandidates" :key="candidateKey(candidate)">
+                <li v-for="(candidate, index) in orderedSelectedCandidates" :key="candidateKey(candidate)">
                   <b>{{ index + 1 }}</b>
                   <strong>{{ candidate.title }}</strong>
                   <span :class="roleForCandidate(index)">{{ roleLabel(roleForCandidate(index)) }}</span>
-                  <em v-if="index === selectedCandidates.length - 1">내부 최종 장소 후보</em>
+                  <em v-if="isAnchorCandidate(candidate)">TourAPI 기준 장소 · 내부 최종 장소</em>
                 </li>
               </ol>
               <p>사용자 지도에는 내부 최종 장소 여부가 노출되지 않고, 공개 마커는 조사 후보로 표시됩니다.</p>
@@ -723,6 +723,14 @@ const selectedCandidateStatus = computed(() => {
   if (count < 8) return '장소가 부족합니다. 공개 조건을 맞추려면 최소 8개를 선택하세요.';
   if (count > 9) return '장소가 너무 많습니다. 최대 9개까지만 사용하세요.';
   return '초안 생성에 사용할 수 있는 장소 구성입니다.';
+});
+const orderedSelectedCandidates = computed(() => {
+  if (!anchorCandidate.value) return selectedCandidates.value;
+  const anchorKey = candidateKey(anchorCandidate.value);
+  return [
+    ...selectedCandidates.value.filter((candidate) => candidateKey(candidate) !== anchorKey),
+    anchorCandidate.value
+  ];
 });
 
 onMounted(loadEpisodes);
@@ -1258,6 +1266,10 @@ function isCandidateSelected(candidate) {
   return selectedCandidates.value.some((item) => candidateKey(item) === key);
 }
 
+function isAnchorCandidate(candidate) {
+  return Boolean(anchorCandidate.value) && candidateKey(anchorCandidate.value) === candidateKey(candidate);
+}
+
 function toggleCandidate(candidate) {
   const key = candidateKey(candidate);
   if (anchorCandidate.value && candidateKey(anchorCandidate.value) === key) {
@@ -1280,23 +1292,26 @@ function applyCandidatesToDraft() {
     setMessage('기준 장소를 포함해 최소 8개 이상의 장소를 선택해 주세요.', 'error');
     return;
   }
-  const roles = buildRoles(selectedCandidates.value.length);
+  const orderedCandidates = orderedSelectedCandidates.value;
+  const roles = buildRoles(orderedCandidates.length);
   const payload = {
     area: areaLabel(candidateAreaCode.value),
     era: '관리자 검수 필요',
     theme: '역사 미스터리',
     targetAudience: '야외 방탈출 플레이어',
     playTime: '90~120분',
-    places: selectedCandidates.value.map((candidate, index) => ({
+    places: orderedCandidates.map((candidate, index) => ({
       name: candidate.title,
       address: candidate.address,
       latitude: candidate.latitude,
       longitude: candidate.longitude,
-      description: candidate.description || 'TourAPI 관광지 후보입니다. 실제 역사/현장 정보는 관리자 검수 후 사용하세요.',
+      description: candidate.description || (isAnchorCandidate(candidate)
+        ? 'TourAPI 기준 장소입니다. 사건의 실제 내부 최종 장소로 사용되며 운영 공개 전 현장 검수가 필요합니다.'
+        : 'Kakao Local 주변 후보입니다. 실제 역사/현장 정보는 관리자 검수 후 사용하세요.'),
       visibleElements: ['관리자 현장 메모 필요'],
       numbers: [],
       keywords: [candidate.title, areaLabel(candidateAreaCode.value), candidate.source || '장소 후보'],
-      adminMemo: `${candidate.source || '장소 후보'} 기반입니다. 실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
+      adminMemo: `${candidate.source || '장소 후보'} 기반입니다. ${isAnchorCandidate(candidate) ? '이 장소는 내부 최종 장소입니다. ' : ''}실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
       role: roles[index],
       arrivalRadius: 50
     }))
@@ -1304,7 +1319,7 @@ function applyCandidatesToDraft() {
   draftInput.value = JSON.stringify(payload, null, 2);
   draftResult.value = null;
   draftValidation.value = null;
-  setMessage('선택한 기준/주변 후보가 초안 입력에 반영되었습니다. 마지막 선택 장소는 내부 최종 장소로만 저장됩니다.', 'success');
+  setMessage('선택한 후보가 초안 입력에 반영되었습니다. TourAPI 기준 장소는 내부 최종 장소로 저장됩니다.', 'success');
 }
 
 function buildRoles(count) {
@@ -1320,7 +1335,7 @@ function buildRoles(count) {
 }
 
 function roleForCandidate(index) {
-  return buildRoles(selectedCandidates.value.length)[index] || 'STORY';
+  return buildRoles(orderedSelectedCandidates.value.length)[index] || 'STORY';
 }
 
 function roleLabel(role) {

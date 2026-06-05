@@ -44,7 +44,7 @@ Operation KOREA는 TourAPI/Kakao Local 기반 장소를 사건 현장으로 재�
 | 최종 추리 | MVP 구현됨 | 규칙 기반 제한 답변, Gemini 고도화는 남음 |
 | 최종 정답/CLEARED | 구현됨 | 점수 계산, 클리어 리포트 연결 |
 | 리뷰 | 구현됨 | CLEARED + cleared_at 기준, 1인 1리뷰 |
-| 관리자 사건파일 생성 | 구현 중 | TourAPI 기준 장소 + Kakao 주변 후보 + 초안 생성/검증/저장 |
+| 관리자 사건파일 생성 | 구현 중 | TourAPI 기준 장소를 내부 최종 장소로 사용 + Kakao 주변 후보 + 초안 생성/검증/저장 |
 | AI 생성 | MVP 구현 | 규칙 기반/Gemini draft 구조, 운영 검수 필수 |
 
 ## 주요 사용자 API
