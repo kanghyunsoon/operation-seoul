@@ -16,20 +16,20 @@
 
       <section class="rules">
         <strong>바다거북 스프식 질문 규칙</strong>
-        <p>AI는 예/아니오/관련 있음/부분적으로 맞음/질문이 모호함/단서가 부족함/정답 직접 노출 불가 방식으로만 답합니다.</p>
+        <p>AI는 예/아니오, 관련 있음/없음, 부분적으로 맞음, 질문이 모호함, 단서 부족, 정답 직접 노출 불가 범위로만 답합니다.</p>
         <p>정답이나 실제 최종 장소를 직접 묻는 질문에는 답하지 않습니다.</p>
       </section>
 
       <section class="clues">
         <strong>사용 가능한 단서</strong>
         <span v-for="clue in startData.collectedClues" :key="clue">{{ clue }}</span>
-        <em v-if="!startData.collectedClues?.length">수집한 단서가 없습니다. 질문 답변이 더 제한될 수 있습니다.</em>
+        <em v-if="!startData.collectedClues?.length">수집한 단서가 없습니다. 질문 답변이 제한될 수 있습니다.</em>
       </section>
 
       <section v-if="!startData.sessionId" class="blocked">
         <strong>최종 추리 조건 미충족</strong>
         <p>실제 최종 장소에 도착해야 최종 추리 채팅과 정답 제출을 시작할 수 있습니다.</p>
-        <p>잘못된 조사 후보에 도착했다면 목적지 힌트를 다시 확인하세요.</p>
+        <p>이 장소에서는 최종 추리를 시작할 수 없습니다. 목적지 힌트를 다시 확인해 주세요.</p>
         <div>
           <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">지도로 돌아가기</button>
           <button type="button" class="secondary" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 확인</button>
@@ -43,7 +43,7 @@
             <p class="a">{{ item.aiAnswerText }}</p>
             <span>{{ answerTypeLabel(item.aiAnswerType) }}</span>
           </article>
-          <p v-if="!questions.length" class="empty-history">아직 질문 기록이 없습니다. 단서를 바탕으로 예/아니오 질문을 해보세요.</p>
+          <p v-if="!questions.length" class="empty-history">아직 질문 기록이 없습니다. 수집한 단서를 바탕으로 예/아니오 질문을 입력해 보세요.</p>
         </section>
 
         <form class="ask" @submit.prevent="ask">
@@ -131,7 +131,7 @@ function answerTypeLabel(type) {
     NOT_RELATED: '관련 없음',
     PARTIAL: '부분적으로 맞음',
     AMBIGUOUS: '질문이 모호함',
-    INSUFFICIENT_CLUE: '단서가 부족함',
+    INSUFFICIENT_CLUE: '단서 부족',
     REFUSED_DIRECT_REVEAL: '정답 직접 노출 불가'
   }[type] || type);
 }
@@ -171,5 +171,5 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .message { padding: 12px; border-radius: 14px; background: rgba(30,64,175,.22); color: #bfdbfe; }
 .message.success { background: rgba(22,163,74,.16); color: #bbf7d0; }
 .message.error { background: rgba(220,38,38,.18); color: #fecaca; }
-@media (max-width: 380px) { .blocked div, .counter-row { grid-template-columns: 1fr; } }
+@media (max-width: 380px) { .blocked div, .counter-row, .ask { grid-template-columns: 1fr; } }
 </style>

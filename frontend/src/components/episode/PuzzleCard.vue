@@ -36,9 +36,7 @@ const props = defineProps({
 const emit = defineEmits(['submit']);
 const answer = ref('');
 
-watch(() => props.puzzle?.puzzleId, () => {
-  answer.value = '';
-});
+watch(() => props.puzzle?.puzzleId, () => { answer.value = ''; });
 
 function submit() {
   if (answer.value) emit('submit', answer.value);
@@ -68,4 +66,5 @@ button { border: 0; border-radius: 10px; background: #ea580c; color: #fff; font-
 .message { margin: 10px 0 0; padding: 9px; border-radius: 10px; font-size: .84rem; }
 .success { background: rgba(22,101,52,.22); color: #bbf7d0; }
 .error { background: rgba(127,29,29,.22); color: #fecaca; }
+@media (max-width: 370px) { form { grid-template-columns: 1fr; } button { min-height: 42px; } }
 </style>

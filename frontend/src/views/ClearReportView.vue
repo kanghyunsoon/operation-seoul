@@ -71,10 +71,14 @@
         <h2>조사 기록</h2>
         <p>시작: {{ formatDate(report.startedAt) }}</p>
         <p>클리어: {{ formatDate(report.clearedAt) }}</p>
-        <p>힌트 사용 {{ report.hintUsedCount || 0 }}회, 최종 정답 제출 {{ report.finalGuessCount || 0 }}회</p>
+        <p>힌트 사용 {{ report.hintUsedCount || 0 }}회 · 최종 정답 제출 {{ report.finalGuessCount || 0 }}회</p>
       </article>
 
       <EpisodeReviewPanel v-if="report.canReview" :episode-id="episodeId" />
+      <article v-else class="paper-block subdued">
+        <h2>리뷰</h2>
+        <p>CLEARED 상태에서만 리뷰를 작성할 수 있습니다. 이미 작성한 리뷰가 있다면 목록에서 수정할 수 있습니다.</p>
+      </article>
 
       <div class="actions">
         <button type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 보기</button>
@@ -127,24 +131,8 @@ function formatDate(value) {
 </script>
 
 <style scoped>
-.report-page {
-  min-height: 100vh;
-  box-sizing: border-box;
-  padding: 18px 14px 28px;
-  background: radial-gradient(circle at 20% 0%, rgba(180, 83, 9, .18), transparent 34%), #f8f1df;
-  color: #24180d;
-  font-family: Georgia, 'Noto Sans KR', serif;
-}
-.report {
-  width: min(100%, 760px);
-  box-sizing: border-box;
-  margin: 0 auto;
-  padding: 22px;
-  border: 2px solid rgba(36,24,13,.18);
-  border-radius: 22px;
-  background: rgba(255,255,255,.62);
-  box-shadow: 0 22px 55px rgba(36,24,13,.13);
-}
+.report-page { min-height: 100vh; box-sizing: border-box; padding: 18px 14px 28px; background: radial-gradient(circle at 20% 0%, rgba(180, 83, 9, .18), transparent 34%), #f8f1df; color: #24180d; font-family: Georgia, 'Noto Sans KR', serif; }
+.report { width: min(100%, 760px); box-sizing: border-box; margin: 0 auto; padding: 22px; border: 2px solid rgba(36,24,13,.18); border-radius: 22px; background: rgba(255,255,255,.62); box-shadow: 0 22px 55px rgba(36,24,13,.13); }
 .shell { min-height: 260px; display: grid; align-content: center; gap: 12px; }
 .stamp { display: inline-block; transform: rotate(-3deg); border: 3px solid #b91c1c; color: #b91c1c; padding: 6px 10px; font-weight: 1000; }
 .eyebrow { margin: 12px 0 0; color: #9a3412; font-size: .76rem; font-weight: 1000; letter-spacing: .14em; }
@@ -170,10 +158,6 @@ h1 { margin: 8px 0; font-size: clamp(1.8rem, 8vw, 3.4rem); line-height: 1.05; }
 .actions { display: grid; grid-template-columns: 1fr; gap: 9px; margin-top: 18px; }
 button { min-height: 48px; border: 0; border-radius: 13px; background: #24180d; color: #fff; font-weight: 900; }
 button.ghost { border: 1px solid rgba(36,24,13,.24); background: transparent; color: #24180d; }
-@media (min-width: 640px) {
-  .score-card { grid-template-columns: repeat(3, 1fr); }
-  .score-card div { display: grid; }
-  .metric-grid { grid-template-columns: repeat(3, 1fr); }
-  .actions { grid-template-columns: 1fr 1fr; }
-}
+@media (min-width: 640px) { .score-card { grid-template-columns: repeat(3, 1fr); } .score-card div { display: grid; } .metric-grid { grid-template-columns: repeat(3, 1fr); } .actions { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 370px) { .report { padding: 18px; } .metric-grid { grid-template-columns: 1fr; } }
 </style>

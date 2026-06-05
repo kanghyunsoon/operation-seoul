@@ -25,10 +25,10 @@
 
       <section class="dossier overview">
         <p class="section-label">사건 개요</p>
-        <h3>{{ caseFile.overview.briefingTitle }}</h3>
-        <p>{{ caseFile.overview.summary }}</p>
+        <h3>{{ caseFile.overview?.briefingTitle }}</h3>
+        <p>{{ caseFile.overview?.summary }}</p>
         <blockquote>{{ caseFile.finalQuestion }}</blockquote>
-        <p class="goal">목표: {{ caseFile.overview.goal }}</p>
+        <p class="goal">목표: {{ caseFile.overview?.goal }}</p>
       </section>
 
       <section class="dossier">
@@ -40,17 +40,18 @@
         </div>
         <div class="card-grid">
           <article v-for="suspect in caseFile.suspects" :key="suspect.suspectId" class="suspect-card" :class="{ locked: !suspect.unlocked }">
-            <div class="portrait">{{ suspect.unlocked ? suspect.displayName.slice(0, 1) : '?' }}</div>
+            <div class="portrait">{{ suspect.unlocked ? suspect.displayName.slice(0, 1) : '잠김' }}</div>
             <div>
-              <em>{{ suspect.alias }}</em>
-              <h4>{{ suspect.displayName }}</h4>
-              <p>{{ suspect.shortDescription }}</p>
+              <em>{{ suspect.unlocked ? suspect.alias : '해금 전 용의자' }}</em>
+              <h4>{{ suspect.unlocked ? suspect.displayName : '잠긴 용의자 카드' }}</h4>
+              <p>{{ suspect.unlocked ? suspect.shortDescription : '퍼즐 보상으로 해금되면 상세 정보가 표시됩니다.' }}</p>
             </div>
             <dl v-if="suspect.unlocked">
               <dt>관계</dt><dd>{{ suspect.relationToVictim }}</dd>
               <dt>의심 포인트</dt><dd>{{ suspect.suspiciousPoint }}</dd>
               <dt>알리바이</dt><dd>{{ suspect.alibiSummary }}</dd>
             </dl>
+            <span v-if="suspect.unlocked" class="unlock-badge">{{ suspect.cleared ? '갱신됨' : '해금됨' }}</span>
             <span v-else class="lock">잠김</span>
           </article>
         </div>
@@ -68,10 +69,16 @@
             <div class="photo-placeholder">{{ evidence.unlocked ? evidenceTypeLabel(evidence.type) : 'LOCKED' }}</div>
             <div>
               <span class="tag">{{ evidenceTypeLabel(evidence.type) }}</span>
-              <h4>{{ evidence.title }}</h4>
-              <p>{{ evidence.textSummary }}</p>
-              <small v-if="evidence.relatedClueType">{{ clueTypeLabel(evidence.relatedClueType) }}</small>
+              <h4>{{ evidence.unlocked ? evidence.title : '잠긴 사건 자료' }}</h4>
+              <p>{{ evidence.unlocked ? evidence.textSummary : '현장 퍼즐을 해결하면 이 자료가 사건파일에 추가됩니다.' }}</p>
+              <div class="evidence-meta">
+                <small v-if="evidence.relatedClueType">{{ clueTypeLabel(evidence.relatedClueType) }}</small>
+                <small v-if="evidence.unlocked && evidence.relatedSuspectIds?.length">연결 용의자: {{ suspectNames(evidence.relatedSuspectIds) }}</small>
+                <small v-if="!evidence.unlocked">reward_payload 해금 대기</small>
+              </div>
             </div>
+            <span v-if="evidence.unlocked" class="unlock-badge">해금됨</span>
+            <span v-else class="lock">잠김</span>
           </article>
         </div>
       </section>
@@ -96,7 +103,7 @@
       </section>
 
       <section class="dossier log">
-        <p class="section-label">답안지 / 조사 기록</p>
+        <p class="section-label">통계 / 조사 기록</p>
         <div class="log-grid">
           <span>방문 장소 <strong>{{ caseFile.progressSummary.visitedSpotCount }}/{{ caseFile.progressSummary.totalSpotCount }}</strong></span>
           <span>완료 장소 <strong>{{ caseFile.progressSummary.completedSpotCount }}/{{ caseFile.progressSummary.totalSpotCount }}</strong></span>
@@ -181,6 +188,13 @@ const evidenceTypeLabel = (type) => ({
   DESTINATION_CLUE: '목적지 힌트',
   STORY_CLUE: '스토리 단서'
 }[type] || type);
+
+function suspectNames(ids = []) {
+  return ids
+    .map((id) => caseFile.value?.suspects?.find((suspect) => suspect.suspectId === id)?.displayName)
+    .filter(Boolean)
+    .join(', ');
+}
 </script>
 
 <style scoped>
@@ -205,16 +219,19 @@ blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; back
 .section-head { display: flex; align-items: end; justify-content: space-between; gap: 10px; padding: 18px 18px 0; }
 .card-grid, .evidence-grid { display: grid; gap: 10px; padding: 14px 18px 18px; }
 .suspect-card, .evidence-card { position: relative; overflow: hidden; display: grid; grid-template-columns: 58px 1fr; gap: 12px; padding: 14px; border: 1px solid rgba(148,163,184,.18); border-radius: 16px; background: rgba(2,6,23,.34); }
-.suspect-card.locked, .evidence-card.locked { filter: grayscale(.6); opacity: .7; }
+.suspect-card.locked, .evidence-card.locked { filter: grayscale(.45); opacity: .72; }
 .portrait { width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; background: linear-gradient(135deg, #7c2d12, #0f172a); font-weight: 1000; font-size: 1.4rem; }
 em { color: #94a3b8; font-style: normal; font-size: .78rem; }
 dl { grid-column: 1 / -1; display: grid; gap: 4px; margin: 8px 0 0; }
 dt { color: #fbbf24; font-size: .76rem; font-weight: 900; }
 dd { margin: 0 0 6px; color: #cbd5e1; line-height: 1.5; }
-.lock { position: absolute; right: 12px; top: 12px; border-radius: 999px; padding: 4px 8px; background: rgba(15,23,42,.82); color: #f8fafc; font-size: .72rem; font-weight: 900; }
+.lock, .unlock-badge { position: absolute; right: 12px; top: 12px; border-radius: 999px; padding: 4px 8px; font-size: .72rem; font-weight: 900; }
+.lock { background: rgba(15,23,42,.82); color: #f8fafc; }
+.unlock-badge { background: rgba(22,101,52,.82); color: #bbf7d0; }
 .photo-placeholder { min-height: 74px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(245,158,11,.28), rgba(15,23,42,.9)); color: #fde68a; font-size: .75rem; font-weight: 1000; }
 .tag, .clue-column span { display: inline-flex; width: fit-content; border-radius: 999px; padding: 5px 8px; background: rgba(245,158,11,.16); color: #fde68a; font-size: .74rem; font-weight: 900; }
-.evidence-card small { color: #67e8f9; font-weight: 900; }
+.evidence-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.evidence-card small { width: fit-content; border-radius: 999px; padding: 4px 7px; background: rgba(8,47,73,.42); color: #67e8f9; font-weight: 900; }
 .clue-column { display: grid; gap: 8px; margin-top: 12px; padding: 13px; border-radius: 16px; background: rgba(2,6,23,.34); }
 .clue-column.purple span { background: rgba(126,34,206,.24); color: #e9d5ff; }
 .clue-column.green span { background: rgba(21,128,61,.24); color: #bbf7d0; }
@@ -222,5 +239,6 @@ dd { margin: 0 0 6px; color: #cbd5e1; line-height: 1.5; }
 ul { margin: 0; padding-left: 18px; color: #cbd5e1; line-height: 1.65; }
 .reward-card { padding: 14px; border: 1px dashed rgba(148,163,184,.34); border-radius: 16px; background: rgba(2,6,23,.28); }
 .reward-card span { margin-left: 8px; border-radius: 999px; padding: 4px 8px; background: #334155; color: #cbd5e1; font-size: .75rem; }
-@media (max-width: 370px) { .cover-grid, .log-grid { grid-template-columns: 1fr; } }
+@media (max-width: 370px) { .cover-grid, .log-grid, .suspect-card, .evidence-card { grid-template-columns: 1fr; } .portrait { width: 52px; height: 52px; } }
 </style>
+
