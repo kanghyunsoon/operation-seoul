@@ -14,6 +14,18 @@ public class PuzzleSubmitResponse {
     private List<String> unlockedRewardTypes;
     private List<Long> unlockedEvidenceIds;
     private List<Long> unlockedSuspectIds;
+    private List<Long> updatedSuspectIds;
+    private List<Long> unlockedPhotoIds;
+    private List<Long> unlockedMemoIds;
+    private List<UnlockedCaseFileItem> newlyUnlockedItems;
     private ClueBoardResponse clueBoard;
     private String message;
+
+    @Data
+    @Builder
+    public static class UnlockedCaseFileItem {
+        private String rewardType;
+        private String itemType;
+        private Long targetId;
+    }
 }

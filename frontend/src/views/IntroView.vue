@@ -7,7 +7,7 @@
       <header class="header">
         <p class="eyebrow">FIELD ACCESS</p>
         <h1 class="title">OPERATION<span> KOREA</span></h1>
-        <p class="subtitle">사건파일형 야외 방탈출에 접속합니다.</p>
+        <p class="subtitle">오프라인 사건파일 키트를 모바일 현장 조사로 이어갑니다.</p>
       </header>
 
       <form class="auth-form" @submit.prevent="handleSubmit">
@@ -71,7 +71,7 @@ async function handleSubmit() {
     return;
   }
   if (password.value.length < 8) {
-    setMessage('비밀번호는 최소 길이와 형식 조건을 만족해야 합니다.', 'error');
+    setMessage('비밀번호는 최소 8자 이상 입력해 주세요.', 'error');
     return;
   }
 
@@ -116,7 +116,7 @@ function setMessage(text, type) {
 .eyebrow { margin: 0 0 8px; color: #f59e0b; font-size: .76rem; font-weight: 900; letter-spacing: .16em; }
 .title { margin: 0; font-size: clamp(2.1rem, 12vw, 3.7rem); line-height: .95; }
 .title span { color: #f59e0b; }
-.subtitle { margin: 12px 0 0; color: #cbd5e1; }
+.subtitle { margin: 12px 0 0; color: #cbd5e1; line-height: 1.5; }
 .auth-form { display: grid; gap: 14px; }
 .input-group { display: grid; gap: 7px; color: #e5e7eb; font-weight: 800; }
 input { min-height: 48px; box-sizing: border-box; width: 100%; border: 1px solid rgba(148,163,184,.32); border-radius: 14px; background: rgba(2,6,23,.56); color: #f8fafc; padding: 0 14px; font: inherit; }
@@ -127,7 +127,5 @@ input:focus { outline: 2px solid rgba(245,158,11,.45); border-color: transparent
 .form-message.success { background: rgba(22,163,74,.16); color: #bbf7d0; }
 .form-message.error { background: rgba(220,38,38,.18); color: #fecaca; }
 .text-btn { display: block; width: 100%; min-height: 44px; margin-top: 14px; border: 0; background: transparent; color: #fde68a; font: inherit; font-weight: 900; }
-@media (max-width: 390px) {
-  .login-card { padding: 24px 18px; }
-}
+@media (max-width: 390px) { .login-card { padding: 24px 18px; } }
 </style>

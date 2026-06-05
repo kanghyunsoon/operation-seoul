@@ -354,13 +354,14 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
     private void seedRewardPayloads(Long episodeId) {
         Map<String, Long> evidence = evidenceIds(episodeId);
         Map<String, Long> suspect = suspectIds(episodeId);
-        payload(episodeId, "덕수궁 대한문", "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"마지막 사진\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("현장 사진") + "}]}");
-        payload(episodeId, "덕수궁 돌담길", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"깨\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("찢어진 포스트잇") + "}]}");
+        payload(episodeId, "덕수궁 대한문", "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"마지막 사진\"}]}");
+        payload(episodeId, "덕수궁 돌담길", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"깨\"}]}");
         payload(episodeId, "정동제일교회", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"ㄹㅈ\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("사진기 부품 기록") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("사라진 조수") + "}]}");
         payload(episodeId, "배재학당 역사박물관", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"유리\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("깨진 유리 조각 메모") + "}]}");
-        payload(episodeId, "서울시립미술관 서소문본관", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"반사\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("렌즈 반사 메모") + "}]}");
+        payload(episodeId, "서울시립미술관 서소문본관", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"반사\"},{\"type\":\"MEMO_UNLOCK\",\"value\":\"렌즈 반사 방향은 카메라 안쪽의 파손 흔적과 연결된다.\",\"targetId\":" + evidence.get("렌즈 반사 메모") + "}]}");
         payload(episodeId, "정동극장", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"외교 기록이 잠든 붉은 벽\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("목격자 진술 메모") + "}]}");
-        payload(episodeId, "이화학당 사적비", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"침묵으로 남은 마지막 문\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("마지막 사진 카드") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("검은 외투의 기록상") + "}]}");
+        payload(episodeId, "이화학당 사적비", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"침묵으로 남은 마지막 문\"},{\"type\":\"PHOTO_UNLOCK\",\"targetId\":" + evidence.get("마지막 사진 카드") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("검은 외투의 기록상") + "}]}");
+        payload(episodeId, "중명전", "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"붉은 장갑의 색은 피가 아니라 인주 자국에 가깝다.\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("붉은 장갑 관련 기록") + "},{\"type\":\"SUSPECT_UPDATE\",\"targetId\":" + suspect.get("붉은 장갑의 남자") + "}]}");
     }
 
     private void payload(Long episodeId, String placeName, String payload) {

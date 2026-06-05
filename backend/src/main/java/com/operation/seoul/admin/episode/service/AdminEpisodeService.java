@@ -52,7 +52,7 @@ public class AdminEpisodeService {
     private static final Set<String> CLUE_ROLES = Set.of("START", "ANSWER_HINT", "DESTINATION_HINT", "STORY_CONTEXT", "FINAL_PLACE");
     private static final Set<String> PUZZLE_TYPES = Set.of("OBSERVATION", "NUMBER_LOCK", "INITIAL_SOUND", "PATTERN", "STORY_COMBINATION");
     private static final Set<String> ANSWER_FORMATS = Set.of("TEXT", "NUMBER", "CHOICE", "CODE");
-    private static final Set<String> REWARD_TYPES = Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "MEMO_UNLOCK", "EVIDENCE_UNLOCK", "SUSPECT_UNLOCK");
+    private static final Set<String> REWARD_TYPES = Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "MEMO_UNLOCK", "EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "SUSPECT_UNLOCK", "SUSPECT_UPDATE");
     private static final Set<String> EVIDENCE_TYPES = Set.of("PHOTO", "MEMO", "NOTE", "DOCUMENT", "EVIDENCE", "SUSPECT_CLUE", "POST_IT", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE");
     private static final Set<String> PARTNER_REWARD_TYPES = Set.of("COUPON", "GIFT_CARD", "LOCAL_CURRENCY", "CAFE_DISCOUNT", "STAMP");
     private static final Set<String> PARTNER_REWARD_STATUSES = Set.of("DISABLED", "PLANNED", "ACTIVE", "ENDED");
@@ -513,13 +513,16 @@ public class AdminEpisodeService {
                         errors.add("rewards[" + i + "].type이 지원되지 않습니다: " + type);
                     }
                     String targetLabel = null;
-                    if (Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "MEMO_UNLOCK").contains(type) && value.isBlank()) {
+                    if (Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE").contains(type) && value.isBlank()) {
                         errors.add("rewards[" + i + "] " + type + "에는 value가 필요합니다.");
                     }
-                    if ("EVIDENCE_UNLOCK".equals(type)) {
+                    if ("MEMO_UNLOCK".equals(type) && targetId == null && value.isBlank()) {
+                        errors.add("rewards[" + i + "] MEMO_UNLOCK에는 targetId 또는 value가 필요합니다.");
+                    }
+                    if (Set.of("EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "MEMO_UNLOCK").contains(type) && targetId != null) {
                         targetLabel = validateEvidenceTarget(episodeId, targetId, i, errors);
                     }
-                    if ("SUSPECT_UNLOCK".equals(type)) {
+                    if (Set.of("SUSPECT_UNLOCK", "SUSPECT_UPDATE").contains(type)) {
                         targetLabel = validateSuspectTarget(episodeId, targetId, i, errors);
                     }
                     rewardItems.add(AdminRewardPayloadValidationResponse.RewardItem.builder()

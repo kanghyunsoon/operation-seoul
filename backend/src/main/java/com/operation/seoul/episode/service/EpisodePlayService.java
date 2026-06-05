@@ -29,6 +29,9 @@ import java.util.stream.Stream;
 public class EpisodePlayService {
     private static final TypeReference<List<Long>> LONG_LIST = new TypeReference<>() {};
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
+    private static final Set<String> ALLOWED_DEDUCTION_ANSWER_TYPES = Set.of(
+            "YES", "NO", "RELATED", "NOT_RELATED", "PARTIAL", "AMBIGUOUS", "INSUFFICIENT_CLUE", "REFUSED_DIRECT_REVEAL"
+    );
 
     private final EpisodeRepository episodeRepository;
     private final ObjectMapper objectMapper;
@@ -101,7 +104,6 @@ public class EpisodePlayService {
                                 .latitude(spot.getLatitude())
                                 .longitude(spot.getLongitude())
                                 .publicMarkerType(spot.getPublicMarkerType())
-                                .clueRole(spot.getClueRole())
                                 .storyText(spot.getStoryText())
                                 .visited(visited.contains(spot.getId()))
                                 .completed(completed.contains(spot.getId()))
@@ -117,7 +119,10 @@ public class EpisodePlayService {
         requireEpisode(episodeId);
         MissionSpot spot = requireSpot(spotId, episodeId);
         UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
-        boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && arrivalDevModeEnabled;
+        if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "Dev arrival is disabled on this server.");
+        }
+        boolean devMode = Boolean.TRUE.equals(request.getDevMode());
         double distance = devMode ? 0.0 : calculateDistanceMeters(request.getUserLat(), request.getUserLng(), spot.getLatitude(), spot.getLongitude());
         boolean arrived = devMode || distance <= safeRadius(spot.getArrivalRadius());
 
@@ -209,6 +214,10 @@ public class EpisodePlayService {
                 .unlockedRewardTypes(rewardResult.rewardTypes())
                 .unlockedEvidenceIds(rewardResult.evidenceIds())
                 .unlockedSuspectIds(rewardResult.suspectIds())
+                .updatedSuspectIds(rewardResult.updatedSuspectIds())
+                .unlockedPhotoIds(rewardResult.photoIds())
+                .unlockedMemoIds(rewardResult.memoIds())
+                .newlyUnlockedItems(rewardResult.items())
                 .message(rewardResult.caseFileUpdated()
                         ? "정답입니다. 단서와 새 사건 자료가 사건파일에 추가되었습니다."
                         : "정답입니다. 단서가 단서 보드에 저장되었습니다.")
@@ -271,7 +280,7 @@ public class EpisodePlayService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "질문을 입력해 주세요.");
         }
 
-        DeductionAnswer answer = answerDeductionQuestion(episode, progress, question);
+        DeductionAnswer answer = sanitizeDeductionAnswer(episode, answerDeductionQuestion(episode, progress, question));
         FinalDeductionQuestion saved = new FinalDeductionQuestion();
         saved.setSessionId(sessionId);
         saved.setUserQuestion(question);
@@ -504,6 +513,10 @@ public class EpisodePlayService {
         List<String> rewardTypes = new ArrayList<>();
         List<Long> evidenceIds = new ArrayList<>();
         List<Long> suspectIds = new ArrayList<>();
+        List<Long> updatedSuspectIds = new ArrayList<>();
+        List<Long> photoIds = new ArrayList<>();
+        List<Long> memoIds = new ArrayList<>();
+        List<PuzzleSubmitResponse.UnlockedCaseFileItem> items = new ArrayList<>();
         boolean payloadApplied = false;
 
         if (puzzle.getRewardPayload() != null && !puzzle.getRewardPayload().isBlank()) {
@@ -517,12 +530,26 @@ public class EpisodePlayService {
                         boolean added = applyReward(progress, type, value, targetId);
                         if (added) {
                             rewardTypes.add(type);
-                            if ("EVIDENCE_UNLOCK".equals(type) && targetId != null) {
+                            if (isEvidenceUnlock(type) && targetId != null) {
                                 evidenceIds.add(targetId);
                             }
                             if ("SUSPECT_UNLOCK".equals(type) && targetId != null) {
                                 suspectIds.add(targetId);
                             }
+                            if ("SUSPECT_UPDATE".equals(type) && targetId != null) {
+                                updatedSuspectIds.add(targetId);
+                            }
+                            if ("PHOTO_UNLOCK".equals(type) && targetId != null) {
+                                photoIds.add(targetId);
+                            }
+                            if ("MEMO_UNLOCK".equals(type) && targetId != null) {
+                                memoIds.add(targetId);
+                            }
+                            items.add(PuzzleSubmitResponse.UnlockedCaseFileItem.builder()
+                                    .rewardType(type)
+                                    .itemType(itemType(type))
+                                    .targetId(targetId)
+                                    .build());
                         }
                     }
                     payloadApplied = true;
@@ -537,17 +564,50 @@ public class EpisodePlayService {
             rewardTypes.add(spot.getClueRole());
         }
 
-        return new RewardApplyResult(!rewardTypes.isEmpty(), rewardTypes, evidenceIds, suspectIds);
+        return new RewardApplyResult(!rewardTypes.isEmpty(), rewardTypes, evidenceIds, suspectIds, updatedSuspectIds, photoIds, memoIds, items);
     }
 
     private boolean applyReward(UserEpisodeProgress progress, String type, String value, Long targetId) {
         return switch (type) {
             case "ANSWER_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), value, progress::setCollectedAnswerClues);
             case "DESTINATION_CLUE" -> addStringReward(progress.getCollectedDestinationClues(), value, progress::setCollectedDestinationClues);
-            case "STORY_CLUE", "MEMO_UNLOCK" -> addStringReward(progress.getCollectedStoryClues(), value, progress::setCollectedStoryClues);
-            case "EVIDENCE_UNLOCK" -> targetId != null && addLongReward(progress.getUnlockedEvidenceIds(), targetId, progress::setUnlockedEvidenceIds);
+            case "STORY_CLUE" -> addStringReward(progress.getCollectedStoryClues(), value, progress::setCollectedStoryClues);
+            case "EVIDENCE_UNLOCK", "PHOTO_UNLOCK" -> targetId != null && addLongReward(progress.getUnlockedEvidenceIds(), targetId, progress::setUnlockedEvidenceIds);
+            case "MEMO_UNLOCK" -> applyMemoUnlock(progress, value, targetId);
             case "SUSPECT_UNLOCK" -> targetId != null && addLongReward(progress.getUnlockedSuspectIds(), targetId, progress::setUnlockedSuspectIds);
+            case "SUSPECT_UPDATE" -> applySuspectUpdate(progress, targetId);
             default -> false;
+        };
+    }
+
+    private boolean applyMemoUnlock(UserEpisodeProgress progress, String value, Long targetId) {
+        boolean evidenceAdded = targetId != null && addLongReward(progress.getUnlockedEvidenceIds(), targetId, progress::setUnlockedEvidenceIds);
+        boolean memoAdded = addStringReward(progress.getCollectedStoryClues(), value, progress::setCollectedStoryClues);
+        return evidenceAdded || memoAdded;
+    }
+
+    private boolean applySuspectUpdate(UserEpisodeProgress progress, Long targetId) {
+        if (targetId == null) {
+            return false;
+        }
+        boolean unlocked = addLongReward(progress.getUnlockedSuspectIds(), targetId, progress::setUnlockedSuspectIds);
+        boolean updated = addLongReward(progress.getClearedSuspectIds(), targetId, progress::setClearedSuspectIds);
+        return unlocked || updated;
+    }
+
+    private boolean isEvidenceUnlock(String type) {
+        return "EVIDENCE_UNLOCK".equals(type) || "PHOTO_UNLOCK".equals(type) || "MEMO_UNLOCK".equals(type);
+    }
+
+    private String itemType(String rewardType) {
+        return switch (rewardType) {
+            case "SUSPECT_UNLOCK" -> "SUSPECT";
+            case "SUSPECT_UPDATE" -> "SUSPECT_UPDATE";
+            case "PHOTO_UNLOCK" -> "PHOTO";
+            case "MEMO_UNLOCK" -> "MEMO";
+            case "EVIDENCE_UNLOCK" -> "EVIDENCE";
+            case "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE" -> "CLUE";
+            default -> "UNKNOWN";
         };
     }
 
@@ -587,10 +647,10 @@ public class EpisodePlayService {
         if (acceptedFinalAnswers(episode).stream().anyMatch(normalizedQuestion::contains)) {
             return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 정답을 직접 노출할 수 있어 답할 수 없습니다.");
         }
-        if (containsAny(normalizedQuestion, "최종장소", "실제장소", "중명전", "정답장소", "어디로가")) {
+        if (containsAny(normalizedQuestion, "최종장소", "실제장소", "중명전", "정답장소", "목적지어디", "어디로가", "어디야", "어디")) {
             return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 최종 장소를 직접 노출할 수 있어 답할 수 없습니다.");
         }
-        if (containsAny(normalizedQuestion, "정답뭐", "정답무엇", "답알려", "정답알려", "흉기뭐", "범인누구")) {
+        if (containsAny(normalizedQuestion, "정답", "답뭐", "답이뭐", "답알려", "무엇", "뭐야", "뭐냐", "알려줘", "흉기뭐", "범인누구")) {
             return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 정답을 직접 노출할 수 있어 답할 수 없습니다.");
         }
         if (allClues(progress).size() < 2) {
@@ -609,6 +669,20 @@ public class EpisodePlayService {
             return new DeductionAnswer("AMBIGUOUS", "질문이 모호함. 범인, 흉기, 증거 중 무엇에 대한 질문인지 다시 물어보세요.");
         }
         return new DeductionAnswer("AMBIGUOUS", "질문이 모호함. 수집한 단서 중 어느 자료와 연결되는지 더 구체적으로 물어보세요.");
+    }
+
+    private DeductionAnswer sanitizeDeductionAnswer(Episode episode, DeductionAnswer answer) {
+        String type = ALLOWED_DEDUCTION_ANSWER_TYPES.contains(answer.type()) ? answer.type() : "AMBIGUOUS";
+        String text = answer.text() == null ? "" : answer.text();
+        String normalizedText = normalizeAnswer(text);
+        boolean revealsAnswer = acceptedFinalAnswers(episode).stream()
+                .filter(value -> !value.isBlank())
+                .anyMatch(normalizedText::contains);
+        boolean revealsFinalPlace = containsAny(normalizedText, "중명전", "최종장소", "실제장소", "정답장소");
+        if (revealsAnswer || revealsFinalPlace) {
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 정답 또는 최종 장소를 직접 노출할 수 있어 답할 수 없습니다.");
+        }
+        return new DeductionAnswer(type, text);
     }
 
     private boolean containsAny(String source, String... keywords) {
@@ -709,6 +783,8 @@ public class EpisodePlayService {
     private record DeductionAnswer(String type, String text) {
     }
 
-    private record RewardApplyResult(boolean caseFileUpdated, List<String> rewardTypes, List<Long> evidenceIds, List<Long> suspectIds) {
+    private record RewardApplyResult(boolean caseFileUpdated, List<String> rewardTypes, List<Long> evidenceIds,
+                                     List<Long> suspectIds, List<Long> updatedSuspectIds, List<Long> photoIds,
+                                     List<Long> memoIds, List<PuzzleSubmitResponse.UnlockedCaseFileItem> items) {
     }
 }
