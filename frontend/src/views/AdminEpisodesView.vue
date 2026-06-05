@@ -407,6 +407,9 @@
               <h2>AI 사건파일 자동 작성</h2>
             </div>
             <div class="payload-actions action-bar">
+              <button type="button" class="ghost-btn" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'enrich' }" @click="enrichSelectedSiteData">
+                {{ activeAction === 'enrich' ? 'Enriching site data...' : 'RAG site data enrich' }}
+              </button>
               <button type="button" class="primary-action" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'gemini' }" @click="generateGeminiDraft">
                 {{ activeAction === 'gemini' ? 'Gemini 작성 중...' : 'Gemini로 전체 초안 작성' }}
               </button>
@@ -423,6 +426,23 @@
                 {{ activeAction === 'save' ? 'DB 저장 중...' : 'DRAFT로 저장' }}
               </button>
             </div>
+          </div>
+          <div v-if="draftValidation || draftResult?.validationWarnings?.length || draftResult?.draft" class="draft-feedback-panel" :class="{ invalid: draftValidation && !draftValidation.valid }">
+            <strong>{{ draftValidation ? (draftValidation.valid ? '검증 통과' : '검증 이슈 있음') : '초안 준비 완료' }}</strong>
+            <p v-if="draftValidation">{{ draftValidationSummary }}</p>
+            <p v-else>초안을 확인한 뒤 DRAFT 저장을 누르면 새 에피소드가 생성되고 상단 상세 패널이 해당 에피소드로 전환됩니다.</p>
+            <ul v-if="draftValidation?.findings?.length">
+              <li v-for="finding in draftValidation.findings.slice(0, 6)" :key="`top-${finding.code}-${finding.missionOrder}-${finding.message}`">
+                <b>{{ finding.severity }}</b>
+                <span>{{ finding.code }}</span>
+                <em v-if="finding.missionOrder">spot {{ finding.missionOrder }}</em>
+                {{ finding.message }}
+              </li>
+            </ul>
+            <ul v-else-if="draftWarningSummary.length">
+              <li v-for="warning in draftWarningSummary" :key="warning">{{ warning }}</li>
+            </ul>
+            <small v-if="draftValidation?.findings?.length > 6">나머지 이슈는 아래 전체 검증 결과에서 확인하세요.</small>
           </div>
           <div class="ai-mode-grid">
             <article>
@@ -501,7 +521,7 @@
                 <button type="button" @click="loadPlaceCandidates">TourAPI 기준 장소 불러오기</button>
               </div>
             </div>
-            <p class="candidate-help">TourAPI 장소는 사건의 기준 지점이자 서버 내부 최종 장소입니다. 기준 장소를 선택하면 Kakao Local로 주변 골목상권/문화 후보지를 불러옵니다.</p>
+            <p class="candidate-help">TourAPI 기준 장소는 서버 내부 최종 장소로 저장하고, Kakao Local 후보는 골목상권/문화 거점을 섞어 추천 루트로 자동 구성합니다. 사용자는 모든 장소를 보지만 실제 최종 장소 여부는 노출되지 않습니다.</p>
             <div class="ops-notice">
               <strong>키/도메인 설정 확인</strong>
               <p>TourAPI와 Kakao Local 후보 조회는 백엔드 API 키가 필요합니다. 지도 표시는 프론트 Kakao JavaScript 키와 허용 도메인, 길찾기는 Tmap 앱 키/도메인 설정을 확인해야 합니다.</p>
@@ -529,7 +549,8 @@
               <div class="payload-actions">
                 <label class="inline-field">반경(m)<input v-model.number="nearbyRadius" type="number" min="100" max="20000" /></label>
                 <button type="button" class="ghost-btn" :disabled="!anchorCandidate" @click="loadNearbyCandidates(anchorCandidate)">주변 후보 다시 불러오기</button>
-                <button type="button" class="ghost-btn" :disabled="!canGenerateDraftFromSelection" @click="applyCandidatesToDraft">선택 장소를 초안 입력에 적용</button>
+                <button type="button" class="ghost-btn" :disabled="!anchorCandidate || nearbyCandidates.length < 2" @click="rerollRecommendedRoute">추천 루트 다시 구성</button>
+                <button type="button" class="ghost-btn" :disabled="!canGenerateDraftFromSelection" @click="applyCandidatesToDraft">추천 루트를 초안 입력에 적용</button>
               </div>
             </div>
             <p class="candidate-help">기준 장소 포함 8~9개를 선택하세요. TourAPI 기준 장소가 내부 최종 장소가 되고, 공개 화면에는 일반 조사 후보처럼만 표시됩니다. Kakao 후보가 부족하면 아래 수동 후보로 보강하세요.</p>
@@ -560,12 +581,17 @@
                   <strong>{{ candidate.title }}</strong>
                 </label>
                 <p>{{ candidate.address || '주소 없음' }}</p>
-                <span>{{ candidate.source }} · {{ candidate.latitude }}, {{ candidate.longitude }}</span>
-                <em v-if="!hasCandidateCoordinate(candidate)" class="coordinate-warning">좌표 없음: 선택해도 초안 생성 불가</em>
+                <span>{{ candidate.source }} &middot; {{ candidate.latitude }}, {{ candidate.longitude }}</span>
+                <div class="candidate-actions">
+                  <button v-if="isCandidateSelected(candidate) && !isAnchorCandidate(candidate)" type="button" class="ghost-btn mini" @click.stop="replaceSelectedCandidate(candidate)">다른 후보로 교체</button>
+                  <button v-else-if="!isCandidateSelected(candidate)" type="button" class="ghost-btn mini" :disabled="selectedCandidates.length >= 9 || !hasCandidateCoordinate(candidate)" @click.stop="toggleCandidate(candidate)">루트에 추가</button>
+                </div>
+                <em v-if="!hasCandidateCoordinate(candidate)" class="coordinate-warning">좌표 없음: 초안 생성 불가</em>
               </article>
             </div>
             <div v-if="selectedCandidates.length" class="selected-route">
-              <h4>선택 장소 역할 미리보기</h4>
+              <h4>추천 루트 역할 미리보기</h4>
+              <p class="route-summary">{{ routeIdentitySummary }}</p>
               <ol>
                 <li v-for="(candidate, index) in orderedSelectedCandidates" :key="candidateKey(candidate)">
                   <b>{{ index + 1 }}</b>
@@ -591,6 +617,7 @@
               <summary>사건파일 기본 정보</summary>
               <div class="edit-grid">
                 <label>제목<input v-model.trim="draftResult.draft.episodeTitle" type="text" /></label>
+                <label>부제<input v-model.trim="draftResult.draft.subtitle" type="text" /></label>
                 <label>장르<input v-model.trim="draftResult.draft.genre" type="text" /></label>
                 <label>시대<input v-model.trim="draftResult.draft.era" type="text" /></label>
                 <label>정답 유형
@@ -614,15 +641,19 @@
                 <label class="wide">정답 노출 금지어, 줄바꿈 구분<textarea :value="listToLines(draftResult.draft.deductionForbiddenReveals)" rows="3" @input="draftResult.draft.deductionForbiddenReveals = linesToList($event.target.value)"></textarea></label>
               </div>
             </details>
-
             <details open class="draft-edit-block">
               <summary>장소/퍼즐 초안</summary>
+              <p class="draft-section-help">각 장소는 접어서 볼 수 있습니다. 최종 장소는 내부 설정으로만 쓰이고, 사용자 지도에는 공개 마커만 내려갑니다.</p>
               <div class="draft-mission-list">
-                <article v-for="mission in draftResult.draft.missions || []" :key="`draft-mission-${mission.order}`" class="draft-mission-card" :class="{ final: mission.finalPlace }">
-                  <div class="spot-head">
-                    <strong>{{ mission.order }}. {{ mission.placeName }}</strong>
-                    <span>{{ mission.publicMarkerType }} / {{ mission.clueRole }}</span>
-                  </div>
+                <details v-for="(mission, missionIndex) in draftResult.draft.missions || []" :key="`draft-mission-${mission.order}`" class="draft-mission-card" :class="{ final: mission.finalPlace }" :open="missionIndex === 0">
+                  <summary class="draft-card-summary">
+                    <span>
+                      <strong>{{ mission.order }}. {{ mission.placeName }}</strong>
+                      <small>{{ mission.publicMarkerType }} / {{ mission.clueRole }} / {{ mission.puzzleType }}</small>
+                    </span>
+                    <em>{{ mission.finalPlace ? '내부 최종 장소' : '편집 열기' }}</em>
+                  </summary>
+                  <p class="draft-card-preview">{{ mission.storyText || '스토리 문구를 입력하세요.' }}</p>
                   <div class="edit-grid">
                     <label>장소명<input v-model.trim="mission.placeName" type="text" /></label>
                     <label>주소<input v-model.trim="mission.address" type="text" /></label>
@@ -687,7 +718,7 @@
                       <input v-model.trim="mission.hints[hintIndex]" type="text" />
                     </label>
                   </div>
-                </article>
+                </details>
               </div>
             </details>
 
@@ -695,17 +726,31 @@
               <summary>용의자/증거 카드 초안</summary>
               <h4>용의자</h4>
               <div class="mini-grid">
-                <article v-for="(suspect, index) in draftResult.draft.suspects || []" :key="`draft-suspect-${index}`">
+                <details v-for="(suspect, index) in draftResult.draft.suspects || []" :key="`draft-suspect-${index}`" class="draft-mini-card">
+                  <summary class="draft-card-summary">
+                    <span>
+                      <strong>{{ suspect.alias || '용의자' }}</strong>
+                      <small>{{ suspect.displayName || '이름 미정' }}</small>
+                    </span>
+                    <em>편집</em>
+                  </summary>
                   <label>별칭<input v-model.trim="suspect.alias" type="text" /></label>
                   <label>표시 이름<input v-model.trim="suspect.displayName" type="text" /></label>
                   <label>의심 포인트<textarea v-model="suspect.suspiciousPoint" rows="2"></textarea></label>
-                </article>
+                </details>
               </div>
               <h4>증거/메모/사진</h4>
               <div class="mini-grid">
-                <article v-for="(evidence, index) in draftResult.draft.evidences || []" :key="`draft-evidence-${index}`">
+                <details v-for="(evidence, index) in draftResult.draft.evidences || []" :key="`draft-evidence-${index}`" class="draft-mini-card">
+                  <summary class="draft-card-summary">
+                    <span>
+                      <strong>{{ evidence.title || '사건자료' }}</strong>
+                      <small>{{ evidence.type || 'EVIDENCE' }}</small>
+                    </span>
+                    <em>편집</em>
+                  </summary>
                   <label>제목<input v-model.trim="evidence.title" type="text" /></label>
-                  <label>타입
+                  <label>유형
                     <select v-model="evidence.type">
                       <option value="PHOTO">PHOTO</option>
                       <option value="MEMO">MEMO</option>
@@ -719,11 +764,18 @@
                       <option value="STORY_CLUE">STORY_CLUE</option>
                     </select>
                   </label>
-                  <label>출처 순서<input v-model.number="evidence.sourceMissionOrder" type="number" min="1" /></label>
-                  <label class="wide">이미지 URL<input v-model.trim="evidence.imageUrl" type="text" placeholder="비워두면 저장 시 자동 카드 이미지 생성" /></label>
-                  <img v-if="evidence.imageUrl" class="draft-evidence-image" :src="evidence.imageUrl" alt="사건자료 이미지 미리보기" />
+                  <label>출처 미션<input v-model.number="evidence.sourceMissionOrder" type="number" min="1" /></label>
+                  <div class="wide evidence-preview-box">
+                    <img v-if="evidence.imageUrl" class="draft-evidence-image" :src="evidence.imageUrl" alt="사건자료 이미지 미리보기" />
+                    <button type="button" class="ghost-btn mini" @click="evidence.imageUrl = generatedEvidenceCardDataUrl(evidence.title, evidence.type)">스토리 카드 다시 생성</button>
+                    <small>현재는 실사 생성이 아니라 제목/유형 기반 사건파일 일러스트 카드입니다.</small>
+                  </div>
+                  <details class="wide image-url-edit">
+                    <summary>이미지 URL 직접 수정</summary>
+                    <label>이미지 URL<input v-model.trim="evidence.imageUrl" type="text" placeholder="비워두면 자동 카드 이미지 생성" /></label>
+                  </details>
                   <label>요약<textarea v-model="evidence.textSummary" rows="2"></textarea></label>
-                </article>
+                </details>
               </div>
             </details>
           </section>
@@ -845,6 +897,30 @@ const selectedCandidateStatus = computed(() => {
   const missing = selectedCandidates.value.filter((candidate) => !hasCandidateCoordinate(candidate));
   if (missing.length) return `좌표가 없는 장소 ${missing.length}개가 있습니다. 좌표가 있는 후보로 교체하거나 수동 후보를 추가하세요.`;
   return '초안 생성에 사용할 수 있는 장소 구성입니다.';
+});
+const routeIdentitySummary = computed(() => {
+  const count = selectedCandidates.value.length;
+  if (!count) return '\u0054ourAPI \uAE30\uC900 \uC7A5\uC18C\uB97C \uBA3C\uC800 \uACE0\uB974\uBA74 Kakao Local \uD6C4\uBCF4\uB85C \uCD94\uCC9C \uB8E8\uD2B8\uB97C \uAD6C\uC131\uD569\uB2C8\uB2E4.';
+  const localCount = selectedCandidates.value.filter((candidate) => isLocalBusinessCandidate(candidate)).length;
+  const finalName = anchorCandidate.value?.title || '\u0054ourAPI \uAE30\uC900 \uC7A5\uC18C';
+  return '\uCD1D ' + count + '\uAC1C \uC7A5\uC18C ? \uACE8\uBAA9\uC0C1\uAD8C/\uD734\uC2DD \uD6C4\uBCF4 ' + localCount + '\uAC1C ? \uB0B4\uBD80 \uCD5C\uC885 \uC7A5\uC18C: ' + finalName;
+});
+const draftWarningSummary = computed(() => {
+  const warnings = draftResult.value?.validationWarnings || [];
+  const placeholderWarnings = warnings.filter((warning) => String(warning).includes('검수용 문제') || String(warning).includes('admin-review placeholder'));
+  const others = warnings.filter((warning) => !placeholderWarnings.includes(warning));
+  const summary = [];
+  if (placeholderWarnings.length) {
+    summary.push(`현장 근거가 부족한 미션 ${placeholderWarnings.length}개는 검수용 문제로 표시했습니다. RAG 보강 또는 관리자 현장 메모로 확인 범위를 좁힌 뒤 공개 전 문제를 확정하세요.`);
+  }
+  return [...summary, ...others.slice(0, 4)];
+});
+const draftValidationSummary = computed(() => {
+  if (!draftValidation.value) return '';
+  if (draftValidation.value.valid) {
+    return '필수 검증을 통과했습니다. 그래도 운영 공개 전 실제 현장 검수는 필요합니다.';
+  }
+  return '초안에 수정이 필요한 항목이 있습니다. 아래 이슈를 확인하되, DRAFT 저장은 가능하고 PUBLISHED 전환 전에 수정하면 됩니다.';
 });
 const orderedSelectedCandidates = computed(() => {
   if (!anchorCandidate.value) return selectedCandidates.value;
@@ -1288,6 +1364,33 @@ function stopDraftTimer() {
   }
 }
 
+async function enrichSelectedSiteData() {
+  if (!prepareDraftInputFromSelection()) return;
+  startDraftProgress('enrich', 'Enriching each selected spot with external search metadata.', 'request');
+  try {
+    const payload = JSON.parse(draftInput.value);
+    const enriched = await adminEpisodeApi.enrichSiteData(payload);
+    draftInput.value = JSON.stringify(enriched, null, 2);
+    if (Array.isArray(enriched.places)) {
+      selectedCandidates.value = selectedCandidates.value.map((candidate, index) => ({
+        ...candidate,
+        description: enriched.places[index]?.description || candidate.description,
+        visibleElements: enriched.places[index]?.visibleElements || candidate.visibleElements,
+        numbers: enriched.places[index]?.numbers || candidate.numbers,
+        keywords: enriched.places[index]?.keywords || candidate.keywords,
+        adminMemo: enriched.places[index]?.adminMemo || candidate.adminMemo
+      }));
+    }
+    draftResult.value = null;
+    draftValidation.value = null;
+    finishDraftProgress('Site data enrichment is complete. Generate a draft using the enriched adminMemo and keywords.');
+    setMessage('Site data enrichment is complete. Real on-site inspection is still required before publishing.', 'success');
+  } catch (error) {
+    failDraftProgress(error.userMessage || error.message || 'Site data enrichment failed. Check Kakao REST key and spot coordinates.');
+    setMessage(draftError.value, 'error');
+  }
+}
+
 async function generateDraft() {
   if (!prepareDraftInputFromSelection()) return;
   startDraftProgress('rule', 'API 키 없이 입력값 기반 예비 초안을 작성하고 있습니다.');
@@ -1352,8 +1455,7 @@ async function validateDraft(useGemini) {
 async function saveDraft() {
   if (!draftResult.value?.draft) return;
   if (draftValidation.value && !draftValidation.value.valid) {
-    setMessage('검증에서 차단 이슈가 발견된 초안은 저장하지 않는 것을 권장합니다. 수정 후 다시 검증해 주세요.', 'error');
-    return;
+    setMessage('검증 이슈가 있어도 DRAFT로 저장합니다. PUBLISHED 전환 전에 공개 준비도와 검증 항목을 수정하세요.', 'error');
   }
   startDraftProgress('save', '초안과 자동 생성 사건자료 이미지를 DRAFT로 저장하고 있습니다.');
   try {
@@ -1382,9 +1484,12 @@ function hydrateDraftForEditing() {
   draft.missions = Array.isArray(draft.missions) ? draft.missions : [];
   draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
   draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
+  ensureDraftIllustrationCards(draft);
   if (isGenericDraftTitle(draft.episodeTitle)) {
     draft.episodeTitle = suggestedDraftTitle(draft);
   }
+  draft.subtitle = draft.subtitle || suggestedDraftSubtitle(draft);
+  draft.era = draft.era || suggestedDraftEra(draft);
   draft.evidences.forEach((evidence) => {
     evidence.imageUrl = evidence.imageUrl || generatedEvidenceCardDataUrl(evidence.title, evidence.type);
   });
@@ -1402,6 +1507,9 @@ function buildDraftSavePayload() {
   if (isGenericDraftTitle(draft.episodeTitle)) {
     draft.episodeTitle = suggestedDraftTitle(draft);
   }
+  draft.subtitle = draft.subtitle || suggestedDraftSubtitle(draft);
+  draft.era = draft.era || suggestedDraftEra(draft);
+  ensureDraftIllustrationCards(draft);
   draft.evidences = (draft.evidences || []).map((evidence) => {
     const imageUrl = String(evidence.imageUrl || '').trim();
     return {
@@ -1421,6 +1529,41 @@ function suggestedDraftTitle(draft) {
   const missions = Array.isArray(draft?.missions) ? draft.missions : [];
   const anchor = missions.find((mission) => mission.finalPlace || mission.markerType === 'FINAL') || missions[0];
   return `EP.NEW ${anchor?.placeName || 'Operation KOREA'} 사건`;
+}
+
+function suggestedDraftSubtitle(draft) {
+  const missions = Array.isArray(draft?.missions) ? draft.missions : [];
+  const finalMission = missions.find((mission) => mission.finalPlace || mission.markerType === 'FINAL') || missions[missions.length - 1];
+  const startMission = missions[0];
+  return `${startMission?.placeName || '첫 단서'}에서 ${finalMission?.placeName || '마지막 후보지'}로 이어지는 기록`;
+}
+
+function suggestedDraftEra(draft) {
+  const source = [
+    draft?.fictionSynopsis,
+    ...(Array.isArray(draft?.missions) ? draft.missions.flatMap((mission) => [mission.storyText, mission.groundRule, mission.placeName]) : [])
+  ].join(' ');
+  if (source.includes('대한제국') || source.includes('정동') || source.includes('1905') || source.includes('1897')) return '대한제국 말기';
+  if (source.includes('조선') || source.includes('궁') || source.includes('한양')) return '조선 후기';
+  if (source.includes('근대') || source.includes('개화') || source.includes('일제')) return '근대 전환기';
+  return '현대에 남은 오래된 기록';
+}
+
+function ensureDraftIllustrationCards(draft) {
+  draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
+  const hasPhoto = draft.evidences.some((evidence) => evidence.type === 'PHOTO');
+  if (!hasPhoto) {
+    draft.evidences.unshift({
+      title: '사건 현장 스케치',
+      type: 'PHOTO',
+      imageUrl: generatedEvidenceCardDataUrl('사건 현장 스케치', 'PHOTO'),
+      textSummary: '실제 사진이 아니라 운영 검수 전 사용하는 사건 현장 분위기 일러스트입니다.',
+      sourceMissionOrder: 1
+    });
+  }
+  draft.evidences.forEach((evidence) => {
+    evidence.imageUrl = evidence.imageUrl || generatedEvidenceCardDataUrl(evidence.title, evidence.type);
+  });
 }
 
 function syncDraftMissionRole(mission) {
@@ -1453,34 +1596,68 @@ function syncDraftMissionRole(mission) {
 
 function generatedEvidenceCardDataUrl(title = 'CASE FILE', type = 'EVIDENCE') {
   const safeTitle = escapeXml(title || 'CASE FILE');
-  const safeType = escapeXml(type || 'EVIDENCE');
+  const normalizedType = String(type || 'EVIDENCE').toUpperCase();
+  const safeType = escapeXml(normalizedType);
+  const hash = hashString(`${title}-${normalizedType}`);
+  const palette = evidencePalette(normalizedType, hash);
+  const motif = evidenceMotifSvg(normalizedType, hash, safeTitle);
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
       <defs>
         <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="#1f2937"/>
-          <stop offset="0.55" stop-color="#111827"/>
-          <stop offset="1" stop-color="#78350f"/>
+          <stop offset="0" stop-color="${palette.bg1}"/>
+          <stop offset="0.62" stop-color="${palette.bg2}"/>
+          <stop offset="1" stop-color="${palette.bg3}"/>
         </linearGradient>
+        <filter id="paperShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#020617" flood-opacity="0.28"/>
+        </filter>
       </defs>
       <rect width="960" height="640" fill="url(#bg)"/>
-      <rect x="70" y="56" width="820" height="528" rx="28" fill="#f5e8cc" opacity="0.95"/>
-      <rect x="108" y="96" width="744" height="124" rx="16" fill="#111827" opacity="0.92"/>
-      <text x="132" y="148" fill="#fbbf24" font-family="Georgia, serif" font-size="32" font-weight="700">OPERATION KOREA</text>
-      <text x="132" y="190" fill="#e5e7eb" font-family="Arial, sans-serif" font-size="22">GENERATED CASE MATERIAL</text>
-      <path d="M132 292 C240 238, 354 350, 462 292 S690 236, 818 292" fill="none" stroke="#92400e" stroke-width="18" opacity="0.25"/>
-      <circle cx="250" cy="392" r="72" fill="#111827" opacity="0.88"/>
-      <rect x="372" y="330" width="390" height="34" rx="17" fill="#78350f" opacity="0.75"/>
-      <rect x="372" y="386" width="310" height="28" rx="14" fill="#92400e" opacity="0.55"/>
-      <rect x="372" y="438" width="360" height="28" rx="14" fill="#92400e" opacity="0.38"/>
-      <text x="132" y="544" fill="#111827" font-family="Arial, sans-serif" font-size="28" font-weight="700">${safeTitle}</text>
-      <text x="132" y="580" fill="#78350f" font-family="Arial, sans-serif" font-size="20">${safeType} · fictional evidence card</text>
+      <circle cx="${150 + (hash % 170)}" cy="${110 + (hash % 70)}" r="210" fill="#ffffff" opacity="0.06"/>
+      <circle cx="${720 + (hash % 90)}" cy="${420 - (hash % 80)}" r="250" fill="#000000" opacity="0.12"/>
+      <rect x="74" y="54" width="812" height="532" rx="30" fill="#f8ead0" opacity="0.97" filter="url(#paperShadow)"/>
+      <path d="M104 110 H856" stroke="${palette.line}" stroke-width="2" opacity="0.26"/>
+      <text x="116" y="94" fill="${palette.accent}" font-family="Georgia, serif" font-size="28" font-weight="700">OPERATION KOREA</text>
+      <text x="116" y="134" fill="#334155" font-family="Arial, sans-serif" font-size="18" font-weight="700">DIGITAL CASE FILE · ${safeType}</text>
+      ${motif}
+      <rect x="108" y="506" width="744" height="54" rx="14" fill="#111827" opacity="0.9"/>
+      <text x="132" y="542" fill="#f8fafc" font-family="Arial, sans-serif" font-size="26" font-weight="800">${safeTitle}</text>
+      <text x="132" y="584" fill="${palette.line}" font-family="Arial, sans-serif" font-size="18">현장 검수 전 사용하는 사건파일 일러스트 카드</text>
     </svg>
   `;
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
-function escapeXml(value) {
+function hashString(value) {
+  return String(value || '').split('').reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) >>> 0, 2166136261);
+}
+
+function evidencePalette(type, hash) {
+  const palettes = {
+    PHOTO: ['#0f172a', '#1e3a8a', '#92400e', '#f59e0b', '#60a5fa'],
+    MEMO: ['#422006', '#854d0e', '#172554', '#facc15', '#fb923c'],
+    NOTE: ['#111827', '#334155', '#78350f', '#f97316', '#cbd5e1'],
+    DOCUMENT: ['#1f2937', '#4b5563', '#7f1d1d', '#f87171', '#94a3b8'],
+    SUSPECT_CLUE: ['#18181b', '#3f3f46', '#7c2d12', '#fb7185', '#fbbf24'],
+    POST_IT: ['#365314', '#3f6212', '#854d0e', '#bef264', '#facc15'],
+    ANSWER_CLUE: ['#431407', '#9a3412', '#111827', '#fb923c', '#fde68a'],
+    DESTINATION_CLUE: ['#312e81', '#4c1d95', '#0f172a', '#c084fc', '#93c5fd'],
+    STORY_CLUE: ['#064e3b', '#065f46', '#1e1b4b', '#34d399', '#a7f3d0']
+  };
+  const base = palettes[type] || ['#111827', '#1f2937', '#78350f', '#f59e0b', '#cbd5e1'];
+  return { bg1: base[0], bg2: base[1], bg3: base[2], accent: base[3], line: base[4] };
+}
+
+function evidenceMotifSvg(type, hash, safeTitle) {
+  const stamp = `<g transform="translate(650 160) rotate(${(hash % 18) - 9})"><rect x="0" y="0" width="184" height="72" rx="10" fill="none" stroke="#7f1d1d" stroke-width="7" opacity="0.45"/><text x="24" y="47" fill="#7f1d1d" font-family="Arial" font-size="24" font-weight="900" opacity="0.55">CASE</text></g>`;
+  if (type === 'PHOTO') return `${stamp}<g transform="translate(128 190)"><rect x="0" y="0" width="420" height="274" rx="18" fill="#0f172a"/><rect x="28" y="28" width="364" height="218" rx="12" fill="#1e293b"/><circle cx="128" cy="104" r="46" fill="#f59e0b" opacity="0.78"/><path d="M32 232 L150 138 L240 206 L292 160 L392 238" fill="none" stroke="#93c5fd" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/><rect x="244" y="70" width="86" height="56" rx="10" fill="#111827" stroke="#f8fafc" stroke-width="4" opacity="0.78"/></g>`;
+  if (type === 'MEMO' || type === 'POST_IT') return `${stamp}<g transform="translate(148 174) rotate(-4)"><rect x="0" y="0" width="360" height="300" rx="18" fill="#fde68a"/><path d="M0 52 H360" stroke="#f59e0b" stroke-width="4" opacity="0.35"/><path d="M54 118 H300 M54 170 H280 M54 222 H320" stroke="#78350f" stroke-width="14" stroke-linecap="round" opacity="0.55"/><circle cx="302" cy="48" r="26" fill="#ef4444" opacity="0.72"/></g>`;
+  if (type === 'DOCUMENT') return `${stamp}<g transform="translate(150 168)"><path d="M0 0 H340 L408 70 V330 H0 Z" fill="#fff7ed" stroke="#92400e" stroke-width="5"/><path d="M340 0 V72 H408" fill="none" stroke="#92400e" stroke-width="5"/><path d="M56 104 H330 M56 154 H352 M56 204 H294 M56 254 H342" stroke="#475569" stroke-width="12" stroke-linecap="round" opacity="0.58"/><path d="M250 262 C286 226, 342 236, 374 294" fill="none" stroke="#b91c1c" stroke-width="9" opacity="0.62"/></g>`;
+  if (type === 'SUSPECT_CLUE') return `${stamp}<g transform="translate(164 168)"><rect x="0" y="0" width="330" height="330" rx="26" fill="#111827"/><circle cx="165" cy="118" r="66" fill="#64748b"/><path d="M74 290 C92 214, 128 190, 165 190 C206 190, 252 220, 286 290" fill="#94a3b8"/><path d="M62 52 L282 52 M62 286 L282 286" stroke="#fbbf24" stroke-width="10" opacity="0.72"/></g>`;
+  if (type === 'DESTINATION_CLUE') return `${stamp}<g transform="translate(132 184)"><path d="M68 86 C196 10, 310 24, 440 96" fill="none" stroke="#c4b5fd" stroke-width="18" stroke-linecap="round" stroke-dasharray="20 22"/><path d="M120 42 C70 42, 36 80, 36 130 C36 210, 120 286, 120 286 C120 286, 204 210, 204 130 C204 80, 170 42, 120 42 Z" fill="#7c3aed"/><circle cx="120" cy="130" r="34" fill="#f8fafc"/><path d="M384 74 C334 74, 300 112, 300 162 C300 242, 384 318, 384 318 C384 318, 468 242, 468 162 C468 112, 434 74, 384 74 Z" fill="#111827"/><circle cx="384" cy="162" r="34" fill="#fbbf24"/></g>`;
+  return `${stamp}<g transform="translate(140 178)"><rect x="0" y="0" width="410" height="290" rx="28" fill="#111827"/><path d="M66 84 H340 M66 146 H278 M66 208 H320" stroke="#f59e0b" stroke-width="16" stroke-linecap="round" opacity="0.76"/><circle cx="318" cy="80" r="42" fill="#fef3c7" opacity="0.9"/><path d="M302 80 L318 96 L352 56" fill="none" stroke="#78350f" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><text x="66" y="262" fill="#e5e7eb" font-family="Arial" font-size="20" font-weight="700">${safeTitle.slice(0, 28)}</text></g>`;
+}function escapeXml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -1592,8 +1769,14 @@ async function loadNearbyCandidates(candidate) {
       { ...normalizedAnchor, source: 'TourAPI 기준 장소', description: normalizedAnchor.description || 'TourAPI 기준 장소입니다.' },
       ...normalizedNearby.filter((item) => candidateKey(item) !== anchorKey)
     ];
+    selectedCandidates.value = buildRecommendedRouteCandidates(normalizedAnchor, nearbyCandidates.value);
     nearbyLoaded.value = true;
-    setMessage(nearbyCandidates.value.length > 1 ? 'Kakao Local 주변 후보를 불러왔습니다.' : '주변 후보가 부족합니다. 반경을 넓히거나 수동 후보를 추가하세요.', nearbyCandidates.value.length > 1 ? 'success' : 'error');
+    setMessage(
+      selectedCandidates.value.length >= 8
+        ? 'Kakao Local 주변 후보를 추천 선택 상태로 불러왔습니다. 바로 초안 작성이 가능합니다.'
+        : '주변 후보가 부족합니다. 선택된 후보를 유지하고 반경을 넓히거나 수동 후보를 추가하세요.',
+      selectedCandidates.value.length >= 8 ? 'success' : 'error'
+    );
   } catch (error) {
     nearbyCandidates.value = [];
     nearbyLoaded.value = true;
@@ -1648,6 +1831,101 @@ function isCandidateSelected(candidate) {
   return selectedCandidates.value.some((item) => candidateKey(item) === key);
 }
 
+function isLocalBusinessCandidate(candidate) {
+  const value = [candidate.title, candidate.address, candidate.source, candidate.description]
+    .map((item) => String(item || '').toLowerCase())
+    .join(' ');
+  return ['\uCE74\uD398', 'cafe', '\uCEE4\uD53C', '\uC2DC\uC7A5', '\uC0C1\uAC00', '\uACE8\uBAA9', '\uB9DB\uC9D1', '\uC2DD\uB2F9', '\uBD84\uC2DD', '\uACF5\uBC29', '\uC11C\uC810', '\uBE75', '\uBCA0\uC774\uCEE4\uB9AC', '\uD3B8\uC9D1\uC20D']
+    .some((keyword) => value.includes(keyword));
+}
+
+function candidateRouteScore(candidate, anchor) {
+  const normalized = normalizeCandidate(candidate);
+  let score = 0;
+  if (isLocalBusinessCandidate(normalized)) score += 40;
+  const value = [normalized.title, normalized.address, normalized.source, normalized.description]
+    .map((item) => String(item || '').toLowerCase())
+    .join(' ');
+  if (['\uBB38\uD654', '\uBC15\uBB3C\uAD00', '\uBBF8\uC220\uAD00', '\uC804\uC2DC', '\uCC45', '\uC5ED\uC0AC', '\uACF5\uC6D0', '\uAC70\uB9AC'].some((keyword) => value.includes(keyword))) score += 24;
+  const distance = candidateDistanceMeters(anchor, normalized);
+  if (Number.isFinite(distance)) {
+    if (distance >= 120 && distance <= nearbyRadius.value) score += 20;
+    score -= Math.min(24, distance / 250);
+  }
+  return score;
+}
+
+function candidateDistanceMeters(a, b) {
+  const from = normalizeCandidate(a);
+  const to = normalizeCandidate(b);
+  if (!hasCandidateCoordinate(from) || !hasCandidateCoordinate(to)) return Number.POSITIVE_INFINITY;
+  const earthRadius = 6371000;
+  const lat1 = from.latitude * Math.PI / 180;
+  const lat2 = to.latitude * Math.PI / 180;
+  const deltaLat = (to.latitude - from.latitude) * Math.PI / 180;
+  const deltaLng = (to.longitude - from.longitude) * Math.PI / 180;
+  const h = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function buildRecommendedRouteCandidates(anchor, candidates) {
+  const normalizedAnchor = normalizeCandidate(anchor);
+  const anchorKey = candidateKey(normalizedAnchor);
+  const pool = candidates
+    .map(normalizeCandidate)
+    .filter((candidate) => hasCandidateCoordinate(candidate) && candidateKey(candidate) !== anchorKey)
+    .sort((a, b) => candidateRouteScore(b, normalizedAnchor) - candidateRouteScore(a, normalizedAnchor));
+  const selected = [];
+  const used = new Set([anchorKey]);
+  for (const candidate of pool) {
+    const key = candidateKey(candidate);
+    if (used.has(key)) continue;
+    selected.push(candidate);
+    used.add(key);
+    if (selected.length >= 8) break;
+  }
+  return [...selected, normalizedAnchor].slice(0, 9);
+}
+
+function rerollRecommendedRoute() {
+  if (!anchorCandidate.value) return;
+  const currentKeys = new Set(selectedCandidates.value.map(candidateKey));
+  const anchor = normalizeCandidate(anchorCandidate.value);
+  const anchorKey = candidateKey(anchor);
+  const pool = nearbyCandidates.value
+    .map(normalizeCandidate)
+    .filter((candidate) => hasCandidateCoordinate(candidate) && candidateKey(candidate) !== anchorKey)
+    .sort((a, b) => {
+      const aSelectedPenalty = currentKeys.has(candidateKey(a)) ? -18 : 0;
+      const bSelectedPenalty = currentKeys.has(candidateKey(b)) ? -18 : 0;
+      return (candidateRouteScore(b, anchor) + bSelectedPenalty) - (candidateRouteScore(a, anchor) + aSelectedPenalty);
+    });
+  selectedCandidates.value = [...pool.slice(0, 8), anchor].slice(0, 9);
+  applyCandidatesToDraft(false);
+  setMessage('\uCD94\uCC9C \uB8E8\uD2B8\uB97C \uB2E4\uC2DC \uAD6C\uC131\uD588\uC2B5\uB2C8\uB2E4. \uD544\uC694\uD558\uBA74 \uD6C4\uBCF4\uBCC4 \uAD50\uCCB4 \uBC84\uD2BC\uC73C\uB85C \uB354 \uC870\uC815\uD558\uC138\uC694.', 'success');
+}
+
+function replaceSelectedCandidate(candidate) {
+  if (isAnchorCandidate(candidate)) {
+    setMessage('TourAPI \uAE30\uC900 \uC7A5\uC18C\uB294 \uB0B4\uBD80 \uCD5C\uC885 \uC7A5\uC18C\uB77C \uC774 \uB2E8\uACC4\uC5D0\uC11C \uAD50\uCCB4\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.', 'error');
+    return;
+  }
+  const oldKey = candidateKey(candidate);
+  const selectedKeys = new Set(selectedCandidates.value.map(candidateKey));
+  const anchor = anchorCandidate.value || selectedCandidates.value[0];
+  const replacement = nearbyCandidates.value
+    .map(normalizeCandidate)
+    .filter((item) => hasCandidateCoordinate(item) && !selectedKeys.has(candidateKey(item)))
+    .sort((a, b) => candidateRouteScore(b, anchor) - candidateRouteScore(a, anchor))[0];
+  if (!replacement) {
+    setMessage('\uAD50\uCCB4\uD560 \uC218 \uC788\uB294 \uD6C4\uBCF4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uBC18\uACBD\uC744 \uB113\uD788\uAC70\uB098 \uC218\uB3D9 \uD6C4\uBCF4\uB97C \uCD94\uAC00\uD558\uC138\uC694.', 'error');
+    return;
+  }
+  selectedCandidates.value = selectedCandidates.value.map((item) => candidateKey(item) === oldKey ? replacement : item);
+  applyCandidatesToDraft(false);
+  setMessage('\uD6C4\uBCF4\uB97C ' + replacement.title + '\uB85C \uAD50\uCCB4\uD588\uC2B5\uB2C8\uB2E4.', 'success');
+}
+
 function isAnchorCandidate(candidate) {
   return Boolean(anchorCandidate.value) && candidateKey(anchorCandidate.value) === candidateKey(candidate);
 }
@@ -1687,7 +1965,7 @@ function applyCandidatesToDraft(showMessage = true) {
   const roles = buildRoles(orderedCandidates.length);
   const payload = {
     area: areaLabel(candidateAreaCode.value),
-    era: '관리자 검수 필요',
+    era: inferEraFromCandidates(orderedCandidates),
     theme: '역사 미스터리',
     targetAudience: '야외 방탈출 플레이어',
     playTime: '90~120분',
@@ -1763,6 +2041,16 @@ function areaLabel(areaCode) {
   return labels[areaCode] || '서울';
 }
 
+function inferEraFromCandidates(candidates = []) {
+  const source = candidates
+    .flatMap((candidate) => [candidate.title, candidate.address, candidate.description, candidate.adminMemo, ...(candidate.keywords || [])])
+    .join(' ');
+  if (source.includes('대한제국') || source.includes('정동') || source.includes('1905') || source.includes('1897')) return '대한제국 말기';
+  if (source.includes('조선') || source.includes('궁') || source.includes('한양')) return '조선 후기';
+  if (source.includes('근대') || source.includes('개화') || source.includes('일제')) return '근대 전환기';
+  return '현대에 남은 오래된 기록';
+}
+
 function setMessage(text, type = 'success') {
   message.value = text;
   messageType.value = type;
@@ -1783,6 +2071,7 @@ button:focus-visible { outline: 3px solid rgba(251,191,36,.55); outline-offset: 
 button:disabled { opacity: .45; cursor: not-allowed; }
 .layout { width: min(100%, 1180px); margin: 0 auto; display: grid; grid-template-columns: 330px 1fr; gap: 14px; }
 .episode-list, .detail-card, .draft-panel { border: 1px solid rgba(148,163,184,.2); border-radius: 18px; background: rgba(15,23,42,.68); padding: 16px; }
+.draft-panel.full-width { grid-column: 1 / -1; margin-top: 4px; }
 .section-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 h2, h3 { margin: 0 0 10px; }
 .episode-card { padding: 12px; border: 1px solid rgba(148,163,184,.18); border-radius: 14px; background: rgba(2,6,23,.38); margin-top: 10px; cursor: pointer; }
@@ -1794,6 +2083,15 @@ h2, h3 { margin: 0 0 10px; }
 .message { padding: 10px; border-radius: 12px; margin: 0 0 10px; }
 .message.success { background: rgba(22,101,52,.22); color: #bbf7d0; }
 .message.error { background: rgba(127,29,29,.34); color: #fecaca; }
+.draft-feedback-panel { margin: 10px 0 12px; padding: 12px; border: 1px solid rgba(34,197,94,.28); border-radius: 14px; background: rgba(22,101,52,.16); }
+.draft-feedback-panel.invalid { border-color: rgba(248,113,113,.42); background: rgba(127,29,29,.2); }
+.draft-feedback-panel strong { color: #fde68a; }
+.draft-feedback-panel p { margin: 6px 0; color: #e2e8f0; }
+.draft-feedback-panel ul { margin: 8px 0 0; padding-left: 18px; color: #fecaca; line-height: 1.55; }
+.draft-feedback-panel li b { margin-right: 6px; color: #fbbf24; }
+.draft-feedback-panel li span { margin-right: 6px; color: #bfdbfe; font-weight: 900; }
+.draft-feedback-panel li em { margin-right: 6px; color: #cbd5e1; font-style: normal; }
+.draft-feedback-panel small { display: block; margin-top: 8px; color: #cbd5e1; }
 .eyebrow { margin: 0 0 4px; color: #f59e0b !important; font-weight: 900; letter-spacing: .14em; font-size: .72rem; }
 .detail-head { display: flex; justify-content: space-between; gap: 12px; }
 .detail-head p { margin: 0 0 5px; color: #f59e0b; font-weight: 900; letter-spacing: .12em; font-size: .72rem; }
@@ -1893,9 +2191,22 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .creation-flow span { color: #cbd5e1; font-size: .78rem; line-height: 1.4; }
 .draft-edit-block { margin-top: 12px; padding: 12px; border: 1px solid rgba(148,163,184,.18); border-radius: 14px; background: rgba(2,6,23,.28); }
 .draft-edit-block h4 { margin: 12px 0 8px; color: #fde68a; }
+.draft-section-help { margin: 4px 0 10px; color: #cbd5e1; font-size: .84rem; line-height: 1.5; }
 .draft-mission-list { display: grid; gap: 10px; margin-top: 10px; }
 .draft-mission-card { border: 1px solid rgba(148,163,184,.18); border-radius: 14px; background: rgba(15,23,42,.5); padding: 12px; }
 .draft-mission-card.final { border-color: rgba(248,113,113,.55); }
+.draft-card-summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; list-style: none; }
+.draft-card-summary::-webkit-details-marker { display: none; }
+.draft-card-summary span { display: grid; gap: 4px; min-width: 0; }
+.draft-card-summary strong { color: #fff7ed; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-card-summary small { color: #93c5fd; font-weight: 800; font-size: .76rem; }
+.draft-card-summary em { flex: 0 0 auto; border: 1px solid rgba(245,158,11,.34); border-radius: 999px; padding: 5px 8px; color: #fde68a; font-style: normal; font-size: .72rem; font-weight: 900; }
+.draft-card-preview { margin: 10px 0 12px; padding: 9px 10px; border-radius: 10px; background: rgba(2,6,23,.4); color: #e2e8f0; font-size: .84rem; line-height: 1.5; }
+.draft-mini-card { border: 1px solid rgba(148,163,184,.18); border-radius: 14px; background: rgba(15,23,42,.45); padding: 10px; }
+.draft-mini-card[open] { border-color: rgba(245,158,11,.35); }
+.evidence-preview-box { display: grid; gap: 8px; }
+.evidence-preview-box small, .image-url-edit summary { color: #cbd5e1; font-size: .78rem; line-height: 1.45; }
+.image-url-edit { margin-top: 4px; }
 .hint-edit-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 .hint-edit-list label, .draft-edit-block .mini-grid label { display: grid; gap: 6px; color: #cbd5e1; font-size: .8rem; font-weight: 800; }
 .draft-evidence-image { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 12px; border: 1px solid rgba(245,158,11,.25); background: rgba(2,6,23,.5); }
@@ -1925,12 +2236,15 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .candidate-card.selected { border-color: #f59e0b; box-shadow: 0 0 0 1px rgba(245,158,11,.34) inset; }
 .candidate-card p { margin: 6px 0; color: #cbd5e1; font-size: .82rem; line-height: 1.45; }
 .candidate-card span { color: #94a3b8; font-size: .75rem; }
+.candidate-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.ghost-btn.mini { min-height: 32px; padding: 0 9px; font-size: .76rem; }
 .selection-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 10px 12px; border: 1px solid rgba(148,163,184,.18); border-radius: 12px; background: rgba(15,23,42,.55); }
 .selection-summary strong { color: #fff7ed; }
 .selection-summary span { color: #fecaca; font-size: .82rem; font-weight: 900; }
 .selection-summary span.ready { color: #86efac; }
 .selected-route { margin-top: 12px; padding: 12px; border: 1px solid rgba(59,130,246,.26); border-radius: 14px; background: rgba(30,64,175,.13); }
 .selected-route h4 { margin: 0 0 8px; color: #bfdbfe; }
+.selected-route .route-summary { margin: 0 0 10px; color: #fde68a; font-weight: 800; }
 .selected-route ol { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
 .selected-route li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; background: rgba(2,6,23,.34); }
 .selected-route b { display: grid; place-content: center; width: 24px; height: 24px; border-radius: 999px; background: rgba(148,163,184,.2); color: #e2e8f0; }

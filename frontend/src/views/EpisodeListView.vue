@@ -8,6 +8,7 @@
       </div>
       <div class="header-actions">
         <button type="button" class="admin-link" @click="router.push({ name: 'MyPage' })">내 관심 목록</button>
+        <button type="button" class="admin-link danger" @click="logout">로그아웃</button>
         <template v-if="sessionStore.isAdmin">
           <button type="button" class="admin-link primary" @click="router.push({ name: 'AdminEpisodes' })">사건파일 생성/관리</button>
           <button type="button" class="admin-link" @click="router.push({ name: 'AdminUsers' })">회원 관리</button>
@@ -73,6 +74,11 @@ onMounted(async () => {
 
 const openEpisode = (episodeId) => router.push({ name: 'EpisodeDetail', params: { episodeId } });
 
+function logout() {
+  sessionStore.logout();
+  router.push({ name: 'Intro' });
+}
+
 async function toggleFavorite(episode) {
   favoriteBusyId.value = episode.id;
   try {
@@ -119,6 +125,7 @@ button { min-height: 42px; border: 0; border-radius: 12px; background: #b45309; 
 .header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .admin-link { flex: 0 0 auto; background: #334155; }
 .admin-link.primary { background: #b45309; }
+.admin-link.danger { background: #7f1d1d; }
 .state, .toast { width: min(100%, 880px); box-sizing: border-box; margin: 0 auto 14px; padding: 14px 18px; border: 1px dashed rgba(148,163,184,.35); border-radius: 16px; color: #cbd5e1; text-align: center; }
 .toast { border-style: solid; background: rgba(22,101,52,.18); color: #bbf7d0; }
 .toast.error, .state.error { color: #fecaca; background: rgba(127,29,29,.18); }
