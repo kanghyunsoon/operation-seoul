@@ -16,8 +16,11 @@
     <p class="address">{{ spot.address }}</p>
 
     <div v-if="arrivalResult" class="arrival-message" :class="{ success: arrivalResult.arrived, final: arrivalResult.canStartDeduction }">
-      {{ arrivalResult.message }}
+      {{ arrivalResult.canStartDeduction ? '실제 최종 장소에 도착했습니다. 최종 추리를 시작할 수 있습니다.' : arrivalResult.message }}
     </div>
+    <p v-else-if="spot.publicMarkerType === 'FINAL_CANDIDATE'" class="candidate-note">
+      최종 후보입니다. 실제 최종 장소 여부는 도착 판정 후에만 확인됩니다.
+    </p>
 
     <div class="actions">
       <button type="button" class="tmap" @click="$emit('navigate', spot)">Tmap 내비 시작</button>
@@ -61,12 +64,14 @@ h2 { margin: 3px 0 0; color: #fff; font-size: 1.15rem; }
 .state.done { border-color: rgba(34,197,94,.45); color: #86efac; }
 .story { margin: 12px 0 8px; color: #dbeafe; line-height: 1.55; }
 .address { margin: 0; color: #94a3b8; font-size: .82rem; }
-.arrival-message { margin-top: 10px; padding: 10px; border-radius: 10px; background: rgba(71,85,105,.22); color: #cbd5e1; font-size: .84rem; line-height: 1.45; }
+.arrival-message, .candidate-note { margin-top: 10px; padding: 10px; border-radius: 10px; background: rgba(71,85,105,.22); color: #cbd5e1; font-size: .84rem; line-height: 1.45; }
 .arrival-message.success { background: rgba(14,116,144,.26); color: #a5f3fc; }
 .arrival-message.final { background: rgba(127,29,29,.34); color: #fecaca; }
+.candidate-note { border: 1px dashed rgba(148,163,184,.28); }
 .actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 14px; }
 button { min-height: 42px; border: 1px solid rgba(148,163,184,.28); border-radius: 12px; background: rgba(30,41,59,.88); color: #f8fafc; font: inherit; font-weight: 850; }
 button:disabled { opacity: .45; }
 .tmap { border-color: rgba(59,130,246,.5); background: rgba(30,64,175,.55); }
 .deduction { border-color: rgba(248,113,113,.42); background: rgba(127,29,29,.3); }
+@media (max-width: 370px) { .actions { grid-template-columns: 1fr; } .spot-sheet { max-height: 52vh; overflow: auto; } }
 </style>

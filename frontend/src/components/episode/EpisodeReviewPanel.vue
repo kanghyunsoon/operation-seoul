@@ -22,7 +22,7 @@
         </label>
       </div>
       <label class="spoiler"><input v-model="form.spoiler" type="checkbox" /> 스포일러 포함</label>
-      <textarea v-model.trim="form.content" rows="4" placeholder="현장 난이도, 동선, 사건 몰입감 중심으로 리뷰를 남겨 주세요."></textarea>
+      <textarea v-model.trim="form.content" rows="4" placeholder="현장 난이도, 동선, 사건 몰입감을 중심으로 리뷰를 남겨 주세요."></textarea>
       <button type="submit">{{ editingReviewId ? '리뷰 수정' : '리뷰 등록' }}</button>
       <button v-if="editingReviewId" type="button" class="ghost" @click="cancelEdit">수정 취소</button>
     </form>
@@ -73,7 +73,7 @@ async function loadReviews() {
     const mine = (reviewState.value.reviews || []).find((review) => review.mine);
     if (mine && !editingReviewId.value) {
       reviewState.value.canReview = false;
-      reviewState.value.message = '이미 이 에피소드에 리뷰를 작성했습니다. 내 리뷰를 수정하거나 삭제할 수 있습니다.';
+      reviewState.value.message = '이미 이 에피소드의 리뷰를 작성했습니다. 내 리뷰를 수정하거나 삭제할 수 있습니다.';
     }
   } catch (error) {
     messageType.value = 'error';
@@ -162,4 +162,5 @@ button { min-height: 40px; border: 0; border-radius: 10px; background: #24180d; 
 .spoiler-cover { width: 100%; border: 1px dashed rgba(36,24,13,.3); background: transparent; color: #78350f; }
 .review-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .review-actions button { min-height: 32px; padding: 0 10px; }
+@media (max-width: 370px) { header, .review-head { display: grid; } .rating-row { grid-template-columns: 1fr; } }
 </style>

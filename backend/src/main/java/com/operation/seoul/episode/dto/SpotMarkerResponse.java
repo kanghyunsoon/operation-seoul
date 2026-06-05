@@ -12,7 +12,6 @@ public class SpotMarkerResponse {
     private Double latitude;
     private Double longitude;
     private String publicMarkerType;
-    private String clueRole;
     private String storyText;
     private boolean completed;
     private boolean visited;
