@@ -14,4 +14,5 @@ public class EpisodeListItemResponse {
     private String difficulty;
     private String estimatedTime;
     private String estimatedDistance;
+    private Boolean favorited;
 }

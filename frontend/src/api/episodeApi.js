@@ -41,5 +41,11 @@ export const episodeApi = {
   },
   async getClearReport(episodeId) {
     return unwrap(await apiClient.get(`/v1/episodes/${episodeId}/clear-report`));
+  },
+  async addFavorite(episodeId) {
+    return unwrap(await apiClient.post(`/v1/episodes/${episodeId}/favorite`));
+  },
+  async removeFavorite(episodeId) {
+    return unwrap(await apiClient.delete(`/v1/episodes/${episodeId}/favorite`));
   }
 };

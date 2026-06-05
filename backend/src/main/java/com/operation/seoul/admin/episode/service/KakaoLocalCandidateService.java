@@ -90,7 +90,7 @@ public class KakaoLocalCandidateService {
 
     private void ensureApiKey() {
         if (kakaoRestApiKey == null || kakaoRestApiKey.isBlank() || kakaoRestApiKey.startsWith("YOUR_")) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "KAKAO_REST_API_KEY_MISSING", "kakao.rest.api.key가 설정되어 있지 않습니다.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "KAKAO_REST_API_KEY_MISSING", "kakao.rest.api.key가 설정되어 있지 않습니다. backend application-local.properties 또는 운영 환경변수에 Kakao REST API 키를 설정하세요.");
         }
     }
 

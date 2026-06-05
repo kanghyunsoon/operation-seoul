@@ -7,6 +7,7 @@ import com.operation.seoul.auth.domain.User;
 import com.operation.seoul.episode.domain.*;
 import com.operation.seoul.episode.dto.*;
 import com.operation.seoul.episode.repository.EpisodeRepository;
+import com.operation.seoul.favorite.repository.EpisodeFavoriteRepository;
 import com.operation.seoul.global.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,12 +35,14 @@ public class EpisodePlayService {
     );
 
     private final EpisodeRepository episodeRepository;
+    private final EpisodeFavoriteRepository favoriteRepository;
     private final ObjectMapper objectMapper;
 
     @Value("${app.dev-mode.arrival-enabled:false}")
     private boolean arrivalDevModeEnabled;
 
-    public List<EpisodeListItemResponse> getEpisodes() {
+    public List<EpisodeListItemResponse> getEpisodes(User user) {
+        Set<Long> favoriteEpisodeIds = new LinkedHashSet<>(favoriteRepository.findEpisodeIdsByUserId(user.getId()));
         return episodeRepository.findPublishedEpisodes().stream()
                 .map(episode -> EpisodeListItemResponse.builder()
                         .id(episode.getId())
@@ -50,6 +53,7 @@ public class EpisodePlayService {
                         .difficulty(episode.getDifficulty())
                         .estimatedTime(episode.getEstimatedTime())
                         .estimatedDistance(episode.getEstimatedDistance())
+                        .favorited(favoriteEpisodeIds.contains(episode.getId()))
                         .build())
                 .toList();
     }
@@ -70,6 +74,7 @@ public class EpisodePlayService {
                 .finalAnswerType(episode.getFinalAnswerType())
                 .finalQuestion(episode.getFinalQuestion())
                 .progressStatus(progress == null ? "NOT_STARTED" : progress.getStatus())
+                .favorited(favoriteRepository.findByUserIdAndEpisodeId(user.getId(), episodeId) != null)
                 .build();
     }
 
