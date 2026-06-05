@@ -24,8 +24,7 @@ public class EpisodePlayController {
 
     @GetMapping("/episodes")
     public ResponseEntity<ApiResponse<List<EpisodeListItemResponse>>> getEpisodes() {
-        currentUserResolver.requireCurrentUser();
-        return ResponseEntity.ok(ApiResponse.ok("에피소드 목록입니다.", episodePlayService.getEpisodes()));
+        return ResponseEntity.ok(ApiResponse.ok("에피소드 목록입니다.", episodePlayService.getEpisodes(currentUserResolver.requireCurrentUser())));
     }
 
     @GetMapping("/episodes/{episodeId}")

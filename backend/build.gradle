@@ -48,3 +48,7 @@ tasks.named('test') {
 	// JUnit Platform 기반 테스트 실행 설정입니다.
 	useJUnitPlatform()
 }
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8'
+}

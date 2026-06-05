@@ -21,6 +21,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         migrateUsers();
         createEpisodeTables();
+        createFavoriteTables();
         addColumns();
         createCaseFileTables();
         seedSampleEpisode();
@@ -187,6 +188,23 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     index idx_episode_review_episode_status (episode_id, status),
                     constraint fk_episode_review_episode foreign key (episode_id) references episodes (id) on delete cascade,
                     constraint fk_episode_review_user foreign key (user_id) references users (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+    }
+
+    private void createFavoriteTables() {
+        jdbcTemplate.execute("""
+                create table if not exists episode_favorites (
+                    id bigint not null auto_increment,
+                    user_id bigint not null,
+                    episode_id bigint not null,
+                    created_at datetime not null default current_timestamp,
+                    primary key (id),
+                    unique key uk_episode_favorite_user_episode (user_id, episode_id),
+                    index idx_episode_favorites_user (user_id),
+                    index idx_episode_favorites_episode (episode_id),
+                    constraint fk_episode_favorites_user foreign key (user_id) references users (id) on delete cascade,
+                    constraint fk_episode_favorites_episode foreign key (episode_id) references episodes (id) on delete cascade
                 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
                 """);
     }

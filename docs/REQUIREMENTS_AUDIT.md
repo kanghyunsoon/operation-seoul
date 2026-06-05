@@ -1,65 +1,116 @@
-# 요구사항 점검 결과
+﻿# Operation KOREA Requirements Audit
 
-점검일: 2026-05-17
+Last updated: 2026-06-05
+Audit basis: 실제 Controller, Service, Repository, DTO, Vue route, API module, migration 파일 기준
 
-## 1. 제약조건 점검
+## 1. 필수 기술 스택
 
-| 항목 | 현재 상태 | 판정 |
+| 요구사항 | 실제 위치 | 판정 |
 | --- | --- | --- |
-| Spring Boot MVC | `backend/build.gradle`의 `spring-boot-starter-webmvc`, Spring Boot 4.0.5 사용 | 충족 |
-| Vue 3 + Vite | `frontend/package.json`의 `vue`, `vite`, `@vitejs/plugin-vue` 사용 | 충족 |
-| MyBatis + MySQL | MyBatis starter, MySQL connector, `schema.sql`, Mapper SQL 사용 | 충족 |
-| JPA 미사용 | JPA 의존성/엔티티/Repository 미사용 | 충족 |
-| React 미사용 | React 의존성/소스 미사용 | 충족 |
-| S3 미사용 | AWS/S3 의존성/소스 미사용 | 충족 |
-| JSP | 현재는 Vue SPA + REST API 구조이며 JSP 뷰가 없음 | 제출 기준에서 JSP가 필수이면 보완 필요 |
+| Vue 3 | `frontend/package.json`, `src/main.js` | 충족 |
+| Pinia | `frontend/src/stores/sessionStore.js` | 충족 |
+| Vue Router | `frontend/src/router/index.js` | 충족 |
+| Axios | `frontend/src/api/axiosInstance.js` | 충족 |
+| Spring Boot | `backend/build.gradle`, `OperationSeoulApplication.java` | 충족 |
+| Spring Security | `SecurityConfig`, JWT filter | 충족 |
+| JWT | `JwtTokenProvider`, `JwtAuthenticationFilter` | 충족 |
+| MyBatis/MySQL | repository SQL, migration, MySQL connector | 충족 |
+| OAuth | 관련 Controller/Service 없음 | 미구현 |
 
-## 2. 미션별 즉시 수정 기능
+## 2. 인증/회원 요구사항
 
-| 항목 | 구현 위치 | 상태 |
+| 요구사항 | 실제 상태 | 판정 |
 | --- | --- | --- |
-| 생성된 작전의 미션 목록 조회 | `GET /api/v1/admin/missions/regions/{regionId}` | 구현 |
-| 힌트 스팟 후보 조회 | `GET /api/v1/admin/missions/regions/{regionId}/spot-candidates` | 구현 |
-| 개별 미션 수정 | `PUT /api/v1/admin/missions/{missionId}` | 구현 |
-| 선택 스팟 기반 AI 재구성 | `POST /api/v1/admin/missions/{missionId}/recompose` | 구현 |
-| 수정 입력값 검증 | 제목, 위도, 경도, 인증 반경 검증 | 구현 |
-| 관리자 카드 수정 버튼 | `HomeView.vue` 작전 카드의 `수정` 버튼 | 구현 |
-| 스팟 선택형 편집 | 힌트 미션별 후보 스팟 목록, 좌표 적용, AI 재구성 버튼 | 구현 |
-| 생성 직후 편집 연결 | AI 생성 응답에 새 작전/미션 목록을 담고 편집 모달 즉시 오픈 | 구현 |
+| 회원가입 | `POST /api/v1/auth/register` | 완료 |
+| 로그인 | `POST /api/v1/auth/login` | 완료 |
+| 중복 이메일/닉네임 검증 | `AuthService` | 완료 |
+| BCrypt 암호화 | `AuthService`, `UserService` | 완료 |
+| JWT 발급 | `JwtTokenProvider` | 완료 |
+| Bearer 인증 처리 | `JwtAuthenticationFilter` | 완료 |
+| 현재 사용자 조회 | `GET /api/v1/users/me` | 완료 |
+| 내 정보 수정 | `PUT /api/v1/users/me` | 완료 |
+| 비밀번호 변경 | `PUT /api/v1/users/me/password` | 완료 |
+| 회원 탈퇴 soft delete | `DELETE /api/v1/users/me` | 완료 |
+| ACTIVE 아닌 사용자 로그인 차단 | `AuthService` | 완료 |
+| ACTIVE 아닌 사용자 보호 API 차단 | `JwtAuthenticationFilter`, `CurrentUserResolver` | 완료 |
+| 관리자 회원 목록/상세/수정/삭제 | `AdminUserController`, `AdminUsersView.vue` | 완료 |
+| 관리자 수정 허용 필드 제한 | `AdminUserUpdateRequest`, `AdminUserService` | 완료 |
+| 소셜 로그인 | 버튼/API 없음 | 미구현 |
 
-## 3. 공통 필수 요구사항 구현 상태
+## 3. 사건파일 플레이 요구사항
 
-| 번호 | 요구사항 | 현재 상태 | 판정 |
-| --- | --- | --- | --- |
-| F01 | 콘텐츠 등록 | 관리자 AI 작전 생성으로 Region/Mission 등록 | 충족 |
-| F02 | 콘텐츠 조회 | 지역 카드, 브리핑, 미션 보드 조회 | 충족 |
-| F03 | 콘텐츠 수정 | 관리자 미션 단위 수정 API/UI 추가 | 충족 |
-| F04 | 콘텐츠 삭제 | 관리자 작전 삭제 API/UI | 충족 |
-| F05 | 필터/검색/정렬 | 작전 카드 검색, 대표 시대/테마/진행상태/평점 필터, 최신순/오래된순/평점순/시기순/테마순/제목순 정렬 | 충족 |
-| F06 | 리뷰 작성 | `POST /api/v1/regions/{regionId}/reviews`, 최종 미션 CLEARED 사용자만 작성 가능 | 충족 |
-| F07 | 리뷰 조회 | `GET /api/v1/regions/{regionId}/reviews`, 평균 평점/리뷰 수/작성자/클리어 시간 포함 | 충족 |
-| F08 | 리뷰 수정 | `PUT /api/v1/regions/{regionId}/reviews/{reviewId}`, 작성자 또는 관리자만 수정 | 충족 |
-| F09 | 리뷰 삭제 | `DELETE /api/v1/regions/{regionId}/reviews/{reviewId}`, 작성자 또는 관리자만 삭제 | 충족 |
-| F10 | 회원 등록 | 회원가입 API/UI | 충족 |
-| F11 | 회원 조회 | 현재 사용자/회원 상세 조회 API가 없음 | 미구현 |
-| F12 | 회원 수정 | Repository update만 있고 API/UI 없음 | 미구현 |
-| F13 | 회원 삭제 | API/UI 없음 | 미구현 |
-| F14 | 로그인/로그아웃 | 로그인/JWT, 프론트 로컬 로그아웃 | 부분 |
+| 요구사항 | 실제 상태 | 판정 |
+| --- | --- | --- |
+| episode DB | `EpisodeSchemaMigration` | 완료 |
+| mission_spot DB | `EpisodeSchemaMigration` | 완료 |
+| puzzle/puzzle_hint DB | `EpisodeSchemaMigration` | 완료 |
+| user_episode_progress DB | `EpisodeSchemaMigration` | 완료 |
+| final_deduction DB | `EpisodeSchemaMigration` | 완료 |
+| case_suspects/case_evidences DB | `EpisodeSchemaMigration` | 완료 |
+| EP.01 seed | `EpisodeSchemaMigration` | 완료 |
+| 에피소드 목록/상세 | `EpisodePlayController`, `EpisodeListView`, `EpisodeDetailView` | 완료 |
+| 브리핑 | `EpisodeBriefingView` | 완료 |
+| 지도 전체 장소 표시 | `EpisodeMapView` | 완료 |
+| 최종 장소 은닉 | `SpotMarkerResponse`, `EpisodePlayService` | 완료 |
+| 도착 판정 | `/spots/{spotId}/arrive` | 완료 |
+| devMode 운영 분리 | backend/frontend env 조건 | 완료 |
+| 퍼즐 제출 | `/puzzles/{puzzleId}/submit` | 완료 |
+| reward_payload 해석 | `EpisodePlayService.applyReward` | 완료 |
+| 단서 보드 | `/clue-board`, `ClueBoard.vue` | 완료 |
+| 사건파일 탭 | `/case-file`, `EpisodeCaseFileView.vue` | 완료 |
+| 최종 추리 | `/deduction/start`, `/deduction/{sessionId}/ask` | MVP 완료 |
+| 최종 정답 제출 | `/final-answer` | 완료 |
+| 클리어 리포트 | `/clear-report` | 완료 |
 
-## 4. 추가/심화 기능 상태
+## 4. 리뷰 요구사항
 
-| 번호 | 요구사항 | 현재 상태 | 판정 |
-| --- | --- | --- | --- |
-| F15 | 찜/즐겨찾기 | 없음 | 미구현 |
-| F16 | 팔로우/그룹 | 없음 | 미구현 |
-| F17 | 계획/일정 관리 | 없음 | 미구현 |
-| F18 | 챌린지 관리 | 점수/시간/거리 기록은 있으나 챌린지 CRUD/랭킹 관리 없음 | 부분 |
-| F19 | AI 추천 | 관리자 후보지 기반 AI 작전 생성은 있으나 사용자 맞춤 추천 없음 | 부분 |
-| F20 | AI 코칭/분석 | AI 힌트 채팅, 클리어 리포트는 있으나 개인화 코칭/통계 분석 없음 | 부분 |
+| 요구사항 | 실제 상태 | 판정 |
+| --- | --- | --- |
+| 리뷰 작성 | `POST /api/v1/episodes/{episodeId}/reviews` | 완료 |
+| 리뷰 목록 | `GET /api/v1/episodes/{episodeId}/reviews` | 완료 |
+| 내 리뷰 목록 | `GET /api/v1/users/me/reviews` | 완료 |
+| 수정/삭제 | `PUT/DELETE /api/v1/reviews/{reviewId}` | 완료 |
+| CLEARED 기준 제한 | `EpisodeReviewService.requireCleared` | 완료 |
+| 1인 1에피소드 1리뷰 | `findByEpisodeIdAndUserId` 검사 | 완료 |
+| 작성자/관리자 권한 | `requireOwnerOrAdmin` | 완료 |
+| 관리자 숨김/복구/삭제 | `AdminEpisodeReviewController` | 완료 |
+| spoiler | `EpisodeReviewRequest/Response`, UI | 완료 |
 
-## 5. 우선 보완 대상
+## 5. 관리자 생성/운영 요구사항
 
-1. JSP가 평가 필수인지 확인한다. 필수라면 관리자 또는 요약 조회 화면부터 JSP로 최소 보완한다.
-2. 제출 필수 기능이면 리뷰 CRUD를 우선 추가한다.
-3. 회원 조회/수정/삭제 API와 간단한 마이페이지 UI를 추가한다.
-4. 선택 기능은 찜/즐겨찾기를 먼저 추가하는 것이 범위 대비 효과가 크다.
+| 요구사항 | 실제 상태 | 판정 |
+| --- | --- | --- |
+| 관리자 에피소드 목록/상세 | `AdminEpisodeController`, `AdminEpisodesView` | 완료 |
+| TourAPI 기준 장소 후보 | `/place-candidates`, `TourApiService` | 완료 |
+| TourAPI 키 없음 명시 에러 | `TOURAPI_SERVICE_KEY_MISSING` | 완료 |
+| Kakao Local 주변 후보 | `/place-candidates/nearby`, `KakaoLocalCandidateService` | 완료 |
+| Kakao 키 없음 명시 에러 | `KAKAO_REST_API_KEY_MISSING` | 완료 |
+| 수동 후보 추가 | `AdminEpisodesView.vue` | 완료 |
+| 규칙 기반 초안 | `/ai-draft` | 완료 |
+| Gemini 초안 구조 | `/ai-draft/gemini` | 부분: 키/품질 운영 QA 필요 |
+| 초안 검증 | `/ai-draft/validate` | 완료 |
+| DRAFT 저장 | `/ai-draft/save` | 완료 |
+| readiness | `/{episodeId}/publish-readiness` | 완료 |
+| PUBLISHED 전환 | `PUT /admin/episodes/{episodeId}` | 완료 |
+| 장소/퍼즐/힌트/reward_payload 수정 | admin episode update APIs | 완료 |
+| 용의자/증거/리워드 placeholder 수정 | admin episode update APIs | 완료 |
+
+## 6. 확장 기능 감사
+
+| 요구사항 | 실제 상태 | 판정 |
+| --- | --- | --- |
+| 에피소드 찜/즐겨찾기 | `episode_favorites`, favorite API, `MyPageView` | 완료 |
+| 일정 관리 | plans API/View 없음 | 미구현 |
+| 팔로우/그룹 | follows/groups API/View 없음 | 미구현 |
+| 챌린지/랭킹 | challenges/rankings API/View 없음 | 미구현 |
+| 사용자 AI 추천 | recommendations API/View 없음 | 미구현 |
+| AI 코칭/분석 | coaching reports API/View 없음 | 미구현 |
+| 실제 제휴 쿠폰/상품권 지급 | placeholder만 있음 | 미구현 |
+| 다국어/무장애/두루누비/기상청 API | 설계 문서 수준 | 미구현 |
+
+## 7. 주의할 점
+
+- `region_review`, `region_favorite` 등 legacy region 기능은 존재하지만 새 episode MVP의 리뷰/찜 요구사항과 동일하지 않습니다.
+- 사용자 플레이 MVP의 중심은 `/episodes` 하위 플로우입니다.
+- `/home`, `/regions`, `/map`, `/chat`, `/clear`는 legacy 관광/미션 화면으로 유지됩니다.
+- `schema.sql`에는 legacy 테이블이 있고, episode MVP 테이블은 `EpisodeSchemaMigration`에서 생성됩니다.

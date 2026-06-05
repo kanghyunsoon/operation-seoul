@@ -4,12 +4,14 @@ package com.operation.seoul.game.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.operation.seoul.global.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,7 @@ public class TourApiService {
      * 관리자 후보지 스캔에서 최종 목적지 후보를 모으는 첫 단계입니다.
      */
     public List<Map<String, String>> fetchHistoricalPlaces(double lat, double lng, int radius) {
+        ensureTourApiKey();
         List<Map<String, String>> spots = new ArrayList<>();
         try {
             String safeKey = tourApiKey.trim();
@@ -68,6 +71,12 @@ public class TourApiService {
             ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
 
             JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode header = root.path("response").path("header");
+            String resultCode = header.path("resultCode").asText("");
+            if (!resultCode.isBlank() && !"0000".equals(resultCode)) {
+                String resultMessage = header.path("resultMsg").asText("TourAPI 응답 오류");
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "TOURAPI_REQUEST_FAILED", "TourAPI 후보 조회에 실패했습니다: " + resultMessage);
+            }
             JsonNode items = root.path("response").path("body").path("items").path("item");
 
             if (items.isArray()) {
@@ -80,10 +89,18 @@ public class TourApiService {
                     spots.add(spot);
                 }
             }
+        } catch (ApiException e) {
+            throw e;
         } catch (Exception e) {
             log.error("🚨 TourAPI 오류: {}", e.getMessage());
         }
         return spots;
+    }
+
+    private void ensureTourApiKey() {
+        if (tourApiKey == null || tourApiKey.isBlank() || tourApiKey.startsWith("YOUR_")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "TOURAPI_SERVICE_KEY_MISSING", "TourAPI 서비스 키가 설정되어 있지 않습니다. backend application-local.properties 또는 운영 환경변수에 TourAPI 서비스 키를 설정하세요.");
+        }
     }
 
     /**

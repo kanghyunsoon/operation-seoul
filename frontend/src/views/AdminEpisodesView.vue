@@ -442,7 +442,11 @@
                 <button type="button" @click="loadPlaceCandidates">TourAPI 기준 장소 불러오기</button>
               </div>
             </div>
-            <p class="candidate-help">TourAPI 장소는 사건의 기준 지점입니다. 기준 장소를 선택하면 Kakao Local로 주변 골목상권/문화 후보지를 불러옵니다.</p>
+            <p class="candidate-help">TourAPI 장소는 사건의 기준 지점이자 서버 내부 최종 장소입니다. 기준 장소를 선택하면 Kakao Local로 주변 골목상권/문화 후보지를 불러옵니다.</p>
+            <div class="ops-notice">
+              <strong>키/도메인 설정 확인</strong>
+              <p>TourAPI와 Kakao Local 후보 조회는 백엔드 API 키가 필요합니다. 지도 표시는 프론트 Kakao JavaScript 키와 허용 도메인, 길찾기는 Tmap 앱 키/도메인 설정을 확인해야 합니다.</p>
+            </div>
             <p v-if="candidateLoading" class="empty">TourAPI 후보를 불러오는 중입니다.</p>
             <p v-else-if="candidateLoaded && !placeCandidates.length" class="empty">TourAPI 후보가 없습니다. API 키와 지역 설정을 확인하세요.</p>
             <div class="candidate-grid">
@@ -468,7 +472,7 @@
                 <button type="button" class="ghost-btn" :disabled="selectedCandidates.length < 8" @click="applyCandidatesToDraft">선택 장소를 초안 입력에 적용</button>
               </div>
             </div>
-            <p class="candidate-help">기준 장소 포함 8~9개를 선택하세요. TourAPI 기준 장소가 내부 최종 장소가 되고, 공개 화면에는 일반 조사 후보처럼만 표시됩니다.</p>
+            <p class="candidate-help">기준 장소 포함 8~9개를 선택하세요. TourAPI 기준 장소가 내부 최종 장소가 되고, 공개 화면에는 일반 조사 후보처럼만 표시됩니다. Kakao 후보가 부족하면 아래 수동 후보로 보강하세요.</p>
             <div class="selection-summary">
               <strong>선택 {{ selectedCandidates.length }}개 / 권장 8~9개</strong>
               <span :class="{ ready: selectedCandidates.length >= 8 && selectedCandidates.length <= 9 }">
@@ -476,7 +480,19 @@
               </span>
             </div>
             <p v-if="nearbyLoading" class="empty">Kakao Local 주변 후보를 불러오는 중입니다.</p>
-            <p v-else-if="nearbyLoaded && !nearbyCandidates.length" class="empty">주변 후보가 없습니다. Kakao REST API 키와 반경을 확인하세요.</p>
+            <p v-else-if="nearbyLoaded && !nearbyCandidates.length" class="empty">주변 후보가 없습니다. Kakao REST API 키와 반경을 확인하거나 수동 후보를 추가하세요.</p>
+            <div class="manual-candidate-form">
+              <strong>수동 후보 추가</strong>
+              <div class="manual-grid">
+                <label>장소명<input v-model.trim="manualCandidate.title" type="text" placeholder="예: 골목 카페 앞" /></label>
+                <label>주소<input v-model.trim="manualCandidate.address" type="text" placeholder="도로명 또는 지번 주소" /></label>
+                <label>위도<input v-model="manualCandidate.latitude" type="number" step="0.000001" placeholder="37.5665" /></label>
+                <label>경도<input v-model="manualCandidate.longitude" type="number" step="0.000001" placeholder="126.9780" /></label>
+              </div>
+              <label class="manual-note">현장 메모<textarea v-model.trim="manualCandidate.description" rows="2" placeholder="관리자 입력 현장 관찰 요소와 운영 전 검수 메모를 적으세요."></textarea></label>
+              <button type="button" class="ghost-btn" @click="addManualCandidate">수동 후보 추가</button>
+              <p>수동 후보는 운영 공개 전 GPS 좌표, 접근 가능 여부, 현장 관찰 요소를 반드시 검수해야 합니다.</p>
+            </div>
             <div class="candidate-grid">
               <article v-for="candidate in nearbyCandidates" :key="candidateKey(candidate)" class="candidate-card" :class="{ selected: isCandidateSelected(candidate) }">
                 <label class="check">
@@ -700,6 +716,13 @@ const nearbyLoading = ref(false);
 const nearbyLoaded = ref(false);
 const nearbyRadius = ref(1500);
 const selectedCandidates = ref([]);
+const manualCandidate = ref({
+  title: '',
+  address: '',
+  latitude: '',
+  longitude: '',
+  description: ''
+});
 const draftInput = ref(JSON.stringify({
   area: '서울 정동길',
   era: '대한제국 말기',
@@ -1246,15 +1269,48 @@ async function loadNearbyCandidates(candidate) {
       ...nearby.filter((item) => candidateKey(item) !== anchorKey)
     ];
     nearbyLoaded.value = true;
-    setMessage(nearbyCandidates.value.length > 1 ? 'Kakao Local 주변 후보를 불러왔습니다.' : '주변 후보가 부족합니다. 반경을 넓혀 보세요.', nearbyCandidates.value.length > 1 ? 'success' : 'error');
+    setMessage(nearbyCandidates.value.length > 1 ? 'Kakao Local 주변 후보를 불러왔습니다.' : '주변 후보가 부족합니다. 반경을 넓히거나 수동 후보를 추가하세요.', nearbyCandidates.value.length > 1 ? 'success' : 'error');
   } catch (error) {
     nearbyCandidates.value = [];
     nearbyLoaded.value = true;
     selectedCandidates.value = [candidate];
-    setMessage(error.userMessage || 'Kakao Local 주변 후보를 불러올 수 없습니다.', 'error');
+    setMessage(error.userMessage || 'Kakao Local 주변 후보를 불러올 수 없습니다. API 키/도메인을 확인하거나 수동 후보를 추가하세요.', 'error');
   } finally {
     nearbyLoading.value = false;
   }
+}
+
+function addManualCandidate() {
+  const latitude = Number(manualCandidate.value.latitude);
+  const longitude = Number(manualCandidate.value.longitude);
+  if (!manualCandidate.value.title || Number.isNaN(latitude) || Number.isNaN(longitude)) {
+    setMessage('수동 후보는 장소명, 위도, 경도를 입력해야 합니다.', 'error');
+    return;
+  }
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    setMessage('위도/경도 범위를 확인해 주세요.', 'error');
+    return;
+  }
+  const candidate = {
+    title: manualCandidate.value.title,
+    address: manualCandidate.value.address,
+    latitude,
+    longitude,
+    areaCode: candidateAreaCode.value,
+    source: '관리자 수동 후보',
+    description: manualCandidate.value.description || '관리자가 수동으로 추가한 주변 후보입니다. 운영 공개 전 현장 검수가 필요합니다.'
+  };
+  if (nearbyCandidates.value.some((item) => candidateKey(item) === candidateKey(candidate))) {
+    setMessage('이미 추가된 후보입니다.', 'error');
+    return;
+  }
+  nearbyCandidates.value = [...nearbyCandidates.value, candidate];
+  nearbyLoaded.value = true;
+  if (selectedCandidates.value.length < 9) {
+    selectedCandidates.value = [...selectedCandidates.value, candidate];
+  }
+  manualCandidate.value = { title: '', address: '', latitude: '', longitude: '', description: '' };
+  setMessage('수동 후보가 추가되었습니다. 운영 공개 전 현장 검수를 진행하세요.');
 }
 
 function candidateKey(candidate) {
@@ -1481,6 +1537,14 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .card-editor button { margin-top: 10px; width: 100%; }
 .candidate-panel { margin: 14px 0; padding: 12px; border: 1px solid rgba(245,158,11,.22); border-radius: 14px; background: rgba(2,6,23,.28); }
 .candidate-help { color: #fde68a !important; font-size: .86rem; }
+.ops-notice, .manual-candidate-form { margin: 10px 0; padding: 12px; border: 1px solid rgba(125,211,252,.24); border-radius: 14px; background: rgba(8,47,73,.22); }
+.ops-notice strong, .manual-candidate-form strong { display: block; color: #bae6fd; margin-bottom: 6px; }
+.ops-notice p, .manual-candidate-form p { margin: 0; color: #cbd5e1; font-size: .82rem; line-height: 1.55; }
+.manual-candidate-form { border-color: rgba(245,158,11,.28); background: rgba(120,53,15,.16); }
+.manual-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.manual-grid label, .manual-note { display: grid; gap: 5px; color: #fed7aa; font-size: .8rem; font-weight: 800; }
+.manual-note { margin-bottom: 8px; }
+.manual-note textarea { min-height: 64px; resize: vertical; }
 .candidate-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-height: 360px; overflow: auto; }
 .candidate-card { border: 1px solid rgba(148,163,184,.16); border-radius: 12px; background: rgba(15,23,42,.58); padding: 10px; }
 .candidate-card.selected { border-color: #f59e0b; box-shadow: 0 0 0 1px rgba(245,158,11,.34) inset; }
@@ -1507,5 +1571,5 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .draft-actions-helper strong { color: #fde68a; }
 .draft-actions-helper span { color: #cbd5e1; font-size: .84rem; line-height: 1.45; }
 .reward { opacity: .82; }
-@media (max-width: 860px) { .admin-hero, .layout { display: block; } .hero-actions { margin-top: 12px; } .detail-panel { margin-top: 14px; } .stat-grid, .mini-grid, .edit-grid, .candidate-grid, .hint-edit-list, .creation-flow, .preview-grid { grid-template-columns: 1fr; } .selection-summary, .draft-actions-helper { display: grid; } .selected-route li { grid-template-columns: 24px 1fr; } .selected-route li > span { grid-column: 2; justify-self: start; } }
+@media (max-width: 860px) { .admin-hero, .layout { display: block; } .hero-actions { margin-top: 12px; } .detail-panel { margin-top: 14px; } .stat-grid, .mini-grid, .edit-grid, .candidate-grid, .manual-grid, .hint-edit-list, .creation-flow, .preview-grid { grid-template-columns: 1fr; } .selection-summary, .draft-actions-helper { display: grid; } .selected-route li { grid-template-columns: 24px 1fr; } .selected-route li > span { grid-column: 2; justify-self: start; } }
 </style>

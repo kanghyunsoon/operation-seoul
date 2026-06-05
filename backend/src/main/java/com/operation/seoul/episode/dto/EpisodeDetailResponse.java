@@ -18,4 +18,5 @@ public class EpisodeDetailResponse {
     private String finalAnswerType;
     private String finalQuestion;
     private String progressStatus;
+    private Boolean favorited;
 }
