@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
+  <rect width="960" height="640" fill="#0f172a"/>
+  <rect x="70" y="56" width="820" height="528" rx="28" fill="#e0f2fe"/>
+  <rect x="108" y="96" width="744" height="124" rx="16" fill="#111827"/>
+  <text x="132" y="148" fill="#38bdf8" font-family="Georgia,serif" font-size="32" font-weight="700">OPERATION KOREA</text>
+  <text x="132" y="190" fill="#e5e7eb" font-family="Arial,sans-serif" font-size="22">GENERATED PHOTO MATERIAL</text>
+  <circle cx="250" cy="382" r="86" fill="#0f172a"/>
+  <circle cx="250" cy="382" r="46" fill="none" stroke="#38bdf8" stroke-width="18"/>
+  <rect x="458" y="318" width="288" height="34" rx="17" fill="#0284c7"/>
+  <rect x="458" y="382" width="350" height="28" rx="14" fill="#075985" opacity=".45"/>
+  <rect x="458" y="434" width="284" height="28" rx="14" fill="#075985" opacity=".30"/>
+  <text x="132" y="548" fill="#111827" font-family="Arial,sans-serif" font-size="28" font-weight="700">PHOTO CARD</text>
+  <text x="132" y="584" fill="#075985" font-family="Arial,sans-serif" font-size="20">fictional placeholder image</text>
+</svg>

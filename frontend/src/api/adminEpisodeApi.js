@@ -1,6 +1,7 @@
 ﻿import apiClient from '@/api/axiosInstance';
 
 const unwrap = (response) => response.data?.data ?? response.data;
+const AI_DRAFT_TIMEOUT_MS = 180000;
 
 export const adminEpisodeApi = {
   async getEpisodes() {
@@ -11,6 +12,12 @@ export const adminEpisodeApi = {
   },
   async getPublishReadiness(episodeId) {
     return unwrap(await apiClient.get(`/v1/admin/episodes/${episodeId}/publish-readiness`));
+  },
+  async createEpisode(payload = {}) {
+    return unwrap(await apiClient.post('/v1/admin/episodes', payload));
+  },
+  async deleteEpisode(episodeId) {
+    return unwrap(await apiClient.delete(`/v1/admin/episodes/${episodeId}`));
   },
   async getPlaceCandidates(areaCode) {
     return unwrap(await apiClient.get('/v1/admin/episodes/place-candidates', { params: { areaCode } }));
@@ -58,13 +65,13 @@ export const adminEpisodeApi = {
     return unwrap(await apiClient.post(`/v1/admin/episodes/${episodeId}/reward-payload/validate`, { rewardPayload }));
   },
   async createAiDraft(payload) {
-    return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft', payload));
+    return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft', payload, { timeout: AI_DRAFT_TIMEOUT_MS }));
   },
   async createGeminiDraft(payload) {
-    return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft/gemini', payload));
+    return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft/gemini', payload, { timeout: AI_DRAFT_TIMEOUT_MS }));
   },
   async validateAiDraft(payload) {
-    return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft/validate', payload));
+    return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft/validate', payload, { timeout: AI_DRAFT_TIMEOUT_MS }));
   },
   async saveAiDraft(payload) {
     return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft/save', payload));

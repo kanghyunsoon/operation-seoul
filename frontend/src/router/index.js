@@ -1,11 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import IntroView from '@/views/IntroView.vue';
-import HomeView from '@/views/HomeView.vue';
-import RegionDetailView from '@/views/RegionDetailView.vue';
-import BriefingView from '@/views/BriefingView.vue';
-import MapView from '@/views/MapView.vue';
-import AiChatView from '@/views/AiChatView.vue';
-import ClearView from '@/views/ClearView.vue';
 import EpisodeListView from '@/views/EpisodeListView.vue';
 import EpisodeDetailView from '@/views/EpisodeDetailView.vue';
 import EpisodeBriefingView from '@/views/EpisodeBriefingView.vue';
@@ -33,12 +27,12 @@ const routes = [
   { path: '/admin/users', name: 'AdminUsers', component: AdminUsersView, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/reviews', name: 'AdminReviews', component: AdminReviewsView, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/episodes', name: 'AdminEpisodes', component: AdminEpisodesView, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: '/home', name: 'Home', component: HomeView, meta: { requiresAuth: true } },
-  { path: '/regions/:regionId', name: 'RegionDetail', component: RegionDetailView, meta: { requiresAuth: true } },
-  { path: '/briefing', name: 'Briefing', component: BriefingView, meta: { requiresAuth: true }, props: route => ({ missionId: route.query.missionId }) },
-  { path: '/map', name: 'Map', component: MapView, meta: { requiresAuth: true } },
-  { path: '/chat/:sessionId', name: 'Chat', component: AiChatView, meta: { requiresAuth: true } },
-  { path: '/clear/:missionId', name: 'Clear', component: ClearView, meta: { requiresAuth: true } }
+  { path: '/home', redirect: '/episodes' },
+  { path: '/regions/:regionId', redirect: '/episodes' },
+  { path: '/briefing', redirect: '/episodes' },
+  { path: '/map', redirect: '/episodes' },
+  { path: '/chat/:sessionId', redirect: '/episodes' },
+  { path: '/clear/:missionId', redirect: '/episodes' }
 ];
 
 const router = createRouter({

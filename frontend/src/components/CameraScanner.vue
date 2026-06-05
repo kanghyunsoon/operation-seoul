@@ -33,7 +33,7 @@
 <script setup>
 import { ref } from 'vue';
 
-// 부모 화면(MapView/AiChatView)은 capture 이벤트로 data URL을 받아 서버에 업로드합니다.
+// 부모 화면(EpisodeMapView/FinalDeductionView)은 capture 이벤트로 data URL을 받아 서버에 업로드합니다.
 const emit = defineEmits(['capture']);
 const fileInput = ref(null);
 

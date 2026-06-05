@@ -107,6 +107,9 @@ public interface AdminEpisodeRepository {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertEpisode(Episode episode);
 
+    @Delete("delete from episodes where id = #{episodeId}")
+    int deleteEpisode(Long episodeId);
+
     @Update("""
             update episodes
             set title = #{title}, subtitle = #{subtitle}, era = #{era}, genre = #{genre}, difficulty = #{difficulty},

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="admin-episode-page">
     <header class="admin-hero">
       <div>
@@ -7,6 +7,7 @@
         <span>사건파일, 장소, 퍼즐, 최종 장소, 리워드 placeholder를 점검합니다.</span>
       </div>
       <div class="hero-actions">
+        <button type="button" class="ghost-btn" @click="router.push({ name: 'EpisodeList' })">전역 미션 선택</button>
         <button type="button" @click="router.push({ name: 'AdminUsers' })">회원 관리</button>
         <button type="button" @click="router.push({ name: 'AdminReviews' })">리뷰 관리</button>
       </div>
@@ -16,7 +17,10 @@
       <aside class="episode-list">
         <div class="section-title">
           <h2>사건파일 목록</h2>
-          <button type="button" @click="loadEpisodes">새로고침</button>
+          <div class="payload-actions compact">
+            <button type="button" @click="createEpisode">새 사건 생성</button>
+            <button type="button" class="ghost-btn" @click="loadEpisodes">새로고침</button>
+          </div>
         </div>
         <p v-if="loading" class="empty">에피소드를 불러오는 중입니다.</p>
         <article
@@ -46,7 +50,13 @@
               <h2>{{ selected.title }}</h2>
               <span>{{ selected.subtitle }}</span>
             </div>
-            <strong>{{ selected.status }}</strong>
+            <div class="detail-status">
+              <strong>{{ selected.status }}</strong>
+              <button type="button" class="danger-btn" :disabled="selected.status === 'PUBLISHED'" @click="deleteEpisode">
+                사건 삭제
+              </button>
+              <small v-if="selected.status === 'PUBLISHED'">공개 중인 사건은 ARCHIVED 전환 후 삭제</small>
+            </div>
           </div>
 
           <div class="secret-box">
@@ -387,18 +397,67 @@
           </div>
         </article>
 
-        <article class="draft-panel">
+
+      </section>
+
+      <article class="draft-panel full-width">
           <div class="section-title">
-            <h2>AI 사건파일 초안</h2>
-            <div class="payload-actions">
-              <button type="button" @click="generateDraft">규칙 기반 초안</button>
-              <button type="button" class="ghost-btn" @click="generateGeminiDraft">Gemini 초안</button>
-              <button v-if="draftResult?.draft" type="button" class="ghost-btn" @click="validateDraft(false)">초안 검증</button>
-              <button v-if="draftResult?.draft" type="button" class="ghost-btn" @click="validateDraft(true)">Gemini 검증</button>
-              <button v-if="draftResult?.draft" type="button" class="ghost-btn" @click="saveDraft">DRAFT 저장</button>
+            <div>
+              <p class="eyebrow">CASE BUILDER</p>
+              <h2>AI 사건파일 자동 작성</h2>
+            </div>
+            <div class="payload-actions action-bar">
+              <button type="button" class="primary-action" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'gemini' }" @click="generateGeminiDraft">
+                {{ activeAction === 'gemini' ? 'Gemini 작성 중...' : 'Gemini로 전체 초안 작성' }}
+              </button>
+              <button type="button" class="ghost-btn" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'rule' }" @click="generateDraft">
+                {{ activeAction === 'rule' ? '예비 초안 작성 중...' : '예비 초안 만들기' }}
+              </button>
+              <button v-if="draftResult?.draft" type="button" class="ghost-btn" :disabled="draftBusy" :class="{ busy: activeAction === 'validate' }" @click="validateDraft(false)">
+                {{ activeAction === 'validate' ? '검증 중...' : '기본 검증' }}
+              </button>
+              <button v-if="draftResult?.draft" type="button" class="ghost-btn" :disabled="draftBusy" :class="{ busy: activeAction === 'geminiValidate' }" @click="validateDraft(true)">
+                {{ activeAction === 'geminiValidate' ? 'Gemini 검증 중...' : 'Gemini 검증' }}
+              </button>
+              <button v-if="draftResult?.draft" type="button" class="save-draft-btn" :disabled="draftBusy" :class="{ busy: activeAction === 'save' }" @click="saveDraft">
+                {{ activeAction === 'save' ? 'DB 저장 중...' : 'DRAFT로 저장' }}
+              </button>
             </div>
           </div>
-          <p>규칙 기반 초안은 API 키 없이 동작합니다. Gemini 초안은 gemini.api.key가 설정된 경우에만 실제 호출합니다.</p>
+          <div class="ai-mode-grid">
+            <article>
+              <strong>Gemini 전체 작성</strong>
+              <span>관리자가 선택한 장소와 메모를 기반으로 스토리, 퍼즐, 단서, 용의자, 증거 카드 초안을 생성합니다.</span>
+            </article>
+            <article>
+              <strong>예비 초안</strong>
+              <span>Gemini 키가 없거나 호출 실패 시 쓰는 안전 fallback입니다. AI가 아니라 입력값 기반 템플릿입니다.</span>
+            </article>
+            <article>
+              <strong>이미지 카드</strong>
+              <span>실제 현장 사진을 상상하지 않고, 가상 사건자료 카드 이미지를 자동 생성해 저장합니다.</span>
+            </article>
+          </div>
+          <div v-if="draftBusy || draftStatus || draftError" class="draft-status-box" :class="{ error: Boolean(draftError) }">
+            <div class="draft-status-head">
+              <strong>{{ draftBusy ? '작업 진행 중' : draftError ? '작업 실패' : '최근 작업' }}</strong>
+              <span v-if="draftBusy">{{ draftElapsedSeconds }}초 경과</span>
+            </div>
+            <p>{{ draftError || draftStatus }}</p>
+            <div v-if="draftBusy" class="draft-progress-bar">
+              <i :style="{ width: `${draftProgressPercent}%` }"></i>
+            </div>
+            <ol v-if="draftBusy" class="draft-step-list">
+              <li v-for="step in draftProgressSteps" :key="step.key" :class="{ active: step.key === draftProgressStep, done: step.done }">
+                <b>{{ step.label }}</b>
+                <span>{{ step.description }}</span>
+              </li>
+            </ol>
+          </div>
+          <div v-if="!canGenerateDraftFromSelection" class="draft-status-box error">
+            <strong>초안 작성 전 필요 조건</strong>
+            <p>{{ draftSelectionBlockReason }}</p>
+          </div>
           <p class="warning">저장된 초안은 항상 DRAFT로 시작합니다. 현장 좌표/숫자/표지판 검수 후 PUBLISHED로 변경하세요.</p>
 
           <section class="creation-flow">
@@ -454,7 +513,8 @@
                 <strong>{{ candidate.title }}</strong>
                 <p>{{ candidate.address || '주소 없음' }}</p>
                 <span>{{ candidate.latitude }}, {{ candidate.longitude }}</span>
-                <button type="button" class="ghost-btn" @click="loadNearbyCandidates(candidate)">이 장소를 기준으로 주변 후보 찾기</button>
+                <button type="button" class="ghost-btn" :disabled="!hasCandidateCoordinate(candidate)" @click="loadNearbyCandidates(candidate)">이 장소를 기준으로 주변 후보 찾기</button>
+                <em v-if="!hasCandidateCoordinate(candidate)" class="coordinate-warning">좌표 없음</em>
               </article>
             </div>
             <div v-if="anchorCandidate" class="anchor-box">
@@ -469,13 +529,13 @@
               <div class="payload-actions">
                 <label class="inline-field">반경(m)<input v-model.number="nearbyRadius" type="number" min="100" max="20000" /></label>
                 <button type="button" class="ghost-btn" :disabled="!anchorCandidate" @click="loadNearbyCandidates(anchorCandidate)">주변 후보 다시 불러오기</button>
-                <button type="button" class="ghost-btn" :disabled="selectedCandidates.length < 8" @click="applyCandidatesToDraft">선택 장소를 초안 입력에 적용</button>
+                <button type="button" class="ghost-btn" :disabled="!canGenerateDraftFromSelection" @click="applyCandidatesToDraft">선택 장소를 초안 입력에 적용</button>
               </div>
             </div>
             <p class="candidate-help">기준 장소 포함 8~9개를 선택하세요. TourAPI 기준 장소가 내부 최종 장소가 되고, 공개 화면에는 일반 조사 후보처럼만 표시됩니다. Kakao 후보가 부족하면 아래 수동 후보로 보강하세요.</p>
             <div class="selection-summary">
               <strong>선택 {{ selectedCandidates.length }}개 / 권장 8~9개</strong>
-              <span :class="{ ready: selectedCandidates.length >= 8 && selectedCandidates.length <= 9 }">
+              <span :class="{ ready: canGenerateDraftFromSelection }">
                 {{ selectedCandidateStatus }}
               </span>
             </div>
@@ -501,6 +561,7 @@
                 </label>
                 <p>{{ candidate.address || '주소 없음' }}</p>
                 <span>{{ candidate.source }} · {{ candidate.latitude }}, {{ candidate.longitude }}</span>
+                <em v-if="!hasCandidateCoordinate(candidate)" class="coordinate-warning">좌표 없음: 선택해도 초안 생성 불가</em>
               </article>
             </div>
             <div v-if="selectedCandidates.length" class="selected-route">
@@ -517,10 +578,9 @@
             </div>
           </section>
           <div class="draft-actions-helper">
-            <strong>3. 초안 생성</strong>
-            <span>선택 후보 적용 후 규칙 기반 초안 또는 Gemini 초안을 생성하세요. Gemini가 만든 내용도 저장 전 관리자 검수가 필요합니다.</span>
+            <strong>3. 초안 입력 준비 완료</strong>
+            <span>선택 장소, 좌표, 관리자 메모는 내부 payload로 자동 전달됩니다. 화면에는 JSON을 노출하지 않습니다.</span>
           </div>
-          <textarea v-model="draftInput" rows="12" spellcheck="false"></textarea>
           <section v-if="draftResult?.draft" class="draft-editor">
             <div class="section-title">
               <h3>초안 폼 편집</h3>
@@ -660,6 +720,8 @@
                     </select>
                   </label>
                   <label>출처 순서<input v-model.number="evidence.sourceMissionOrder" type="number" min="1" /></label>
+                  <label class="wide">이미지 URL<input v-model.trim="evidence.imageUrl" type="text" placeholder="비워두면 저장 시 자동 카드 이미지 생성" /></label>
+                  <img v-if="evidence.imageUrl" class="draft-evidence-image" :src="evidence.imageUrl" alt="사건자료 이미지 미리보기" />
                   <label>요약<textarea v-model="evidence.textSummary" rows="2"></textarea></label>
                 </article>
               </div>
@@ -681,15 +743,13 @@
             </ul>
             <p v-else class="empty">검증 이슈가 없습니다. 그래도 현장 검수는 필요합니다.</p>
           </section>
-          <pre v-if="draftResult">{{ formattedDraft }}</pre>
         </article>
-      </section>
     </section>
   </main>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminEpisodeApi } from '@/api/adminEpisodeApi';
 
@@ -706,6 +766,12 @@ const publishReadiness = ref(null);
 const previewOpen = ref(false);
 const draftResult = ref(null);
 const draftValidation = ref(null);
+const activeAction = ref('');
+const draftStatus = ref('');
+const draftError = ref('');
+const draftElapsedSeconds = ref(0);
+const draftProgressStep = ref('');
+let draftTimerId = null;
 const candidateAreaCode = ref('seoul');
 const candidateLoading = ref(false);
 const candidateLoaded = ref(false);
@@ -739,12 +805,45 @@ const draftInput = ref(JSON.stringify({
     { name: '중명전', description: '실제 최종 후보', visibleElements: ['붉은 벽', '건물명'], numbers: ['1905'], keywords: ['밀서', '문'], adminMemo: '실제 최종 장소 후보', role: 'FINAL' }
   ]
 }, null, 2));
+const draftStepOrder = [
+  { key: 'prepare', label: '입력 정리', description: '선택 장소와 좌표를 초안 JSON으로 반영합니다.' },
+  { key: 'request', label: 'AI 요청', description: '백엔드가 Gemini에 구조화 초안을 요청합니다.' },
+  { key: 'parse', label: '응답 대기', description: '스토리, 퍼즐, 단서, 자료 카드 JSON을 기다립니다.' },
+  { key: 'hydrate', label: '화면 반영', description: '받은 초안을 편집 가능한 폼과 이미지 카드로 표시합니다.' }
+];
 
-const formattedDraft = computed(() => JSON.stringify(draftResult.value, null, 2));
+const draftBusy = computed(() => Boolean(activeAction.value));
+const draftProgressPercent = computed(() => {
+  if (!draftBusy.value) return 0;
+  return Math.min(92, 12 + draftElapsedSeconds.value * 0.8);
+});
+const draftProgressSteps = computed(() => {
+  const currentIndex = draftStepOrder.findIndex((step) => step.key === draftProgressStep.value);
+  return draftStepOrder.map((step, index) => ({
+    ...step,
+    done: currentIndex > index
+  }));
+});
+const canGenerateDraftFromSelection = computed(() => {
+  const count = selectedCandidates.value.length;
+  return count >= 8 && count <= 9 && selectedCandidates.value.every(hasCandidateCoordinate);
+});
+const draftSelectionBlockReason = computed(() => {
+  const count = selectedCandidates.value.length;
+  if (count < 8) return '기준 장소를 포함해 최소 8개 장소를 선택해야 Gemini 전체 초안 작성이 가능합니다.';
+  if (count > 9) return '장소는 최대 9개까지만 사용할 수 있습니다.';
+  const missing = selectedCandidates.value.filter((candidate) => !hasCandidateCoordinate(candidate));
+  if (missing.length) {
+    return `위도/경도가 없는 장소가 있습니다: ${missing.map((candidate) => candidate.title || '이름 없는 장소').join(', ')}`;
+  }
+  return '';
+});
 const selectedCandidateStatus = computed(() => {
   const count = selectedCandidates.value.length;
   if (count < 8) return '장소가 부족합니다. 공개 조건을 맞추려면 최소 8개를 선택하세요.';
   if (count > 9) return '장소가 너무 많습니다. 최대 9개까지만 사용하세요.';
+  const missing = selectedCandidates.value.filter((candidate) => !hasCandidateCoordinate(candidate));
+  if (missing.length) return `좌표가 없는 장소 ${missing.length}개가 있습니다. 좌표가 있는 후보로 교체하거나 수동 후보를 추가하세요.`;
   return '초안 생성에 사용할 수 있는 장소 구성입니다.';
 });
 const orderedSelectedCandidates = computed(() => {
@@ -757,6 +856,7 @@ const orderedSelectedCandidates = computed(() => {
 });
 
 onMounted(loadEpisodes);
+onUnmounted(stopDraftTimer);
 
 async function loadEpisodes() {
   loading.value = true;
@@ -838,6 +938,48 @@ function hydrateEpisodeForm(episode) {
 
 async function refreshEpisodeList() {
   episodes.value = await adminEpisodeApi.getEpisodes();
+}
+
+async function createEpisode() {
+  const createdAt = new Date().toLocaleString('ko-KR', { hour12: false });
+  try {
+    const created = await adminEpisodeApi.createEpisode({
+      title: `새 사건파일 초안 ${createdAt}`
+    });
+    selected.value = created;
+    selectedEpisodeId.value = created.id;
+    hydrateEpisodeForm(created);
+    publishReadiness.value = null;
+    previewOpen.value = false;
+    await refreshEpisodeList();
+    setMessage('새 사건파일 DRAFT가 생성되었습니다. 핵심 정보를 수정한 뒤 장소/퍼즐/사건자료를 추가하세요.', 'success');
+  } catch (error) {
+    setMessage(error.userMessage || '사건파일을 생성할 수 없습니다.', 'error');
+  }
+}
+
+async function deleteEpisode() {
+  if (!selected.value || !selectedEpisodeId.value) return;
+  if (selected.value.status === 'PUBLISHED') {
+    setMessage('PUBLISHED 사건파일은 먼저 ARCHIVED로 변경한 뒤 삭제하세요.', 'error');
+    return;
+  }
+  const confirmed = window.confirm(`${selected.value.title} 사건파일을 삭제할까요? 장소, 퍼즐, 사건자료, 진행 기록, 리뷰가 함께 삭제됩니다.`);
+  if (!confirmed) return;
+  try {
+    await adminEpisodeApi.deleteEpisode(selectedEpisodeId.value);
+    selected.value = null;
+    selectedEpisodeId.value = null;
+    publishReadiness.value = null;
+    previewOpen.value = false;
+    await refreshEpisodeList();
+    if (episodes.value.length) {
+      await selectEpisode(episodes.value[0].id);
+    }
+    setMessage('사건파일이 삭제되었습니다.', 'success');
+  } catch (error) {
+    setMessage(error.userMessage || '사건파일을 삭제할 수 없습니다.', 'error');
+  }
 }
 
 async function saveEpisode() {
@@ -1108,45 +1250,102 @@ async function validatePayload(spot) {
   }
 }
 
+function startDraftProgress(action, status, step = 'prepare') {
+  activeAction.value = action;
+  draftError.value = '';
+  draftStatus.value = status;
+  draftElapsedSeconds.value = 0;
+  draftProgressStep.value = step;
+  stopDraftTimer();
+  draftTimerId = window.setInterval(() => {
+    draftElapsedSeconds.value += 1;
+    if (draftElapsedSeconds.value >= 2 && draftProgressStep.value === 'prepare') {
+      draftProgressStep.value = 'request';
+    }
+    if (draftElapsedSeconds.value >= 8 && draftProgressStep.value === 'request') {
+      draftProgressStep.value = 'parse';
+    }
+  }, 1000);
+}
+
+function finishDraftProgress(status = '') {
+  draftProgressStep.value = 'hydrate';
+  if (status) draftStatus.value = status;
+  stopDraftTimer();
+  activeAction.value = '';
+}
+
+function failDraftProgress(errorMessage) {
+  draftError.value = errorMessage;
+  stopDraftTimer();
+  activeAction.value = '';
+}
+
+function stopDraftTimer() {
+  if (draftTimerId) {
+    window.clearInterval(draftTimerId);
+    draftTimerId = null;
+  }
+}
+
 async function generateDraft() {
+  if (!prepareDraftInputFromSelection()) return;
+  startDraftProgress('rule', 'API 키 없이 입력값 기반 예비 초안을 작성하고 있습니다.');
   try {
     const payload = JSON.parse(draftInput.value);
+    draftProgressStep.value = 'request';
     draftResult.value = await adminEpisodeApi.createAiDraft(payload);
+    draftProgressStep.value = 'hydrate';
     hydrateDraftForEditing();
     draftValidation.value = null;
-    setMessage('규칙 기반 사건파일 초안이 생성되었습니다. 아직 DB에는 저장되지 않았습니다.', 'success');
+    finishDraftProgress('예비 초안이 생성되었습니다. Gemini가 아니라 템플릿 기반 결과이므로 문장 품질 검수가 필요합니다.');
+    setMessage('예비 사건파일 초안이 생성되었습니다. 아직 DB에는 저장되지 않았습니다.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || error.message || '초안을 생성할 수 없습니다.', 'error');
+    failDraftProgress(error.userMessage || error.message || '초안을 생성할 수 없습니다.');
+    setMessage(draftError.value, 'error');
   }
 }
 
 async function generateGeminiDraft() {
+  if (!prepareDraftInputFromSelection()) return;
+  startDraftProgress('gemini', 'Gemini가 사건 개요, 퍼즐, 단서, 용의자, 증거 카드 초안을 작성하고 있습니다. 최대 180초까지 기다립니다.');
   try {
     const payload = JSON.parse(draftInput.value);
+    draftProgressStep.value = 'request';
     draftResult.value = await adminEpisodeApi.createGeminiDraft(payload);
+    draftProgressStep.value = 'hydrate';
     hydrateDraftForEditing();
     draftValidation.value = null;
+    finishDraftProgress('Gemini 초안이 생성되었습니다. 저장 전 최종 장소 은닉, 퍼즐 근거, 이미지 카드를 검수하세요.');
     setMessage('Gemini 사건파일 초안이 생성되었습니다. 아직 DB에는 저장되지 않았습니다.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || error.message || 'Gemini 초안을 생성할 수 없습니다.', 'error');
+    failDraftProgress(error.userMessage || error.message || 'Gemini 초안을 생성할 수 없습니다. gemini.api.key와 gemini.model 설정을 확인하세요.');
+    setMessage(draftError.value, 'error');
   }
 }
 
 async function validateDraft(useGemini) {
   if (!draftResult.value?.draft) return;
+  startDraftProgress(useGemini ? 'geminiValidate' : 'validate', useGemini ? 'Gemini로 초안 위험 요소를 검토하고 있습니다.' : '기본 규칙으로 초안을 검증하고 있습니다.');
   try {
     const sourceInput = JSON.parse(draftInput.value);
+    draftProgressStep.value = 'request';
     draftValidation.value = await adminEpisodeApi.validateAiDraft({
       draft: draftResult.value.draft,
       sourceInput,
       useGemini
     });
+    draftProgressStep.value = 'hydrate';
     setMessage(
       draftValidation.value.valid ? '초안 검증을 통과했습니다. 저장 전 현장 검수는 계속 필요합니다.' : '초안에 수정이 필요한 항목이 있습니다.',
       draftValidation.value.valid ? 'success' : 'error'
     );
+    finishDraftProgress(draftValidation.value.valid
+      ? '검증을 통과했습니다. 그래도 현장 관찰 요소와 정답 노출 여부는 사람이 확인해야 합니다.'
+      : '검증 이슈가 있습니다. 아래 검증 결과에서 ERROR 항목을 먼저 수정하세요.');
   } catch (error) {
-    setMessage(error.userMessage || error.message || '초안을 검증할 수 없습니다.', 'error');
+    failDraftProgress(error.userMessage || error.message || '초안을 검증할 수 없습니다.');
+    setMessage(draftError.value, 'error');
   }
 }
 
@@ -1156,16 +1355,21 @@ async function saveDraft() {
     setMessage('검증에서 차단 이슈가 발견된 초안은 저장하지 않는 것을 권장합니다. 수정 후 다시 검증해 주세요.', 'error');
     return;
   }
+  startDraftProgress('save', '초안과 자동 생성 사건자료 이미지를 DRAFT로 저장하고 있습니다.');
   try {
-    const saved = await adminEpisodeApi.saveAiDraft({ draft: draftResult.value.draft, status: 'DRAFT' });
+    draftProgressStep.value = 'request';
+    const saved = await adminEpisodeApi.saveAiDraft({ draft: buildDraftSavePayload(), status: 'DRAFT' });
+    draftProgressStep.value = 'hydrate';
     selected.value = saved;
     selectedEpisodeId.value = saved.id;
     hydrateEpisodeForm(saved);
     await refreshEpisodeList();
     publishReadiness.value = await adminEpisodeApi.getPublishReadiness(saved.id);
+    finishDraftProgress('DRAFT 저장이 완료되었습니다. 왼쪽 목록과 상세 검수 영역에 반영되었습니다.');
     setMessage('AI 사건파일 초안이 DRAFT로 저장되었습니다. 공개 준비도 결과를 확인하고 부족한 항목을 수정해 주세요.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || 'AI 초안을 저장할 수 없습니다.', 'error');
+    failDraftProgress(error.userMessage || 'AI 초안을 저장할 수 없습니다.');
+    setMessage(draftError.value, 'error');
   }
 }
 
@@ -1178,6 +1382,12 @@ function hydrateDraftForEditing() {
   draft.missions = Array.isArray(draft.missions) ? draft.missions : [];
   draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
   draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
+  if (isGenericDraftTitle(draft.episodeTitle)) {
+    draft.episodeTitle = suggestedDraftTitle(draft);
+  }
+  draft.evidences.forEach((evidence) => {
+    evidence.imageUrl = evidence.imageUrl || generatedEvidenceCardDataUrl(evidence.title, evidence.type);
+  });
   draft.missions.forEach((mission, index) => {
     mission.order = mission.order || index + 1;
     mission.hints = Array.isArray(mission.hints) ? mission.hints : [];
@@ -1185,6 +1395,32 @@ function hydrateDraftForEditing() {
     mission.arrivalRadius = mission.arrivalRadius || 50;
     syncDraftMissionRole(mission);
   });
+}
+
+function buildDraftSavePayload() {
+  const draft = JSON.parse(JSON.stringify(draftResult.value.draft));
+  if (isGenericDraftTitle(draft.episodeTitle)) {
+    draft.episodeTitle = suggestedDraftTitle(draft);
+  }
+  draft.evidences = (draft.evidences || []).map((evidence) => {
+    const imageUrl = String(evidence.imageUrl || '').trim();
+    return {
+      ...evidence,
+      imageUrl: imageUrl.startsWith('data:') || imageUrl.length > 900 ? '' : imageUrl
+    };
+  });
+  return draft;
+}
+
+function isGenericDraftTitle(title) {
+  const normalized = String(title || '').toLowerCase().replaceAll(' ', '');
+  return !normalized || normalized.includes('ep.new') || normalized.includes('draft') || normalized.includes('episode');
+}
+
+function suggestedDraftTitle(draft) {
+  const missions = Array.isArray(draft?.missions) ? draft.missions : [];
+  const anchor = missions.find((mission) => mission.finalPlace || mission.markerType === 'FINAL') || missions[0];
+  return `EP.NEW ${anchor?.placeName || 'Operation KOREA'} 사건`;
 }
 
 function syncDraftMissionRole(mission) {
@@ -1215,6 +1451,43 @@ function syncDraftMissionRole(mission) {
   }
 }
 
+function generatedEvidenceCardDataUrl(title = 'CASE FILE', type = 'EVIDENCE') {
+  const safeTitle = escapeXml(title || 'CASE FILE');
+  const safeType = escapeXml(type || 'EVIDENCE');
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#1f2937"/>
+          <stop offset="0.55" stop-color="#111827"/>
+          <stop offset="1" stop-color="#78350f"/>
+        </linearGradient>
+      </defs>
+      <rect width="960" height="640" fill="url(#bg)"/>
+      <rect x="70" y="56" width="820" height="528" rx="28" fill="#f5e8cc" opacity="0.95"/>
+      <rect x="108" y="96" width="744" height="124" rx="16" fill="#111827" opacity="0.92"/>
+      <text x="132" y="148" fill="#fbbf24" font-family="Georgia, serif" font-size="32" font-weight="700">OPERATION KOREA</text>
+      <text x="132" y="190" fill="#e5e7eb" font-family="Arial, sans-serif" font-size="22">GENERATED CASE MATERIAL</text>
+      <path d="M132 292 C240 238, 354 350, 462 292 S690 236, 818 292" fill="none" stroke="#92400e" stroke-width="18" opacity="0.25"/>
+      <circle cx="250" cy="392" r="72" fill="#111827" opacity="0.88"/>
+      <rect x="372" y="330" width="390" height="34" rx="17" fill="#78350f" opacity="0.75"/>
+      <rect x="372" y="386" width="310" height="28" rx="14" fill="#92400e" opacity="0.55"/>
+      <rect x="372" y="438" width="360" height="28" rx="14" fill="#92400e" opacity="0.38"/>
+      <text x="132" y="544" fill="#111827" font-family="Arial, sans-serif" font-size="28" font-weight="700">${safeTitle}</text>
+      <text x="132" y="580" fill="#78350f" font-family="Arial, sans-serif" font-size="20">${safeType} · fictional evidence card</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
 function listToCsv(values) {
   return Array.isArray(values) ? values.join(', ') : '';
 }
@@ -1231,6 +1504,50 @@ function linesToList(value) {
   return String(value || '').split('\n').map((item) => item.trim()).filter(Boolean);
 }
 
+function normalizeCandidate(candidate = {}) {
+  const latitude = coordinateValue(candidate.latitude, candidate.lat, candidate.y, candidate.mapY);
+  const longitude = coordinateValue(candidate.longitude, candidate.lng, candidate.lon, candidate.x, candidate.mapX);
+  return {
+    ...candidate,
+    title: candidate.title || candidate.name || candidate.placeName || candidate.place_name || '',
+    address: candidate.address || candidate.roadAddress || candidate.road_address_name || candidate.address_name || '',
+    latitude,
+    longitude,
+    description: candidate.description || candidate.overview || candidate.adminMemo || '',
+    source: candidate.source || candidate.provider || '장소 후보'
+  };
+}
+
+function coordinateValue(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') continue;
+    const numberValue = Number(value);
+    if (!Number.isNaN(numberValue)) return numberValue;
+  }
+  return null;
+}
+
+function hasCandidateCoordinate(candidate) {
+  const normalized = normalizeCandidate(candidate);
+  return typeof normalized.latitude === 'number'
+    && typeof normalized.longitude === 'number'
+    && normalized.latitude >= -90
+    && normalized.latitude <= 90
+    && normalized.longitude >= -180
+    && normalized.longitude <= 180;
+}
+
+function prepareDraftInputFromSelection() {
+  if (!canGenerateDraftFromSelection.value) {
+    draftError.value = draftSelectionBlockReason.value || '선택 장소를 확인해 주세요.';
+    setMessage(draftError.value, 'error');
+    return false;
+  }
+  applyCandidatesToDraft(false);
+  draftError.value = '';
+  return true;
+}
+
 async function loadPlaceCandidates() {
   candidateLoading.value = true;
   candidateLoaded.value = false;
@@ -1239,7 +1556,8 @@ async function loadPlaceCandidates() {
   nearbyLoaded.value = false;
   selectedCandidates.value = [];
   try {
-    placeCandidates.value = await adminEpisodeApi.getPlaceCandidates(candidateAreaCode.value);
+    const candidates = await adminEpisodeApi.getPlaceCandidates(candidateAreaCode.value);
+    placeCandidates.value = candidates.map(normalizeCandidate);
     candidateLoaded.value = true;
     setMessage(placeCandidates.value.length ? 'TourAPI 장소 후보를 불러왔습니다.' : 'TourAPI 장소 후보가 없습니다.', placeCandidates.value.length ? 'success' : 'error');
   } catch (error) {
@@ -1253,27 +1571,33 @@ async function loadPlaceCandidates() {
 
 async function loadNearbyCandidates(candidate) {
   if (!candidate) return;
-  anchorCandidate.value = candidate;
+  const normalizedAnchor = normalizeCandidate(candidate);
+  if (!hasCandidateCoordinate(normalizedAnchor)) {
+    setMessage('이 기준 장소에는 위도/경도가 없습니다. 좌표가 있는 장소를 선택하거나 수동 후보로 추가하세요.', 'error');
+    return;
+  }
+  anchorCandidate.value = normalizedAnchor;
   nearbyLoading.value = true;
   nearbyLoaded.value = false;
-  selectedCandidates.value = [candidate];
+  selectedCandidates.value = [normalizedAnchor];
   try {
     const nearby = await adminEpisodeApi.getNearbyPlaceCandidates({
-      lat: candidate.latitude,
-      lng: candidate.longitude,
+      lat: normalizedAnchor.latitude,
+      lng: normalizedAnchor.longitude,
       radius: nearbyRadius.value
     });
-    const anchorKey = candidateKey(candidate);
+    const normalizedNearby = nearby.map(normalizeCandidate).filter(hasCandidateCoordinate);
+    const anchorKey = candidateKey(normalizedAnchor);
     nearbyCandidates.value = [
-      { ...candidate, source: 'TourAPI 기준 장소', description: candidate.description || 'TourAPI 기준 장소입니다.' },
-      ...nearby.filter((item) => candidateKey(item) !== anchorKey)
+      { ...normalizedAnchor, source: 'TourAPI 기준 장소', description: normalizedAnchor.description || 'TourAPI 기준 장소입니다.' },
+      ...normalizedNearby.filter((item) => candidateKey(item) !== anchorKey)
     ];
     nearbyLoaded.value = true;
     setMessage(nearbyCandidates.value.length > 1 ? 'Kakao Local 주변 후보를 불러왔습니다.' : '주변 후보가 부족합니다. 반경을 넓히거나 수동 후보를 추가하세요.', nearbyCandidates.value.length > 1 ? 'success' : 'error');
   } catch (error) {
     nearbyCandidates.value = [];
     nearbyLoaded.value = true;
-    selectedCandidates.value = [candidate];
+    selectedCandidates.value = [normalizedAnchor];
     setMessage(error.userMessage || 'Kakao Local 주변 후보를 불러올 수 없습니다. API 키/도메인을 확인하거나 수동 후보를 추가하세요.', 'error');
   } finally {
     nearbyLoading.value = false;
@@ -1300,21 +1624,23 @@ function addManualCandidate() {
     source: '관리자 수동 후보',
     description: manualCandidate.value.description || '관리자가 수동으로 추가한 주변 후보입니다. 운영 공개 전 현장 검수가 필요합니다.'
   };
-  if (nearbyCandidates.value.some((item) => candidateKey(item) === candidateKey(candidate))) {
+  const normalizedCandidate = normalizeCandidate(candidate);
+  if (nearbyCandidates.value.some((item) => candidateKey(item) === candidateKey(normalizedCandidate))) {
     setMessage('이미 추가된 후보입니다.', 'error');
     return;
   }
-  nearbyCandidates.value = [...nearbyCandidates.value, candidate];
+  nearbyCandidates.value = [...nearbyCandidates.value, normalizedCandidate];
   nearbyLoaded.value = true;
   if (selectedCandidates.value.length < 9) {
-    selectedCandidates.value = [...selectedCandidates.value, candidate];
+    selectedCandidates.value = [...selectedCandidates.value, normalizedCandidate];
   }
   manualCandidate.value = { title: '', address: '', latitude: '', longitude: '', description: '' };
   setMessage('수동 후보가 추가되었습니다. 운영 공개 전 현장 검수를 진행하세요.');
 }
 
 function candidateKey(candidate) {
-  return `${candidate.title}|${candidate.address}|${candidate.latitude}|${candidate.longitude}`;
+  const normalized = normalizeCandidate(candidate);
+  return `${normalized.title}|${normalized.address}|${normalized.latitude ?? ''}|${normalized.longitude ?? ''}`;
 }
 
 function isCandidateSelected(candidate) {
@@ -1327,7 +1653,8 @@ function isAnchorCandidate(candidate) {
 }
 
 function toggleCandidate(candidate) {
-  const key = candidateKey(candidate);
+  const normalizedCandidate = normalizeCandidate(candidate);
+  const key = candidateKey(normalizedCandidate);
   if (anchorCandidate.value && candidateKey(anchorCandidate.value) === key) {
     setMessage('TourAPI 기준 장소는 항상 포함됩니다. 기준 장소를 바꾸려면 1단계에서 다른 장소를 선택하세요.', 'error');
     return;
@@ -1336,19 +1663,27 @@ function toggleCandidate(candidate) {
     selectedCandidates.value = selectedCandidates.value.filter((item) => candidateKey(item) !== key);
     return;
   }
+  if (!hasCandidateCoordinate(normalizedCandidate)) {
+    setMessage('위도/경도가 없는 장소는 초안 생성에 사용할 수 없습니다. 좌표가 있는 후보로 교체하거나 수동 후보를 추가하세요.', 'error');
+    return;
+  }
   if (selectedCandidates.value.length >= 9) {
     setMessage('장소는 최대 9개까지 선택할 수 있습니다.', 'error');
     return;
   }
-  selectedCandidates.value = [...selectedCandidates.value, candidate];
+  selectedCandidates.value = [...selectedCandidates.value, normalizedCandidate];
 }
 
-function applyCandidatesToDraft() {
+function applyCandidatesToDraft(showMessage = true) {
   if (selectedCandidates.value.length < 8) {
     setMessage('기준 장소를 포함해 최소 8개 이상의 장소를 선택해 주세요.', 'error');
     return;
   }
-  const orderedCandidates = orderedSelectedCandidates.value;
+  if (!canGenerateDraftFromSelection.value) {
+    setMessage(draftSelectionBlockReason.value || '선택 장소의 좌표를 확인해 주세요.', 'error');
+    return;
+  }
+  const orderedCandidates = orderedSelectedCandidates.value.map(normalizeCandidate);
   const roles = buildRoles(orderedCandidates.length);
   const payload = {
     area: areaLabel(candidateAreaCode.value),
@@ -1369,13 +1704,16 @@ function applyCandidatesToDraft() {
       keywords: [candidate.title, areaLabel(candidateAreaCode.value), candidate.source || '장소 후보'],
       adminMemo: `${candidate.source || '장소 후보'} 기반입니다. ${isAnchorCandidate(candidate) ? '이 장소는 내부 최종 장소입니다. ' : ''}실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
       role: roles[index],
+      publicMarkerType: publicMarkerForCandidate(index, roles[index], orderedCandidates.length),
       arrivalRadius: 50
     }))
   };
   draftInput.value = JSON.stringify(payload, null, 2);
   draftResult.value = null;
   draftValidation.value = null;
-  setMessage('선택한 후보가 초안 입력에 반영되었습니다. TourAPI 기준 장소는 내부 최종 장소로 저장됩니다.', 'success');
+  if (showMessage) {
+    setMessage('선택한 후보가 초안 입력에 반영되었습니다. TourAPI 기준 장소는 내부 최종 장소로 저장됩니다.', 'success');
+  }
 }
 
 function buildRoles(count) {
@@ -1388,6 +1726,11 @@ function buildRoles(count) {
     else roles.push('STORY');
   }
   return roles;
+}
+
+function publicMarkerForCandidate(index, role, count) {
+  if (role === 'FINAL' || index === count - 2) return 'FINAL_CANDIDATE';
+  return role;
 }
 
 function roleForCandidate(index) {
@@ -1433,7 +1776,11 @@ function setMessage(text, type = 'success') {
 .admin-hero h1 { margin: 0; font-size: clamp(1.8rem, 8vw, 3.2rem); }
 .admin-hero span { display: block; margin-top: 8px; color: #cbd5e1; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-button { min-height: 40px; border: 0; border-radius: 10px; background: #f59e0b; color: #111827; font-weight: 900; padding: 0 13px; }
+button { min-height: 40px; border: 0; border-radius: 10px; background: #f59e0b; color: #111827; font-weight: 900; padding: 0 13px; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, filter .12s ease, border-color .12s ease; }
+button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(245,158,11,.2); filter: brightness(1.05); }
+button:active:not(:disabled), button.busy { transform: translateY(1px) scale(.98); box-shadow: 0 0 0 3px rgba(245,158,11,.22); }
+button:focus-visible { outline: 3px solid rgba(251,191,36,.55); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
 .layout { width: min(100%, 1180px); margin: 0 auto; display: grid; grid-template-columns: 330px 1fr; gap: 14px; }
 .episode-list, .detail-card, .draft-panel { border: 1px solid rgba(148,163,184,.2); border-radius: 18px; background: rgba(15,23,42,.68); padding: 16px; }
 .section-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -1447,9 +1794,13 @@ h2, h3 { margin: 0 0 10px; }
 .message { padding: 10px; border-radius: 12px; margin: 0 0 10px; }
 .message.success { background: rgba(22,101,52,.22); color: #bbf7d0; }
 .message.error { background: rgba(127,29,29,.34); color: #fecaca; }
+.eyebrow { margin: 0 0 4px; color: #f59e0b !important; font-weight: 900; letter-spacing: .14em; font-size: .72rem; }
 .detail-head { display: flex; justify-content: space-between; gap: 12px; }
 .detail-head p { margin: 0 0 5px; color: #f59e0b; font-weight: 900; letter-spacing: .12em; font-size: .72rem; }
 .detail-head strong { color: #fde68a; }
+.detail-status { display: grid; justify-items: end; gap: 7px; min-width: 128px; }
+.detail-status small { max-width: 170px; color: #94a3b8; font-size: .72rem; line-height: 1.35; text-align: right; }
+.detail-status .danger-btn { margin-top: 0; }
 .secret-box { margin: 14px 0; padding: 14px; border: 1px solid rgba(248,113,113,.38); border-radius: 14px; background: rgba(127,29,29,.18); }
 .secret-box p { margin: 6px 0; color: #fee2e2; }
 .admin-preview-panel { margin: 14px 0; padding: 14px; border: 1px solid rgba(59,130,246,.24); border-radius: 16px; background: rgba(30,64,175,.12); }
@@ -1501,7 +1852,11 @@ textarea { margin-top: 10px; font: 12px ui-monospace, SFMono-Regular, Consolas, 
 input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,163,184,.22); border-radius: 10px; background: rgba(2,6,23,.72); color: #e2e8f0; padding: 10px; font: inherit; }
 .puzzle-edit { margin-top: 16px; border-top: 1px solid rgba(148,163,184,.16); padding-top: 12px; }
 .payload-actions { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; }
+.payload-actions.compact { margin: 0; flex-wrap: wrap; justify-content: flex-end; }
+.payload-actions.action-bar { flex-wrap: wrap; justify-content: flex-end; }
 .ghost-btn { border: 1px solid rgba(148,163,184,.28); background: transparent; color: #fde68a; }
+.primary-action { background: linear-gradient(135deg, #f59e0b, #f97316); color: #111827; }
+.save-draft-btn { border: 1px solid rgba(34,197,94,.42); background: #16a34a; color: #f0fdf4; }
 .danger-btn { margin-top: 8px; border: 1px solid rgba(248,113,113,.42); background: rgba(127,29,29,.34); color: #fecaca; }
 .valid { color: #86efac; font-weight: 900; }
 .invalid { color: #fecaca; font-weight: 900; }
@@ -1511,6 +1866,25 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .validation-box ul { margin: 8px 0 0; padding-left: 18px; color: #cbd5e1; }
 .draft-editor { margin: 14px 0; padding: 14px; border: 1px solid rgba(59,130,246,.24); border-radius: 16px; background: rgba(30,64,175,.12); }
 .draft-editor .section-title span { color: #bfdbfe; font-size: .82rem; }
+.ai-mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.ai-mode-grid article { padding: 14px; border: 1px solid rgba(148,163,184,.18); border-radius: 14px; background: rgba(2,6,23,.34); }
+.ai-mode-grid strong { display: block; color: #fde68a; margin-bottom: 7px; }
+.ai-mode-grid span { color: #cbd5e1; font-size: .84rem; line-height: 1.5; }
+.draft-status-box { margin: 12px 0; padding: 12px 14px; border: 1px solid rgba(59,130,246,.34); border-radius: 14px; background: rgba(30,64,175,.16); }
+.draft-status-box.error { border-color: rgba(248,113,113,.52); background: rgba(127,29,29,.2); }
+.draft-status-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.draft-status-box strong { color: #bfdbfe; }
+.draft-status-box.error strong { color: #fecaca; }
+.draft-status-head span { color: #fde68a; font-weight: 900; font-size: .82rem; }
+.draft-status-box p { margin: 6px 0 0; color: #e2e8f0; }
+.draft-progress-bar { position: relative; height: 9px; overflow: hidden; margin-top: 12px; border-radius: 999px; background: rgba(15,23,42,.8); border: 1px solid rgba(148,163,184,.18); }
+.draft-progress-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f59e0b, #38bdf8, #22c55e); transition: width .4s ease; }
+.draft-step-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.draft-step-list li { padding: 10px; border: 1px solid rgba(148,163,184,.18); border-radius: 12px; background: rgba(2,6,23,.28); opacity: .58; }
+.draft-step-list li.active { opacity: 1; border-color: rgba(56,189,248,.55); box-shadow: 0 0 0 1px rgba(56,189,248,.18) inset; }
+.draft-step-list li.done { opacity: .82; border-color: rgba(34,197,94,.38); background: rgba(20,83,45,.16); }
+.draft-step-list b { display: block; color: #f8fafc; font-size: .82rem; }
+.draft-step-list span { display: block; margin-top: 5px; color: #cbd5e1; font-size: .74rem; line-height: 1.4; }
 .creation-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
 .creation-flow article { display: grid; gap: 5px; min-height: 112px; box-sizing: border-box; padding: 12px; border: 1px solid rgba(148,163,184,.18); border-radius: 14px; background: rgba(2,6,23,.32); }
 .creation-flow article.done { border-color: rgba(34,197,94,.38); background: rgba(20,83,45,.2); }
@@ -1524,6 +1898,7 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .draft-mission-card.final { border-color: rgba(248,113,113,.55); }
 .hint-edit-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 .hint-edit-list label, .draft-edit-block .mini-grid label { display: grid; gap: 6px; color: #cbd5e1; font-size: .8rem; font-weight: 800; }
+.draft-evidence-image { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 12px; border: 1px solid rgba(245,158,11,.25); background: rgba(2,6,23,.5); }
 .validation-panel { margin: 12px 0; padding: 14px; border: 1px solid rgba(34,197,94,.35); border-radius: 14px; background: rgba(22,101,52,.16); }
 .validation-panel.invalid { border-color: rgba(248,113,113,.5); background: rgba(127,29,29,.18); color: inherit; font-weight: inherit; }
 .validation-panel ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 7px; }
@@ -1571,5 +1946,5 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .draft-actions-helper strong { color: #fde68a; }
 .draft-actions-helper span { color: #cbd5e1; font-size: .84rem; line-height: 1.45; }
 .reward { opacity: .82; }
-@media (max-width: 860px) { .admin-hero, .layout { display: block; } .hero-actions { margin-top: 12px; } .detail-panel { margin-top: 14px; } .stat-grid, .mini-grid, .edit-grid, .candidate-grid, .manual-grid, .hint-edit-list, .creation-flow, .preview-grid { grid-template-columns: 1fr; } .selection-summary, .draft-actions-helper { display: grid; } .selected-route li { grid-template-columns: 24px 1fr; } .selected-route li > span { grid-column: 2; justify-self: start; } }
+@media (max-width: 860px) { .admin-hero, .layout { display: block; } .hero-actions { margin-top: 12px; } .detail-panel { margin-top: 14px; } .stat-grid, .mini-grid, .edit-grid, .candidate-grid, .manual-grid, .hint-edit-list, .creation-flow, .preview-grid, .ai-mode-grid, .draft-step-list { grid-template-columns: 1fr; } .selection-summary, .draft-actions-helper { display: grid; } .selected-route li { grid-template-columns: 24px 1fr; } .selected-route li > span { grid-column: 2; justify-self: start; } }
 </style>

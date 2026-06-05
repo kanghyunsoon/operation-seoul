@@ -67,6 +67,17 @@ public class AdminEpisodeController {
         return ResponseEntity.ok(ApiResponse.ok("관리자 에피소드 상세입니다.", adminEpisodeService.getEpisode(episodeId)));
     }
 
+    @PostMapping
+    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> createEpisode(@RequestBody(required = false) AdminEpisodeUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("사건파일 초안이 생성되었습니다.", adminEpisodeService.createEpisode(request)));
+    }
+
+    @DeleteMapping("/{episodeId}")
+    public ResponseEntity<ApiResponse<Void>> deleteEpisode(@PathVariable Long episodeId) {
+        adminEpisodeService.deleteEpisode(episodeId);
+        return ResponseEntity.ok(ApiResponse.ok("사건파일이 삭제되었습니다."));
+    }
+
 
     @GetMapping("/{episodeId}/publish-readiness")
     public ResponseEntity<ApiResponse<AdminEpisodePublishReadinessResponse>> getPublishReadiness(@PathVariable Long episodeId) {

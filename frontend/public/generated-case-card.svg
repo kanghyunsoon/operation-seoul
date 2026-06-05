@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-label="Generated case material placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#1f2937"/>
+      <stop offset="0.56" stop-color="#111827"/>
+      <stop offset="1" stop-color="#78350f"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="640" fill="url(#bg)"/>
+  <rect x="70" y="56" width="820" height="528" rx="28" fill="#f5e8cc" opacity=".96"/>
+  <rect x="108" y="96" width="744" height="124" rx="16" fill="#111827" opacity=".93"/>
+  <text x="132" y="148" fill="#fbbf24" font-family="Georgia, serif" font-size="32" font-weight="700">OPERATION KOREA</text>
+  <text x="132" y="190" fill="#e5e7eb" font-family="Arial, sans-serif" font-size="22">GENERATED CASE MATERIAL</text>
+  <path d="M132 292 C240 238,354 350,462 292 S690 236,818 292" fill="none" stroke="#92400e" stroke-width="18" opacity=".25"/>
+  <circle cx="250" cy="392" r="72" fill="#111827" opacity=".88"/>
+  <rect x="372" y="330" width="390" height="34" rx="17" fill="#78350f" opacity=".75"/>
+  <rect x="372" y="386" width="310" height="28" rx="14" fill="#92400e" opacity=".55"/>
+  <rect x="372" y="438" width="360" height="28" rx="14" fill="#92400e" opacity=".38"/>
+  <text x="132" y="548" fill="#111827" font-family="Arial, sans-serif" font-size="28" font-weight="700">CASE FILE CARD</text>
+  <text x="132" y="584" fill="#78350f" font-family="Arial, sans-serif" font-size="20">fictional placeholder image</text>
+</svg>
