@@ -29,6 +29,10 @@ public class AdminEpisodeGeminiService {
     private static final Set<String> FINAL_ANSWER_TYPES = Set.of("CULPRIT", "WEAPON", "EVIDENCE", "HIDDEN_DOCUMENT", "SECRET_KEYWORD", "HIDDEN_TRUTH");
     private static final Set<String> PUZZLE_TYPES = Set.of("OBSERVATION", "NUMBER_LOCK", "INITIAL_SOUND", "PATTERN", "STORY_COMBINATION");
     private static final Set<String> ANSWER_FORMATS = Set.of("TEXT", "NUMBER", "CHOICE", "CODE");
+    private static final Set<String> BLOCKED_HISTORICAL_NAMES = Set.of(
+            "고종", "순종", "명성황후", "이완용", "박제순", "이지용", "이근택", "권중현", "을사오적",
+            "안중근", "윤봉길", "유관순", "김구", "이토 히로부미", "이토히로부미"
+    );
 
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate(geminiRequestFactory());
@@ -144,8 +148,12 @@ public class AdminEpisodeGeminiService {
                 - Never use the place name or a fragment of the place name as a puzzle answer.
                 - Never make rewardClue by extracting letters, syllables, initials, or substrings from a place name or business name.
                 - rewardClue must be a fictional clue token or clue word that does not depend on the spelling of any selected place.
-                - If provided field data is too weak for a real puzzle, create an admin-review placeholder puzzle with answer "검수필요" instead of inventing a field observation.
+                - If provided field data is too weak for a real observation puzzle, create a playable STORY_COMBINATION or PATTERN puzzle using keywords/description/adminMemo. Use answer "검수필요" only when there is no usable keyword, description, adminMemo, visibleElement, or number.
+                - Do not mark every mission as placeholder just because on-site inspection is still required. If RAG/site enrichment narrowed the verification scope, create a playable draft puzzle and state the verification basis in groundRule.
                 - Do not make a real historical person the culprit.
+                - Prefer finalAnswerType EVIDENCE, WEAPON, HIDDEN_DOCUMENT, SECRET_KEYWORD, or HIDDEN_TRUTH. Use CULPRIT only when the answer is a fictional title/role, never a real-name-like person.
+                - Never include real historical names such as 고종, 이완용, 을사오적, 안중근, 김구, 이토 히로부미 in finalAnswer, suspect names, culprit labels, or answer aliases.
+                - Do not make finalAnswer a construction like "real historical person + fictional assistant/secretary". That still exposes real history as culprit context.
                 - Do not present a real historical event as a distorted fact.
                 - The final answer must be a clear noun phrase inside the fictional case, not a place name, real person, real event, verb, sentence, or abstract single word.
                 - The real final place is an internal role only. Public marker for that place must be FINAL_CANDIDATE.
@@ -153,6 +161,11 @@ public class AdminEpisodeGeminiService {
                 - Do not describe the real final place as the final destination in storyText, rewardClue, destination hints, finalTruthSummary, actualHistorySummary, or deductionSecretFacts.
                 - At least one non-final destination candidate should also use publicMarkerType FINAL_CANDIDATE so the real final place is hidden among candidates.
                 - Create 4 answer clues when enough ANSWER_HINT places exist, and 2 destination clues when enough DESTINATION_HINT places exist.
+                - Make the draft feel like a real printed detective kit: each mission must reveal a different document, photo, memo, suspect contradiction, route note, or cipher card.
+                - Suspects must have concrete fictional names/titles, relationToVictim, suspiciousPoint, and alibiSummary. Do not return generic "AI draft" or "admin review" suspect text.
+                - Evidences must have specific case-file titles and summaries tied to mission rewardClue. Do not return generic "case sketch", "draft card", or "admin review" evidence text.
+                - Every mission puzzle must have a clear question, answer, three hints, and a rewardClue that advances either the final answer or destination inference.
+                - Do not include the real final place name in episodeTitle, subtitle, fictionSynopsis, finalTruthSummary, actualHistorySummary, destination clues, or evidence summaries.
                 - Hints must have 3 levels and must not directly reveal the answer.
                 - deductionForbiddenReveals must include the final answer and direct final place reveal.
                 - deductionSecretFacts are for server/admin use and must support yes/no style final deduction.
@@ -195,7 +208,7 @@ public class AdminEpisodeGeminiService {
                       "groundRule": "string explaining which provided field data was used"
                     }
                   ],
-                  "suspects": [{"alias":"string","displayName":"string","suspiciousPoint":"string"}],
+                  "suspects": [{"alias":"string","displayName":"string","portraitImageUrl":"","shortDescription":"string","relationToVictim":"string","suspiciousPoint":"string","alibiSummary":"string"}],
                   "evidences": [{"title":"string","type":"PHOTO|MEMO|NOTE|DOCUMENT|EVIDENCE|SUSPECT_CLUE|POST_IT|ANSWER_CLUE|DESTINATION_CLUE|STORY_CLUE","imageUrl":"","textSummary":"string","sourceMissionOrder":1}]
                 }
 
@@ -259,6 +272,15 @@ public class AdminEpisodeGeminiService {
         }
         if (containsBadAbstractAnswer(draft.getFinalAnswer())) {
             addFinding(findings, "ERROR", "ABSTRACT_FINAL_ANSWER", "Final answer is too abstract or not a concrete fictional noun phrase.", null);
+        }
+        if (containsBlockedHistoricalName(draft.getFinalAnswer())) {
+            addFinding(findings, "ERROR", "REAL_HISTORICAL_PERSON_IN_FINAL_ANSWER", "최종 정답에는 실존 역사 인물명이나 실제 역사 인물을 범인처럼 보이게 하는 표현을 사용할 수 없습니다.", null);
+        }
+        if ("CULPRIT".equals(normalize(draft.getFinalAnswerType())) && looksLikeRealNameCulprit(draft.getFinalAnswer())) {
+            addFinding(findings, "ERROR", "REAL_NAME_LIKE_CULPRIT", "CULPRIT 정답은 실명형 인물이 아니라 '검은 봉투의 전달자'처럼 픽션 역할/별칭으로 작성해야 합니다.", null);
+        }
+        if (draft.getFinalAnswerAliases() != null && draft.getFinalAnswerAliases().stream().anyMatch(this::containsBlockedHistoricalName)) {
+            addFinding(findings, "ERROR", "REAL_HISTORICAL_PERSON_IN_FINAL_ALIAS", "정답 alias에도 실존 역사 인물명을 사용할 수 없습니다.", null);
         }
         if (sourceInput != null && sourceInput.getPlaces() != null) {
             for (AiEpisodeDraftRequest.PlaceInput place : sourceInput.getPlaces()) {
@@ -379,6 +401,7 @@ public class AdminEpisodeGeminiService {
                     - The final answer must not be a real place, historical person, real event, verb, sentence, or abstract single word.
                   - Puzzles must use only provided visibleElements, numbers, keywords, description, and adminMemo.
                   - If a puzzle is an admin-review/RAG-required placeholder with answer "검수필요", do not report it as ERROR.
+                  - If RAG/site enrichment provides keywords, description, visibleElements, or adminMemo, do not demand a placeholder; allow playable draft puzzles with a groundRule that says admin verification is required.
                   - Do not emit one PLACEHOLDER_PUZZLE finding per mission; summarize missing field evidence as one INFO finding named SITE_DATA_REVIEW_REQUIRED.
                   - If unsafe place-name extraction has already been replaced with generic clue keys such as answer-clue-2, destination-clue-5, or story-clue-3, do not report CLUE_USES_PLACE_NAME_TEXT_EXTRACTION.
                   - If a puzzle asks for a letter/syllable/substring from a place or business name, report QUESTION_USES_PLACE_NAME_TEXT, not HINT_REVEALS_ANSWER.
@@ -409,13 +432,27 @@ public class AdminEpisodeGeminiService {
         reconcileMissionCount(draft, request, warnings);
         if (!FINAL_ANSWER_TYPES.contains(normalize(draft.getFinalAnswerType()))) {
             draft.setFinalAnswerType("HIDDEN_TRUTH");
-            warnings.add("finalAnswerType was normalized to HIDDEN_TRUTH.");
+            warnings.add("최종 정답 유형이 허용값이 아니어서 HIDDEN_TRUTH로 보정되었습니다.");
         } else {
             draft.setFinalAnswerType(normalize(draft.getFinalAnswerType()));
         }
+        if (containsBlockedHistoricalName(draft.getFinalAnswer())
+                || ("CULPRIT".equals(normalize(draft.getFinalAnswerType())) && looksLikeRealNameCulprit(draft.getFinalAnswer()))) {
+            draft.setFinalAnswerType("HIDDEN_DOCUMENT");
+            draft.setFinalAnswer("봉인된 사진 봉투");
+            draft.setFinalAnswerAliases(new ArrayList<>(List.of("봉인된사진봉투", "사진 봉투", "봉인된 봉투")));
+            draft.setFinalQuestion("피해자가 마지막까지 숨기려 한 사건의 핵심 증거는 무엇인가?");
+            draft.setFinalTruthSummary("수집한 단서들은 범인의 이름보다 먼저 사라진 기록물 하나를 가리킨다. 봉인된 사진 봉투 안에는 사건 당일의 이동 경로와 조작된 증언이 함께 남아 있었다.");
+            draft.setDeductionSecretFacts(new ArrayList<>(List.of(
+                    "최종 정답은 실존 인물이나 장소명이 아니라 픽션 사건 안의 숨겨진 문서다.",
+                    "봉인된 사진 봉투는 사진 기록과 목격자 진술을 함께 묶은 핵심 증거다.",
+                    "정답 힌트는 봉인, 사진, 봉투, 조작된 기록이라는 방향으로 조합된다."
+            )));
+            warnings.add("최종 정답이 실존 역사 인물 또는 실명형 범인처럼 보여 HIDDEN_DOCUMENT 정답으로 자동 보정했습니다.");
+        }
         if (blank(draft.getSubtitle())) {
             draft.setSubtitle(defaultSubtitle(draft, request));
-            warnings.add("subtitle was generated from selected route context.");
+            warnings.add("부제가 비어 있어 선택한 루트 정보를 기준으로 자동 생성했습니다.");
         }
         if (draft.getMaxDeductionQuestions() == null || draft.getMaxDeductionQuestions() <= 0) {
             draft.setMaxDeductionQuestions(20);
@@ -426,9 +463,10 @@ public class AdminEpisodeGeminiService {
         if (!blank(draft.getFinalAnswer()) && draft.getDeductionForbiddenReveals().stream().noneMatch(v -> same(v, draft.getFinalAnswer()))) {
             draft.getDeductionForbiddenReveals().add(draft.getFinalAnswer());
         }
+        sanitizeForbiddenReveals(draft, request, warnings);
         for (AiEpisodeDraftRequest.PlaceInput place : request.getPlaces()) {
             if (!blank(draft.getFinalAnswer()) && same(place.getName(), draft.getFinalAnswer())) {
-                warnings.add("finalAnswer matches a place name and must be changed before saving.");
+                warnings.add("최종 정답이 실제 장소명과 같아 저장 전 수정이 필요합니다.");
             }
         }
         boolean finalExists = false;
@@ -457,23 +495,24 @@ public class AdminEpisodeGeminiService {
             }
             if (blank(mission.getAnswer())) {
                 mission.setAnswer(fallbackAnswer(place));
-                warnings.add("Mission " + (i + 1) + " answer used fallback from provided field data.");
+                warnings.add("미션 " + (i + 1) + "의 정답이 비어 있어 제공된 현장 데이터에서 임시 정답을 채웠습니다.");
             }
             if (blank(mission.getRewardClue())) {
                 mission.setRewardClue(fallbackReward(role, i));
-                warnings.add("Mission " + (i + 1) + " reward clue used fallback.");
+                warnings.add("미션 " + (i + 1) + "의 보상 단서가 비어 있어 안전한 기본 단서 키를 채웠습니다.");
             }
             sanitizePlaceNameDependentReward(mission, request, role, i, warnings);
+            sanitizeForbiddenRevealReward(mission, draft, role, i, warnings);
             sanitizeFinalAnswerLeaks(draft, mission, role, i, warnings);
             if (mission.getHints() == null || mission.getHints().size() < 3) {
-                warnings.add("Mission " + (i + 1) + " has fewer than 3 hints and needs admin editing.");
+                warnings.add("미션 " + (i + 1) + "의 힌트가 3개 미만입니다. 관리자 편집에서 보강하세요.");
             }
             if (blank(mission.getGroundRule())) {
                 mission.setGroundRule("Uses only provided visibleElements, numbers, keywords, description, and adminMemo.");
             }
         }
         if (!finalExists) {
-            warnings.add("No FINAL role was supplied; the last place should be reviewed as the internal final place.");
+            warnings.add("FINAL 역할 장소가 없습니다. 마지막 장소를 내부 최종 장소로 지정할지 검토하세요.");
         }
         ensureMinimumSuspects(draft, warnings);
         ensureMissionEvidences(draft, request, warnings);
@@ -490,7 +529,7 @@ public class AdminEpisodeGeminiService {
         int expected = request.getPlaces().size();
         if (missions.size() > expected) {
             missions = new ArrayList<>(missions.subList(0, expected));
-            warnings.add("Gemini returned extra missions; extras were removed to match selected places.");
+            warnings.add("Gemini가 선택 장소보다 많은 미션을 반환해 초과 미션을 제거했습니다.");
         }
         while (missions.size() < expected) {
             int index = missions.size();
@@ -522,7 +561,7 @@ public class AdminEpisodeGeminiService {
                     .build());
         }
         if (draft.getMissions() == null || draft.getMissions().size() != expected) {
-            warnings.add("Mission count was normalized to exactly one mission per selected place.");
+            warnings.add("선택한 장소마다 미션이 1개씩 매칭되도록 미션 수를 보정했습니다.");
         }
         draft.setMissions(missions);
     }
@@ -610,23 +649,58 @@ public class AdminEpisodeGeminiService {
         };
     }
 
+    private void sanitizeForbiddenReveals(
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            AiEpisodeDraftRequest request,
+            List<String> warnings) {
+        List<String> sourcePlaceNames = request.getPlaces() == null
+                ? List.of()
+                : request.getPlaces().stream()
+                .map(AiEpisodeDraftRequest.PlaceInput::getName)
+                .filter(name -> !blank(name))
+                .toList();
+        List<String> sanitized = new ArrayList<>();
+        for (String reveal : draft.getDeductionForbiddenReveals()) {
+            if (blank(reveal)) {
+                continue;
+            }
+            boolean isPlaceName = sourcePlaceNames.stream().anyMatch(place -> same(place, reveal) || looksLikePlaceNameFragment(place, reveal));
+            boolean finalPlaceRevealPhrase = containsFinalRevealTerms(reveal);
+            boolean genericRevealPhrase = containsAny(reveal, "사건의 진범", "진범", "정답 장소", "최종 목적지");
+            if (isPlaceName || finalPlaceRevealPhrase || genericRevealPhrase) {
+                warnings.add("deductionForbiddenReveals에서 실제 장소나 최종 정답을 유추할 수 있는 항목 '" + reveal + "'을 제거했습니다.");
+                continue;
+            }
+            if (sanitized.stream().noneMatch(existing -> same(existing, reveal))) {
+                sanitized.add(reveal);
+            }
+        }
+        if (!blank(draft.getFinalAnswer()) && sanitized.stream().noneMatch(value -> same(value, draft.getFinalAnswer()))) {
+            sanitized.add(draft.getFinalAnswer());
+        }
+        if (sanitized.stream().noneMatch(value -> same(value, "actualFinalPlace"))) {
+            sanitized.add("actualFinalPlace");
+        }
+        if (sanitized.stream().noneMatch(value -> same(value, "realPersonAsCulprit"))) {
+            sanitized.add("realPersonAsCulprit");
+        }
+        draft.setDeductionForbiddenReveals(sanitized);
+    }
+
     private void sanitizeFinalPlaceNarrative(
             AiEpisodeDraftResponse.MissionDraft mission,
             String role,
             int index,
             List<String> warnings) {
         boolean finalRole = "FINAL".equals(role) || Boolean.TRUE.equals(mission.getFinalPlace());
-        boolean revealsFinal = containsAny(mission.getStoryText(),
-                "최종 장소", "최종장소", "최종 목적지", "최종목적지", "마지막 장소", "마지막장소",
-                "정답 장소", "정답장소", "최종 추리", "최종추리", "final place", "final destination",
-                "answer location");
+        boolean revealsFinal = containsFinalRevealTerms(mission.getStoryText());
         boolean repeatsFinalPlaceName = finalRole && textContains(mission.getStoryText(), mission.getPlaceName());
         if (!finalRole && !revealsFinal) {
             return;
         }
         if (revealsFinal || repeatsFinalPlaceName || blank(mission.getStoryText())) {
             mission.setStoryText("이 장소는 여러 단서가 겹치는 조사 후보지입니다. 현장에서는 사건 메모와 주변 분위기만 조용히 확인하세요.");
-            warnings.add("Mission " + (index + 1) + " story was sanitized so the internal final place is not revealed.");
+            warnings.add("미션 " + (index + 1) + "의 스토리에서 내부 최종 장소를 암시하는 표현을 제거했습니다.");
         }
     }
 
@@ -653,7 +727,26 @@ public class AdminEpisodeGeminiService {
                 "몇 번째", "몇번째", "n번째", "substring", "syllable", "initial");
         if (rewardFromPlaceName || textExtractionQuestion) {
             mission.setRewardClue(fallbackReward(role, index));
-            warnings.add("Mission " + (index + 1) + " reward clue depended on place-name text and was replaced with a generic clue key.");
+            warnings.add("미션 " + (index + 1) + "의 보상 단서가 장소명 글자 추출에 의존해 안전한 단서 키로 교체되었습니다.");
+        }
+    }
+
+    private void sanitizeForbiddenRevealReward(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            String role,
+            int index,
+            List<String> warnings) {
+        if (mission == null || draft.getDeductionForbiddenReveals() == null || blank(mission.getRewardClue())) {
+            return;
+        }
+        String reward = mission.getRewardClue();
+        boolean exposesForbiddenReveal = draft.getDeductionForbiddenReveals().stream()
+                .filter(value -> !blank(value))
+                .anyMatch(value -> same(value, reward) || textContains(reward, value));
+        if (exposesForbiddenReveal) {
+            mission.setRewardClue(fallbackReward(role, index));
+            warnings.add("미션 " + (index + 1) + "의 보상 단서가 최종 추리 금지어와 충돌해 안전한 단서 키로 교체되었습니다.");
         }
     }
 
@@ -661,6 +754,51 @@ public class AdminEpisodeGeminiService {
         return reward.startsWith("answer-clue-")
                 || reward.startsWith("destination-clue-")
                 || reward.startsWith("story-clue-");
+    }
+
+    private boolean looksLikePlaceNameFragment(String placeName, String value) {
+        String compactPlace = compact(placeName);
+        String compactValue = compact(value);
+        if (compactValue.length() < 3) {
+            return false;
+        }
+        if (compactPlace.contains(compactValue) || compactValue.contains(compactPlace)) {
+            return true;
+        }
+        String normalizedPlace = compactPlace
+                .replace("제일", "")
+                .replace("본점", "")
+                .replace("공원", "")
+                .replace("박물관", "")
+                .replace("역사", "");
+        String normalizedValue = compactValue
+                .replace("제일", "")
+                .replace("본점", "")
+                .replace("공원", "")
+                .replace("박물관", "")
+                .replace("역사", "");
+        boolean likelyPlaceAlias = compactValue.length() >= 3
+                && hasLocationSuffix(compactValue)
+                && compactPlace.length() >= 2
+                && compactValue.startsWith(compactPlace.substring(0, Math.min(2, compactPlace.length())));
+        if (likelyPlaceAlias) {
+            return true;
+        }
+        return normalizedPlace.length() >= 3
+                && normalizedValue.length() >= 3
+                && (normalizedPlace.contains(normalizedValue) || normalizedValue.contains(normalizedPlace));
+    }
+
+    private boolean hasLocationSuffix(String value) {
+        return value.endsWith("교회")
+                || value.endsWith("궁")
+                || value.endsWith("공원")
+                || value.endsWith("박물관")
+                || value.endsWith("미술관")
+                || value.endsWith("극장")
+                || value.endsWith("공사관")
+                || value.endsWith("터")
+                || value.endsWith("장");
     }
 
     private boolean usesPlaceNameTextPuzzle(AiEpisodeDraftResponse.MissionDraft mission, AiEpisodeDraftRequest.PlaceInput place) {
@@ -697,8 +835,10 @@ public class AdminEpisodeGeminiService {
                 .map(this::compact)
                 .anyMatch(value -> !value.contains("관리자현장메모필요") && !value.contains("현장검수필요"));
         boolean hasNumber = place.getNumbers() != null && !place.getNumbers().isEmpty();
+        boolean hasKeyword = place.getKeywords() != null && place.getKeywords().stream().anyMatch(value -> value != null && !value.isBlank());
+        boolean hasDescription = !blank(place.getDescription()) && !compact(place.getDescription()).contains("selectedoperationspot");
         boolean hasAdminMemo = !blank(place.getAdminMemo()) && !compact(place.getAdminMemo()).contains("운영공개전검수");
-        return !hasRealVisibleElement && !hasNumber && !hasAdminMemo;
+        return !hasRealVisibleElement && !hasNumber && !hasKeyword && !hasDescription && !hasAdminMemo;
     }
 
     private void applyAdminReviewPuzzle(AiEpisodeDraftResponse.MissionDraft mission, AiEpisodeDraftRequest.PlaceInput place) {
@@ -726,9 +866,13 @@ public class AdminEpisodeGeminiService {
         if (blank(draft.getFinalAnswer())) {
             return;
         }
+        if (textContains(mission.getQuestionText(), draft.getFinalAnswer()) || containsFinalAnswerAlias(mission.getQuestionText(), draft)) {
+            mission.setQuestionText(safeQuestionText(role));
+            warnings.add("미션 " + (index + 1) + "의 퍼즐 질문이 최종 정답을 직접 노출해 안전한 질문으로 교체했습니다.");
+        }
         if (textContains(mission.getRewardClue(), draft.getFinalAnswer())) {
             mission.setRewardClue(fallbackReward(role, index));
-            warnings.add("Mission " + (index + 1) + " reward clue contained the final answer and was replaced with a partial clue key.");
+            warnings.add("미션 " + (index + 1) + "의 보상 단서가 최종 정답을 직접 포함해 안전한 부분 단서로 교체했습니다.");
         }
         if (mission.getHints() == null || mission.getHints().isEmpty()) {
             return;
@@ -746,8 +890,24 @@ public class AdminEpisodeGeminiService {
         }
         if (changed) {
             mission.setHints(sanitizedHints);
-            warnings.add("Mission " + (index + 1) + " hints directly revealed an answer and were replaced with safe hints.");
+            warnings.add("미션 " + (index + 1) + "의 힌트가 정답을 직접 노출해 안전한 힌트로 교체했습니다.");
         }
+    }
+
+    private boolean containsFinalAnswerAlias(String text, AiEpisodeDraftResponse.EpisodeDraft draft) {
+        if (blank(text) || draft.getFinalAnswerAliases() == null) {
+            return false;
+        }
+        return draft.getFinalAnswerAliases().stream()
+                .filter(alias -> !blank(alias))
+                .anyMatch(alias -> textContains(text, alias));
+    }
+
+    private String safeQuestionText(String role) {
+        if ("FINAL".equals(role) || "FINAL_CANDIDATE".equals(role)) {
+            return "수집한 단서와 질문 기록을 바탕으로 사건의 핵심 진실을 추리해 입력하세요. 정답은 클리어 전까지 직접 노출하지 않습니다.";
+        }
+        return "이 장소의 실제 관찰 요소와 사건 메모를 연결해 단서 키워드를 입력하세요. 최종 정답 자체를 쓰는 문제는 허용되지 않습니다.";
     }
 
     private String safeHint(int index) {
@@ -761,9 +921,30 @@ public class AdminEpisodeGeminiService {
     private void ensureMinimumSuspects(AiEpisodeDraftResponse.EpisodeDraft draft, List<String> warnings) {
         List<AiEpisodeDraftResponse.SuspectDraft> suspects = draft.getSuspects() == null ? new ArrayList<>() : new ArrayList<>(draft.getSuspects());
         List<AiEpisodeDraftResponse.SuspectDraft> defaults = List.of(
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("용의자 A").displayName("붉은 장갑의 목격자").suspiciousPoint("사건 경로 주변에서 반복적으로 언급된 인물입니다.").build(),
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("용의자 B").displayName("사라진 기록 담당자").suspiciousPoint("기록과 단서 보관 경로를 알고 있는 인물입니다.").build(),
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("용의자 C").displayName("검은 외투의 전달자").suspiciousPoint("목적지 힌트와 연결된 이동 기록이 남아 있습니다.").build()
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("용의자 A")
+                        .displayName("검은 우산을 든 의뢰인")
+                        .shortDescription("사건 직전 피해자에게 첫 봉투를 건넨 가상 인물입니다.")
+                        .relationToVictim("사건 의뢰를 가장 먼저 전달한 인물")
+                        .suspiciousPoint("피해자가 사라진 시간대에 조사 경로 근처에서 반복적으로 목격되었습니다.")
+                        .alibiSummary("비가 오기 전 카페 골목에 있었다고 주장하지만 목적지 힌트와 동선이 일부 겹칩니다.")
+                        .build(),
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("용의자 B")
+                        .displayName("사라진 필름의 조수")
+                        .shortDescription("피해자의 기록과 사진 순서를 알고 있던 가상 조수입니다.")
+                        .relationToVictim("피해자의 기록 정리를 맡았던 조수")
+                        .suspiciousPoint("사진과 메모의 순서를 알고 있어 단서를 바꿔치기할 수 있는 위치에 있었습니다.")
+                        .alibiSummary("자료실에 있었다고 말하지만 정답 힌트 단서 중 하나가 그의 진술과 충돌합니다.")
+                        .build(),
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("용의자 C")
+                        .displayName("회색 봉투의 전달자")
+                        .shortDescription("마지막 문서를 전달한 익명의 가상 중개인입니다.")
+                        .relationToVictim("마지막 문서를 전달한 중개인")
+                        .suspiciousPoint("목적지 힌트 두 개가 모두 이 인물의 이동 방향을 가리킵니다.")
+                        .alibiSummary("봉투만 전달했다고 주장하지만 봉투 안쪽에 사건의 핵심 단어가 남아 있습니다.")
+                        .build()
         );
         for (AiEpisodeDraftResponse.SuspectDraft fallback : defaults) {
             if (suspects.size() >= 3) {
@@ -772,7 +953,7 @@ public class AdminEpisodeGeminiService {
             suspects.add(fallback);
         }
         if (draft.getSuspects() == null || draft.getSuspects().size() < 3) {
-            warnings.add("Suspect cards were fewer than 3 and were completed with fictional placeholder suspects.");
+            warnings.add("용의자 카드가 3개 미만이라 가상 용의자 카드로 보강했습니다.");
         }
         draft.setSuspects(suspects);
     }
@@ -783,10 +964,10 @@ public class AdminEpisodeGeminiService {
         for (int i = evidences.size(); i < targetCount; i++) {
             AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(i);
             evidences.add(AiEpisodeDraftResponse.EvidenceDraft.builder()
-                    .title("검수 필요 사건자료 " + (i + 1))
+                    .title(defaultEvidenceTitle(i + 1))
                     .type(i % 3 == 0 ? "PHOTO" : i % 3 == 1 ? "MEMO" : "NOTE")
                     .imageUrl(generatedEvidenceImage(i % 3 == 0 ? "PHOTO" : i % 3 == 1 ? "MEMO" : "NOTE"))
-                    .textSummary(blank(place.getName()) ? "현장 검수 후 작성할 사건자료 초안입니다." : place.getName() + " 조사 후 해금되는 사건자료 초안입니다.")
+                    .textSummary(defaultEvidenceSummary(i + 1, place))
                     .sourceMissionOrder(i + 1)
                     .build());
         }
@@ -800,8 +981,9 @@ public class AdminEpisodeGeminiService {
         if (text == null) {
             return false;
         }
+        String source = compact(text);
         for (String target : targets) {
-            if (text.contains(compact(target))) {
+            if (source.contains(compact(target))) {
                 return true;
             }
         }
@@ -859,7 +1041,7 @@ public class AdminEpisodeGeminiService {
         if ("FINAL_PLACE_REVEALED_IN_STORY".equals(code) && !storyRevealsFinalPlace(mission)) {
             return true;
         }
-        if ("FINAL_PLACE_EXPOSED_PUBLICLY".equals(code)
+        if (List.of("FINAL_PLACE_EXPOSED_PUBLICLY", "PUBLIC_MARKER_TYPE_FINAL_EXPOSED", "FINAL_PLACE_PUBLIC_MARKER_EXPOSED").contains(code)
                 && Boolean.TRUE.equals(mission.getFinalPlace())
                 && "FINAL_CANDIDATE".equals(normalize(mission.getPublicMarkerType()))) {
             return true;
@@ -884,11 +1066,15 @@ public class AdminEpisodeGeminiService {
         if (mission == null) {
             return false;
         }
-        return containsAny(mission.getStoryText(),
+        return containsFinalRevealTerms(mission.getStoryText())
+                || (Boolean.TRUE.equals(mission.getFinalPlace()) && textContains(mission.getStoryText(), mission.getPlaceName()));
+    }
+
+    private boolean containsFinalRevealTerms(String text) {
+        return containsAny(text,
                 "최종 장소", "최종장소", "최종 목적지", "최종목적지", "마지막 장소", "마지막장소",
                 "정답 장소", "정답장소", "최종 추리", "최종추리", "final place", "final destination",
-                "answer location")
-                || (Boolean.TRUE.equals(mission.getFinalPlace()) && textContains(mission.getStoryText(), mission.getPlaceName()));
+                "answer location");
     }
 
     private boolean isAdminReviewPlaceholder(AiEpisodeDraftResponse.MissionDraft mission) {
@@ -903,6 +1089,35 @@ public class AdminEpisodeGeminiService {
             case "DOCUMENT", "EVIDENCE", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE" -> "/generated-case-card-document.svg";
             case "SUSPECT_CLUE" -> "/generated-case-card-suspect.svg";
             default -> "/generated-case-card-note.svg";
+        };
+    }
+
+    private String defaultEvidenceTitle(int order) {
+        return switch (order) {
+            case 1 -> "첫 현장 사진 봉투";
+            case 2 -> "찢어진 이동 메모";
+            case 3 -> "흐릿한 목격 진술";
+            case 4 -> "렌즈 파편 기록";
+            case 5 -> "붉은 인장 스케치";
+            case 6 -> "목적지 암호 메모";
+            case 7 -> "마지막 동선 기록";
+            case 8 -> "봉인된 필름 카드";
+            default -> "최종 추리 보조 자료";
+        };
+    }
+
+    private String defaultEvidenceSummary(int order, AiEpisodeDraftRequest.PlaceInput place) {
+        String name = place == null || blank(place.getName()) ? "이 장소" : place.getName();
+        return switch (order) {
+            case 1 -> name + "에서 사건의 시작점을 확인하게 하는 현장 기록입니다.";
+            case 2 -> name + " 주변 동선과 누락된 흔적을 이어 주는 메모입니다.";
+            case 3 -> "서로 맞지 않는 진술을 비교하게 만드는 목격 기록입니다.";
+            case 4 -> "최종 정답의 물성에 접근하게 하는 증거 카드입니다.";
+            case 5 -> "용의자의 상징과 사건 동기를 연결하는 단서입니다.";
+            case 6 -> "최종 목적지를 직접 말하지 않고 방향을 좁히는 암호 메모입니다.";
+            case 7 -> "마지막 이동 경로를 재구성하게 하는 조사 기록입니다.";
+            case 8 -> "최종 추리 직전 확인해야 하는 봉인 자료입니다.";
+            default -> "수집한 단서를 조합해 최종 질문에 접근하게 하는 보조 자료입니다.";
         };
     }
 
@@ -932,6 +1147,28 @@ public class AdminEpisodeGeminiService {
         }
         String compact = answer.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
         return List.of("역사", "진실", "죽음", "기록하다", "진실을밝히다", "truth", "history").contains(compact);
+    }
+
+    private boolean containsBlockedHistoricalName(String text) {
+        if (blank(text)) {
+            return false;
+        }
+        String compactText = compact(text);
+        return BLOCKED_HISTORICAL_NAMES.stream()
+                .map(this::compact)
+                .anyMatch(compactText::contains);
+    }
+
+    private boolean looksLikeRealNameCulprit(String answer) {
+        if (blank(answer)) {
+            return false;
+        }
+        String compactAnswer = compact(answer);
+        boolean hasCulpritContext = containsAny(answer, "비서", "조수", "측근", "후손", "자객", "관료", "밀정", "매국노", "범인");
+        boolean hasKoreanFullName = answer.matches(".*[가-힣]{2,4}\\s+[가-힣]{2,4}.*")
+                || answer.matches(".*[가-힣]{2,4},\\s*[가-힣]{2,4}.*")
+                || compactAnswer.matches(".*[가-힣]{2,4}(김|이|박|최|정|조|윤|장|임|한|오|서|신|권|황|안|송|류|홍|고|문|양|손|배|백|허|유)[가-힣]{1,3}.*");
+        return hasCulpritContext && hasKoreanFullName;
     }
 
     private boolean textContains(String text, String target) {

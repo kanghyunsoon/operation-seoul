@@ -54,7 +54,6 @@ public class AdminEpisodeController {
         return ResponseEntity.ok(ApiResponse.ok("TourAPI 장소 후보 목록입니다.", adminEpisodeService.getPlaceCandidates(areaCode)));
     }
 
-
     @GetMapping("/place-candidates/nearby")
     public ResponseEntity<ApiResponse<List<AdminPlaceCandidateResponse>>> getNearbyPlaceCandidates(
             @RequestParam("lat") double latitude,
@@ -62,6 +61,7 @@ public class AdminEpisodeController {
             @RequestParam(value = "radius", defaultValue = "1500") Integer radius) {
         return ResponseEntity.ok(ApiResponse.ok("Kakao Local 주변 후보 목록입니다.", kakaoLocalCandidateService.getNearbyCandidates(latitude, longitude, radius)));
     }
+
     @GetMapping("/{episodeId}")
     public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> getEpisode(@PathVariable Long episodeId) {
         return ResponseEntity.ok(ApiResponse.ok("관리자 에피소드 상세입니다.", adminEpisodeService.getEpisode(episodeId)));
@@ -78,11 +78,11 @@ public class AdminEpisodeController {
         return ResponseEntity.ok(ApiResponse.ok("사건파일이 삭제되었습니다."));
     }
 
-
     @GetMapping("/{episodeId}/publish-readiness")
     public ResponseEntity<ApiResponse<AdminEpisodePublishReadinessResponse>> getPublishReadiness(@PathVariable Long episodeId) {
         return ResponseEntity.ok(ApiResponse.ok("공개 준비도 점검 결과입니다.", adminEpisodeService.getPublishReadiness(episodeId)));
     }
+
     @PutMapping("/{episodeId}")
     public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updateEpisode(
             @PathVariable Long episodeId,
@@ -90,19 +90,34 @@ public class AdminEpisodeController {
         return ResponseEntity.ok(ApiResponse.ok("에피소드 정보가 수정되었습니다.", adminEpisodeService.updateEpisode(episodeId, request)));
     }
 
-
     @PostMapping("/{episodeId}/spots")
     public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> createSpot(
             @PathVariable Long episodeId,
             @RequestBody AdminSpotUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("장소가 추가되었습니다.", adminEpisodeService.createSpot(episodeId, request)));
+        return ResponseEntity.ok(ApiResponse.ok("조사 장소가 추가되었습니다.", adminEpisodeService.createSpot(episodeId, request)));
     }
 
     @DeleteMapping("/{episodeId}/spots/{spotId}")
     public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> deleteSpot(
             @PathVariable Long episodeId,
             @PathVariable Long spotId) {
-        return ResponseEntity.ok(ApiResponse.ok("장소가 삭제되었습니다.", adminEpisodeService.deleteSpot(episodeId, spotId)));
+        return ResponseEntity.ok(ApiResponse.ok("조사 장소가 삭제되었습니다.", adminEpisodeService.deleteSpot(episodeId, spotId)));
+    }
+
+    @PutMapping("/{episodeId}/spots/{spotId}")
+    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updateSpot(
+            @PathVariable Long episodeId,
+            @PathVariable Long spotId,
+            @RequestBody AdminSpotUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("조사 장소 정보가 수정되었습니다.", adminEpisodeService.updateSpot(episodeId, spotId, request)));
+    }
+
+    @PutMapping("/{episodeId}/puzzles/{puzzleId}")
+    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updatePuzzle(
+            @PathVariable Long episodeId,
+            @PathVariable Long puzzleId,
+            @RequestBody AdminPuzzleUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("퍼즐 정보가 수정되었습니다.", adminEpisodeService.updatePuzzle(episodeId, puzzleId, request)));
     }
 
     @PostMapping("/{episodeId}/suspects")
@@ -110,6 +125,14 @@ public class AdminEpisodeController {
             @PathVariable Long episodeId,
             @RequestBody AdminSuspectUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("용의자 카드가 추가되었습니다.", adminEpisodeService.createSuspect(episodeId, request)));
+    }
+
+    @PutMapping("/{episodeId}/suspects/{suspectId}")
+    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updateSuspect(
+            @PathVariable Long episodeId,
+            @PathVariable Long suspectId,
+            @RequestBody AdminSuspectUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("용의자 카드가 수정되었습니다.", adminEpisodeService.updateSuspect(episodeId, suspectId, request)));
     }
 
     @DeleteMapping("/{episodeId}/suspects/{suspectId}")
@@ -126,36 +149,6 @@ public class AdminEpisodeController {
         return ResponseEntity.ok(ApiResponse.ok("증거 카드가 추가되었습니다.", adminEpisodeService.createEvidence(episodeId, request)));
     }
 
-    @DeleteMapping("/{episodeId}/evidences/{evidenceId}")
-    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> deleteEvidence(
-            @PathVariable Long episodeId,
-            @PathVariable Long evidenceId) {
-        return ResponseEntity.ok(ApiResponse.ok("증거 카드가 삭제되었습니다.", adminEpisodeService.deleteEvidence(episodeId, evidenceId)));
-    }
-    @PutMapping("/{episodeId}/spots/{spotId}")
-    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updateSpot(
-            @PathVariable Long episodeId,
-            @PathVariable Long spotId,
-            @RequestBody AdminSpotUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("장소 정보가 수정되었습니다.", adminEpisodeService.updateSpot(episodeId, spotId, request)));
-    }
-
-    @PutMapping("/{episodeId}/puzzles/{puzzleId}")
-    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updatePuzzle(
-            @PathVariable Long episodeId,
-            @PathVariable Long puzzleId,
-            @RequestBody AdminPuzzleUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("퍼즐 정보가 수정되었습니다.", adminEpisodeService.updatePuzzle(episodeId, puzzleId, request)));
-    }
-
-    @PutMapping("/{episodeId}/suspects/{suspectId}")
-    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updateSuspect(
-            @PathVariable Long episodeId,
-            @PathVariable Long suspectId,
-            @RequestBody AdminSuspectUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("용의자 카드가 수정되었습니다.", adminEpisodeService.updateSuspect(episodeId, suspectId, request)));
-    }
-
     @PutMapping("/{episodeId}/evidences/{evidenceId}")
     public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updateEvidence(
             @PathVariable Long episodeId,
@@ -164,12 +157,19 @@ public class AdminEpisodeController {
         return ResponseEntity.ok(ApiResponse.ok("증거 카드가 수정되었습니다.", adminEpisodeService.updateEvidence(episodeId, evidenceId, request)));
     }
 
+    @DeleteMapping("/{episodeId}/evidences/{evidenceId}")
+    public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> deleteEvidence(
+            @PathVariable Long episodeId,
+            @PathVariable Long evidenceId) {
+        return ResponseEntity.ok(ApiResponse.ok("증거 카드가 삭제되었습니다.", adminEpisodeService.deleteEvidence(episodeId, evidenceId)));
+    }
+
     @PutMapping("/{episodeId}/partner-rewards/{rewardId}")
     public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> updatePartnerReward(
             @PathVariable Long episodeId,
             @PathVariable Long rewardId,
             @RequestBody AdminPartnerRewardUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("리워드 placeholder가 수정되었습니다.", adminEpisodeService.updatePartnerReward(episodeId, rewardId, request)));
+        return ResponseEntity.ok(ApiResponse.ok("예정 리워드가 수정되었습니다.", adminEpisodeService.updatePartnerReward(episodeId, rewardId, request)));
     }
 
     @PostMapping("/{episodeId}/reward-payload/validate")
@@ -184,10 +184,9 @@ public class AdminEpisodeController {
         return ResponseEntity.ok(ApiResponse.ok("AI 에피소드 초안이 생성되었습니다.", adminEpisodeService.createAiDraft(request)));
     }
 
-
     @PostMapping("/ai-draft/enrich-site-data")
     public ResponseEntity<ApiResponse<AiEpisodeDraftRequest>> enrichSiteData(@RequestBody AiEpisodeDraftRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("Site data enrichment completed. Real on-site inspection is still required before publishing.", adminEpisodeService.enrichSiteData(request)));
+        return ResponseEntity.ok(ApiResponse.ok("현장 근거 보강이 완료되었습니다. 운영 공개 전 실제 현장 검수는 별도로 필요합니다.", adminEpisodeService.enrichSiteData(request)));
     }
 
     @PostMapping("/ai-draft/gemini")
@@ -199,6 +198,7 @@ public class AdminEpisodeController {
     public ResponseEntity<ApiResponse<AiEpisodeDraftValidationResponse>> validateAiDraft(@RequestBody AiEpisodeDraftValidationRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("AI 에피소드 초안 검증 결과입니다.", adminEpisodeGeminiService.validateDraft(request)));
     }
+
     @PostMapping("/ai-draft/save")
     public ResponseEntity<ApiResponse<AdminEpisodeDetailResponse>> saveAiDraft(@RequestBody AiEpisodeDraftSaveRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("AI 에피소드 초안이 DRAFT로 저장되었습니다.", adminEpisodeService.saveAiDraft(request)));

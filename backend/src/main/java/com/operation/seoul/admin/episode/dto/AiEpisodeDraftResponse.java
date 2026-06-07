@@ -74,7 +74,11 @@ public class AiEpisodeDraftResponse {
     public static class SuspectDraft {
         private String alias;
         private String displayName;
+        private String portraitImageUrl;
+        private String shortDescription;
+        private String relationToVictim;
         private String suspiciousPoint;
+        private String alibiSummary;
     }
 
     @Data

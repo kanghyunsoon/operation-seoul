@@ -27,7 +27,7 @@
         </label>
 
         <button type="submit" class="submit-btn" :disabled="submitting">
-          {{ submitting ? '처리 중' : isLoginMode ? '로그인' : '회원가입' }}
+          {{ submitting ? '처리 중...' : isLoginMode ? '로그인' : '회원가입' }}
         </button>
       </form>
 
@@ -81,7 +81,7 @@ async function handleSubmit() {
       const response = await apiClient.post('/v1/auth/login', { email: email.value, password: password.value });
       sessionStore.login(response.data.data || response.data);
       setMessage(response.data.message || '로그인되었습니다.', 'success');
-      router.push({ name: 'EpisodeList' });
+      router.push({ name: sessionStore.isAdmin ? 'AdminEpisodes' : 'EpisodeList' });
     } else {
       const response = await apiClient.post('/v1/auth/register', {
         email: email.value,

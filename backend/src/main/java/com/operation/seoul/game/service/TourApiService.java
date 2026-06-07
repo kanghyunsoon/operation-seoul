@@ -14,6 +14,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -40,8 +41,15 @@ public class TourApiService {
     @Value("${tmap.app.key:}")
     private String tmapAppKey;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = utf8RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static RestTemplate utf8RestTemplate() {
+        RestTemplate template = new RestTemplate();
+        template.getMessageConverters().removeIf(StringHttpMessageConverter.class::isInstance);
+        template.getMessageConverters().add(0, new StringHttpMessageConverter(StandardCharsets.UTF_8));
+        return template;
+    }
 
     /**
      * [역사적 장소 수집] TourAPI 호출 (ContentType 12: 관광지)
@@ -82,8 +90,8 @@ public class TourApiService {
             if (items.isArray()) {
                 for (JsonNode item : items) {
                     Map<String, String> spot = new HashMap<>();
-                    spot.put("title", item.path("title").asText());
-                    spot.put("address", item.path("addr1").asText());
+                    spot.put("title", recoverMojibake(item.path("title").asText()));
+                    spot.put("address", recoverMojibake(item.path("addr1").asText()));
                     spot.put("mapX", item.path("mapx").asText());
                     spot.put("mapY", item.path("mapy").asText());
                     spots.add(spot);
@@ -100,6 +108,20 @@ public class TourApiService {
     private void ensureTourApiKey() {
         if (tourApiKey == null || tourApiKey.isBlank() || tourApiKey.startsWith("YOUR_")) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "TOURAPI_SERVICE_KEY_MISSING", "TourAPI 서비스 키가 설정되어 있지 않습니다. backend application-local.properties 또는 운영 환경변수에 TourAPI 서비스 키를 설정하세요.");
+        }
+    }
+
+    private String recoverMojibake(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        if (!(value.contains("ì") || value.contains("ê") || value.contains("ë") || value.contains("í"))) {
+            return value;
+        }
+        try {
+            return new String(value.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return value;
         }
     }
 
