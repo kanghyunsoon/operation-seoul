@@ -60,6 +60,7 @@ public class AdminEpisodeService {
     private static final int MAX_CANDIDATES = 60;
     private static final Map<String, List<AreaSeed>> CANDIDATE_SEEDS = Map.of(
             "seoul", List.of(new AreaSeed(37.5665, 126.9780), new AreaSeed(37.5796, 126.9770), new AreaSeed(37.5512, 126.9882)),
+            "capital_area", List.of(new AreaSeed(37.4563, 126.7052), new AreaSeed(37.2636, 127.0286), new AreaSeed(37.3943, 127.1112)),
             "gangwon", List.of(new AreaSeed(37.8813, 127.7298), new AreaSeed(37.7519, 128.8761), new AreaSeed(38.2070, 128.5918)),
             "chungbuk", List.of(new AreaSeed(36.6424, 127.4890), new AreaSeed(37.1326, 128.1910), new AreaSeed(36.9910, 127.9259)),
             "chungnam", List.of(new AreaSeed(36.6588, 126.6728), new AreaSeed(36.8151, 127.1139), new AreaSeed(36.4465, 127.1190)),
@@ -701,7 +702,7 @@ public class AdminEpisodeService {
         episode.setGenre(draft.getGenre());
         episode.setDifficulty("NORMAL");
         episode.setEstimatedTime("90~120분");
-        episode.setEstimatedDistance("현장 검수 필요");
+        episode.setEstimatedDistance(estimateDraftDistance(missions));
         episode.setFictionSynopsis(draft.getFictionSynopsis());
         episode.setFinalAnswerType(blank(draft.getFinalAnswerType(), "EVIDENCE"));
         episode.setFinalAnswer(blank(draft.getFinalAnswer(), "검수필요"));
@@ -887,7 +888,7 @@ public class AdminEpisodeService {
             suspect.setRelationToVictim(blank(draft.getRelationToVictim(), "피해자 또는 사건 자료와 연결된 인물"));
             suspect.setSuspiciousPoint(blank(draft.getSuspiciousPoint(), "사건 당일 행적에 설명되지 않는 공백이 있습니다."));
             suspect.setAlibiSummary(blank(draft.getAlibiSummary(), "본인의 알리바이를 주장하지만 단서와 대조가 필요합니다."));
-            suspect.setUnlockedByDefault(i == 0);
+            suspect.setUnlockedByDefault(true);
             suspect.setDisplayOrder(i + 1);
             adminEpisodeRepository.insertSuspect(suspect);
             saved.add(suspect);
@@ -1425,6 +1426,26 @@ public class AdminEpisodeService {
             case "STORY" -> "마지막 사진";
             default -> "조사 시작";
         };
+    }
+
+    private String estimateDraftDistance(List<AiEpisodeDraftResponse.MissionDraft> missions) {
+        if (missions == null || missions.size() < 2) {
+            return "도보 동선 검수 필요";
+        }
+        double meters = 0;
+        for (int i = 1; i < missions.size(); i++) {
+            AiEpisodeDraftResponse.MissionDraft prev = missions.get(i - 1);
+            AiEpisodeDraftResponse.MissionDraft current = missions.get(i);
+            double segment = distanceMeters(prev.getLatitude(), prev.getLongitude(), current.getLatitude(), current.getLongitude());
+            if (Double.isFinite(segment)) {
+                meters += segment;
+            }
+        }
+        if (meters <= 0) {
+            return "도보 동선 검수 필요";
+        }
+        double km = Math.round((meters / 1000.0) * 10.0) / 10.0;
+        return "약 " + km + "km";
     }
 
     private String resolveDraftTitle(AiEpisodeDraftResponse.EpisodeDraft draft, List<AiEpisodeDraftResponse.MissionDraft> missions) {

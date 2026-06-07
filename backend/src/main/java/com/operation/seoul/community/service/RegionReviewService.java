@@ -54,7 +54,7 @@ public class RegionReviewService {
         Long userId = currentUserResolver.resolveUserId(fallbackUserId);
         requireCleared(regionId, userId);
         if (reviewRepository.findByRegionIdAndUserId(regionId, userId) != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 이 작전에 리뷰를 작성했습니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already wrote a review for this region.");
         }
 
         RegionReview review = new RegionReview();
@@ -87,7 +87,7 @@ public class RegionReviewService {
         reviewRepository.deleteLikesByReviewId(reviewId);
         int deleted = reviewRepository.deleteById(reviewId);
         if (deleted == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "리뷰를 삭제하지 못했습니다.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found.");
         }
     }
 
@@ -133,32 +133,32 @@ public class RegionReviewService {
                 .filter(item -> item.getId().equals(reviewId))
                 .peek(item -> item.setMine(item.getUserId().equals(userId)))
                 .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "리뷰를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found."));
     }
 
     private void requireRegion(Long regionId) {
         if (!regionRepository.existsById(regionId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "작전을 찾을 수 없습니다.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found.");
         }
     }
 
     private RegionReview requireReview(Long regionId, Long reviewId) {
         RegionReview review = reviewRepository.findByIdAndRegionId(reviewId, regionId);
         if (review == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "리뷰를 찾을 수 없습니다.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found.");
         }
         return review;
     }
 
     private void requireCleared(Long regionId, Long userId) {
         if (!hasClearedFinalMission(regionId, userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "클리어한 작전에만 리뷰를 남길 수 있습니다.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission for this community action.");
         }
     }
 
     private void requireOwnerOrAdmin(Long ownerId, Long userId) {
         if (!ownerId.equals(userId) && !currentUserResolver.resolveIsAdmin(false)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "작성자만 수정할 수 있습니다.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission for this community action.");
         }
     }
 

@@ -4,9 +4,10 @@
       <div>
         <p>CASE FILES</p>
         <h1>Operation Korea</h1>
-        <span>{{ sessionStore.currentUser?.nickname || '요원' }}님, 조사할 사건파일을 선택하세요.</span>
+        <span>{{ sessionStore.currentUser?.nickname || '요원' }}님, {{ selectedRegionLabel }} 사건파일을 선택하세요.</span>
       </div>
       <div class="header-actions">
+        <button type="button" class="admin-link primary" @click="router.push({ name: 'RegionMap' })">지역 다시 선택</button>
         <button type="button" class="admin-link" @click="router.push({ name: 'MyPage' })">내 관심 목록</button>
         <button type="button" class="admin-link danger" @click="logout">로그아웃</button>
         <template v-if="sessionStore.isAdmin">
@@ -18,8 +19,16 @@
     </header>
 
     <p v-if="message" class="toast" :class="messageType">{{ message }}</p>
+    <section v-if="areaCode" class="region-filter">
+      <strong>{{ selectedRegionLabel }}</strong>
+      <span>선택 권역의 공개 사건파일만 표시합니다.</span>
+      <button type="button" @click="showAllEpisodes">전체 보기</button>
+    </section>
     <section v-if="loading" class="state">사건파일을 불러오는 중입니다.</section>
     <section v-else-if="error" class="state error">{{ error }}</section>
+    <section v-else-if="!episodes.length" class="state">
+      이 권역에 공개된 사건파일이 아직 없습니다. 다른 지역을 선택하거나 전체 사건을 확인하세요.
+    </section>
     <section v-else class="episode-list">
       <article v-for="episode in episodes" :key="episode.id" class="case-card" @click="openEpisode(episode.id)">
         <button
@@ -47,13 +56,15 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore';
 import { episodeApi } from '@/api/episodeApi';
 import { favoriteApi } from '@/api/favoriteApi';
+import { regionLabel } from '@/constants/regionAreas.js';
 
 const router = useRouter();
+const route = useRoute();
 const sessionStore = useSessionStore();
 const episodes = ref([]);
 const loading = ref(true);
@@ -61,22 +72,33 @@ const error = ref('');
 const message = ref('');
 const messageType = ref('success');
 const favoriteBusyId = ref(null);
+const areaCode = computed(() => route.query.areaCode || '');
+const selectedRegionLabel = computed(() => areaCode.value ? regionLabel(areaCode.value) : '전체 권역');
 
-onMounted(async () => {
+onMounted(loadEpisodes);
+watch(() => route.query.areaCode, loadEpisodes);
+
+async function loadEpisodes() {
+  loading.value = true;
+  error.value = '';
   try {
-    episodes.value = await episodeApi.listEpisodes();
+    episodes.value = await episodeApi.listEpisodes(areaCode.value ? { areaCode: areaCode.value } : {});
   } catch (err) {
     error.value = err.userMessage || '에피소드 목록을 불러오지 못했습니다.';
   } finally {
     loading.value = false;
   }
-});
+}
 
 const openEpisode = (episodeId) => router.push({ name: 'EpisodeDetail', params: { episodeId } });
 
 function logout() {
   sessionStore.logout();
   router.push({ name: 'Intro' });
+}
+
+function showAllEpisodes() {
+  router.push({ name: 'EpisodeList' });
 }
 
 async function toggleFavorite(episode) {
@@ -129,9 +151,14 @@ button { min-height: 42px; border: 0; border-radius: 12px; background: #b45309; 
 .state, .toast { width: min(100%, 880px); box-sizing: border-box; margin: 0 auto 14px; padding: 14px 18px; border: 1px dashed rgba(148,163,184,.35); border-radius: 16px; color: #cbd5e1; text-align: center; }
 .toast { border-style: solid; background: rgba(22,101,52,.18); color: #bbf7d0; }
 .toast.error, .state.error { color: #fecaca; background: rgba(127,29,29,.18); }
+.region-filter { width: min(100%, 880px); box-sizing: border-box; margin: 0 auto 14px; padding: 12px 14px; border: 1px solid rgba(125,211,252,.24); border-radius: 16px; background: rgba(8,47,73,.28); display: flex; align-items: center; gap: 10px; color: #cbd5e1; }
+.region-filter strong { color: #a5f3fc; }
+.region-filter button { margin-left: auto; min-height: 36px; background: #0369a1; }
 @media (max-width: 560px) {
   .hero { flex-direction: column; align-items: stretch; }
   .header-actions { display: grid; grid-template-columns: 1fr; }
   .case-card { padding: 20px; }
+  .region-filter { display: grid; }
+  .region-filter button { margin-left: 0; }
 }
 </style>

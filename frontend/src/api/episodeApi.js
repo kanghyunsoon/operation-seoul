@@ -3,8 +3,8 @@ import apiClient from '@/api/axiosInstance';
 const unwrap = (response) => response.data?.data ?? response.data;
 
 export const episodeApi = {
-  async listEpisodes() {
-    return unwrap(await apiClient.get('/v1/episodes'));
+  async listEpisodes(params = {}) {
+    return unwrap(await apiClient.get('/v1/episodes', { params }));
   },
   async getEpisode(episodeId) {
     return unwrap(await apiClient.get(`/v1/episodes/${episodeId}`));
@@ -17,6 +17,9 @@ export const episodeApi = {
   },
   async arrive(episodeId, spotId, payload) {
     return unwrap(await apiClient.post(`/v1/episodes/${episodeId}/spots/${spotId}/arrive`, payload));
+  },
+  async arriveFinalPlace(episodeId, payload) {
+    return unwrap(await apiClient.post(`/v1/episodes/${episodeId}/final-arrive`, payload));
   },
   async getPuzzle(spotId) {
     return unwrap(await apiClient.get(`/v1/spots/${spotId}/puzzle`));

@@ -67,7 +67,7 @@ public class RegionQuestionService {
         requireOwnerOrAdmin(question.getUserId(), userId);
         int deleted = questionRepository.deleteQuestionById(questionId);
         if (deleted == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "문의글을 삭제하지 못했습니다.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found.");
         }
     }
 
@@ -114,7 +114,7 @@ public class RegionQuestionService {
         requireOwnerOrAdmin(answer.getUserId(), userId);
         int deleted = questionRepository.deleteAnswerById(answerId);
         if (deleted == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "답변을 삭제하지 못했습니다.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found.");
         }
     }
 
@@ -128,7 +128,7 @@ public class RegionQuestionService {
                     item.setAnswers(answers);
                 })
                 .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "문의글을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found."));
     }
 
     private RegionAnswerResponse findAnswerResponse(Long questionId, Long answerId, Long userId) {
@@ -136,19 +136,19 @@ public class RegionQuestionService {
                 .filter(item -> item.getId().equals(answerId))
                 .peek(item -> item.setMine(item.getUserId().equals(userId)))
                 .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "답변을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found."));
     }
 
     private void requireRegion(Long regionId) {
         if (!regionRepository.existsById(regionId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "작전을 찾을 수 없습니다.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found.");
         }
     }
 
     private RegionQuestion requireQuestion(Long regionId, Long questionId) {
         RegionQuestion question = questionRepository.findQuestionByIdAndRegionId(questionId, regionId);
         if (question == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "문의글을 찾을 수 없습니다.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found.");
         }
         return question;
     }
@@ -156,14 +156,14 @@ public class RegionQuestionService {
     private RegionAnswer requireAnswer(Long questionId, Long answerId) {
         RegionAnswer answer = questionRepository.findAnswerByIdAndQuestionId(answerId, questionId);
         if (answer == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "답변을 찾을 수 없습니다.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Requested community item was not found.");
         }
         return answer;
     }
 
     private void requireOwnerOrAdmin(Long ownerId, Long userId) {
         if (!ownerId.equals(userId) && !currentUserResolver.resolveIsAdmin(false)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "작성자만 수정할 수 있습니다.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission for this community action.");
         }
     }
 

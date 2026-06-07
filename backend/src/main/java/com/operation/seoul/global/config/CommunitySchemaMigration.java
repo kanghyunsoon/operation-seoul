@@ -120,6 +120,18 @@ public class CommunitySchemaMigration implements ApplicationRunner {
                     constraint fk_region_favorite_user foreign key (user_id) references users (id) on delete cascade
                 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
                 """);
+        createTableIfMissing("user_follow", """
+                create table user_follow (
+                    follower_id bigint not null,
+                    following_id bigint not null,
+                    created_at datetime not null default current_timestamp,
+                    primary key (follower_id, following_id),
+                    index idx_user_follow_following (following_id),
+                    constraint fk_user_follow_follower foreign key (follower_id) references users (id) on delete cascade,
+                    constraint fk_user_follow_following foreign key (following_id) references users (id) on delete cascade,
+                    constraint chk_user_follow_not_self check (follower_id <> following_id)
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
     }
 
     private void createTableIfMissing(String tableName, String sql) {

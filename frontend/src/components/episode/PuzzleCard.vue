@@ -6,12 +6,13 @@
     </div>
 
     <h3>현장 퍼즐</h3>
+    <p class="guide">{{ puzzleGuide }}</p>
     <p class="question">{{ puzzle.questionText || '이 장소의 퍼즐 질문이 아직 없습니다. 관리자 화면에서 질문을 보강하세요.' }}</p>
 
     <details class="hint-box">
       <summary>힌트 보기</summary>
       <ol v-if="safeHints.length">
-        <li v-for="(hint, index) in safeHints" :key="`${index}-${hint}`">{{ hint }}</li>
+        <li v-for="(hint, index) in safeHints" :key="`${index}-${hint}`">{{ normalizeHint(hint, index) }}</li>
       </ol>
       <p v-else>등록된 힌트가 없습니다. 관리자 화면에서 3단계 힌트를 추가하세요.</p>
     </details>
@@ -37,7 +38,18 @@ const props = defineProps({
 const emit = defineEmits(['submit']);
 const answer = ref('');
 
-const safeHints = computed(() => (props.puzzle?.hints || []).filter(Boolean));
+const safeHints = computed(() => {
+  const hints = (props.puzzle?.hints || []).filter(Boolean);
+  return hints.length ? hints : ['현장 메모와 사건자료 제목을 먼저 비교하세요.', '장소명 글자 추출이 아니라 단서의 의미를 보세요.', '정답은 사건파일에 붙일 짧은 단어입니다.'];
+});
+const puzzleGuide = computed(() => {
+  const type = String(props.puzzle?.puzzleType || '').toUpperCase();
+  if (type === 'NUMBER_LOCK') return '관리자가 입력한 현장 숫자가 있을 때만 사용하는 숫자 암호입니다.';
+  if (type === 'PATTERN') return '그림이 아니라 단서 카드와 장소 분위기의 반복 패턴을 비교하세요.';
+  if (type === 'STORY_COMBINATION') return '지금까지 얻은 사건자료를 조합해 핵심 단어를 입력합니다.';
+  if (type === 'INITIAL_SOUND') return '장소명 초성이 아니라 사건 메모 안의 키워드를 기준으로 풉니다.';
+  return '현장에서 확인 가능한 단서와 사건파일 자료를 연결해 풉니다.';
+});
 
 watch(() => props.puzzle?.puzzleId, () => { answer.value = ''; });
 
@@ -54,12 +66,21 @@ function puzzleTypeLabel(type) {
     STORY_COMBINATION: '스토리 조합'
   }[type] || '퍼즐';
 }
+
+function normalizeHint(hint, index) {
+  const text = String(hint || '').trim();
+  if (!text || /^(answer|destination|story)-clue-\d+$/i.test(text)) {
+    return ['사건자료 제목과 질문의 역할을 먼저 비교하세요.', '장소명 글자 추출 문제라면 관리자 검수가 필요합니다.', '정답은 단서 보드에 붙일 짧은 키워드입니다.'][index % 3];
+  }
+  return text;
+}
 </script>
 
 <style scoped>
 .puzzle-card { position: fixed; left: 50%; bottom: 232px; z-index: 28; width: min(calc(100% - 24px), 410px); max-height: 44vh; overflow: auto; transform: translateX(-50%); box-sizing: border-box; padding: 16px; border: 1px solid rgba(251,146,60,.3); border-radius: 18px; background: rgba(2,6,23,.97); color: #e2e8f0; box-shadow: 0 18px 50px rgba(0,0,0,.35); }
 .puzzle-head { display: flex; justify-content: space-between; color: #fb923c; font-size: .74rem; font-weight: 900; }
 h3 { margin: 8px 0; color: #fff; }
+.guide { margin: 8px 0; padding: 9px 10px; border-radius: 10px; background: rgba(14,116,144,.2); color: #a5f3fc; font-size: .82rem; line-height: 1.45; }
 .question { line-height: 1.6; padding: 12px; border-radius: 12px; background: rgba(15,23,42,.85); color: #f8fafc; }
 .hint-box { margin-top: 10px; }
 summary { cursor: pointer; color: #fcd34d; font-weight: 800; }

@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import IntroView from '@/views/IntroView.vue';
+import RegionMapView from '@/views/RegionMapView.vue';
+import RegionCommunityView from '@/views/RegionCommunityView.vue';
 import EpisodeListView from '@/views/EpisodeListView.vue';
 import EpisodeDetailView from '@/views/EpisodeDetailView.vue';
 import EpisodeBriefingView from '@/views/EpisodeBriefingView.vue';
@@ -16,6 +18,8 @@ import { useSessionStore } from '@/stores/sessionStore.js';
 const routes = [
   { path: '/', redirect: '/intro' },
   { path: '/intro', name: 'Intro', component: IntroView, meta: { requiresAuth: false } },
+  { path: '/regions', name: 'RegionMap', component: RegionMapView, meta: { requiresAuth: true } },
+  { path: '/regions/:regionId/community', name: 'RegionCommunity', component: RegionCommunityView, meta: { requiresAuth: true } },
   { path: '/episodes', name: 'EpisodeList', component: EpisodeListView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId', name: 'EpisodeDetail', component: EpisodeDetailView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/briefing', name: 'EpisodeBriefing', component: EpisodeBriefingView, meta: { requiresAuth: true } },
@@ -27,8 +31,8 @@ const routes = [
   { path: '/admin/users', name: 'AdminUsers', component: AdminUsersView, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/reviews', name: 'AdminReviews', component: AdminReviewsView, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/episodes', name: 'AdminEpisodes', component: AdminEpisodesView, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: '/home', redirect: '/episodes' },
-  { path: '/regions/:regionId', redirect: '/episodes' },
+  { path: '/home', redirect: '/regions' },
+  { path: '/regions/:regionId', redirect: (to) => ({ name: 'EpisodeList', query: { areaCode: to.params.regionId } }) },
   { path: '/briefing', redirect: '/episodes' },
   { path: '/map', redirect: '/episodes' },
   { path: '/chat/:sessionId', redirect: '/episodes' },
@@ -52,7 +56,7 @@ router.beforeEach(async (to) => {
     }
   }
   if (to.name === 'Intro' && sessionStore.isLoggedIn) {
-    return { name: sessionStore.isAdmin ? 'AdminEpisodes' : 'EpisodeList' };
+    return { name: sessionStore.isAdmin ? 'AdminEpisodes' : 'RegionMap' };
   }
   return true;
 });

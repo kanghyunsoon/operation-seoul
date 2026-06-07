@@ -525,6 +525,7 @@
               <div class="payload-actions">
                 <select v-model="candidateAreaCode">
                   <option value="seoul">서울</option>
+                  <option value="capital_area">서울 외 수도권(인천/경기)</option>
                   <option value="gangwon">강원권</option>
                   <option value="chungnam">충남권</option>
                   <option value="chungbuk">충북권</option>
@@ -537,7 +538,7 @@
                 <button type="button" @click="loadPlaceCandidates">TourAPI 기준 장소 불러오기</button>
               </div>
             </div>
-            <p class="candidate-help">TourAPI 기준 장소는 서버 내부 목적지로 저장됩니다. 사용자 지도에는 정답 장소로 표시하지 않고, 목적지 힌트를 모아 추리해야 하는 추가 조사 장소처럼 보입니다.</p>
+            <p class="candidate-help">TourAPI 기준 장소는 서버 내부 추리 기준 장소로 저장됩니다. 사용자 지도에는 정답 장소로 표시하지 않고, 단서를 모아 비교해야 하는 조사 지점처럼 보입니다.</p>
             <div class="ops-notice">
               <strong>운영 설정 확인</strong>
               <p>TourAPI와 Kakao Local 후보 조회에는 백엔드 API 키가 필요합니다. 키가 없으면 수동 후보를 추가해서도 초안을 만들 수 있습니다.</p>
@@ -614,7 +615,7 @@
                   <em v-if="isAnchorCandidate(candidate)">TourAPI 기준 장소 · 관리자 내부 목적지</em>
                 </li>
               </ol>
-              <p>사용자 지도에는 내부 목적지 여부가 노출되지 않고, 공개 마커는 추가 조사 장소처럼 표시됩니다.</p>
+              <p>사용자 지도에는 내부 추리 기준 장소 여부가 노출되지 않고, 공개 마커는 조사 지점처럼 표시됩니다.</p>
             </div>
           </section>
           <div class="draft-actions-helper">
@@ -943,8 +944,7 @@ const routeIdentitySummary = computed(() => {
   const count = selectedCandidates.value.length;
   if (!count) return 'TourAPI 기준 장소를 먼저 고르면 Kakao Local 후보로 추천 루트를 구성합니다.';
   const localCount = selectedCandidates.value.filter((candidate) => isLocalBusinessCandidate(candidate)).length;
-  const finalName = anchorCandidate.value?.title || 'TourAPI 기준 장소';
-  return `총 ${count}개 장소 · 골목상권/휴식 후보 ${localCount}개 · 내부 최종 장소: ${finalName}`;
+  return `총 ${count}개 장소 · 골목상권/휴식 후보 ${localCount}개 · 기준 장소 주변 동선으로 구성`;
 });
 const caseBuilderNext = computed(() => {
   if (!candidateLoaded.value) {
@@ -1780,7 +1780,7 @@ function refreshMissionEvidenceCard(mission, showMessage = true) {
   evidence.title = evidenceTitleForMission(mission, type);
   evidence.type = type;
   evidence.textSummary = evidenceSummaryForMission(mission);
-  evidence.imageUrl = generatedEvidenceCardDataUrl(evidence.title, type);
+  evidence.imageUrl = generatedEvidenceCardDataUrl(evidence.title, type, evidence.textSummary);
   if (showMessage) setMessage(`${mission.placeName} 사건자료 카드를 다시 연결했습니다.`, 'success');
 }
 
@@ -2024,14 +2024,16 @@ function ensureDraftIllustrationCards(draft) {
     draft.evidences.unshift({
       title: '사건 현장 스케치',
       type: 'PHOTO',
-      imageUrl: generatedEvidenceCardDataUrl('사건 현장 스케치', 'PHOTO'),
-      textSummary: '실제 사진이 아니라 운영 검수 전 사용하는 사건 현장 분위기 일러스트입니다.',
+      imageUrl: generatedEvidenceCardDataUrl('첫 현장 봉투 사진', 'PHOTO', '사건이 시작된 장소에서 발견된 봉투와 훼손된 기록 조각입니다.'),
+      textSummary: '사건이 시작된 장소에서 발견된 봉투와 훼손된 기록 조각입니다.',
       sourceMissionOrder: 1
     });
   }
   draft.evidences.forEach((evidence) => {
     evidence.type = safeEvidenceType(evidence.type);
-    evidence.imageUrl = evidence.imageUrl || generatedEvidenceCardDataUrl(evidence.title, evidence.type);
+    if (isWeakImageUrl(evidence.imageUrl)) {
+      evidence.imageUrl = generatedEvidenceCardDataUrl(evidence.title, evidence.type, evidence.textSummary);
+    }
   });
 }
 
@@ -2089,7 +2091,7 @@ function strengthenCaseMaterials(draft) {
       type,
       textSummary,
       sourceMissionOrder: order,
-      imageUrl: current.imageUrl || generatedEvidenceCardDataUrl(title, type)
+      imageUrl: isWeakImageUrl(current.imageUrl) ? generatedEvidenceCardDataUrl(title, type, textSummary) : current.imageUrl
     };
   });
 }
@@ -2098,6 +2100,11 @@ function isWeakText(value) {
   const text = String(value || '').trim();
   if (!text) return true;
   return ['AI 초안', 'placeholder', '검수', '운영 공개 전', '관리자 검수', '사건 현장 스케치', '조사 시작 단서 카드', '초안입니다', '알리바이'].some((word) => text.includes(word));
+}
+
+function isWeakImageUrl(value) {
+  const url = String(value || '').trim();
+  return !url || url.includes('generated-case-card') || url.includes('placeholder');
 }
 
 function finalAnswerTypeLabel(type) {
@@ -2180,8 +2187,9 @@ function syncDraftMissionRole(mission) {
   }
 }
 
-function generatedEvidenceCardDataUrl(title = 'CASE FILE', type = 'EVIDENCE') {
+function generatedEvidenceCardDataUrl(title = 'CASE FILE', type = 'EVIDENCE', summary = '') {
   const safeTitle = escapeXml(title || 'CASE FILE');
+  const safeSummary = escapeXml(summary || evidenceVisualCaption(type));
   const normalizedType = String(type || 'EVIDENCE').toUpperCase();
   const safeType = escapeXml(normalizedType);
   const hash = hashString(`${title}-${normalizedType}`);
@@ -2209,10 +2217,19 @@ function generatedEvidenceCardDataUrl(title = 'CASE FILE', type = 'EVIDENCE') {
       ${motif}
       <rect x="108" y="506" width="744" height="54" rx="14" fill="#111827" opacity="0.9"/>
       <text x="132" y="542" fill="#f8fafc" font-family="Arial, sans-serif" font-size="26" font-weight="800">${safeTitle}</text>
-      <text x="132" y="584" fill="${palette.line}" font-family="Arial, sans-serif" font-size="18">현장 검수 전 사용하는 사건파일 일러스트 카드</text>
+      <text x="132" y="584" fill="${palette.line}" font-family="Arial, sans-serif" font-size="18">${safeSummary.slice(0, 54)}</text>
     </svg>
   `;
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+}
+
+function evidenceVisualCaption(type) {
+  const normalized = String(type || '').toUpperCase();
+  if (normalized === 'PHOTO') return '현장 사진처럼 읽히는 사건 분위기 스케치';
+  if (normalized === 'MEMO' || normalized === 'POST_IT') return '접힌 메모와 손상된 기록 조각';
+  if (normalized === 'DESTINATION_CLUE') return '장소 분위기를 좁히는 동선 메모';
+  if (normalized === 'ANSWER_CLUE') return '정답의 형태를 좁히는 증거 조각';
+  return '사건파일에 보관된 조사 자료';
 }
 
 function hashString(value) {
@@ -2568,12 +2585,12 @@ function applyCandidatesToDraft(showMessage = true) {
       latitude: candidate.latitude,
       longitude: candidate.longitude,
       description: candidate.description || (isAnchorCandidate(candidate)
-        ? 'TourAPI 기준 장소입니다. 사건의 실제 내부 최종 장소로 사용되며 운영 공개 전 현장 검수가 필요합니다.'
+        ? 'TourAPI 기준 조사 후보입니다. 운영 공개 전 실제 현장 요소와 접근 가능 여부를 검수하세요.'
         : 'Kakao Local 주변 후보입니다. 실제 역사/현장 정보는 관리자 검수 후 사용하세요.'),
       visibleElements: ['관리자 현장 메모 필요'],
       numbers: [],
       keywords: [candidate.title, areaLabel(candidateAreaCode.value), candidate.source || '장소 후보'],
-      adminMemo: `${candidate.source || '장소 후보'} 기반입니다. ${isAnchorCandidate(candidate) ? '이 장소는 내부 최종 장소입니다. ' : ''}실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
+      adminMemo: `${candidate.source || '장소 후보'} 기반입니다. 실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
       role: roles[index],
       publicMarkerType: publicMarkerForCandidate(index, roles[index], orderedCandidates.length),
       arrivalRadius: 50
@@ -2583,7 +2600,7 @@ function applyCandidatesToDraft(showMessage = true) {
   draftResult.value = null;
   draftValidation.value = null;
   if (showMessage) {
-    setMessage('선택한 후보가 초안 입력에 반영되었습니다. TourAPI 기준 장소는 내부 최종 장소로 저장됩니다.', 'success');
+    setMessage('선택한 후보가 초안 입력에 반영되었습니다. 사용자 지도에는 모든 장소가 조사 후보로만 표시됩니다.', 'success');
   }
 }
 
@@ -2622,6 +2639,7 @@ function roleLabel(role) {
 function areaLabel(areaCode) {
   const labels = {
     seoul: '서울',
+    capital_area: '서울 외 수도권',
     gangwon: '강원권',
     chungnam: '충남권',
     chungbuk: '충북권',

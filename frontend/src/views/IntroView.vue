@@ -81,7 +81,7 @@ async function handleSubmit() {
       const response = await apiClient.post('/v1/auth/login', { email: email.value, password: password.value });
       sessionStore.login(response.data.data || response.data);
       setMessage(response.data.message || '로그인되었습니다.', 'success');
-      router.push({ name: sessionStore.isAdmin ? 'AdminEpisodes' : 'EpisodeList' });
+      router.push({ name: sessionStore.isAdmin ? 'AdminEpisodes' : 'RegionMap' });
     } else {
       const response = await apiClient.post('/v1/auth/register', {
         email: email.value,
