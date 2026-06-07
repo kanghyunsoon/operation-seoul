@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <main class="admin-episode-page">
     <header class="admin-hero">
       <div>
         <p>ADMIN CASE OPS</p>
         <h1>에피소드 관리</h1>
-        <span>사건파일, 장소, 퍼즐, 최종 장소, 리워드 placeholder를 점검합니다.</span>
+        <span>사건파일, 장소, 퍼즐, 내부 최종 장소, 예정 리워드를 점검합니다.</span>
       </div>
       <div class="hero-actions">
         <button type="button" class="ghost-btn" @click="router.push({ name: 'EpisodeList' })">전역 미션 선택</button>
@@ -125,7 +125,7 @@
               <summary>에피소드 핵심 정보 수정</summary>
               <div class="publish-rules">
                 <strong>공개 전 필수 조건</strong>
-                <p>장소 8~9개 권장, START 1개, ANSWER_HINT 4개 이상, DESTINATION_HINT 2개 이상, 실제 최종 장소 1개, FINAL_CANDIDATE 공개 마커 2개 이상, 모든 퍼즐/힌트/reward_payload가 필요합니다.</p>
+                <p>장소 8~9개 권장, START 1개, ANSWER_HINT 4개 이상, DESTINATION_HINT 2개 이상, 내부 최종 장소 1개, 조사 지점 공개 마커 1개 이상, 모든 퍼즐/힌트/reward_payload가 필요합니다.</p>
                 <div class="publish-actions">
                   <button type="button" class="ghost-btn" @click="checkPublishReadiness">공개 준비도 점검</button>
                   <button type="button" class="publish-btn" :disabled="!publishReadiness?.ready || selected?.status === 'PUBLISHED'" @click="publishEpisode">
@@ -359,14 +359,14 @@
             </article>
           </div>
 
-          <h3>리워드 placeholder</h3>
+          <h3>예정 리워드</h3>
           <div class="mini-grid">
             <article v-for="reward in selected.partnerRewards || []" :key="reward.rewardId" class="reward">
               <strong>{{ reward.title }}</strong>
               <p>{{ reward.description }}</p>
               <span>{{ reward.rewardType }} · {{ reward.status }}</span>
               <details class="card-editor">
-                <summary>리워드 placeholder 수정</summary>
+                <summary>예정 리워드 수정</summary>
                 <label>제목<input v-model.trim="reward.title" type="text" /></label>
                 <label>설명<textarea v-model="reward.description" rows="2"></textarea></label>
                 <label>타입
@@ -393,7 +393,7 @@
                 <button type="button" @click="savePartnerReward(reward)">리워드 저장</button>
               </details>
             </article>
-            <p v-if="!(selected.partnerRewards || []).length" class="empty">등록된 리워드 placeholder가 없습니다.</p>
+            <p v-if="!(selected.partnerRewards || []).length" class="empty">등록된 예정 리워드가 없습니다.</p>
           </div>
         </article>
 
@@ -408,7 +408,7 @@
             </div>
             <div class="payload-actions action-bar">
               <button type="button" class="ghost-btn" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'enrich' }" @click="enrichSelectedSiteData">
-                {{ activeAction === 'enrich' ? 'Enriching site data...' : 'RAG site data enrich' }}
+                {{ activeAction === 'enrich' ? '현장 근거 보강 중...' : 'RAG 현장근거 보강' }}
               </button>
               <button type="button" class="primary-action" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'gemini' }" @click="generateGeminiDraft">
                 {{ activeAction === 'gemini' ? 'Gemini 작성 중...' : 'Gemini로 전체 초안 작성' }}
@@ -422,11 +422,23 @@
               <button v-if="draftResult?.draft" type="button" class="ghost-btn" :disabled="draftBusy" :class="{ busy: activeAction === 'geminiValidate' }" @click="validateDraft(true)">
                 {{ activeAction === 'geminiValidate' ? 'Gemini 검증 중...' : 'Gemini 검증' }}
               </button>
+              <button v-if="draftResult?.draft" type="button" class="ghost-btn" :disabled="draftBusy" @click="normalizeDraftBeforeSave(draftResult.draft, true)">
+                검증 전 자동 보정
+              </button>
               <button v-if="draftResult?.draft" type="button" class="save-draft-btn" :disabled="draftBusy" :class="{ busy: activeAction === 'save' }" @click="saveDraft">
                 {{ activeAction === 'save' ? 'DB 저장 중...' : 'DRAFT로 저장' }}
               </button>
             </div>
           </div>
+          <section class="case-builder-next">
+            <div>
+              <strong>{{ caseBuilderNext.title }}</strong>
+              <p>{{ caseBuilderNext.description }}</p>
+            </div>
+            <button type="button" class="primary-action" :disabled="draftBusy || caseBuilderNext.disabled" @click="runNextCaseBuilderAction">
+              {{ caseBuilderNext.button }}
+            </button>
+          </section>
           <div v-if="draftValidation || draftResult?.validationWarnings?.length || draftResult?.draft" class="draft-feedback-panel" :class="{ invalid: draftValidation && !draftValidation.valid }">
             <strong>{{ draftValidation ? (draftValidation.valid ? '검증 통과' : '검증 이슈 있음') : '초안 준비 완료' }}</strong>
             <p v-if="draftValidation">{{ draftValidationSummary }}</p>
@@ -447,11 +459,15 @@
           <div class="ai-mode-grid">
             <article>
               <strong>Gemini 전체 작성</strong>
-              <span>관리자가 선택한 장소와 메모를 기반으로 스토리, 퍼즐, 단서, 용의자, 증거 카드 초안을 생성합니다.</span>
+              <span>관리자가 선택한 장소와 메모를 기반으로 스토리, 퍼즐, 단서, 용의자, 증거 카드 초안을 생성합니다. 생성 직후 최종 장소 은닉과 카드 수는 자동 보정됩니다.</span>
             </article>
             <article>
               <strong>예비 초안</strong>
               <span>Gemini 키가 없거나 호출 실패 시 쓰는 안전 fallback입니다. AI가 아니라 입력값 기반 템플릿입니다.</span>
+            </article>
+            <article>
+              <strong>검증 정책</strong>
+              <span>ERROR가 있어도 DRAFT 저장은 가능하게 두고, PUBLISHED 전 readiness에서 실제 차단합니다. AI 검증은 보조 검수로 사용합니다.</span>
             </article>
             <article>
               <strong>이미지 카드</strong>
@@ -478,7 +494,7 @@
             <strong>초안 작성 전 필요 조건</strong>
             <p>{{ draftSelectionBlockReason }}</p>
           </div>
-          <p class="warning">저장된 초안은 항상 DRAFT로 시작합니다. 현장 좌표/숫자/표지판 검수 후 PUBLISHED로 변경하세요.</p>
+          <p class="warning">저장된 초안은 항상 DRAFT로 시작합니다. 현장 좌표, 숫자, 표지판 검수 후 PUBLISHED로 변경하세요.</p>
 
           <section class="creation-flow">
             <article :class="{ done: candidateLoaded }">
@@ -493,13 +509,13 @@
             </article>
             <article :class="{ done: selectedCandidates.length >= 8 }">
               <b>3</b>
-              <strong>8~9개 장소 선택</strong>
-              <span>TourAPI 기준 장소가 내부 최종 장소입니다.</span>
+              <strong>8~9개 장소 구성</strong>
+              <span>TourAPI 기준 장소는 루트의 마지막 내부 목적지로 저장됩니다.</span>
             </article>
             <article :class="{ done: Boolean(draftResult?.draft) }">
               <b>4</b>
               <strong>초안 생성/검증</strong>
-              <span>스토리, 퍼즐, 자료를 생성하고 검수합니다.</span>
+              <span>스토리, 퍼즐, 사건자료를 생성하고 검수합니다.</span>
             </article>
           </section>
 
@@ -521,19 +537,19 @@
                 <button type="button" @click="loadPlaceCandidates">TourAPI 기준 장소 불러오기</button>
               </div>
             </div>
-            <p class="candidate-help">TourAPI 기준 장소는 서버 내부 최종 장소로 저장하고, Kakao Local 후보는 골목상권/문화 거점을 섞어 추천 루트로 자동 구성합니다. 사용자는 모든 장소를 보지만 실제 최종 장소 여부는 노출되지 않습니다.</p>
+            <p class="candidate-help">TourAPI 기준 장소는 서버 내부 목적지로 저장됩니다. 사용자 지도에는 정답 장소로 표시하지 않고, 목적지 힌트를 모아 추리해야 하는 추가 조사 장소처럼 보입니다.</p>
             <div class="ops-notice">
-              <strong>키/도메인 설정 확인</strong>
-              <p>TourAPI와 Kakao Local 후보 조회는 백엔드 API 키가 필요합니다. 지도 표시는 프론트 Kakao JavaScript 키와 허용 도메인, 길찾기는 Tmap 앱 키/도메인 설정을 확인해야 합니다.</p>
+              <strong>운영 설정 확인</strong>
+              <p>TourAPI와 Kakao Local 후보 조회에는 백엔드 API 키가 필요합니다. 키가 없으면 수동 후보를 추가해서도 초안을 만들 수 있습니다.</p>
             </div>
             <p v-if="candidateLoading" class="empty">TourAPI 후보를 불러오는 중입니다.</p>
-            <p v-else-if="candidateLoaded && !placeCandidates.length" class="empty">TourAPI 후보가 없습니다. API 키와 지역 설정을 확인하세요.</p>
+            <p v-else-if="candidateLoaded && !placeCandidates.length" class="empty">TourAPI 후보가 없습니다. API 키, 지역 설정을 확인하거나 수동 후보를 사용하세요.</p>
             <div class="candidate-grid">
               <article v-for="candidate in placeCandidates" :key="candidateKey(candidate)" class="candidate-card" :class="{ selected: anchorCandidate && candidateKey(anchorCandidate) === candidateKey(candidate) }">
                 <strong>{{ candidate.title }}</strong>
                 <p>{{ candidate.address || '주소 없음' }}</p>
                 <span>{{ candidate.latitude }}, {{ candidate.longitude }}</span>
-                <button type="button" class="ghost-btn" :disabled="!hasCandidateCoordinate(candidate)" @click="loadNearbyCandidates(candidate)">이 장소를 기준으로 주변 후보 찾기</button>
+                <button type="button" class="ghost-btn" :disabled="!hasCandidateCoordinate(candidate)" @click="loadNearbyCandidates(candidate)">이 장소 기준으로 주변 후보 찾기</button>
                 <em v-if="!hasCandidateCoordinate(candidate)" class="coordinate-warning">좌표 없음</em>
               </article>
             </div>
@@ -553,24 +569,22 @@
                 <button type="button" class="ghost-btn" :disabled="!canGenerateDraftFromSelection" @click="applyCandidatesToDraft">추천 루트를 초안 입력에 적용</button>
               </div>
             </div>
-            <p class="candidate-help">기준 장소 포함 8~9개를 선택하세요. TourAPI 기준 장소가 내부 최종 장소가 되고, 공개 화면에는 일반 조사 후보처럼만 표시됩니다. Kakao 후보가 부족하면 아래 수동 후보로 보강하세요.</p>
+            <p class="candidate-help">기준 장소 포함 8~9개를 사용합니다. Kakao 후보가 부족하면 아래 수동 후보를 추가하세요.</p>
             <div class="selection-summary">
               <strong>선택 {{ selectedCandidates.length }}개 / 권장 8~9개</strong>
-              <span :class="{ ready: canGenerateDraftFromSelection }">
-                {{ selectedCandidateStatus }}
-              </span>
+              <span :class="{ ready: canGenerateDraftFromSelection }">{{ selectedCandidateStatus }}</span>
             </div>
             <p v-if="nearbyLoading" class="empty">Kakao Local 주변 후보를 불러오는 중입니다.</p>
-            <p v-else-if="nearbyLoaded && !nearbyCandidates.length" class="empty">주변 후보가 없습니다. Kakao REST API 키와 반경을 확인하거나 수동 후보를 추가하세요.</p>
+            <p v-else-if="nearbyLoaded && !nearbyCandidates.length" class="empty">주변 후보가 없습니다. Kakao REST API 키, 반경을 확인하거나 수동 후보를 추가하세요.</p>
             <div class="manual-candidate-form">
               <strong>수동 후보 추가</strong>
               <div class="manual-grid">
-                <label>장소명<input v-model.trim="manualCandidate.title" type="text" placeholder="예: 골목 카페 앞" /></label>
+                <label>장소명<input v-model.trim="manualCandidate.title" type="text" placeholder="예: 골목 카페" /></label>
                 <label>주소<input v-model.trim="manualCandidate.address" type="text" placeholder="도로명 또는 지번 주소" /></label>
                 <label>위도<input v-model="manualCandidate.latitude" type="number" step="0.000001" placeholder="37.5665" /></label>
                 <label>경도<input v-model="manualCandidate.longitude" type="number" step="0.000001" placeholder="126.9780" /></label>
               </div>
-              <label class="manual-note">현장 메모<textarea v-model.trim="manualCandidate.description" rows="2" placeholder="관리자 입력 현장 관찰 요소와 운영 전 검수 메모를 적으세요."></textarea></label>
+              <label class="manual-note">현장 메모<textarea v-model.trim="manualCandidate.description" rows="2" placeholder="관리자가 확인한 현장 관찰 요소나 운영 메모를 적으세요."></textarea></label>
               <button type="button" class="ghost-btn" @click="addManualCandidate">수동 후보 추가</button>
               <p>수동 후보는 운영 공개 전 GPS 좌표, 접근 가능 여부, 현장 관찰 요소를 반드시 검수해야 합니다.</p>
             </div>
@@ -597,17 +611,16 @@
                   <b>{{ index + 1 }}</b>
                   <strong>{{ candidate.title }}</strong>
                   <span :class="roleForCandidate(index)">{{ roleLabel(roleForCandidate(index)) }}</span>
-                  <em v-if="isAnchorCandidate(candidate)">TourAPI 기준 장소 · 내부 최종 장소</em>
+                  <em v-if="isAnchorCandidate(candidate)">TourAPI 기준 장소 · 관리자 내부 목적지</em>
                 </li>
               </ol>
-              <p>사용자 지도에는 내부 최종 장소 여부가 노출되지 않고, 공개 마커는 조사 후보로 표시됩니다.</p>
+              <p>사용자 지도에는 내부 목적지 여부가 노출되지 않고, 공개 마커는 추가 조사 장소처럼 표시됩니다.</p>
             </div>
           </section>
           <div class="draft-actions-helper">
-            <strong>3. 초안 입력 준비 완료</strong>
+            <strong>3. 초안 입력 준비</strong>
             <span>선택 장소, 좌표, 관리자 메모는 내부 payload로 자동 전달됩니다. 화면에는 JSON을 노출하지 않습니다.</span>
-          </div>
-          <section v-if="draftResult?.draft" class="draft-editor">
+          </div>          <section v-if="draftResult?.draft" class="draft-editor">
             <div class="section-title">
               <h3>초안 폼 편집</h3>
               <span>아래 수정 내용은 검증과 DRAFT 저장에 바로 반영됩니다.</span>
@@ -644,16 +657,29 @@
             <details open class="draft-edit-block">
               <summary>장소/퍼즐 초안</summary>
               <p class="draft-section-help">각 장소는 접어서 볼 수 있습니다. 최종 장소는 내부 설정으로만 쓰이고, 사용자 지도에는 공개 마커만 내려갑니다.</p>
+              <div class="payload-actions compact">
+                <button type="button" class="ghost-btn" @click="regenerateAllMissionsSafely">전체 미션 안전 재구성</button>
+                <button type="button" class="ghost-btn" @click="normalizeDraftBeforeSave(draftResult.draft, true)">저장 전 자동 보정</button>
+              </div>
               <div class="draft-mission-list">
-                <details v-for="(mission, missionIndex) in draftResult.draft.missions || []" :key="`draft-mission-${mission.order}`" class="draft-mission-card" :class="{ final: mission.finalPlace }" :open="missionIndex === 0">
+                <details v-for="mission in draftResult.draft.missions || []" :key="`draft-mission-${mission.order}`" class="draft-mission-card" :class="{ final: mission.finalPlace }">
                   <summary class="draft-card-summary">
                     <span>
                       <strong>{{ mission.order }}. {{ mission.placeName }}</strong>
-                      <small>{{ mission.publicMarkerType }} / {{ mission.clueRole }} / {{ mission.puzzleType }}</small>
+                      <small>{{ missionRoleLabel(mission) }} · {{ puzzleTypeLabel(mission.puzzleType) }} · {{ missionReadinessLabel(mission) }}</small>
                     </span>
-                    <em>{{ mission.finalPlace ? '내부 최종 장소' : '편집 열기' }}</em>
+                    <em>{{ mission.finalPlace ? '내부 최종 장소' : '펼쳐서 편집' }}</em>
                   </summary>
                   <p class="draft-card-preview">{{ mission.storyText || '스토리 문구를 입력하세요.' }}</p>
+                  <div class="draft-mission-tags">
+                    <span>{{ mission.publicMarkerType }}</span>
+                    <span>{{ mission.clueRole }}</span>
+                    <span>보상: {{ mission.rewardClue || '미정' }}</span>
+                  </div>
+                  <div class="payload-actions compact">
+                    <button type="button" class="ghost-btn mini" @click="regenerateMissionDraft(mission)">이 미션 안전 재구성</button>
+                    <button type="button" class="ghost-btn mini" @click="refreshMissionEvidenceCard(mission)">사건자료 카드 연결</button>
+                  </div>
                   <div class="edit-grid">
                     <label>장소명<input v-model.trim="mission.placeName" type="text" /></label>
                     <label>주소<input v-model.trim="mission.address" type="text" /></label>
@@ -736,7 +762,21 @@
                   </summary>
                   <label>별칭<input v-model.trim="suspect.alias" type="text" /></label>
                   <label>표시 이름<input v-model.trim="suspect.displayName" type="text" /></label>
+                  <div class="wide evidence-preview-box">
+                    <img v-if="suspect.portraitImageUrl" class="draft-suspect-image" :src="suspect.portraitImageUrl" alt="용의자 초상 미리보기" />
+                    <button type="button" class="ghost-btn mini" @click="suspect.portraitImageUrl = generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint)">
+                      용의자 카드 다시 생성
+                    </button>
+                    <small>실제 인물 사진이 아니라 사건파일용 가상 인물 카드입니다.</small>
+                  </div>
+                  <details class="wide image-url-edit">
+                    <summary>초상 이미지 URL 직접 수정</summary>
+                    <label>초상 이미지 URL<input v-model.trim="suspect.portraitImageUrl" type="text" placeholder="비워두면 자동 용의자 카드 생성" /></label>
+                  </details>
                   <label>의심 포인트<textarea v-model="suspect.suspiciousPoint" rows="2"></textarea></label>
+                  <label>사건 관계<textarea v-model="suspect.relationToVictim" rows="2"></textarea></label>
+                  <label>알리바이<textarea v-model="suspect.alibiSummary" rows="2"></textarea></label>
+                  <label>카드 설명<textarea v-model="suspect.shortDescription" rows="2"></textarea></label>
                 </details>
               </div>
               <h4>증거/메모/사진</h4>
@@ -834,6 +874,7 @@ const nearbyLoading = ref(false);
 const nearbyLoaded = ref(false);
 const nearbyRadius = ref(1500);
 const selectedCandidates = ref([]);
+const siteDataEnriched = ref(false);
 const manualCandidate = ref({
   title: '',
   address: '',
@@ -853,14 +894,14 @@ const draftInput = ref(JSON.stringify({
     { name: '정동제일교회', description: '붉은 벽과 목격 단서', visibleElements: ['붉은 벽', '건물명'], numbers: [], keywords: ['목격', '벽'], adminMemo: '건물명 확인', role: 'ANSWER_HINT' },
     { name: '배재학당 역사박물관', description: '기록 자료 단서', visibleElements: ['건물명', '안내판'], numbers: [], keywords: ['기록', '조수'], adminMemo: '운영시간 확인', role: 'ANSWER_HINT' },
     { name: '정동극장', description: '방향 단서', visibleElements: ['간판', '포스터'], numbers: [], keywords: ['방향', '문'], adminMemo: '포스터 내용은 고정 아님', role: 'DESTINATION_HINT' },
-    { name: '서울시립미술관 앞마당', description: '최종 후보 장소', visibleElements: ['광장', '조형물'], numbers: [], keywords: ['후보', '그림자'], adminMemo: '후보 장소', role: 'FINAL_CANDIDATE' },
-    { name: '중명전', description: '실제 최종 후보', visibleElements: ['붉은 벽', '건물명'], numbers: ['1905'], keywords: ['밀서', '문'], adminMemo: '실제 최종 장소 후보', role: 'FINAL' }
+    { name: '서울시립미술관 앞마당', description: '목적지 혼선을 주는 조사 지점', visibleElements: ['광장', '조형물'], numbers: [], keywords: ['그림자', '동선'], adminMemo: '목적지 힌트와 비교할 조사 지점', role: 'FINAL_CANDIDATE' },
+    { name: '중명전', description: '서버 내부에서만 최종 장소로 판정할 조사 지점', visibleElements: ['붉은 벽', '건물명'], numbers: ['1905'], keywords: ['밀서', '문'], adminMemo: '사용자 화면에는 최종 장소로 직접 노출하지 않음', role: 'FINAL' }
   ]
 }, null, 2));
 const draftStepOrder = [
-  { key: 'prepare', label: '입력 정리', description: '선택 장소와 좌표를 초안 JSON으로 반영합니다.' },
-  { key: 'request', label: 'AI 요청', description: '백엔드가 Gemini에 구조화 초안을 요청합니다.' },
-  { key: 'parse', label: '응답 대기', description: '스토리, 퍼즐, 단서, 자료 카드 JSON을 기다립니다.' },
+  { key: 'prepare', label: '입력 정리', description: '선택 장소와 좌표를 초안 입력값으로 정리합니다.' },
+  { key: 'request', label: 'AI 요청', description: '백엔드가 Gemini 또는 규칙 기반 초안을 생성합니다.' },
+  { key: 'parse', label: '응답 처리', description: '스토리, 퍼즐, 단서, 사건자료 카드 JSON을 처리합니다.' },
   { key: 'hydrate', label: '화면 반영', description: '받은 초안을 편집 가능한 폼과 이미지 카드로 표시합니다.' }
 ];
 
@@ -882,7 +923,7 @@ const canGenerateDraftFromSelection = computed(() => {
 });
 const draftSelectionBlockReason = computed(() => {
   const count = selectedCandidates.value.length;
-  if (count < 8) return '기준 장소를 포함해 최소 8개 장소를 선택해야 Gemini 전체 초안 작성이 가능합니다.';
+  if (count < 8) return '기준 장소를 포함해 최소 8개 장소를 선택해야 초안 생성이 가능합니다.';
   if (count > 9) return '장소는 최대 9개까지만 사용할 수 있습니다.';
   const missing = selectedCandidates.value.filter((candidate) => !hasCandidateCoordinate(candidate));
   if (missing.length) {
@@ -892,7 +933,7 @@ const draftSelectionBlockReason = computed(() => {
 });
 const selectedCandidateStatus = computed(() => {
   const count = selectedCandidates.value.length;
-  if (count < 8) return '장소가 부족합니다. 공개 조건을 맞추려면 최소 8개를 선택하세요.';
+  if (count < 8) return '장소가 부족합니다. 최소 8개 장소를 선택하세요.';
   if (count > 9) return '장소가 너무 많습니다. 최대 9개까지만 사용하세요.';
   const missing = selectedCandidates.value.filter((candidate) => !hasCandidateCoordinate(candidate));
   if (missing.length) return `좌표가 없는 장소 ${missing.length}개가 있습니다. 좌표가 있는 후보로 교체하거나 수동 후보를 추가하세요.`;
@@ -900,10 +941,82 @@ const selectedCandidateStatus = computed(() => {
 });
 const routeIdentitySummary = computed(() => {
   const count = selectedCandidates.value.length;
-  if (!count) return '\u0054ourAPI \uAE30\uC900 \uC7A5\uC18C\uB97C \uBA3C\uC800 \uACE0\uB974\uBA74 Kakao Local \uD6C4\uBCF4\uB85C \uCD94\uCC9C \uB8E8\uD2B8\uB97C \uAD6C\uC131\uD569\uB2C8\uB2E4.';
+  if (!count) return 'TourAPI 기준 장소를 먼저 고르면 Kakao Local 후보로 추천 루트를 구성합니다.';
   const localCount = selectedCandidates.value.filter((candidate) => isLocalBusinessCandidate(candidate)).length;
-  const finalName = anchorCandidate.value?.title || '\u0054ourAPI \uAE30\uC900 \uC7A5\uC18C';
-  return '\uCD1D ' + count + '\uAC1C \uC7A5\uC18C ? \uACE8\uBAA9\uC0C1\uAD8C/\uD734\uC2DD \uD6C4\uBCF4 ' + localCount + '\uAC1C ? \uB0B4\uBD80 \uCD5C\uC885 \uC7A5\uC18C: ' + finalName;
+  const finalName = anchorCandidate.value?.title || 'TourAPI 기준 장소';
+  return `총 ${count}개 장소 · 골목상권/휴식 후보 ${localCount}개 · 내부 최종 장소: ${finalName}`;
+});
+const caseBuilderNext = computed(() => {
+  if (!candidateLoaded.value) {
+    return {
+      title: '1단계: TourAPI 기준 장소를 불러오세요.',
+      description: '사건의 중심이 되는 관광지를 먼저 선택해야 주변 골목상권 후보를 추천할 수 있습니다.',
+      button: 'TourAPI 기준 장소 불러오기',
+      action: 'loadTourApi',
+      disabled: false
+    };
+  }
+  if (!anchorCandidate.value) {
+    return {
+      title: '2단계: 사건의 기준 장소를 선택하세요.',
+      description: 'TourAPI 장소 카드에서 주변 후보 찾기를 누르면 그 장소가 내부 최종 장소 후보가 되고 주변 후보가 추천됩니다.',
+      button: '기준 장소 선택 필요',
+      action: 'selectAnchor',
+      disabled: true
+    };
+  }
+  if (!nearbyLoaded.value) {
+    return {
+      title: '3단계: 주변 골목상권 후보를 불러오세요.',
+      description: 'Kakao Local로 기준 장소 주변의 카페, 문화공간, 골목 후보를 불러와 추천 루트를 구성합니다.',
+      button: '주변 후보 불러오기',
+      action: 'loadNearby',
+      disabled: false
+    };
+  }
+  if (!canGenerateDraftFromSelection.value) {
+    return {
+      title: '4단계: 8~9개 장소 구성이 필요합니다.',
+      description: draftSelectionBlockReason.value || '추천 루트에는 좌표가 있는 장소 8~9개가 필요합니다.',
+      button: '장소 구성 확인',
+      action: 'showSelectionIssue',
+      disabled: false
+    };
+  }
+  if (!draftResult.value?.draft) {
+    if (!siteDataEnriched.value) {
+      return {
+        title: '5단계: 현장근거를 먼저 보강하세요.',
+        description: 'Kakao 주변 후보와 관리자 메모를 바탕으로 각 장소의 키워드와 검수 범위를 좁힙니다.',
+        button: 'RAG 현장근거 보강',
+        action: 'enrich',
+        disabled: false
+      };
+    }
+    return {
+      title: '6단계: Gemini 초안을 생성하세요.',
+      description: '보강된 현장근거를 바탕으로 사건 개요, 미션, 용의자, 증거 카드를 생성합니다. 실패하면 안전 초안으로 대체할 수 있습니다.',
+      button: 'Gemini 전체 초안 생성',
+      action: 'gemini',
+      disabled: false
+    };
+  }
+  if (!draftValidation.value) {
+    return {
+      title: '7단계: 초안을 검증하세요.',
+      description: '검증 이슈가 있어도 DRAFT 저장은 가능하지만, PUBLISHED 전환 전에는 공개 준비도 점검을 통과해야 합니다.',
+      button: '기본 검증 실행',
+      action: 'validate',
+      disabled: false
+    };
+  }
+  return {
+    title: '8단계: DRAFT로 저장하세요.',
+    description: '저장 후 상단 상세 패널에서 공개 준비도 점검, 부족 항목 수정, PUBLISHED 전환을 진행합니다.',
+    button: 'DRAFT 저장',
+    action: 'save',
+    disabled: false
+  };
 });
 const draftWarningSummary = computed(() => {
   const warnings = draftResult.value?.validationWarnings || [];
@@ -911,7 +1024,7 @@ const draftWarningSummary = computed(() => {
   const others = warnings.filter((warning) => !placeholderWarnings.includes(warning));
   const summary = [];
   if (placeholderWarnings.length) {
-    summary.push(`현장 근거가 부족한 미션 ${placeholderWarnings.length}개는 검수용 문제로 표시했습니다. RAG 보강 또는 관리자 현장 메모로 확인 범위를 좁힌 뒤 공개 전 문제를 확정하세요.`);
+    summary.push(`현장 근거가 부족한 미션 ${placeholderWarnings.length}개는 현장 보강 필요 상태입니다. RAG 보강 또는 관리자 현장 메모로 확인 범위를 좁힌 뒤 공개 전 문제를 확정하세요.`);
   }
   return [...summary, ...others.slice(0, 4)];
 });
@@ -982,7 +1095,7 @@ function markerPreviewLabel(type) {
     ANSWER_HINT: '정답 힌트',
     DESTINATION_HINT: '목적지 힌트',
     STORY: '스토리',
-    FINAL_CANDIDATE: '조사 후보'
+    FINAL_CANDIDATE: '조사 지점'
   }[type] || type;
 }
 
@@ -1309,9 +1422,9 @@ async function savePartnerReward(reward) {
     });
     hydrateEpisodeForm(selected.value);
     publishReadiness.value = null;
-    setMessage('리워드 placeholder가 수정되었습니다.', 'success');
+    setMessage('예정 리워드가 수정되었습니다.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || '리워드 placeholder를 수정할 수 없습니다.', 'error');
+    setMessage(error.userMessage || '예정 리워드를 수정할 수 없습니다.', 'error');
   }
 }
 
@@ -1366,7 +1479,7 @@ function stopDraftTimer() {
 
 async function enrichSelectedSiteData() {
   if (!prepareDraftInputFromSelection()) return;
-  startDraftProgress('enrich', 'Enriching each selected spot with external search metadata.', 'request');
+  startDraftProgress('enrich', '선택한 장소별 주변 정보와 키워드를 보강하고 있습니다.', 'request');
   try {
     const payload = JSON.parse(draftInput.value);
     const enriched = await adminEpisodeApi.enrichSiteData(payload);
@@ -1383,11 +1496,43 @@ async function enrichSelectedSiteData() {
     }
     draftResult.value = null;
     draftValidation.value = null;
-    finishDraftProgress('Site data enrichment is complete. Generate a draft using the enriched adminMemo and keywords.');
-    setMessage('Site data enrichment is complete. Real on-site inspection is still required before publishing.', 'success');
+    siteDataEnriched.value = true;
+    finishDraftProgress('현장 근거 보강이 완료되었습니다. 보강된 관리자 메모와 키워드로 초안을 생성하세요.');
+    setMessage('현장 근거 보강이 완료되었습니다. 공개 전 실제 현장 검수는 여전히 필요합니다.', 'success');
   } catch (error) {
-    failDraftProgress(error.userMessage || error.message || 'Site data enrichment failed. Check Kakao REST key and spot coordinates.');
+    failDraftProgress(error.userMessage || error.message || '현장 근거 보강에 실패했습니다. Kakao REST 키와 장소 좌표를 확인하세요.');
     setMessage(draftError.value, 'error');
+  }
+}
+
+async function runNextCaseBuilderAction() {
+  const action = caseBuilderNext.value.action;
+  if (action === 'loadTourApi') {
+    await loadPlaceCandidates();
+    return;
+  }
+  if (action === 'loadNearby' && anchorCandidate.value) {
+    await loadNearbyCandidates(anchorCandidate.value);
+    return;
+  }
+  if (action === 'showSelectionIssue') {
+    setMessage(draftSelectionBlockReason.value || '선택 장소를 확인해 주세요.', 'error');
+    return;
+  }
+  if (action === 'enrich') {
+    await enrichSelectedSiteData();
+    return;
+  }
+  if (action === 'gemini') {
+    await generateGeminiDraft();
+    return;
+  }
+  if (action === 'validate') {
+    await validateDraft(false);
+    return;
+  }
+  if (action === 'save') {
+    await saveDraft();
   }
 }
 
@@ -1418,9 +1563,10 @@ async function generateGeminiDraft() {
     draftResult.value = await adminEpisodeApi.createGeminiDraft(payload);
     draftProgressStep.value = 'hydrate';
     hydrateDraftForEditing();
+    normalizeDraftBeforeSave(draftResult.value.draft, false);
     draftValidation.value = null;
-    finishDraftProgress('Gemini 초안이 생성되었습니다. 저장 전 최종 장소 은닉, 퍼즐 근거, 이미지 카드를 검수하세요.');
-    setMessage('Gemini 사건파일 초안이 생성되었습니다. 아직 DB에는 저장되지 않았습니다.', 'success');
+    finishDraftProgress('Gemini 초안이 생성되었고 저장 전 자동 보정까지 적용했습니다. 각 장소의 현장 근거만 최종 확인하세요.');
+    setMessage('Gemini 사건파일 초안이 생성되었습니다. 구조 보정은 적용됐고 아직 DB에는 저장되지 않았습니다.', 'success');
   } catch (error) {
     failDraftProgress(error.userMessage || error.message || 'Gemini 초안을 생성할 수 없습니다. gemini.api.key와 gemini.model 설정을 확인하세요.');
     setMessage(draftError.value, 'error');
@@ -1429,6 +1575,7 @@ async function generateGeminiDraft() {
 
 async function validateDraft(useGemini) {
   if (!draftResult.value?.draft) return;
+  normalizeDraftBeforeSave(draftResult.value.draft, false);
   startDraftProgress(useGemini ? 'geminiValidate' : 'validate', useGemini ? 'Gemini로 초안 위험 요소를 검토하고 있습니다.' : '기본 규칙으로 초안을 검증하고 있습니다.');
   try {
     const sourceInput = JSON.parse(draftInput.value);
@@ -1504,20 +1651,137 @@ function hydrateDraftForEditing() {
 
 function buildDraftSavePayload() {
   const draft = JSON.parse(JSON.stringify(draftResult.value.draft));
+  normalizeDraftBeforeSave(draft, false);
   if (isGenericDraftTitle(draft.episodeTitle)) {
     draft.episodeTitle = suggestedDraftTitle(draft);
   }
   draft.subtitle = draft.subtitle || suggestedDraftSubtitle(draft);
   draft.era = draft.era || suggestedDraftEra(draft);
   ensureDraftIllustrationCards(draft);
+  strengthenCaseMaterials(draft);
+  draft.suspects = (draft.suspects || []).map((suspect) => {
+    const portraitImageUrl = String(suspect.portraitImageUrl || '').trim();
+    return {
+      ...suspect,
+      portraitImageUrl: portraitImageUrl.startsWith('data:') || portraitImageUrl.length > 900 ? '' : portraitImageUrl
+    };
+  });
   draft.evidences = (draft.evidences || []).map((evidence) => {
     const imageUrl = String(evidence.imageUrl || '').trim();
     return {
       ...evidence,
+      type: safeEvidenceType(evidence.type),
       imageUrl: imageUrl.startsWith('data:') || imageUrl.length > 900 ? '' : imageUrl
     };
   });
   return draft;
+}
+
+function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage = false) {
+  if (!draft) return;
+  draft.missions = Array.isArray(draft.missions) ? draft.missions : [];
+  draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
+  draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
+  const motif = inferCaseMotif(draft);
+  if (!draft.finalAnswer || draft.finalAnswer === '검수필요' || draft.finalAnswer === '관리자검수') {
+    draft.finalAnswerType = draft.finalAnswerType || 'EVIDENCE';
+    draft.finalAnswer = motif.object;
+    draft.finalAnswerAliases = Array.from(new Set([...(draft.finalAnswerAliases || []), motif.object.replaceAll(' ', '')]));
+  }
+  if (!draft.finalQuestion || draft.finalQuestion.includes('무엇인가')) {
+    draft.finalQuestion = `${motif.victim}가 마지막까지 숨기려 한 사건의 핵심 증거는 무엇인가?`;
+  }
+  if (!draft.fictionSynopsis || isWeakText(draft.fictionSynopsis)) {
+    draft.fictionSynopsis = `${motif.victim}가 사라지기 전 남긴 사건파일에는 사진, 메모, 동선 기록이 서로 맞지 않게 섞여 있었다. 플레이어는 골목의 조사 지점을 돌며 증거 카드와 목적지 힌트를 모아 ${motif.object}의 정체를 밝혀야 한다.`;
+  }
+  if (!draft.finalTruthSummary || isWeakText(draft.finalTruthSummary)) {
+    draft.finalTruthSummary = `${motif.object}은 사건의 결말을 뒤집는 핵심 증거다. 수집한 정답 힌트는 물건의 형태를, 목적지 힌트는 마지막으로 확인해야 할 장소를 좁히도록 설계되어 있다.`;
+  }
+  if (!draft.actualHistorySummary || isWeakText(draft.actualHistorySummary)) {
+    draft.actualHistorySummary = '이 에피소드는 실제 장소의 역사·문화적 분위기와 주변 상권 동선을 바탕으로 만든 픽션 사건입니다. 운영 공개 전 각 장소의 현장 요소와 역사 설명은 관리자가 직접 검수해야 합니다.';
+  }
+  draft.deductionSecretFacts = Array.isArray(draft.deductionSecretFacts) && draft.deductionSecretFacts.length
+    ? draft.deductionSecretFacts
+    : [`최종 정답은 ${motif.object}이다.`, `${motif.object}은 장소명이 아니라 픽션 사건 안의 증거물이다.`, '목적지 힌트는 실제 최종 장소명을 직접 말하지 않고 분위기와 동선만 좁힌다.'];
+  draft.deductionForbiddenReveals = Array.from(new Set([...(draft.deductionForbiddenReveals || []), draft.finalAnswer, ...(draft.finalAnswerAliases || [])].filter(Boolean)));
+  const finalIndex = draft.missions.findIndex((mission) => mission.finalPlace || mission.markerType === 'FINAL');
+  draft.missions.forEach((mission, index) => {
+    mission.order = index + 1;
+    mission.arrivalRadius = Math.max(10, Number(mission.arrivalRadius || 50));
+    mission.hints = Array.isArray(mission.hints) ? mission.hints.slice(0, 3) : [];
+    while (mission.hints.length < 3) mission.hints.push('현장 검수 후 힌트를 보강하세요.');
+    if (finalIndex >= 0 && index !== finalIndex && mission.markerType === 'FINAL') {
+      mission.markerType = 'FINAL_CANDIDATE';
+      mission.finalPlace = false;
+    }
+    syncDraftMissionRole(mission);
+    mission.publicMarkerType = safePublicMarkerType(mission.publicMarkerType, mission);
+    if (mission.finalPlace) {
+      mission.publicMarkerType = 'FINAL_CANDIDATE';
+      mission.storyText = sanitizeFinalPlaceStory(mission.storyText);
+    }
+    if (!mission.rewardClue) mission.rewardClue = rewardClueForRole(mission.clueRole || mission.markerType, index);
+    if (!mission.questionText || !mission.answer || !mission.puzzleType) regenerateMissionDraft(mission, false);
+  });
+  const actualFinalCount = draft.missions.filter((mission) => mission.finalPlace || mission.markerType === 'FINAL').length;
+  if (!actualFinalCount && draft.missions.length) {
+    const finalMission = draft.missions[draft.missions.length - 1];
+    finalMission.finalPlace = true;
+    finalMission.markerType = 'FINAL';
+    syncDraftMissionRole(finalMission);
+    finalMission.publicMarkerType = 'FINAL_CANDIDATE';
+  }
+  ensureDraftIllustrationCards(draft);
+  strengthenCaseMaterials(draft);
+  if (showMessage) setMessage('저장 전 자동 보정을 적용했습니다. 내부 최종 장소는 사용자 지도에서 조사 지점으로만 보입니다.', 'success');
+}
+
+function regenerateAllMissionsSafely() {
+  const draft = draftResult.value?.draft;
+  if (!draft?.missions?.length) return;
+  draft.missions.forEach((mission) => regenerateMissionDraft(mission, false));
+  normalizeDraftBeforeSave(draft, false);
+  draftValidation.value = null;
+  setMessage('전체 미션을 안전한 검수용 초안으로 재구성했습니다. 각 장소의 실제 현장 요소는 공개 전 확인하세요.', 'success');
+}
+
+function regenerateMissionDraft(mission, showMessage = true) {
+  if (!mission) return;
+  syncDraftMissionRole(mission);
+  const index = Math.max(0, Number(mission.order || 1) - 1);
+  const role = mission.clueRole || mission.markerType || 'STORY_CONTEXT';
+  const source = sourceCandidateForMission(mission);
+  const keyword = primaryKeyword(source, mission);
+  const rewardClue = rewardClueForRole(role, index);
+  mission.storyText = storyTextForMission(mission, role, keyword);
+  mission.puzzleType = puzzleTypeForSource(source, role, index);
+  mission.answerFormat = mission.puzzleType === 'NUMBER_LOCK' ? 'NUMBER' : 'TEXT';
+  mission.answer = answerForSource(source, mission.puzzleType, keyword);
+  mission.questionText = questionForMission(mission, source, keyword);
+  mission.rewardClue = rewardClue;
+  mission.groundRule = groundRuleForMission(source);
+  mission.hints = hintsForMission(mission, keyword);
+  refreshMissionEvidenceCard(mission, false);
+  draftValidation.value = null;
+  if (showMessage) setMessage(`${mission.placeName} 미션을 안전한 검수용 초안으로 재구성했습니다.`, 'success');
+}
+
+function refreshMissionEvidenceCard(mission, showMessage = true) {
+  const draft = draftResult.value?.draft;
+  if (!draft || !mission) return;
+  draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
+  const type = evidenceTypeForRole(mission.clueRole || mission.markerType);
+  const order = Number(mission.order || 1);
+  let evidence = draft.evidences.find((item) => Number(item.sourceMissionOrder) === order);
+  if (!evidence) {
+    evidence = { sourceMissionOrder: order };
+    draft.evidences.push(evidence);
+  }
+  evidence.title = evidenceTitleForMission(mission, type);
+  evidence.type = type;
+  evidence.textSummary = evidenceSummaryForMission(mission);
+  evidence.imageUrl = generatedEvidenceCardDataUrl(evidence.title, type);
+  if (showMessage) setMessage(`${mission.placeName} 사건자료 카드를 다시 연결했습니다.`, 'success');
 }
 
 function isGenericDraftTitle(title) {
@@ -1526,16 +1790,49 @@ function isGenericDraftTitle(title) {
 }
 
 function suggestedDraftTitle(draft) {
-  const missions = Array.isArray(draft?.missions) ? draft.missions : [];
-  const anchor = missions.find((mission) => mission.finalPlace || mission.markerType === 'FINAL') || missions[0];
-  return `EP.NEW ${anchor?.placeName || 'Operation KOREA'} 사건`;
+  const motif = inferCaseMotif(draft);
+  return `EP.NEW ${motif.title} 사건`;
 }
 
 function suggestedDraftSubtitle(draft) {
   const missions = Array.isArray(draft?.missions) ? draft.missions : [];
-  const finalMission = missions.find((mission) => mission.finalPlace || mission.markerType === 'FINAL') || missions[missions.length - 1];
   const startMission = missions[0];
-  return `${startMission?.placeName || '첫 단서'}에서 ${finalMission?.placeName || '마지막 후보지'}로 이어지는 기록`;
+  const motif = inferCaseMotif(draft);
+  return `${startMission?.placeName || '첫 현장'}에서 시작된 ${motif.subtitle}`;
+}
+
+function inferCaseMotif(draft) {
+  const source = [
+    draft?.finalAnswer,
+    draft?.finalAnswerType,
+    draft?.fictionSynopsis,
+    ...(Array.isArray(draft?.missions) ? draft.missions.flatMap((mission) => [mission.storyText, mission.rewardClue, mission.groundRule]) : [])
+  ].join(' ');
+  if (source.includes('필름') || source.includes('사진') || source.includes('렌즈')) {
+    return {
+      title: '사라진 필름',
+      subtitle: '사진 속 누락된 한 장면을 복원하는 기록 수사',
+      object: '봉인된 필름',
+      victim: '골목 사진가',
+      caseType: '사진 기록 실종 사건'
+    };
+  }
+  if (source.includes('인장') || source.includes('문서') || source.includes('밀서')) {
+    return {
+      title: '붉은 인장의 문서',
+      subtitle: '봉인된 문서의 행방을 추적하는 기록 수사',
+      object: '붉은 인장의 문서',
+      victim: '기록 보관자',
+      caseType: '문서 은닉 사건'
+    };
+  }
+  return {
+    title: '검은 봉투',
+    subtitle: '사라진 증언과 남겨진 봉투를 맞추는 골목 수사',
+    object: '검은 봉투',
+    victim: '익명의 제보자',
+    caseType: '증언 은폐 사건'
+  };
 }
 
 function suggestedDraftEra(draft) {
@@ -1549,7 +1846,178 @@ function suggestedDraftEra(draft) {
   return '현대에 남은 오래된 기록';
 }
 
+function sourceCandidateForMission(mission) {
+  const orderIndex = Math.max(0, Number(mission?.order || 1) - 1);
+  return normalizeCandidate(orderedSelectedCandidates.value[orderIndex] || {
+    title: mission?.placeName,
+    address: mission?.address,
+    latitude: mission?.latitude,
+    longitude: mission?.longitude,
+    description: mission?.groundRule || mission?.storyText
+  });
+}
+
+function primaryKeyword(source, mission) {
+  const keywords = [
+    ...(Array.isArray(source.keywords) ? source.keywords : []),
+    source.title,
+    mission?.rewardClue,
+    mission?.placeName
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  return keywords.find((value) => value.length >= 2 && value.length <= 12) || '기록';
+}
+
+function puzzleTypeForSource(source, role, index) {
+  const numbers = Array.isArray(source.numbers) ? source.numbers.filter(Boolean) : [];
+  if (numbers.length) return 'NUMBER_LOCK';
+  if (String(role).includes('ANSWER')) return index % 2 === 0 ? 'OBSERVATION' : 'INITIAL_SOUND';
+  if (String(role).includes('DESTINATION')) return 'PATTERN';
+  if (String(role).includes('FINAL')) return 'STORY_COMBINATION';
+  return 'OBSERVATION';
+}
+
+function answerForSource(source, puzzleType, keyword) {
+  const numbers = Array.isArray(source.numbers) ? source.numbers.filter(Boolean) : [];
+  if (puzzleType === 'NUMBER_LOCK' && numbers.length) return String(numbers[0]);
+  return keyword;
+}
+
+function rewardClueForRole(role, index) {
+  const motif = inferCaseMotif(draftResult.value?.draft);
+  const answerClues = motif.object.includes('필름')
+    ? ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨']
+    : motif.object.includes('문서')
+      ? ['붉은 인장', '접힌 흔적', '사라진 서명', '봉인 끈']
+      : ['검은 봉투', '젖은 모서리', '지워진 이름', '접힌 증언'];
+  const destinationClues = ['낮은 담장', '조용한 문', '굽은 골목'];
+  const storyClues = ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표'];
+  if (String(role).includes('ANSWER')) return answerClues[index % answerClues.length];
+  if (String(role).includes('DESTINATION') || String(role).includes('FINAL')) return destinationClues[index % destinationClues.length];
+  if (String(role).includes('START')) return '첫 기록';
+  return storyClues[index % storyClues.length];
+}
+
+function storyTextForMission(mission, role, keyword) {
+  const motif = inferCaseMotif(draftResult.value?.draft);
+  if (mission.finalPlace || String(role).includes('FINAL')) {
+    return sanitizeFinalPlaceStory(mission.storyText);
+  }
+  if (String(role).includes('START')) {
+    return `기록수사관은 ${mission.placeName}에서 ${motif.caseType}의 첫 봉투를 연다. ${motif.victim}가 남긴 동선표에는 ${keyword}라는 표시만 짧게 남아 있다.`;
+  }
+  if (String(role).includes('ANSWER')) {
+    return `${mission.placeName}에는 ${motif.object}의 정체를 좁히는 물성 단서가 숨어 있다. 현장 메모의 ${keyword}를 사건파일의 증거 카드와 대조하라.`;
+  }
+  if (String(role).includes('DESTINATION')) {
+    return `${mission.placeName}의 주변 분위기는 마지막으로 향할 장소를 직접 말하지 않고 좁혀 준다. 장소명보다 문, 벽, 길의 느낌을 목적지 힌트와 비교하라.`;
+  }
+  return `${mission.placeName}은 용의자의 진술을 흔드는 배경 단서다. 이곳에서 얻은 메모는 누가 거짓말을 했는지 판단하는 보조 자료가 된다.`;
+}
+
+function sanitizeFinalPlaceStory(storyText) {
+  const value = String(storyText || '').trim();
+  const forbidden = ['최종 장소', '최종장소', '최종 목적지', '최종목적지', '정답 장소', '정답장소', '최종 추리', '마지막 장소'];
+  if (!value || forbidden.some((word) => value.includes(word))) {
+    return '이곳에는 여러 동선이 겹친 흔적이 남아 있다. 현장에서는 주변 분위기와 사건 메모만 확인하고, 단서 보드의 목적지 힌트와 조용히 비교하라.';
+  }
+  return value;
+}
+
+function questionForMission(mission, source, keyword) {
+  const clue = mission.rewardClue || rewardClueForRole(mission.clueRole || mission.markerType, Number(mission.order || 1) - 1);
+  const numbers = Array.isArray(source.numbers) ? source.numbers.filter(Boolean) : [];
+  if (mission.puzzleType === 'NUMBER_LOCK' && numbers.length) {
+    return `관리자 메모에 기록된 숫자 중 사건 기록과 연결된 숫자를 입력하라. 이 숫자는 '${clue}' 단서를 해금한다.`;
+  }
+  if (mission.puzzleType === 'INITIAL_SOUND') {
+    return `사건 메모에 남은 초성 단서가 가리키는 키워드를 입력하라. 장소명 글자 추출이 아니라 관리자 검수 키워드를 기준으로 한다.`;
+  }
+  if (mission.puzzleType === 'PATTERN') {
+    return `이 장소의 분위기와 목적지 힌트를 비교해 단서 보드에 붙일 키워드를 입력하라.`;
+  }
+  if (mission.puzzleType === 'STORY_COMBINATION') {
+    return `지금까지 모은 단서와 이 장소의 기록을 조합해 사건파일에 붙일 핵심 단어를 입력하라.`;
+  }
+  return `현장에서 확인 가능한 요소 중 사건 메모의 핵심 키워드와 연결되는 단어를 입력하라.`;
+}
+
+function groundRuleForMission(source) {
+  const elements = Array.isArray(source.visibleElements) ? source.visibleElements.filter(Boolean).join(', ') : '';
+  const numbers = Array.isArray(source.numbers) ? source.numbers.filter(Boolean).join(', ') : '';
+  const memo = source.adminMemo || source.description || '관리자 현장 메모가 필요합니다.';
+  return `관리자 입력/후보 정보 기반 검수용 초안입니다. 관찰 요소: ${elements || '검수 필요'} / 숫자: ${numbers || '없음'} / 메모: ${memo}`;
+}
+
+function hintsForMission(mission, keyword) {
+  if (mission.puzzleType === 'NUMBER_LOCK') {
+    return ['관리자 메모에 적힌 숫자 후보를 먼저 확인하세요.', '사건 시간표나 기록 순서와 연결되는 숫자 하나만 사용합니다.', '정답은 현장 검수로 확인된 숫자 후보 중 하나입니다.'];
+  }
+  return [
+    '장소명 글자를 뽑지 말고 현장 메모의 관찰 요소를 먼저 확인하세요.',
+    `이 문제는 ${keyword}와 연결된 사건 카드의 의미를 찾는 문제입니다.`,
+    '단서 보드에 붙일 단어를 고른다고 생각하면 됩니다.'
+  ];
+}
+
+function evidenceTypeForRole(role) {
+  if (String(role).includes('ANSWER')) return 'ANSWER_CLUE';
+  if (String(role).includes('DESTINATION') || String(role).includes('FINAL')) return 'DESTINATION_CLUE';
+  if (String(role).includes('START')) return 'PHOTO';
+  return 'STORY_CLUE';
+}
+
+function evidenceSummaryForMission(mission) {
+  const clue = mission.rewardClue || '미확인 단서';
+  const place = mission.placeName || '조사 지점';
+  if (mission.finalPlace) return '여러 목적지 단서가 겹치는 장소의 분위기 카드입니다. 실제 최종 장소 여부는 플레이 중 직접 판단해야 합니다.';
+  const role = mission.clueRole || mission.markerType || '';
+  if (String(role).includes('ANSWER')) return `${place}에서 얻는 '${clue}' 단서는 최종 정답의 형태를 좁히는 증거입니다. 장소명 글자 추출이 아니라 현장 메모와 연결해 해석하세요.`;
+  if (String(role).includes('DESTINATION')) return `${place}에서 얻는 '${clue}' 단서는 마지막으로 향해야 할 장소의 분위기와 방향을 좁히는 자료입니다.`;
+  if (String(role).includes('START')) return `${place}에서 사건파일을 개봉하며 첫 조사 목표와 단서 분류 기준을 확인합니다.`;
+  return `${place}에서 확인한 배경 단서입니다. 범행 동기와 용의자 관계를 해석하는 보조 자료로 사용하세요.`;
+}
+
+function evidenceTitleForMission(mission, type) {
+  const clue = mission.rewardClue || mission.placeName || '미확인 단서';
+  if (type === 'ANSWER_CLUE') return `${clue} 증거 카드`;
+  if (type === 'DESTINATION_CLUE') return `${clue} 목적지 메모`;
+  if (type === 'PHOTO') return `${mission.placeName || '첫 현장'} 현장 사진`;
+  if (type === 'STORY_CLUE') return `${clue} 조사 노트`;
+  return `${clue} 사건자료`;
+}
+
+function missionRoleLabel(mission) {
+  if (mission?.finalPlace || mission?.markerType === 'FINAL') return '내부 최종 장소';
+  const role = String(mission?.clueRole || mission?.markerType || '');
+  if (role.includes('START')) return '시작 장소';
+  if (role.includes('ANSWER')) return '정답 힌트';
+  if (role.includes('DESTINATION')) return '목적지 힌트';
+  if (role.includes('STORY')) return '스토리 단서';
+  return '조사 후보';
+}
+
+function puzzleTypeLabel(type) {
+  return {
+    OBSERVATION: '관찰형',
+    NUMBER_LOCK: '숫자 암호',
+    INITIAL_SOUND: '초성/언어',
+    PATTERN: '패턴 추론',
+    STORY_COMBINATION: '스토리 조합'
+  }[type] || '퍼즐 미정';
+}
+
+function missionReadinessLabel(mission) {
+  if (!mission?.questionText || !mission?.answer) return '문제 보강 필요';
+  if (mission.answer === '검수필요') return '현장 검수 필요';
+  if (!Array.isArray(mission.hints) || mission.hints.length < 3) return '힌트 보강 필요';
+  return '초안 준비';
+}
+
 function ensureDraftIllustrationCards(draft) {
+  draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
+  draft.suspects.forEach((suspect) => {
+    suspect.portraitImageUrl = suspect.portraitImageUrl || generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint);
+  });
   draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
   const hasPhoto = draft.evidences.some((evidence) => evidence.type === 'PHOTO');
   if (!hasPhoto) {
@@ -1562,8 +2030,126 @@ function ensureDraftIllustrationCards(draft) {
     });
   }
   draft.evidences.forEach((evidence) => {
+    evidence.type = safeEvidenceType(evidence.type);
     evidence.imageUrl = evidence.imageUrl || generatedEvidenceCardDataUrl(evidence.title, evidence.type);
   });
+}
+
+function strengthenCaseMaterials(draft) {
+  if (!draft) return;
+  const missions = Array.isArray(draft.missions) ? draft.missions : [];
+  const finalAnswerType = draft.finalAnswerType || 'EVIDENCE';
+  const suspectSeeds = [
+    {
+      alias: '용의자 A',
+      displayName: '붉은 우산의 의뢰인',
+      relation: '사건 의뢰를 가장 먼저 전달한 인물',
+      suspicion: '현장 사진이 사라진 시간대에 조사 경로 근처에서 반복적으로 목격되었다.',
+      alibi: '비가 오기 전 카페 골목에 있었다고 주장하지만, 목적지 힌트와 동선이 일부 겹친다.'
+    },
+    {
+      alias: '용의자 B',
+      displayName: '잃어버린 필름의 조수',
+      relation: '피해자의 기록 정리를 맡았던 조수',
+      suspicion: '사진과 메모의 순서를 알고 있어 단서를 바꿔치기할 수 있는 위치에 있었다.',
+      alibi: '자료실에 있었다고 말하지만, 정답 힌트 단서 중 하나가 그의 진술과 충돌한다.'
+    },
+    {
+      alias: '용의자 C',
+      displayName: '회색 봉투의 전달자',
+      relation: '마지막 문서를 전달한 익명의 중개인',
+      suspicion: '목적지 힌트 두 개가 모두 이 인물의 이동 방향을 가리킨다.',
+      alibi: '봉투만 전달했을 뿐이라고 주장하지만, 봉투 안쪽에 사건의 핵심 단어가 남아 있다.'
+    }
+  ];
+  draft.suspects = suspectSeeds.map((seed, index) => {
+    const current = draft.suspects?.[index] || {};
+    const displayName = isWeakText(current.displayName) ? seed.displayName : current.displayName;
+    return {
+      ...current,
+      alias: isWeakText(current.alias) ? seed.alias : current.alias,
+      displayName,
+      shortDescription: `${displayName}은 ${finalAnswerTypeLabel(finalAnswerType)}와 연결될 가능성이 있는 가상 용의자입니다.`,
+      relationToVictim: seed.relation,
+      suspiciousPoint: isWeakText(current.suspiciousPoint) ? seed.suspicion : current.suspiciousPoint,
+      alibiSummary: isWeakText(current.alibiSummary) ? seed.alibi : current.alibiSummary,
+      portraitImageUrl: current.portraitImageUrl || generatedSuspectPortraitDataUrl(displayName, seed.alias, seed.suspicion)
+    };
+  });
+  const evidenceByOrder = new Map((draft.evidences || []).map((evidence) => [Number(evidence.sourceMissionOrder || 0), evidence]));
+  draft.evidences = missions.map((mission, index) => {
+    const order = Number(mission.order || index + 1);
+    const type = safeEvidenceType(evidenceTypeForRole(mission.clueRole || mission.markerType));
+    const current = evidenceByOrder.get(order) || {};
+    const title = isWeakText(current.title) ? evidenceTitleForMission(mission, type) : current.title;
+    const textSummary = isWeakText(current.textSummary) ? evidenceSummaryForMission(mission) : current.textSummary;
+    return {
+      ...current,
+      title,
+      type,
+      textSummary,
+      sourceMissionOrder: order,
+      imageUrl: current.imageUrl || generatedEvidenceCardDataUrl(title, type)
+    };
+  });
+}
+
+function isWeakText(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  return ['AI 초안', 'placeholder', '검수', '운영 공개 전', '관리자 검수', '사건 현장 스케치', '조사 시작 단서 카드', '초안입니다', '알리바이'].some((word) => text.includes(word));
+}
+
+function finalAnswerTypeLabel(type) {
+  return {
+    CULPRIT: '진범',
+    WEAPON: '흉기',
+    EVIDENCE: '핵심 증거',
+    HIDDEN_DOCUMENT: '숨겨진 문서',
+    SECRET_KEYWORD: '비밀 키워드',
+    HIDDEN_TRUTH: '숨겨진 진실'
+  }[type] || '사건의 핵심 진실';
+}
+
+function safeEvidenceType(type) {
+  const normalized = String(type || 'NOTE').toUpperCase();
+  const allowed = ['PHOTO', 'MEMO', 'NOTE', 'DOCUMENT', 'EVIDENCE', 'SUSPECT_CLUE', 'POST_IT', 'ANSWER_CLUE', 'DESTINATION_CLUE', 'STORY_CLUE'];
+  if (allowed.includes(normalized)) return normalized;
+  if (['IMAGE', 'PICTURE', 'SCENE'].includes(normalized)) return 'PHOTO';
+  return 'NOTE';
+}
+
+function safePublicMarkerType(type, mission) {
+  const normalized = String(type || '').toUpperCase();
+  if (mission?.finalPlace || mission?.markerType === 'FINAL' || normalized === 'FINAL') return 'FINAL_CANDIDATE';
+  return ['START', 'ANSWER_HINT', 'DESTINATION_HINT', 'STORY', 'FINAL_CANDIDATE'].includes(normalized)
+    ? normalized
+    : String(mission?.markerType || 'STORY').replace('FINAL', 'FINAL_CANDIDATE');
+}
+
+function generatedSuspectPortraitDataUrl(name = '용의자', alias = 'SUSPECT', seedText = '') {
+  const hash = hashString(`${name}-${alias}-${seedText}`);
+  const skin = ['#f2c6a0', '#d9a77e', '#c68b6b', '#e4b98f'][hash % 4];
+  const shirt = ['#93c5fd', '#86efac', '#fca5a5', '#c4b5fd', '#fde68a'][hash % 5];
+  const hair = ['#111827', '#292524', '#3f3f46'][hash % 3];
+  const safeName = escapeXml(name || '용의자');
+  const safeAlias = escapeXml(alias || 'SUSPECT');
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="520" height="680" viewBox="0 0 520 680">
+      <rect width="520" height="680" fill="#f8ead0"/>
+      <rect x="36" y="36" width="448" height="608" fill="#fff7ed" stroke="#94a3b8" stroke-width="3"/>
+      <text x="66" y="86" fill="#111827" font-family="Arial" font-size="34" font-weight="900">용의자 정보</text>
+      <text x="66" y="120" fill="#7c2d12" font-family="Arial" font-size="20" font-weight="900">${safeAlias}</text>
+      <rect x="86" y="144" width="348" height="330" fill="#e2e8f0" stroke="#475569" stroke-width="4"/>
+      <circle cx="260" cy="268" r="78" fill="${skin}"/>
+      <path d="M180 258 C176 170, 340 160, 340 260 C300 222, 236 240, 180 258Z" fill="${hair}"/>
+      <circle cx="232" cy="280" r="7" fill="#111827"/><circle cx="288" cy="280" r="7" fill="#111827"/>
+      <path d="M236 326 C254 342, 280 342, 298 326" fill="none" stroke="#7f1d1d" stroke-width="6" stroke-linecap="round"/>
+      <path d="M126 454 C150 380, 204 350, 260 350 C318 350, 372 382, 396 454" fill="${shirt}"/>
+      <path d="M122 526 H398 M122 570 H322" stroke="#94a3b8" stroke-width="10" stroke-linecap="round"/>
+      <text x="122" y="626" fill="#111827" font-family="Arial" font-size="28" font-weight="900">${safeName}</text>
+    </svg>`;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
 function syncDraftMissionRole(mission) {
@@ -1732,6 +2318,7 @@ async function loadPlaceCandidates() {
   nearbyCandidates.value = [];
   nearbyLoaded.value = false;
   selectedCandidates.value = [];
+  siteDataEnriched.value = false;
   try {
     const candidates = await adminEpisodeApi.getPlaceCandidates(candidateAreaCode.value);
     placeCandidates.value = candidates.map(normalizeCandidate);
@@ -1757,6 +2344,7 @@ async function loadNearbyCandidates(candidate) {
   nearbyLoading.value = true;
   nearbyLoaded.value = false;
   selectedCandidates.value = [normalizedAnchor];
+  siteDataEnriched.value = false;
   try {
     const nearby = await adminEpisodeApi.getNearbyPlaceCandidates({
       lat: normalizedAnchor.latitude,
@@ -1817,6 +2405,7 @@ function addManualCandidate() {
   if (selectedCandidates.value.length < 9) {
     selectedCandidates.value = [...selectedCandidates.value, normalizedCandidate];
   }
+  siteDataEnriched.value = false;
   manualCandidate.value = { title: '', address: '', latitude: '', longitude: '', description: '' };
   setMessage('수동 후보가 추가되었습니다. 운영 공개 전 현장 검수를 진행하세요.');
 }
@@ -1901,6 +2490,7 @@ function rerollRecommendedRoute() {
       return (candidateRouteScore(b, anchor) + bSelectedPenalty) - (candidateRouteScore(a, anchor) + aSelectedPenalty);
     });
   selectedCandidates.value = [...pool.slice(0, 8), anchor].slice(0, 9);
+  siteDataEnriched.value = false;
   applyCandidatesToDraft(false);
   setMessage('\uCD94\uCC9C \uB8E8\uD2B8\uB97C \uB2E4\uC2DC \uAD6C\uC131\uD588\uC2B5\uB2C8\uB2E4. \uD544\uC694\uD558\uBA74 \uD6C4\uBCF4\uBCC4 \uAD50\uCCB4 \uBC84\uD2BC\uC73C\uB85C \uB354 \uC870\uC815\uD558\uC138\uC694.', 'success');
 }
@@ -1922,6 +2512,7 @@ function replaceSelectedCandidate(candidate) {
     return;
   }
   selectedCandidates.value = selectedCandidates.value.map((item) => candidateKey(item) === oldKey ? replacement : item);
+  siteDataEnriched.value = false;
   applyCandidatesToDraft(false);
   setMessage('\uD6C4\uBCF4\uB97C ' + replacement.title + '\uB85C \uAD50\uCCB4\uD588\uC2B5\uB2C8\uB2E4.', 'success');
 }
@@ -1939,6 +2530,7 @@ function toggleCandidate(candidate) {
   }
   if (isCandidateSelected(candidate)) {
     selectedCandidates.value = selectedCandidates.value.filter((item) => candidateKey(item) !== key);
+    siteDataEnriched.value = false;
     return;
   }
   if (!hasCandidateCoordinate(normalizedCandidate)) {
@@ -1950,6 +2542,7 @@ function toggleCandidate(candidate) {
     return;
   }
   selectedCandidates.value = [...selectedCandidates.value, normalizedCandidate];
+  siteDataEnriched.value = false;
 }
 
 function applyCandidatesToDraft(showMessage = true) {
@@ -2021,7 +2614,7 @@ function roleLabel(role) {
     ANSWER_HINT: '정답 힌트',
     DESTINATION_HINT: '목적지 힌트',
     STORY: '스토리 단서',
-    FINAL_CANDIDATE: '조사 후보',
+    FINAL_CANDIDATE: '조사 지점',
     FINAL: '내부 최종 장소'
   }[role] || role;
 }
@@ -2092,6 +2685,10 @@ h2, h3 { margin: 0 0 10px; }
 .draft-feedback-panel li span { margin-right: 6px; color: #bfdbfe; font-weight: 900; }
 .draft-feedback-panel li em { margin-right: 6px; color: #cbd5e1; font-style: normal; }
 .draft-feedback-panel small { display: block; margin-top: 8px; color: #cbd5e1; }
+.case-builder-next { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; padding: 14px; border: 1px solid rgba(245,158,11,.32); border-radius: 16px; background: linear-gradient(135deg, rgba(120,53,15,.26), rgba(15,23,42,.72)); }
+.case-builder-next strong { color: #fde68a; font-size: 1rem; }
+.case-builder-next p { margin: 5px 0 0; color: #e2e8f0; line-height: 1.5; font-size: .88rem; }
+.case-builder-next button { flex: 0 0 auto; }
 .eyebrow { margin: 0 0 4px; color: #f59e0b !important; font-weight: 900; letter-spacing: .14em; font-size: .72rem; }
 .detail-head { display: flex; justify-content: space-between; gap: 12px; }
 .detail-head p { margin: 0 0 5px; color: #f59e0b; font-weight: 900; letter-spacing: .12em; font-size: .72rem; }
@@ -2197,6 +2794,8 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .draft-mission-card.final { border-color: rgba(248,113,113,.55); }
 .draft-card-summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; list-style: none; }
 .draft-card-summary::-webkit-details-marker { display: none; }
+.draft-mission-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+.draft-mission-tags span { border: 1px solid rgba(148,163,184,.2); border-radius: 999px; padding: 4px 8px; color: #dbeafe; background: rgba(30,41,59,.7); font-size: .75rem; font-weight: 800; }
 .draft-card-summary span { display: grid; gap: 4px; min-width: 0; }
 .draft-card-summary strong { color: #fff7ed; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draft-card-summary small { color: #93c5fd; font-weight: 800; font-size: .76rem; }
@@ -2210,6 +2809,7 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .hint-edit-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 .hint-edit-list label, .draft-edit-block .mini-grid label { display: grid; gap: 6px; color: #cbd5e1; font-size: .8rem; font-weight: 800; }
 .draft-evidence-image { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 12px; border: 1px solid rgba(245,158,11,.25); background: rgba(2,6,23,.5); }
+.draft-suspect-image { width: min(100%, 180px); aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; border: 1px solid rgba(245,158,11,.25); background: rgba(2,6,23,.5); }
 .validation-panel { margin: 12px 0; padding: 14px; border: 1px solid rgba(34,197,94,.35); border-radius: 14px; background: rgba(22,101,52,.16); }
 .validation-panel.invalid { border-color: rgba(248,113,113,.5); background: rgba(127,29,29,.18); color: inherit; font-weight: inherit; }
 .validation-panel ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 7px; }
@@ -2262,3 +2862,4 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .reward { opacity: .82; }
 @media (max-width: 860px) { .admin-hero, .layout { display: block; } .hero-actions { margin-top: 12px; } .detail-panel { margin-top: 14px; } .stat-grid, .mini-grid, .edit-grid, .candidate-grid, .manual-grid, .hint-edit-list, .creation-flow, .preview-grid, .ai-mode-grid, .draft-step-list { grid-template-columns: 1fr; } .selection-summary, .draft-actions-helper { display: grid; } .selected-route li { grid-template-columns: 24px 1fr; } .selected-route li > span { grid-column: 2; justify-self: start; } }
 </style>
+

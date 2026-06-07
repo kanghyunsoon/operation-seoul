@@ -811,9 +811,13 @@ public class AdminEpisodeService {
                 .suspectId(suspect.getId())
                 .displayName(suspect.getDisplayName())
                 .alias(suspect.getAlias())
+                .shortDescription(suspect.getShortDescription())
+                .portraitImageUrl(suspect.getPortraitImageUrl())
                 .relationToVictim(suspect.getRelationToVictim())
                 .suspiciousPoint(suspect.getSuspiciousPoint())
+                .alibiSummary(suspect.getAlibiSummary())
                 .unlockedByDefault(suspect.getUnlockedByDefault())
+                .displayOrder(suspect.getDisplayOrder())
                 .build();
     }
 
@@ -822,10 +826,13 @@ public class AdminEpisodeService {
                 .evidenceId(evidence.getId())
                 .title(evidence.getTitle())
                 .type(evidence.getType())
+                .imageUrl(evidence.getImageUrl())
+                .textSummary(evidence.getTextSummary())
                 .sourceSpotId(evidence.getSourceSpotId())
                 .relatedSuspectId(evidence.getRelatedSuspectId())
                 .relatedClueType(evidence.getRelatedClueType())
                 .unlockedByDefault(evidence.getUnlockedByDefault())
+                .displayOrder(evidence.getDisplayOrder())
                 .build();
     }
 
@@ -844,9 +851,30 @@ public class AdminEpisodeService {
     private List<CaseSuspect> saveDraftSuspects(Long episodeId, List<AiEpisodeDraftResponse.SuspectDraft> drafts) {
         List<AiEpisodeDraftResponse.SuspectDraft> source = drafts == null || drafts.isEmpty()
                 ? List.of(
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("용의자 A").displayName("붉은 장갑의 목격자").suspiciousPoint("현장 인근에서 목격됨").build(),
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("용의자 B").displayName("사라진 조수").suspiciousPoint("기록 보관 경로를 알고 있음").build(),
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("용의자 C").displayName("검은 외투의 전달자").suspiciousPoint("목적지 힌트와 연결됨").build())
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("용의자 A")
+                        .displayName("붉은 우산의 의뢰인")
+                        .shortDescription("사건 의뢰를 가장 먼저 남겼지만 자신의 행적은 끝까지 숨기는 인물입니다.")
+                        .relationToVictim("피해자에게 마지막 촬영 의뢰를 맡긴 사람")
+                        .suspiciousPoint("사건 당일 동선 기록이 일부 비어 있습니다.")
+                        .alibiSummary("비가 오기 전까지 현장 근처 카페에 있었다고 주장합니다.")
+                        .build(),
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("용의자 B")
+                        .displayName("사라진 필름 보관자")
+                        .shortDescription("피해자의 필름과 장비를 관리하던 조력자입니다.")
+                        .relationToVictim("사진 기록을 함께 정리하던 보관 담당자")
+                        .suspiciousPoint("사라진 필름의 보관 위치를 알고 있었습니다.")
+                        .alibiSummary("필름 정리실에 있었다고 말하지만 확인 가능한 목격자가 없습니다.")
+                        .build(),
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("용의자 C")
+                        .displayName("검은 봉투의 전달자")
+                        .shortDescription("현장 주변 상권을 돌며 봉투 하나를 전달하던 인물입니다.")
+                        .relationToVictim("피해자에게 익명의 자료를 넘긴 전달자")
+                        .suspiciousPoint("최종 목적지 힌트와 연결되는 봉투를 갖고 있었습니다.")
+                        .alibiSummary("배달 동선과 실제 목격 시간이 서로 어긋납니다.")
+                        .build())
                 : drafts;
         List<CaseSuspect> saved = new ArrayList<>();
         for (int i = 0; i < source.size(); i++) {
@@ -854,11 +882,11 @@ public class AdminEpisodeService {
             CaseSuspect suspect = new CaseSuspect();
             suspect.setEpisodeId(episodeId);
             suspect.setAlias(blank(draft.getAlias(), "용의자 " + (i + 1)));
-            suspect.setDisplayName(blank(draft.getDisplayName(), "검수 필요 인물"));
-            suspect.setShortDescription("AI 초안 기반 용의자 카드입니다. 운영 공개 전 실제 인물과 혼동되지 않게 검수하세요.");
-            suspect.setRelationToVictim("픽션 사건 관계");
-            suspect.setSuspiciousPoint(draft.getSuspiciousPoint());
-            suspect.setAlibiSummary("관리자 검수 후 입력");
+            suspect.setDisplayName(blank(draft.getDisplayName(), "이름 없는 관계자"));
+            suspect.setShortDescription(blank(draft.getShortDescription(), "사건의 동기와 단서 흐름을 흔드는 핵심 관계자입니다."));
+            suspect.setRelationToVictim(blank(draft.getRelationToVictim(), "피해자 또는 사건 자료와 연결된 인물"));
+            suspect.setSuspiciousPoint(blank(draft.getSuspiciousPoint(), "사건 당일 행적에 설명되지 않는 공백이 있습니다."));
+            suspect.setAlibiSummary(blank(draft.getAlibiSummary(), "본인의 알리바이를 주장하지만 단서와 대조가 필요합니다."));
             suspect.setUnlockedByDefault(i == 0);
             suspect.setDisplayOrder(i + 1);
             adminEpisodeRepository.insertSuspect(suspect);
@@ -876,10 +904,10 @@ public class AdminEpisodeService {
             MissionSpot spot = spotByOrder.get(missionOrder);
             CaseEvidence evidence = new CaseEvidence();
             evidence.setEpisodeId(episodeId);
-            evidence.setTitle(blank(draft.getTitle(), "검수 필요 자료 " + (i + 1)));
+            evidence.setTitle(blank(draft.getTitle(), "사건 자료 " + (i + 1)));
             evidence.setType(validateValue(blank(draft.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "지원하지 않는 증거 타입입니다."));
             evidence.setImageUrl(safeDraftImageUrl(draft.getImageUrl(), evidence.getTitle(), evidence.getType()));
-            evidence.setTextSummary(blank(draft.getTextSummary(), "AI 초안 기반 사건자료입니다. 운영 공개 전 현장 검수 필요."));
+            evidence.setTextSummary(blank(draft.getTextSummary(), "수집한 현장 단서를 조합해 최종 질문에 접근하게 하는 사건 자료입니다."));
             evidence.setSourceSpotId(spot == null ? null : spot.getId());
             evidence.setRelatedSuspectId(suspects.isEmpty() ? null : suspects.get(Math.min(i, suspects.size() - 1)).getId());
             evidence.setRelatedClueType(evidence.getType());
@@ -890,7 +918,6 @@ public class AdminEpisodeService {
         }
         return saved;
     }
-
     private void applyDraftRewardPayloads(Long episodeId, List<AiEpisodeDraftResponse.MissionDraft> missions, Map<Integer, Puzzle> puzzleByOrder, Map<Integer, CaseEvidence> evidenceByMissionOrder) {
         for (int i = 0; i < missions.size(); i++) {
             AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);

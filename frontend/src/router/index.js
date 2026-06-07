@@ -52,7 +52,7 @@ router.beforeEach(async (to) => {
     }
   }
   if (to.name === 'Intro' && sessionStore.isLoggedIn) {
-    return { name: 'EpisodeList' };
+    return { name: sessionStore.isAdmin ? 'AdminEpisodes' : 'EpisodeList' };
   }
   return true;
 });
