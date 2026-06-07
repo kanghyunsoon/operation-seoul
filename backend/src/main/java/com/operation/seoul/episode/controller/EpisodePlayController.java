@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -23,8 +24,8 @@ public class EpisodePlayController {
     private final CurrentUserResolver currentUserResolver;
 
     @GetMapping("/episodes")
-    public ResponseEntity<ApiResponse<List<EpisodeListItemResponse>>> getEpisodes() {
-        return ResponseEntity.ok(ApiResponse.ok("에피소드 목록입니다.", episodePlayService.getEpisodes(currentUserResolver.requireCurrentUser())));
+    public ResponseEntity<ApiResponse<List<EpisodeListItemResponse>>> getEpisodes(@RequestParam(required = false) String areaCode) {
+        return ResponseEntity.ok(ApiResponse.ok("에피소드 목록입니다.", episodePlayService.getEpisodes(currentUserResolver.requireCurrentUser(), areaCode)));
     }
 
     @GetMapping("/episodes/{episodeId}")
@@ -45,6 +46,12 @@ public class EpisodePlayController {
     @PostMapping("/episodes/{episodeId}/spots/{spotId}/arrive")
     public ResponseEntity<ApiResponse<ArriveResponse>> arrive(@PathVariable Long episodeId, @PathVariable Long spotId, @RequestBody ArriveRequest request) {
         ArriveResponse response = episodePlayService.arrive(episodeId, spotId, request, currentUserResolver.requireCurrentUser());
+        return ResponseEntity.ok(ApiResponse.ok(response.getMessage(), response));
+    }
+
+    @PostMapping("/episodes/{episodeId}/final-arrive")
+    public ResponseEntity<ApiResponse<ArriveResponse>> arriveFinalPlace(@PathVariable Long episodeId, @RequestBody ArriveRequest request) {
+        ArriveResponse response = episodePlayService.arriveFinalPlace(episodeId, request, currentUserResolver.requireCurrentUser());
         return ResponseEntity.ok(ApiResponse.ok(response.getMessage(), response));
     }
 

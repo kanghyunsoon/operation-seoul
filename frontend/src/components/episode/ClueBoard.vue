@@ -7,21 +7,25 @@
       </div>
       <button type="button" @click="$emit('close')">닫기</button>
     </header>
+
     <section>
       <h3>정답 힌트 <span>{{ board?.answerClueCount || 0 }}/4</span></h3>
-      <ul><li v-for="clue in board?.answerClues || []" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!(board?.answerClues || []).length" class="empty">최종 정답을 추론할 단서가 없습니다.</p>
+      <ul><li v-for="clue in displayClues(board?.answerClues, 'answer')" :key="clue">{{ clue }}</li></ul>
+      <p v-if="!(board?.answerClues || []).length" class="empty">최종 정답의 형태를 좁히는 단서가 아직 없습니다.</p>
     </section>
+
     <section>
       <h3>목적지 힌트 <span>{{ board?.destinationClueCount || 0 }}/2</span></h3>
-      <ul><li v-for="clue in board?.destinationClues || []" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!(board?.destinationClues || []).length" class="empty">최종 장소를 추리할 단서가 없습니다.</p>
+      <ul><li v-for="clue in displayClues(board?.destinationClues, 'destination')" :key="clue">{{ clue }}</li></ul>
+      <p v-if="!(board?.destinationClues || []).length" class="empty">조사해야 할 장소의 분위기와 방향을 좁히는 단서가 아직 없습니다.</p>
     </section>
+
     <section>
       <h3>스토리 단서</h3>
-      <ul><li v-for="clue in board?.storyClues || []" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!(board?.storyClues || []).length" class="empty">보조 단서가 없습니다.</p>
+      <ul><li v-for="clue in displayClues(board?.storyClues, 'story')" :key="clue">{{ clue }}</li></ul>
+      <p v-if="!(board?.storyClues || []).length" class="empty">용의자 진술과 사건 배경을 해석할 보조 단서가 아직 없습니다.</p>
     </section>
+
     <section>
       <h3>사건파일 해금</h3>
       <p class="empty">증거 {{ board?.unlockedEvidenceIds?.length || 0 }}개 · 용의자 {{ board?.unlockedSuspectIds?.length || 0 }}명</p>
@@ -32,6 +36,21 @@
 <script setup>
 defineProps({ board: { type: Object, default: null }, open: { type: Boolean, default: false } });
 defineEmits(['close']);
+
+function displayClues(clues = [], kind) {
+  return (clues || []).map((clue, index) => humanizeClue(clue, kind, index));
+}
+
+function humanizeClue(value, kind, index) {
+  const text = String(value || '').trim();
+  if (!/^(answer|destination|story)-clue-\d+$/i.test(text)) return text;
+  const fallback = {
+    answer: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
+    destination: ['낮은 담장', '조용한 문', '굽은 골목'],
+    story: ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표']
+  };
+  return fallback[kind]?.[index % fallback[kind].length] || '미분류 단서';
+}
 </script>
 
 <style scoped>
@@ -47,5 +66,5 @@ h3 { display: flex; justify-content: space-between; margin: 0 0 8px; font-size: 
 span { color: #9a3412; }
 ul { display: grid; gap: 7px; margin: 0; padding-left: 18px; }
 li { line-height: 1.45; font-weight: 750; }
-.empty { color: #78716c; font-size: .84rem; }
+.empty { color: #78716c; font-size: .84rem; line-height: 1.5; }
 </style>

@@ -19,11 +19,11 @@
       {{ arrivalResult.canStartDeduction ? '이 장소에서 최종 추리를 시작할 수 있습니다. 수집한 단서를 먼저 확인하세요.' : arrivalResult.message }}
     </div>
     <p v-else-if="spot.publicMarkerType === 'FINAL_CANDIDATE'" class="candidate-note">
-      이 지점은 목적지 단서와 함께 비교해 볼 추가 조사 장소입니다. 단서 보드를 확인하며 이동 여부를 판단하세요.
+      이 지점은 단서와 함께 비교해 볼 조사 지점입니다. 단서 보드와 사건자료를 확인하며 이동 여부를 판단하세요.
     </p>
 
     <div class="actions">
-      <button type="button" class="nav" @click="$emit('navigate', spot)">경로 안내</button>
+      <button type="button" class="nav" @click="$emit('navigate', spot)">지도에 경로 표시</button>
       <button type="button" @click="$emit('arrive', spot)">도착 확인</button>
       <button type="button" :disabled="!spot.visited" @click="$emit('open-puzzle', spot)">퍼즐 열기</button>
       <button type="button" class="deduction" :disabled="!arrivalResult?.canStartDeduction" @click="$emit('start-deduction')">최종 추리</button>
@@ -44,7 +44,7 @@ const roleLabel = (type) => ({
   ANSWER_HINT: '정답 힌트',
   DESTINATION_HINT: '목적지 힌트',
   STORY: '스토리 단서',
-  FINAL_CANDIDATE: '추가 조사'
+  FINAL_CANDIDATE: '조사 지점'
 }[type] || '조사 지점');
 </script>
 

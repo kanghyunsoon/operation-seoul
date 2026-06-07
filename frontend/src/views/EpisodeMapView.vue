@@ -31,7 +31,7 @@
         </div>
 
         <p class="map-caption">
-          모든 조사 장소는 처음부터 표시됩니다. 색상은 단서 역할만 의미하며, 실제 최종 장소 여부는 도착 판정 전까지 공개되지 않습니다.
+          모든 조사 장소는 후보로만 표시됩니다. 색상은 단서 역할만 의미하며, 실제 추리 장소 여부는 서버 내부 판정 전까지 공개되지 않습니다.
         </p>
       </section>
 
@@ -61,6 +61,9 @@
     <button class="floating refresh" type="button" @click="loadAll">갱신</button>
     <button v-if="sessionStore.isAdmin && selectedSpot" class="floating admin-skip" type="button" @click="adminSkipArrival(selectedSpot)">
       관리자 스킵
+    </button>
+    <button class="floating final-check" type="button" @click="arriveAtFinalPlace">
+      추리 장소 확인
     </button>
 
     <PuzzleCard :puzzle="puzzle" :message="puzzleMessage" :correct="puzzleCorrect" @submit="submitPuzzle" />
@@ -105,6 +108,7 @@ const statusType = ref('info');
 const caseFileUpdated = ref(false);
 const showClues = ref(false);
 const arrivalResults = ref({});
+const finalArrivalResult = ref(null);
 const mapLoadFailed = ref(false);
 const mapLoadMessage = ref('');
 
@@ -114,6 +118,7 @@ const markerTypes = ['START', 'ANSWER_HINT', 'DESTINATION_HINT', 'STORY', 'FINAL
 
 let kakaoMap = null;
 let overlays = [];
+let routeLine = null;
 let sdkPromise = null;
 
 onMounted(async () => {
@@ -205,6 +210,10 @@ async function renderMarkers() {
 function clearOverlays() {
   overlays.forEach((overlay) => overlay.setMap(null));
   overlays = [];
+  if (routeLine) {
+    routeLine.setMap(null);
+    routeLine = null;
+  }
 }
 
 function fitMapBounds() {
@@ -223,13 +232,30 @@ function selectSpot(spot) {
 }
 
 function navigateToSpot(spot) {
-  const name = encodeURIComponent(spot.placeName || '목적지');
-  const popup = window.open(`https://map.kakao.com/link/to/${name},${spot.latitude},${spot.longitude}`, '_blank', 'noopener,noreferrer');
-  if (popup) {
-    setStatus('카카오맵 경로 안내를 열었습니다. 새 창에서 도보/대중교통 경로를 확인하세요.', 'info');
-  } else {
-    setStatus('팝업이 차단되어 경로 안내를 열 수 없습니다. 브라우저 팝업 허용 후 다시 시도하세요.', 'error');
+  if (!kakaoMap || !window.kakao?.maps) {
+    setStatus('지도 SDK가 준비되지 않아 앱 안에 경로선을 표시할 수 없습니다. Kakao JavaScript 키와 허용 도메인을 확인하세요.', 'error');
+    return;
   }
+  const maps = window.kakao.maps;
+  if (routeLine) routeLine.setMap(null);
+  const spots = mapData.value?.spots || [];
+  const startSpot = selectedSpot.value || spots[0] || spot;
+  routeLine = new maps.Polyline({
+    path: [
+      new maps.LatLng(startSpot.latitude, startSpot.longitude),
+      new maps.LatLng(spot.latitude, spot.longitude)
+    ],
+    strokeWeight: 6,
+    strokeColor: '#38bdf8',
+    strokeOpacity: 0.88,
+    strokeStyle: 'solid'
+  });
+  routeLine.setMap(kakaoMap);
+  const bounds = new maps.LatLngBounds();
+  bounds.extend(new maps.LatLng(startSpot.latitude, startSpot.longitude));
+  bounds.extend(new maps.LatLng(spot.latitude, spot.longitude));
+  kakaoMap.setBounds(bounds, 48, 48, 48, 48);
+  setStatus('앱 지도 위에 선택 지점까지의 참고 경로선을 표시했습니다. 외부 앱이나 새 페이지는 열지 않습니다.', 'info');
 }
 
 async function arriveAtSpot(spot) {
@@ -242,6 +268,20 @@ async function arriveAtSpot(spot) {
     await loadAll();
   } catch (error) {
     setStatus(error.userMessage || error.message || '도착 판정을 진행할 수 없습니다.', 'error');
+  }
+}
+
+async function arriveAtFinalPlace() {
+  try {
+    const position = await getCurrentPositionForFinalCheck();
+    const result = await episodeApi.arriveFinalPlace(episodeId, { userLat: position.lat, userLng: position.lng, devMode: devArrival });
+    finalArrivalResult.value = result;
+    setStatus(result.message, result.canStartDeduction ? 'success' : 'info');
+    if (result.canStartDeduction) {
+      await loadAll();
+    }
+  } catch (error) {
+    setStatus(error.userMessage || error.message || '추리 장소 확인을 진행할 수 없습니다.', 'error');
   }
 }
 
@@ -288,6 +328,15 @@ function goDeduction() {
 
 async function getPosition(spot) {
   if (devArrival) return { lat: spot.latitude, lng: spot.longitude };
+  return getBrowserPosition();
+}
+
+async function getCurrentPositionForFinalCheck() {
+  if (devArrival) return { lat: 0, lng: 0 };
+  return getBrowserPosition();
+}
+
+function getBrowserPosition() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('현재 브라우저에서 위치 확인을 지원하지 않습니다.'));
@@ -311,7 +360,7 @@ const markerLabel = (type) => ({
   ANSWER_HINT: '정답 힌트',
   DESTINATION_HINT: '목적지 힌트',
   STORY: '스토리 단서',
-  FINAL_CANDIDATE: '추가 조사'
+  FINAL_CANDIDATE: '조사 지점'
 }[type] || '조사 지점');
 
 const shortLabel = (type) => ({ START: 'S', ANSWER_HINT: 'A', DESTINATION_HINT: 'D', STORY: 'T', FINAL_CANDIDATE: '?' }[type] || '?');
@@ -354,7 +403,8 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .spot-list-item.FINAL_CANDIDATE span { background: #1f2937; }
 .spot-list-item.selected { border-color: rgba(251,146,60,.62); box-shadow: 0 0 0 3px rgba(251,146,60,.14); }
 .spot-list-item.visited { outline: 1px solid rgba(56,189,248,.35); }
-.spot-list-item.done { outline: 1px solid rgba(34,197,94,.5); }
+.spot-list-item.done { outline: 1px solid rgba(34,197,94,.5); opacity: .58; background: rgba(20,83,45,.24); }
+.spot-list-item.done strong { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: rgba(134,239,172,.7); }
 :deep(.case-marker) { position: relative; width: 42px; height: 42px; border: 3px solid rgba(255,255,255,.72); border-radius: 999px; color: #fff; font-weight: 1000; box-shadow: 0 10px 18px rgba(0,0,0,.3); cursor: pointer; }
 :deep(.case-marker.START) { background: #2563eb; }
 :deep(.case-marker.ANSWER_HINT) { background: #ea580c; }
@@ -362,11 +412,13 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 :deep(.case-marker.STORY) { background: #15803d; }
 :deep(.case-marker.FINAL_CANDIDATE) { background: #1f2937; }
 :deep(.case-marker.visited) { outline: 3px solid rgba(125,211,252,.72); }
-:deep(.case-marker.completed) { box-shadow: 0 0 0 4px rgba(34,197,94,.5), 0 10px 18px rgba(0,0,0,.3); }
+:deep(.case-marker.completed) { opacity: .62; box-shadow: 0 0 0 4px rgba(34,197,94,.5), 0 10px 18px rgba(0,0,0,.3); }
+:deep(.case-marker.completed::after) { content: '✓'; position: absolute; right: -5px; bottom: -7px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 999px; background: #16a34a; color: #fff; font-size: 13px; }
 .floating { position: fixed; z-index: 25; right: 14px; border: 0; border-radius: 999px; min-width: 54px; min-height: 46px; color: #fff; font-weight: 900; box-shadow: 0 12px 24px rgba(0,0,0,.32); }
 .floating.clue { bottom: 250px; background: #b45309; }
 .floating.refresh { bottom: 304px; background: #0369a1; }
 .floating.admin-skip { bottom: 358px; background: #15803d; padding: 0 14px; }
+.floating.final-check { bottom: 412px; background: #991b1b; padding: 0 14px; }
 @media (min-width: 900px) {
   .map-page { padding-bottom: 32px; }
   .map-shell { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
@@ -374,6 +426,7 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
   .floating.clue { bottom: 34px; }
   .floating.refresh { bottom: 88px; }
   .floating.admin-skip { bottom: 142px; }
+  .floating.final-check { bottom: 196px; }
 }
 @media (max-width: 370px) {
   .map-page { padding-bottom: 300px; }

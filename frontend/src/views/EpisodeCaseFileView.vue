@@ -39,23 +39,21 @@
           </div>
         </div>
         <div class="card-grid">
-          <article v-for="suspect in caseFile.suspects" :key="suspect.suspectId" class="suspect-card" :class="{ locked: !suspect.unlocked }">
+          <article v-for="suspect in visibleSuspects" :key="suspect.suspectId" class="suspect-card" :class="{ locked: !suspect.unlocked }">
             <div class="portrait-frame">
-              <img v-if="suspect.unlocked" :src="suspectPortraitSrc(suspect)" alt="용의자 카드" />
-              <span v-else>LOCKED</span>
+              <img :src="suspectPortraitSrc(suspect)" alt="용의자 카드" />
             </div>
             <div>
-              <em>{{ suspect.unlocked ? suspect.alias : '잠긴 용의자' }}</em>
-              <h4>{{ suspect.unlocked ? suspect.displayName : '추가 단서 필요' }}</h4>
-              <p>{{ suspect.unlocked ? suspect.shortDescription : '관련 증거를 획득하면 상세 정보가 표시됩니다.' }}</p>
+              <em>{{ suspect.alias || '용의자' }}</em>
+              <h4>{{ suspect.displayName || '이름 미확인 인물' }}</h4>
+              <p>{{ suspect.shortDescription || '사건과 연결된 가능성이 있는 인물입니다. 단서를 모으면 관계와 알리바이가 더 명확해집니다.' }}</p>
             </div>
-            <dl v-if="suspect.unlocked">
+            <dl>
               <dt>관계</dt><dd>{{ suspect.relationToVictim || '관계 미확인' }}</dd>
               <dt>의심 포인트</dt><dd>{{ suspect.suspiciousPoint || '의심 포인트 미입력' }}</dd>
               <dt>알리바이</dt><dd>{{ suspect.alibiSummary || '알리바이 미확인' }}</dd>
             </dl>
-            <span v-if="suspect.unlocked" class="unlock-badge">{{ suspect.cleared ? '혐의 해소' : '해금됨' }}</span>
-            <span v-else class="lock">잠김</span>
+            <span class="unlock-badge">{{ suspect.cleared ? '혐의 해소' : suspect.unlocked ? '상세 확인' : '기본 공개' }}</span>
           </article>
         </div>
       </section>
@@ -79,8 +77,8 @@
               <p>{{ evidence.unlocked ? evidence.textSummary : '현장 퍼즐을 해결하면 이 자료가 사건파일에 추가됩니다.' }}</p>
               <div class="evidence-meta">
                 <small v-if="evidence.relatedClueType">{{ clueTypeLabel(evidence.relatedClueType) }}</small>
-                <small v-if="evidence.unlocked && evidence.relatedSuspectIds?.length">연결 용의자 {{ suspectNames(evidence.relatedSuspectIds) }}</small>
-                <small v-if="!evidence.unlocked">퍼즐 보상 대기</small>
+                <small v-if="evidence.unlocked && evidence.relatedSuspectIds?.length">관련 인물 {{ suspectNames(evidence.relatedSuspectIds) }}</small>
+                <small v-if="!evidence.unlocked">가방에 들어올 자료</small>
               </div>
             </div>
             <span v-if="evidence.unlocked" class="unlock-badge">해금됨</span>
@@ -93,17 +91,17 @@
         <p class="section-label">단서 요약</p>
         <div class="clue-column">
           <h4>정답 힌트</h4>
-          <span v-for="clue in caseFile.clueSummary.answerClues" :key="`a-${clue}`">{{ clue }}</span>
+          <span v-for="(clue, index) in caseFile.clueSummary.answerClues" :key="`a-${clue}`">{{ humanizeClue(clue, 'answer', index) }}</span>
           <em v-if="!caseFile.clueSummary.answerClues.length">아직 없음</em>
         </div>
         <div class="clue-column purple">
           <h4>목적지 힌트</h4>
-          <span v-for="clue in caseFile.clueSummary.destinationClues" :key="`d-${clue}`">{{ clue }}</span>
+          <span v-for="(clue, index) in caseFile.clueSummary.destinationClues" :key="`d-${clue}`">{{ humanizeClue(clue, 'destination', index) }}</span>
           <em v-if="!caseFile.clueSummary.destinationClues.length">아직 없음</em>
         </div>
         <div class="clue-column green">
           <h4>스토리 단서</h4>
-          <span v-for="clue in caseFile.clueSummary.storyClues" :key="`s-${clue}`">{{ clue }}</span>
+          <span v-for="(clue, index) in caseFile.clueSummary.storyClues" :key="`s-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
           <em v-if="!caseFile.clueSummary.storyClues.length">아직 없음</em>
         </div>
       </section>
@@ -145,6 +143,7 @@ const loading = ref(true);
 const error = ref('');
 
 const cleanNotices = computed(() => (caseFile.value?.notices || []).filter((notice) => !String(notice).includes('AI 초안 저장본')));
+const visibleSuspects = computed(() => (caseFile.value?.suspects || []).filter((suspect) => suspect.displayName || suspect.alias));
 
 onMounted(loadCaseFile);
 
@@ -168,6 +167,16 @@ function suspectPortraitSrc(suspect) { return usableImageUrl(suspect.portraitIma
 function evidenceImageSrc(evidence) { return usableImageUrl(evidence.imageUrl) || generatedCaseCardDataUrl(evidence.title, evidence.type, evidence.textSummary); }
 function usableImageUrl(value) { const url = String(value || '').trim(); return !url || url.includes('generated-case-card') ? '' : url; }
 function suspectNames(ids = []) { return ids.map((id) => caseFile.value?.suspects?.find((suspect) => suspect.suspectId === id)?.displayName).filter(Boolean).join(', '); }
+function humanizeClue(value, kind, index) {
+  const text = String(value || '').trim();
+  if (!/^(answer|destination|story)-clue-\d+$/i.test(text)) return text;
+  const fallback = {
+    answer: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
+    destination: ['낮은 담장', '조용한 문', '굽은 골목'],
+    story: ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표']
+  };
+  return fallback[kind]?.[index % fallback[kind].length] || '미분류 단서';
+}
 
 function generatedSuspectPortraitDataUrl(name = '용의자', alias = 'SUSPECT', seedText = '') {
   const hash = hashString(`${name}-${alias}-${seedText}`);

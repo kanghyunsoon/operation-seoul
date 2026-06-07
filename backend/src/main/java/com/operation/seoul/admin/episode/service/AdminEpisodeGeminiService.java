@@ -489,9 +489,13 @@ public class AdminEpisodeGeminiService {
             sanitizeFinalPlaceNarrative(mission, role, i, warnings);
             mission.setPuzzleType(PUZZLE_TYPES.contains(normalize(mission.getPuzzleType())) ? normalize(mission.getPuzzleType()) : recommendedPuzzleType(place));
             mission.setAnswerFormat(ANSWER_FORMATS.contains(normalize(mission.getAnswerFormat())) ? normalize(mission.getAnswerFormat()) : answerFormat(place));
-            if (usesPlaceNameTextPuzzle(mission, place) || shouldUseAdminReviewPuzzle(mission, place)) {
-                applyAdminReviewPuzzle(mission, place);
-                warnings.add("미션 " + (i + 1) + "은 현장 근거가 부족해 검수용 문제로 대체되었습니다. RAG 보강 또는 관리자 현장 메모로 확인 범위를 좁힌 뒤 공개 전 문제를 확정하세요.");
+            if ("NUMBER_LOCK".equals(normalize(mission.getPuzzleType())) && !hasProvidedNumber(request, i + 1)) {
+                applyPlayableStoryPuzzle(mission, place, role, i);
+                warnings.add("미션 " + (i + 1) + "의 NUMBER_LOCK은 제공 숫자가 없어 스토리 결합형 퍼즐로 자동 보정했습니다.");
+            }
+            if (usesPlaceNameTextPuzzle(mission, place) || usesWeakTextExtractionPuzzle(mission) || shouldUseAdminReviewPuzzle(mission, place)) {
+                applyPlayableStoryPuzzle(mission, place, role, i);
+                warnings.add("미션 " + (i + 1) + "의 글자 추출/상상 현장 요소 기반 문제를 스토리 결합형 퍼즐로 자동 보정했습니다.");
             }
             if (blank(mission.getAnswer())) {
                 mission.setAnswer(fallbackAnswer(place));
@@ -499,7 +503,7 @@ public class AdminEpisodeGeminiService {
             }
             if (blank(mission.getRewardClue())) {
                 mission.setRewardClue(fallbackReward(role, i));
-                warnings.add("미션 " + (i + 1) + "의 보상 단서가 비어 있어 안전한 기본 단서 키를 채웠습니다.");
+                warnings.add("미션 " + (i + 1) + "의 보상 단서가 비어 있어 사건 단서 문구를 채웠습니다.");
             }
             sanitizePlaceNameDependentReward(mission, request, role, i, warnings);
             sanitizeForbiddenRevealReward(mission, draft, role, i, warnings);
@@ -569,14 +573,8 @@ public class AdminEpisodeGeminiService {
     private String defaultSubtitle(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
         List<AiEpisodeDraftRequest.PlaceInput> places = request == null || request.getPlaces() == null ? List.of() : request.getPlaces();
         String start = places.isEmpty() ? "첫 단서" : places.get(0).getName();
-        String finalPlace = places.stream()
-                .filter(place -> "FINAL".equals(normalize(place.getRole())))
-                .map(AiEpisodeDraftRequest.PlaceInput::getName)
-                .filter(value -> value != null && !value.isBlank())
-                .findFirst()
-                .orElseGet(() -> places.isEmpty() ? "마지막 후보지" : places.get(places.size() - 1).getName());
         String genre = blank(draft.getGenre()) ? "사건파일" : draft.getGenre();
-        return start + "에서 " + finalPlace + "로 이어지는 " + genre;
+        return start + "에서 시작되는 " + genre + " 현장 조사";
     }
 
     private String extractJson(String text) {
@@ -643,9 +641,9 @@ public class AdminEpisodeGeminiService {
 
     private String fallbackReward(String role, int index) {
         return switch (role) {
-            case "ANSWER_HINT" -> "answer-clue-" + (index + 1);
-            case "DESTINATION_HINT", "FINAL_CANDIDATE", "FINAL" -> "destination-clue-" + (index + 1);
-            default -> "story-clue-" + (index + 1);
+            case "ANSWER_HINT" -> List.of("깨진 흔적", "렌즈의 곡면", "차가운 유리", "반사된 그림자").get(Math.min(index, 3));
+            case "DESTINATION_HINT", "FINAL_CANDIDATE", "FINAL" -> index % 2 == 0 ? "붉은 벽의 침묵" : "기록이 닫힌 문";
+            default -> List.of("마지막 사진", "봉인된 봉투", "어긋난 진술", "사라진 시간").get(Math.min(index % 4, 3));
         };
     }
 
@@ -820,13 +818,74 @@ public class AdminEpisodeGeminiService {
     }
 
     private boolean shouldUseAdminReviewPuzzle(AiEpisodeDraftResponse.MissionDraft mission, AiEpisodeDraftRequest.PlaceInput place) {
-        if (hasWeakFieldData(place)) {
-            return true;
-        }
         String question = compact(mission.getQuestionText());
         return containsAny(question,
                 "알수없는기호", "특이한표식", "오래된그림", "조형물의특징", "표지판에적힌글귀",
                 "특별한장식물", "작은상자", "현장간판", "계단수", "벽화");
+    }
+
+    private boolean usesWeakTextExtractionPuzzle(AiEpisodeDraftResponse.MissionDraft mission) {
+        String text = compact(String.join(" ",
+                blank(mission.getQuestionText()) ? "" : mission.getQuestionText(),
+                blank(mission.getAnswer()) ? "" : mission.getAnswer(),
+                mission.getHints() == null ? "" : String.join(" ", mission.getHints())));
+        return containsAny(text,
+                "글자수", "몇글자", "단어수", "첫글자", "마지막글자", "초성만", "세단어",
+                "네단어", "순서대로조합", "글자를순서대로", "글자수를순서대로");
+    }
+
+    private void applyPlayableStoryPuzzle(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            AiEpisodeDraftRequest.PlaceInput place,
+            String role,
+            int index) {
+        String reward = blank(mission.getRewardClue()) || isGenericRewardKey(compact(mission.getRewardClue()))
+                ? fallbackReward(role, index)
+                : mission.getRewardClue();
+        String basis = bestPuzzleBasis(place);
+        if (!textContains(mission.getStoryText(), basis)) {
+            String story = blank(mission.getStoryText()) ? "이 장소는 사건 메모를 확인하는 조사 지점입니다." : mission.getStoryText();
+            mission.setStoryText(story + " 검수 대상 키워드: " + basis + ".");
+        }
+        mission.setPuzzleType("STORY_COMBINATION");
+        mission.setQuestionText("사건파일의 메모와 이 장소의 검수 대상 키워드 '" + basis + "'를 대조하세요. 이 지점에서 확인해야 할 단서 키워드를 입력하세요.");
+        mission.setAnswer(reward);
+        mission.setAnswerFormat("TEXT");
+        mission.setRewardClue(reward);
+        mission.setHints(List.of(
+                "장소명 글자 수가 아니라 사건파일 메모와 현장 검수 키워드의 의미를 비교하세요.",
+                "이 장소는 '" + markerRoleLabel(role) + "' 역할입니다. 얻을 단서가 정답 단서인지 목적지 단서인지 먼저 구분하세요.",
+                "정답은 이 미션을 풀면 얻는 단서 문구입니다. 공개 전 관리자가 실제 현장 근거로 문항을 더 구체화해야 합니다."
+        ));
+        mission.setGroundRule("RAG/관리자 입력 기반 검수 대상 키워드 '" + basis + "'만 사용했습니다. 실제 간판, 숫자, 조형물은 운영 전 현장 확인 후 확정해야 합니다.");
+    }
+
+    private String bestPuzzleBasis(AiEpisodeDraftRequest.PlaceInput place) {
+        if (place == null) {
+            return "사건 메모";
+        }
+        if (place.getKeywords() != null && !place.getKeywords().isEmpty()) {
+            return place.getKeywords().stream().filter(value -> !blank(value)).findFirst().orElse("사건 메모");
+        }
+        if (place.getVisibleElements() != null && !place.getVisibleElements().isEmpty()) {
+            return place.getVisibleElements().stream().filter(value -> !blank(value)).findFirst().orElse("사건 메모");
+        }
+        if (!blank(place.getDescription())) {
+            return "장소 설명";
+        }
+        if (!blank(place.getAdminMemo())) {
+            return "관리자 메모";
+        }
+        return "사건 메모";
+    }
+
+    private String markerRoleLabel(String role) {
+        return switch (role) {
+            case "ANSWER_HINT" -> "최종 정답 힌트";
+            case "DESTINATION_HINT", "FINAL_CANDIDATE", "FINAL" -> "목적지 힌트";
+            case "START" -> "시작 단서";
+            default -> "스토리 단서";
+        };
     }
 
     private boolean hasWeakFieldData(AiEpisodeDraftRequest.PlaceInput place) {

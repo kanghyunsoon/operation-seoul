@@ -11,8 +11,8 @@ import java.util.Map;
 public class OperationSeoulApplication {
 
     /**
-     * 백엔드 애플리케이션 진입점입니다.
-     * 별도 프로필을 넘기지 않으면 로컬 개발 설정을 읽도록 `local` 프로필을 기본값으로 둡니다.
+     * Backend application entry point.
+     * The local profile is used by default when no explicit profile is provided.
      */
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(OperationSeoulApplication.class);
@@ -25,9 +25,7 @@ public class OperationSeoulApplication {
         application.run(args);
     }
 
-    /**m
-     * 외부 AI API 응답과 내부 DTO 변환에서 공통으로 사용하는 JSON 매퍼입니다.
-     */
+    /** Shared JSON mapper for external AI responses and internal DTO conversion. */
     @Bean
     public ObjectMapper objectMapper() {
         return new ObjectMapper();

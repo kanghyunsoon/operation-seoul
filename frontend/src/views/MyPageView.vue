@@ -27,6 +27,44 @@
         <button type="button" class="open" @click="router.push({ name: 'EpisodeDetail', params: { episodeId: item.episodeId } })">상세 보기</button>
       </article>
     </section>
+
+    <section class="social-panel">
+      <div class="social-head">
+        <div>
+          <p>SOCIAL</p>
+          <h2>팔로우</h2>
+        </div>
+        <button type="button" @click="loadSocial">새로고침</button>
+      </div>
+      <div class="social-grid">
+        <article>
+          <h3>팔로잉 {{ following.length }}</h3>
+          <p v-if="!following.length" class="empty-social">아직 팔로우한 요원이 없습니다.</p>
+          <div v-for="user in following" :key="`following-${user.userId}`" class="user-row">
+            <img :src="user.profileImageUrl || defaultProfile" alt="" />
+            <div>
+              <strong>{{ user.nickname || '요원' }}</strong>
+              <small>팔로워 {{ user.followerCount || 0 }} · 팔로잉 {{ user.followingCount || 0 }}</small>
+            </div>
+            <button type="button" @click="unfollow(user)">해제</button>
+          </div>
+        </article>
+        <article>
+          <h3>팔로워 {{ followers.length }}</h3>
+          <p v-if="!followers.length" class="empty-social">아직 나를 팔로우한 요원이 없습니다.</p>
+          <div v-for="user in followers" :key="`follower-${user.userId}`" class="user-row">
+            <img :src="user.profileImageUrl || defaultProfile" alt="" />
+            <div>
+              <strong>{{ user.nickname || '요원' }}</strong>
+              <small>팔로워 {{ user.followerCount || 0 }} · 팔로잉 {{ user.followingCount || 0 }}</small>
+            </div>
+            <button type="button" @click="user.following ? unfollow(user) : follow(user)">
+              {{ user.following ? '해제' : '팔로우' }}
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
   </main>
 </template>
 
@@ -34,16 +72,22 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { favoriteApi } from '@/api/favoriteApi';
+import { userApi } from '@/api/userApi';
 
 const router = useRouter();
 const favorites = ref([]);
+const following = ref([]);
+const followers = ref([]);
 const loading = ref(true);
 const error = ref('');
 const message = ref('');
 const messageType = ref('success');
 const busyId = ref(null);
+const defaultProfile = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2218%22 fill=%22%23334155%22/%3E%3Ccircle cx=%2232%22 cy=%2225%22 r=%2211%22 fill=%22%23cbd5e1%22/%3E%3Cpath d=%22M14 56c3-12 12-18 18-18s15 6 18 18%22 fill=%22%23cbd5e1%22/%3E%3C/svg%3E';
 
-onMounted(loadFavorites);
+onMounted(async () => {
+  await Promise.all([loadFavorites(), loadSocial()]);
+});
 
 async function loadFavorites() {
   loading.value = true;
@@ -54,6 +98,37 @@ async function loadFavorites() {
     error.value = err.userMessage || '관심 에피소드 목록을 불러오지 못했습니다.';
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadSocial() {
+  try {
+    [following.value, followers.value] = await Promise.all([
+      userApi.getFollowing(),
+      userApi.getFollowers()
+    ]);
+  } catch (err) {
+    setMessage(err.userMessage || '팔로우 목록을 불러오지 못했습니다.', 'error');
+  }
+}
+
+async function follow(user) {
+  try {
+    await userApi.followUser(user.userId);
+    setMessage(`${user.nickname || '요원'}님을 팔로우했습니다.`);
+    await loadSocial();
+  } catch (err) {
+    setMessage(err.userMessage || '팔로우하지 못했습니다.', 'error');
+  }
+}
+
+async function unfollow(user) {
+  try {
+    await userApi.unfollowUser(user.userId);
+    setMessage(`${user.nickname || '요원'}님 팔로우를 해제했습니다.`);
+    await loadSocial();
+  } catch (err) {
+    setMessage(err.userMessage || '팔로우를 해제하지 못했습니다.', 'error');
   }
 }
 
@@ -78,7 +153,7 @@ function setMessage(text, type = 'success') {
 
 <style scoped>
 .mypage { min-height: 100vh; box-sizing: border-box; padding: 24px 16px 64px; background: radial-gradient(circle at 80% 0%, rgba(245,158,11,.2), transparent 34%), linear-gradient(160deg, #0f172a, #111827 60%, #050505); color: #f8fafc; font-family: Georgia, 'Noto Sans KR', serif; }
-.hero, .favorite-list, .state, .toast { width: min(100%, 880px); box-sizing: border-box; margin-left: auto; margin-right: auto; }
+.hero, .favorite-list, .state, .toast, .social-panel { width: min(100%, 880px); box-sizing: border-box; margin-left: auto; margin-right: auto; }
 .hero { margin-bottom: 18px; padding: 22px; border: 1px solid rgba(245,158,11,.24); border-radius: 20px; background: rgba(15,23,42,.58); }
 .back { min-height: 38px; border: 1px solid rgba(148,163,184,.28); border-radius: 999px; background: transparent; color: #cbd5e1; padding: 0 14px; }
 .hero p { margin: 18px 0 8px; color: #f59e0b; font-weight: 900; letter-spacing: .16em; font-size: .78rem; }
@@ -97,8 +172,25 @@ button { min-height: 40px; border: 0; border-radius: 12px; background: #334155; 
 .state, .toast { padding: 16px; border: 1px dashed rgba(148,163,184,.34); border-radius: 16px; color: #cbd5e1; text-align: center; }
 .toast { margin-bottom: 12px; border-style: solid; background: rgba(22,101,52,.18); color: #bbf7d0; }
 .toast.error, .state.error { color: #fecaca; background: rgba(127,29,29,.18); }
+.social-panel { margin-top: 18px; padding: 18px; border: 1px solid rgba(125,211,252,.2); border-radius: 20px; background: rgba(15,23,42,.62); box-shadow: 0 20px 52px rgba(0,0,0,.18); }
+.social-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 12px; }
+.social-head p { margin: 0 0 6px; color: #67e8f9; font-size: .74rem; font-weight: 900; letter-spacing: .14em; }
+.social-head h2 { margin: 0; }
+.social-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.social-grid article { padding: 14px; border: 1px solid rgba(148,163,184,.16); border-radius: 16px; background: rgba(2,6,23,.34); }
+.social-grid h3 { margin: 0 0 10px; color: #fde68a; }
+.user-row { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid rgba(148,163,184,.14); }
+.user-row:first-of-type { border-top: 0; }
+.user-row img { width: 42px; height: 42px; border-radius: 14px; object-fit: cover; background: #334155; }
+.user-row strong { display: block; }
+.user-row small, .empty-social { color: #94a3b8; }
+.user-row button { min-height: 34px; padding: 0 10px; background: #0e7490; }
 @media (max-width: 560px) {
   .card-head { display: grid; align-items: stretch; }
   .card-head button { width: 100%; }
+  .social-head { display: block; }
+  .social-grid { grid-template-columns: 1fr; }
+  .user-row { grid-template-columns: 42px 1fr; }
+  .user-row button { grid-column: 1 / -1; }
 }
 </style>
