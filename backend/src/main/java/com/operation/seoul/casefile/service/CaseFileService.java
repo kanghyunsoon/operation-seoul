@@ -63,9 +63,9 @@ public class CaseFileService {
                 .progressStatus(progress == null ? "NOT_STARTED" : progress.getStatus())
                 .finalQuestion(episode.getFinalQuestion())
                 .overview(CaseFileResponse.Overview.builder()
-                        .briefingTitle("Operation Korea 사건파일")
-                        .summary("정동의 한 사진사가 의문의 죽음을 맞았다. 남은 것은 마지막 사진과 흩어진 기록뿐이다.")
-                        .goal("현장 단서와 사건 자료를 대조해 사진사를 죽음으로 이끈 진짜 흉기를 밝혀라.")
+                        .briefingTitle(briefingTitle(episode))
+                        .summary(caseSummary(episode))
+                        .goal(caseGoal(episode))
                         .fictionSynopsis(episode.getFictionSynopsis())
                         .build())
                 .suspects(suspects.stream().map(suspect -> toSuspect(suspect, unlockedSuspectIds, clearedSuspectIds, evidences)).toList())
@@ -155,6 +155,36 @@ public class CaseFileService {
     private List<String> splitLines(String text) {
         if (text == null || text.isBlank()) return List.of();
         return text.lines().map(String::trim).filter(line -> !line.isBlank()).toList();
+    }
+
+    private String briefingTitle(Episode episode) {
+        String title = episode == null ? null : episode.getTitle();
+        return title == null || title.isBlank() ? "사건파일" : title.trim() + " 사건파일";
+    }
+
+    private String caseSummary(Episode episode) {
+        String synopsis = episode == null ? null : episode.getFictionSynopsis();
+        if (synopsis != null && !synopsis.isBlank()) {
+            return synopsis.trim();
+        }
+        String title = episode == null || episode.getTitle() == null || episode.getTitle().isBlank() ? "이 사건" : episode.getTitle().trim();
+        return title + "의 현장 기록이 서로 맞지 않습니다. 플레이어는 조사 지점을 돌며 단서와 사건자료를 대조해야 합니다.";
+    }
+
+    private String caseGoal(Episode episode) {
+        String target = finalAnswerTypeLabel(episode == null ? null : episode.getFinalAnswerType());
+        return "현장 단서와 사건 자료를 대조해 사건의 " + target + "를 밝혀라.";
+    }
+
+    private String finalAnswerTypeLabel(String type) {
+        return switch (type == null ? "" : type.trim().toUpperCase()) {
+            case "CULPRIT" -> "가상 용의자";
+            case "WEAPON" -> "흉기";
+            case "HIDDEN_DOCUMENT" -> "숨겨진 문서";
+            case "SECRET_KEYWORD" -> "비밀 키워드";
+            case "HIDDEN_TRUTH" -> "숨겨진 진실";
+            default -> "핵심 증거";
+        };
     }
 
     private List<Long> readLongList(String json) {

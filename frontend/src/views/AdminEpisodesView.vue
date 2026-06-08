@@ -1688,11 +1688,11 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
     draft.finalAnswer = motif.object;
     draft.finalAnswerAliases = Array.from(new Set([...(draft.finalAnswerAliases || []), motif.object.replaceAll(' ', '')]));
   }
-  if (!draft.finalQuestion || draft.finalQuestion.includes('무엇인가')) {
-    draft.finalQuestion = `${motif.victim}가 마지막까지 숨기려 한 사건의 핵심 증거는 무엇인가?`;
+  if (!draft.finalQuestion || isWeakFinalQuestion(draft.finalQuestion)) {
+    draft.finalQuestion = finalQuestionForMotif(motif);
   }
-  if (!draft.fictionSynopsis || isWeakText(draft.fictionSynopsis)) {
-    draft.fictionSynopsis = `${motif.victim}가 사라지기 전 남긴 사건파일에는 사진, 메모, 동선 기록이 서로 맞지 않게 섞여 있었다. 플레이어는 골목의 조사 지점을 돌며 증거 카드와 목적지 힌트를 모아 ${motif.object}의 정체를 밝혀야 한다.`;
+  if (!draft.fictionSynopsis || isWeakText(draft.fictionSynopsis) || isRepeatedDefaultSynopsis(draft.fictionSynopsis)) {
+    draft.fictionSynopsis = synopsisForMotif(draft, motif);
   }
   if (!draft.finalTruthSummary || isWeakText(draft.finalTruthSummary)) {
     draft.finalTruthSummary = `${motif.object}은 사건의 결말을 뒤집는 핵심 증거다. 수집한 정답 힌트는 물건의 형태를, 목적지 힌트는 마지막으로 확인해야 할 장소를 좁히도록 설계되어 있다.`;
@@ -1805,16 +1805,53 @@ function inferCaseMotif(draft) {
   const source = [
     draft?.finalAnswer,
     draft?.finalAnswerType,
+    draft?.episodeTitle,
+    draft?.subtitle,
     draft?.fictionSynopsis,
-    ...(Array.isArray(draft?.missions) ? draft.missions.flatMap((mission) => [mission.storyText, mission.rewardClue, mission.groundRule]) : [])
+    ...(Array.isArray(draft?.missions) ? draft.missions.flatMap((mission) => [mission.placeName, mission.storyText, mission.rewardClue, mission.groundRule]) : [])
   ].join(' ');
+  if (source.includes('커피') || source.includes('카페') || source.includes('찻집') || source.includes('CE7')) {
+    return {
+      title: '식어 버린 찻잔',
+      subtitle: '찻집 영수증과 마지막 주문을 대조하는 골목 수사',
+      object: '식어 버린 찻잔 기록',
+      victim: '마지막 주문자',
+      caseType: '찻집 기록 변조 사건',
+      setting: '찻집 골목',
+      trace: '주문 시간과 영수증'
+    };
+  }
+  if (source.includes('궁') || source.includes('의궤') || source.includes('왕') || source.includes('전각')) {
+    return {
+      title: '접힌 의궤 사본',
+      subtitle: '궁궐 동선과 누락된 사본을 맞추는 기록 수사',
+      object: '접힌 의궤 사본',
+      victim: '궁궐 기록원',
+      caseType: '궁궐 문서 은닉 사건',
+      setting: '궁궐 담장 주변',
+      trace: '봉인과 접힌 자국'
+    };
+  }
+  if (source.includes('시장') || source.includes('식당') || source.includes('음식') || source.includes('FD6')) {
+    return {
+      title: '젖은 영수증',
+      subtitle: '상권 동선과 지워진 계산 기록을 추적하는 수사',
+      object: '젖은 영수증 조각',
+      victim: '장부를 맡긴 손님',
+      caseType: '거래 기록 은폐 사건',
+      setting: '시장 골목',
+      trace: '계산 시각과 배달 동선'
+    };
+  }
   if (source.includes('필름') || source.includes('사진') || source.includes('렌즈')) {
     return {
       title: '사라진 필름',
       subtitle: '사진 속 누락된 한 장면을 복원하는 기록 수사',
       object: '봉인된 필름',
       victim: '골목 사진가',
-      caseType: '사진 기록 실종 사건'
+      caseType: '사진 기록 실종 사건',
+      setting: '사진관 골목',
+      trace: '노출된 필름과 촬영 순서'
     };
   }
   if (source.includes('인장') || source.includes('문서') || source.includes('밀서')) {
@@ -1823,7 +1860,9 @@ function inferCaseMotif(draft) {
       subtitle: '봉인된 문서의 행방을 추적하는 기록 수사',
       object: '붉은 인장의 문서',
       victim: '기록 보관자',
-      caseType: '문서 은닉 사건'
+      caseType: '문서 은닉 사건',
+      setting: '문서 보관소 주변',
+      trace: '봉인 자국과 서명'
     };
   }
   return {
@@ -1831,8 +1870,40 @@ function inferCaseMotif(draft) {
     subtitle: '사라진 증언과 남겨진 봉투를 맞추는 골목 수사',
     object: '검은 봉투',
     victim: '익명의 제보자',
-    caseType: '증언 은폐 사건'
+    caseType: '증언 은폐 사건',
+    setting: '골목 조사 지점',
+    trace: '봉투와 엇갈린 증언'
   };
+}
+
+function finalQuestionForMotif(motif) {
+  return `${motif.setting}에서 모은 단서가 공통으로 가리키는 ${motif.object}의 의미는 무엇인가?`;
+}
+
+function synopsisForMotif(draft, motif) {
+  const missions = Array.isArray(draft?.missions) ? draft.missions : [];
+  const first = missions[0]?.placeName || motif.setting;
+  const last = missions[missions.length - 1]?.placeName || '마지막 조사 지점';
+  return `${first}에서 시작된 ${motif.caseType}은 ${last}까지 이어진다. ${motif.victim}가 남긴 ${motif.trace}이 서로 어긋나며, 플레이어는 현장 단서와 사건자료를 대조해 ${motif.object}의 정체를 좁혀야 한다.`;
+}
+
+function isWeakFinalQuestion(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  return [
+    '사건의 핵심 증거는 무엇인가?',
+    '기록 보관자가 마지막까지 숨기려 한 사건의 핵심 증거는 무엇인가?',
+    '최종 질문을 입력하세요.'
+  ].some((word) => text.includes(word));
+}
+
+function isRepeatedDefaultSynopsis(value) {
+  const text = String(value || '').trim();
+  return [
+    '정동의 한 사진사가 의문의 죽음을 맞았다',
+    '남은 것은 마지막 사진과 흩어진 기록뿐이다',
+    '사진, 메모, 동선 기록이 서로 맞지 않게 섞여 있었다'
+  ].some((word) => text.includes(word));
 }
 
 function suggestedDraftEra(draft) {

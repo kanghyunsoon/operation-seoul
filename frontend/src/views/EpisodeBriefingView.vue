@@ -13,6 +13,7 @@
         <span>{{ episode.finalQuestion }}</span>
       </div>
       <div class="actions">
+        <button type="button" class="ghost" @click="router.push({ name: 'EpisodeList' })">사건 목록</button>
         <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">지도 진입</button>
         <button type="button" class="secondary" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 열기</button>
       </div>
@@ -45,8 +46,9 @@ h1 { margin: 0 0 16px; font-size: clamp(1.9rem, 9vw, 3.7rem); line-height: 1; }
 .mission-rule { display: grid; gap: 6px; margin-top: 12px; padding: 14px; border-left: 3px solid #f97316; background: rgba(30,41,59,.52); }
 strong { color: #fed7aa; }
 span { color: #cbd5e1; line-height: 1.55; }
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 22px; }
+.actions { display: grid; grid-template-columns: .85fr 1fr 1fr; gap: 8px; margin-top: 22px; }
 button { min-height: 50px; border: 0; border-radius: 14px; background: #dc2626; color: #fff; font: inherit; font-weight: 900; }
 .secondary { background: #334155; }
+.ghost { border: 1px solid rgba(248,113,113,.3); background: rgba(15,23,42,.72); color: #fed7aa; }
 @media (max-width: 390px) { .actions { grid-template-columns: 1fr; } }
 </style>

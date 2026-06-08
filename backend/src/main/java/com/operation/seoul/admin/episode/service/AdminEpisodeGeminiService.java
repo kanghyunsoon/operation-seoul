@@ -849,7 +849,7 @@ public class AdminEpisodeGeminiService {
         }
         mission.setPuzzleType("STORY_COMBINATION");
         mission.setQuestionText("사건파일의 메모와 이 장소의 검수 대상 키워드 '" + basis + "'를 대조하세요. 이 지점에서 확인해야 할 단서 키워드를 입력하세요.");
-        mission.setAnswer(reward);
+        mission.setAnswer(basis);
         mission.setAnswerFormat("TEXT");
         mission.setRewardClue(reward);
         mission.setHints(List.of(
