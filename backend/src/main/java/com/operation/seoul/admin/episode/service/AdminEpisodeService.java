@@ -608,12 +608,12 @@ public class AdminEpisodeService {
                 .subtitle(draftSubtitle(request, places))
                 .genre(blank(request.getTheme(), "야외 방탈출 / 역사 미스터리"))
                 .era(draftEra(request, places))
-                .fictionSynopsis(blank(request.getArea(), "선택 지역") + "에 남겨진 기록을 따라 사라진 증거의 정체를 추적한다.")
+                .fictionSynopsis(draftFictionSynopsis(request, places))
                 .finalAnswerType("EVIDENCE")
-                .finalAnswer("봉인된 기록 조각")
-                .finalAnswerAliases(List.of("봉인된기록조각", "기록 조각"))
-                .finalQuestion("사건의 핵심 증거는 무엇인가?")
-                .finalTruthSummary("수집한 단서는 하나의 조작된 기록을 가리킨다. 최종 답은 실제 역사 인물이 아니라 픽션 사건 안의 증거다.")
+                .finalAnswer(draftFinalObject(request, places))
+                .finalAnswerAliases(List.of(draftFinalObject(request, places).replace(" ", ""), draftFinalAlias(request, places)))
+                .finalQuestion(draftFinalQuestion(request, places))
+                .finalTruthSummary("수집한 단서는 " + draftFinalObject(request, places) + "을 가리킨다. 최종 답은 실제 역사 인물이 아니라 픽션 사건 안의 증거다.")
                 .actualHistorySummary("실제 역사 해설은 관리자 검수 후 공개되어야 합니다. 게임 중에는 긴 역사 설명을 노출하지 않습니다.")
                 .deductionSecretFacts(List.of("최종 정답은 실제 장소명이나 실제 인물명이 아니다.", "정답은 수집 단서 4개 이상을 조합해야 특정된다."))
                 .deductionForbiddenReveals(List.of("finalAnswer", "actualFinalPlace", "realPersonAsCulprit"))
@@ -678,6 +678,66 @@ public class AdminEpisodeService {
             return "일제강점기";
         }
         return "현대와 과거가 교차하는 사건";
+    }
+
+    private String draftFictionSynopsis(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        String area = blank(request.getArea(), "선택 지역");
+        String first = places.isEmpty() ? "첫 조사 지점" : blank(places.get(0).getName(), "첫 조사 지점");
+        String anchor = places.isEmpty() ? "마지막 조사 지점" : blank(places.get(places.size() - 1).getName(), "마지막 조사 지점");
+        String object = draftFinalObject(request, places);
+        String routeSignal = routeSignal(places);
+        return area + "의 " + first + "에서 시작된 기록은 " + anchor + "로 이어지지만, " + routeSignal + " 단서가 서로 맞지 않습니다. 플레이어는 현장 자료를 대조해 " + object + "의 정체를 밝혀야 합니다.";
+    }
+
+    private String draftFinalQuestion(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        return "수집한 단서가 공통으로 가리키는 " + draftFinalObject(request, places) + "의 의미는 무엇인가?";
+    }
+
+    private String draftFinalObject(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        String joined = routeText(request, places);
+        if (containsCompact(joined, "커피") || containsCompact(joined, "카페") || containsCompact(joined, "찻집")) {
+            return "식어 버린 찻잔 기록";
+        }
+        if (containsCompact(joined, "문서") || containsCompact(joined, "인장") || containsCompact(joined, "서명")) {
+            return "붉은 인장의 문서";
+        }
+        if (containsCompact(joined, "사진") || containsCompact(joined, "필름") || containsCompact(joined, "렌즈")) {
+            return "봉인된 필름";
+        }
+        if (containsCompact(joined, "시장") || containsCompact(joined, "식당") || containsCompact(joined, "음식")) {
+            return "젖은 영수증 조각";
+        }
+        if (containsCompact(joined, "궁") || containsCompact(joined, "왕") || containsCompact(joined, "의궤")) {
+            return "접힌 의궤 사본";
+        }
+        return "봉인된 기록 조각";
+    }
+
+    private String draftFinalAlias(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        String object = draftFinalObject(request, places);
+        String[] tokens = object.split("\\s+");
+        return tokens.length == 0 ? object : tokens[tokens.length - 1];
+    }
+
+    private String routeSignal(List<AiEpisodeDraftRequest.PlaceInput> places) {
+        return places.stream()
+                .flatMap(place -> place.getKeywords() == null ? java.util.stream.Stream.empty() : place.getKeywords().stream())
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElse("동선");
+    }
+
+    private String routeText(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        return String.join(" ",
+                blank(request.getArea(), ""),
+                blank(request.getTheme(), ""),
+                places.stream()
+                        .map(place -> String.join(" ",
+                                blank(place.getName(), ""),
+                                blank(place.getDescription(), ""),
+                                blank(place.getAdminMemo(), ""),
+                                place.getKeywords() == null ? "" : String.join(" ", place.getKeywords())))
+                        .collect(Collectors.joining(" ")));
     }
 
     public AdminEpisodeDetailResponse saveAiDraft(AiEpisodeDraftSaveRequest request) {
@@ -1074,9 +1134,15 @@ public class AdminEpisodeService {
             if (missing(puzzle.getQuestionText())) errors.add("퍼즐 질문이 누락되었습니다: " + spot.getPlaceName());
             if (missing(puzzle.getAnswer())) errors.add("관리자용 퍼즐 정답이 누락되었습니다: " + spot.getPlaceName());
             if (missing(puzzle.getRewardClue())) errors.add("보상 단서가 누락되었습니다: " + spot.getPlaceName());
+            if (!missing(puzzle.getAnswer()) && !missing(puzzle.getRewardClue()) && sameCompact(puzzle.getAnswer(), puzzle.getRewardClue())) {
+                errors.add("퍼즐 정답은 보상 단서와 달라야 합니다: " + spot.getPlaceName());
+            }
             AdminRewardPayloadValidationResponse rewardValidation = validateRewardPayload(episodeId, AdminRewardPayloadValidationRequestWrapper.of(puzzle.getRewardPayload()));
             if (!rewardValidation.isValid()) {
                 errors.add("reward_payload 오류(" + spot.getPlaceName() + "): " + String.join(" / ", rewardValidation.getErrors()));
+            }
+            if (rewardPayloadContainsPuzzleAnswer(puzzle)) {
+                errors.add("퍼즐 정답이 reward_payload 보상 문구와 같습니다: " + spot.getPlaceName());
             }
             List<PuzzleHint> hints = adminEpisodeRepository.findHints(puzzle.getId());
             if (hints.size() < 3) {
@@ -1546,6 +1612,26 @@ public class AdminEpisodeService {
             return false;
         }
         return compact(a).equals(compact(b));
+    }
+
+    private boolean rewardPayloadContainsPuzzleAnswer(Puzzle puzzle) {
+        if (puzzle == null || missing(puzzle.getAnswer()) || missing(puzzle.getRewardPayload())) {
+            return false;
+        }
+        try {
+            JsonNode rewards = objectMapper.readTree(puzzle.getRewardPayload()).path("rewards");
+            if (!rewards.isArray()) {
+                return false;
+            }
+            for (JsonNode reward : rewards) {
+                if (sameCompact(puzzle.getAnswer(), reward.path("value").asText(""))) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+            return false;
+        }
+        return false;
     }
 
     private String compact(String value) {

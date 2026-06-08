@@ -66,14 +66,16 @@
       추리 장소 확인
     </button>
 
-    <PuzzleCard :puzzle="puzzle" :message="puzzleMessage" :correct="puzzleCorrect" @submit="submitPuzzle" />
+    <PuzzleCard :puzzle="puzzle" :message="puzzleMessage" :correct="puzzleCorrect" @submit="submitPuzzle" @close="closePuzzle" />
 
     <SpotBottomSheet
       :spot="selectedSpot"
       :arrival-result="arrivalResults[selectedSpot?.spotId]"
+      :puzzle-open="Boolean(puzzle && puzzle.spotId === selectedSpot?.spotId)"
       @navigate="navigateToSpot"
       @arrive="arriveAtSpot"
       @open-puzzle="openPuzzle"
+      @close-puzzle="closePuzzle"
       @start-deduction="goDeduction"
     />
 
@@ -298,12 +300,22 @@ async function adminSkipArrival(spot) {
 
 async function openPuzzle(spot) {
   try {
+    if (puzzle.value?.spotId === spot.spotId) {
+      closePuzzle();
+      return;
+    }
     puzzle.value = await episodeApi.getPuzzle(spot.spotId);
     puzzleMessage.value = '';
     puzzleCorrect.value = null;
   } catch (error) {
     setStatus(error.userMessage || '퍼즐을 열 수 없습니다.', 'error');
   }
+}
+
+function closePuzzle() {
+  puzzle.value = null;
+  puzzleMessage.value = '';
+  puzzleCorrect.value = null;
 }
 
 async function submitPuzzle(answer) {

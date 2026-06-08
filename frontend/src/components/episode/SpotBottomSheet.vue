@@ -25,7 +25,9 @@
     <div class="actions">
       <button type="button" class="nav" @click="$emit('navigate', spot)">지도에 경로 표시</button>
       <button type="button" @click="$emit('arrive', spot)">도착 확인</button>
-      <button type="button" :disabled="!spot.visited" @click="$emit('open-puzzle', spot)">퍼즐 열기</button>
+      <button type="button" :disabled="!spot.visited" @click="$emit(puzzleOpen ? 'close-puzzle' : 'open-puzzle', spot)">
+        {{ puzzleOpen ? '퍼즐 닫기' : '퍼즐 열기' }}
+      </button>
       <button type="button" class="deduction" :disabled="!arrivalResult?.canStartDeduction" @click="$emit('start-deduction')">최종 추리</button>
     </div>
   </aside>
@@ -34,10 +36,11 @@
 <script setup>
 defineProps({
   spot: { type: Object, default: null },
-  arrivalResult: { type: Object, default: null }
+  arrivalResult: { type: Object, default: null },
+  puzzleOpen: { type: Boolean, default: false }
 });
 
-defineEmits(['navigate', 'arrive', 'open-puzzle', 'start-deduction']);
+defineEmits(['navigate', 'arrive', 'open-puzzle', 'close-puzzle', 'start-deduction']);
 
 const roleLabel = (type) => ({
   START: '시작 장소',
