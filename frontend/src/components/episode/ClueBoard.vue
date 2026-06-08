@@ -11,13 +11,13 @@
     <section>
       <h3>정답 힌트 <span>{{ board?.answerClueCount || 0 }}/4</span></h3>
       <ul><li v-for="clue in displayClues(board?.answerClues, 'answer')" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!(board?.answerClues || []).length" class="empty">최종 정답의 형태를 좁히는 단서가 아직 없습니다.</p>
+      <p v-if="!(board?.answerClues || []).length" class="empty">최종 정답의 형태를 좁혀 줄 단서가 아직 없습니다.</p>
     </section>
 
     <section>
       <h3>목적지 힌트 <span>{{ board?.destinationClueCount || 0 }}/2</span></h3>
       <ul><li v-for="clue in displayClues(board?.destinationClues, 'destination')" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!(board?.destinationClues || []).length" class="empty">조사해야 할 장소의 분위기와 방향을 좁히는 단서가 아직 없습니다.</p>
+      <p v-if="!(board?.destinationClues || []).length" class="empty">조사해야 할 장소의 분위기와 방향을 좁혀 줄 단서가 아직 없습니다.</p>
     </section>
 
     <section>

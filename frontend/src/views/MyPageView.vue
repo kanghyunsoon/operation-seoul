@@ -2,6 +2,11 @@
   <main class="mypage">
     <header class="hero">
       <button type="button" class="back" @click="router.push({ name: 'EpisodeList' })">사건파일 목록</button>
+      <button type="button" class="back" @click="router.push({ name: 'Recommendations' })">AI 추천</button>
+      <button type="button" class="back" @click="router.push({ name: 'Coaching' })">AI 코칭</button>
+      <button type="button" class="back" @click="router.push({ name: 'Challenges' })">챌린지</button>
+      <button type="button" class="back" @click="router.push({ name: 'Plans' })">내 일정</button>
+      <button type="button" class="back" @click="router.push({ name: 'Groups' })">그룹</button>
       <p>MY FILES</p>
       <h1>내 관심 에피소드</h1>
       <span>나중에 플레이할 사건파일을 모아볼 수 있습니다.</span>
@@ -72,7 +77,7 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { favoriteApi } from '@/api/favoriteApi';
-import { userApi } from '@/api/userApi';
+import { followApi } from '@/api/followApi';
 
 const router = useRouter();
 const favorites = ref([]);
@@ -104,8 +109,8 @@ async function loadFavorites() {
 async function loadSocial() {
   try {
     [following.value, followers.value] = await Promise.all([
-      userApi.getFollowing(),
-      userApi.getFollowers()
+      followApi.getFollowing(),
+      followApi.getFollowers()
     ]);
   } catch (err) {
     setMessage(err.userMessage || '팔로우 목록을 불러오지 못했습니다.', 'error');
@@ -114,7 +119,7 @@ async function loadSocial() {
 
 async function follow(user) {
   try {
-    await userApi.followUser(user.userId);
+    await followApi.followUser(user.userId);
     setMessage(`${user.nickname || '요원'}님을 팔로우했습니다.`);
     await loadSocial();
   } catch (err) {
@@ -124,7 +129,7 @@ async function follow(user) {
 
 async function unfollow(user) {
   try {
-    await userApi.unfollowUser(user.userId);
+    await followApi.unfollowUser(user.userId);
     setMessage(`${user.nickname || '요원'}님 팔로우를 해제했습니다.`);
     await loadSocial();
   } catch (err) {

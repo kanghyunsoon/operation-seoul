@@ -20,11 +20,11 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Void>> register(@RequestBody AuthRequest request) {
         authService.register(request);
-        return ResponseEntity.ok(ApiResponse.ok("회원가입이 완료되었습니다. 로그인해 주세요."));
+        return ResponseEntity.ok(ApiResponse.ok("Registration completed. Please log in."));
     }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@RequestBody AuthRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("로그인되었습니다.", authService.login(request)));
+        return ResponseEntity.ok(ApiResponse.ok("Login completed.", authService.login(request)));
     }
 }

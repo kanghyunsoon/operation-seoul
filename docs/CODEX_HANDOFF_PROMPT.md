@@ -53,21 +53,24 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 - 수동 후보 추가 UX
 - TourAPI/Kakao 키 없음 에러 메시지
 - episode_favorites API, 목록/상세 favorited, MyPage 관심 목록
+- 일정 관리: `UserPlanController`, `PlansView.vue`
+- 팔로우: `UserFollowController`, `MyPageView.vue`
+- 그룹: `UserGroupController`, `GroupsView.vue`
+- 랭킹: `RankingController`, `RankingView.vue`
+- 챌린지: `ChallengeController`, `ChallengesView.vue`
+- 사용자 추천: `EpisodeRecommendationController`, `RecommendationsView.vue`
+- 플레이 코칭/분석: `CoachingController`, `CoachingView.vue`
 
 부분 또는 운영 QA 필요:
 
 - Gemini 초안 생성은 구조가 있으나 운영 품질 검수 필요
 - 최종 추리는 규칙 기반 MVP이며 Gemini 실시간 추리 고도화는 미구현
+- 사용자 추천/코칭은 현재 규칙 기반 MVP이며 Gemini 기반 개인화 문장 생성은 고도화 과제
 - Kakao Map/Tmap/GPS는 실제 모바일/현장 검증 필요
 - 지역 리워드는 placeholder만 있음
 
 미구현:
 
-- 일정 관리
-- 팔로우/그룹
-- 챌린지/랭킹
-- 사용자 AI 추천
-- AI 코칭/분석
 - OAuth 소셜 로그인
 - 실제 쿠폰/상품권 지급
 - 다국어/무장애/두루누비/기상청 API 연계
@@ -81,6 +84,10 @@ Backend:
 - `episode/*`: 사용자 플레이 API
 - `casefile/*`: 사건파일 탭 API
 - `review/*`: 에피소드 리뷰/관리자 리뷰
+- `plan/*`: 내 일정 관리
+- `group/*`: 그룹 생성/가입/멤버
+- `ranking/*`, `challenge/*`: 랭킹/챌린지
+- `recommendation/*`, `coaching/*`: 추천/코칭
 - `admin/episode/*`: 관리자 에피소드 생성/운영
 - `global/config/EpisodeSchemaMigration.java`: episode MVP 테이블과 EP.01 seed
 - `game/*`, `location/*`, `community/*`: legacy 관광/미션/커뮤니티 기능
@@ -97,6 +104,12 @@ Frontend:
 - `src/views/EpisodeCaseFileView.vue`
 - `src/views/FinalDeductionView.vue`
 - `src/views/ClearReportView.vue`
+- `src/views/PlansView.vue`
+- `src/views/GroupsView.vue`
+- `src/views/RankingView.vue`
+- `src/views/ChallengesView.vue`
+- `src/views/RecommendationsView.vue`
+- `src/views/CoachingView.vue`
 - `src/views/AdminEpisodesView.vue`
 - `src/views/AdminUsersView.vue`
 - `src/views/AdminReviewsView.vue`
@@ -124,8 +137,8 @@ npm.cmd run build
 1. 실제 모바일 Kakao Map/Tmap/GPS 현장 QA
 2. PUBLISHED 전환 전 현장 검수 체크박스 또는 운영 승인 필드
 3. Gemini 최종 추리 고도화
-4. 일정 관리
-5. 챌린지/랭킹
-6. 사용자 AI 추천/AI 코칭
+4. 추천/코칭의 Gemini 기반 개인화 고도화
+5. 챌린지/그룹/일정 운영 UI 고도화
+6. 실제 제휴 리워드와 쿠폰 지급 흐름
 
 기능 개발 전에는 반드시 `docs/MVP_STATUS.md`와 `docs/REQUIREMENTS_AUDIT.md`를 읽고, 문서가 아니라 실제 코드 기준으로 구현 여부를 다시 확인한다.

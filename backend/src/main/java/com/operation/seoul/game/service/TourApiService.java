@@ -1,5 +1,3 @@
-// backend/src/main/java/com/operation/seoul/game/service/TourApiService.java
-
 package com.operation.seoul.game.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,7 +32,7 @@ public class TourApiService {
     @Value("${tourapi.key}")
     private String tourApiKey;
 
-    // 백엔드 표준 키(kakao.rest.api.key)를 우선 사용하되, 기존 로컬 설정(VITE_KAKAO_REST_KEY)도 호환합니다.
+    // Prefer the backend Kakao REST API key, with the legacy local env value as a fallback.
     @Value("${kakao.rest.api.key:${VITE_KAKAO_REST_KEY:}}")
     private String kakaoRestApiKey;
 
@@ -52,8 +50,7 @@ public class TourApiService {
     }
 
     /**
-     * [역사적 장소 수집] TourAPI 호출 (ContentType 12: 관광지)
-     * 관리자 후보지 스캔에서 최종 목적지 후보를 모으는 첫 단계입니다.
+     * Collect historical/cultural POIs from TourAPI near the selected coordinates.
      */
     public List<Map<String, String>> fetchHistoricalPlaces(double lat, double lng, int radius) {
         ensureTourApiKey();
@@ -74,7 +71,7 @@ public class TourApiService {
             urlBuilder.append("&contentTypeId=12");
 
             URI uri = new URI(urlBuilder.toString());
-            log.info("🚀 [TourAPI 최종 요청 주소]: {}", uri);
+            log.info("TourAPI request URI: {}", uri);
 
             ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
 
@@ -82,8 +79,8 @@ public class TourApiService {
             JsonNode header = root.path("response").path("header");
             String resultCode = header.path("resultCode").asText("");
             if (!resultCode.isBlank() && !"0000".equals(resultCode)) {
-                String resultMessage = header.path("resultMsg").asText("TourAPI 응답 오류");
-                throw new ApiException(HttpStatus.BAD_GATEWAY, "TOURAPI_REQUEST_FAILED", "TourAPI 후보 조회에 실패했습니다: " + resultMessage);
+                String resultMessage = header.path("resultMsg").asText("TourAPI response error");
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "TOURAPI_REQUEST_FAILED", "TourAPI place lookup failed: " + resultMessage);
             }
             JsonNode items = root.path("response").path("body").path("items").path("item");
 
@@ -100,14 +97,18 @@ public class TourApiService {
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
-            log.error("🚨 TourAPI 오류: {}", e.getMessage());
+            log.error("TourAPI lookup failed: {}", e.getMessage());
         }
         return spots;
     }
 
     private void ensureTourApiKey() {
         if (tourApiKey == null || tourApiKey.isBlank() || tourApiKey.startsWith("YOUR_")) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "TOURAPI_SERVICE_KEY_MISSING", "TourAPI 서비스 키가 설정되어 있지 않습니다. backend application-local.properties 또는 운영 환경변수에 TourAPI 서비스 키를 설정하세요.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "TOURAPI_SERVICE_KEY_MISSING",
+                    "TourAPI service key is not configured. Set tourapi.key in backend application-local.properties or the runtime environment."
+            );
         }
     }
 
@@ -115,7 +116,7 @@ public class TourApiService {
         if (value == null || value.isBlank()) {
             return value;
         }
-        if (!(value.contains("ì") || value.contains("ê") || value.contains("ë") || value.contains("í"))) {
+        if (!(value.contains("챙") || value.contains("챗") || value.contains("챘") || value.contains("챠"))) {
             return value;
         }
         try {
@@ -126,8 +127,7 @@ public class TourApiService {
     }
 
     /**
-     * [주변 장소 수집] 카카오 API 호출
-     * 최종 목적지 주변의 카페/공원/시장 등 힌트 미션 후보 POI를 수집합니다.
+     * Collect nearby local POIs from Kakao Local API for route-based hints.
      */
     public List<Map<String, String>> fetchNearbyLocalPOIs(double lat, double lng, int radius, String keyword) {
         List<Map<String, String>> spots = new ArrayList<>();
@@ -161,14 +161,13 @@ public class TourApiService {
                 }
             }
         } catch (Exception e) {
-            log.error("🚨 Kakao API 오류: {}", e.getMessage());
+            log.error("Kakao Local API lookup failed: {}", e.getMessage());
         }
         return spots;
     }
 
     /**
-     * Tmap 도보 경로 API로 실제 보행 거리를 확인합니다.
-     * 후보지 필터링에서 직선거리는 가깝지만 도보 접근성이 나쁜 장소를 제외하는 데 사용합니다.
+     * Check actual walking distance through Tmap pedestrian routes.
      */
     public Double fetchPedestrianDistanceMeters(double startLat, double startLng, double endLat, double endLng) {
         if (tmapAppKey == null || tmapAppKey.isBlank()) {

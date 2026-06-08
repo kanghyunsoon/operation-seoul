@@ -7,7 +7,7 @@
       <header class="header">
         <p class="eyebrow">FIELD ACCESS</p>
         <h1 class="title">OPERATION<span> KOREA</span></h1>
-        <p class="subtitle">오프라인 사건파일 키트를 모바일 현장 조사로 이어갑니다.</p>
+        <p class="subtitle">오프라인 사건파일 세트를 모바일 현장 조사로 이어갑니다.</p>
       </header>
 
       <form class="auth-form" @submit.prevent="handleSubmit">

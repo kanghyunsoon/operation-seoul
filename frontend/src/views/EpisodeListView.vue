@@ -8,6 +8,11 @@
       </div>
       <div class="header-actions">
         <button type="button" class="admin-link primary" @click="router.push({ name: 'RegionMap' })">지역 다시 선택</button>
+        <button type="button" class="admin-link primary" @click="router.push({ name: 'Recommendations' })">AI 추천</button>
+        <button type="button" class="admin-link" @click="router.push({ name: 'Coaching' })">AI 코칭</button>
+        <button type="button" class="admin-link primary" @click="router.push({ name: 'Challenges' })">챌린지</button>
+        <button type="button" class="admin-link" @click="router.push({ name: 'Plans' })">내 일정</button>
+        <button type="button" class="admin-link" @click="router.push({ name: 'Groups' })">그룹</button>
         <button type="button" class="admin-link" @click="router.push({ name: 'MyPage' })">내 관심 목록</button>
         <button type="button" class="admin-link danger" @click="logout">로그아웃</button>
         <template v-if="sessionStore.isAdmin">

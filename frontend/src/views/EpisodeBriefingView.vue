@@ -6,7 +6,7 @@
       <p class="synopsis">{{ episode.fictionSynopsis }}</p>
       <div class="mission-rule">
         <strong>조사 방식</strong>
-        <span>전체 조사 장소는 처음부터 지도에 표시됩니다. 실제 최종 장소는 서버 내부에서만 판정되며, 사건파일에서 단서와 자료를 계속 대조해야 합니다.</span>
+        <span>모든 조사 장소는 처음부터 지도에 표시됩니다. 실제 최종 장소는 서버 내부에서만 판정되며, 사건파일에서 단서와 자료를 계속 대조해야 합니다.</span>
       </div>
       <div class="mission-rule">
         <strong>최종 질문</strong>
@@ -31,7 +31,9 @@ const router = useRouter();
 const episodeId = route.params.episodeId;
 const episode = ref(null);
 
-onMounted(async () => { episode.value = await episodeApi.getEpisode(episodeId); });
+onMounted(async () => {
+  episode.value = await episodeApi.getEpisode(episodeId);
+});
 </script>
 
 <style scoped>

@@ -659,7 +659,7 @@ public class AdminEpisodeService {
     }
 
     private String draftEra(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
-        if (!missing(request.getEra()) && !containsCompact(request.getEra(), "????") && !containsCompact(request.getEra(), "?????")) {
+        if (!missing(request.getEra()) && !containsCompact(request.getEra(), "검수") && !containsCompact(request.getEra(), "미정")) {
             return request.getEra().trim();
         }
         String joined = places.stream()
@@ -668,16 +668,16 @@ public class AdminEpisodeService {
                         blank(place.getAdminMemo(), ""),
                         place.getKeywords() == null ? "" : String.join(" ", place.getKeywords())))
                 .collect(Collectors.joining(" "));
-        if (containsCompact(joined, "????") || containsCompact(joined, "??") || containsCompact(joined, "1905") || containsCompact(joined, "1897")) {
-            return "???? ??";
+        if (containsCompact(joined, "대한제국") || containsCompact(joined, "근대") || containsCompact(joined, "1905") || containsCompact(joined, "1897")) {
+            return "대한제국 말기";
         }
-        if (containsCompact(joined, "??") || containsCompact(joined, "?") || containsCompact(joined, "??")) {
-            return "?? ??";
+        if (containsCompact(joined, "조선") || containsCompact(joined, "궁") || containsCompact(joined, "왕")) {
+            return "조선 시대";
         }
-        if (containsCompact(joined, "??") || containsCompact(joined, "??") || containsCompact(joined, "??")) {
-            return "?? ???";
+        if (containsCompact(joined, "일제") || containsCompact(joined, "독립") || containsCompact(joined, "항일")) {
+            return "일제강점기";
         }
-        return "??? ?? ??? ??";
+        return "현대와 과거가 교차하는 사건";
     }
 
     public AdminEpisodeDetailResponse saveAiDraft(AiEpisodeDraftSaveRequest request) {
@@ -1215,9 +1215,9 @@ public class AdminEpisodeService {
                 blank(candidate.getSource(), ""),
                 blank(candidate.getDescription(), "")));
         double score = 0;
-        if (containsCompact(value, "??") || containsCompact(value, "???") || containsCompact(value, "???") || containsCompact(value, "??") || containsCompact(value, "??")) score += 45;
-        if (containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??")) score += 34;
-        if (containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??")) score += 28;
+        if (containsCompact(value, "문화") || containsCompact(value, "박물관") || containsCompact(value, "미술관") || containsCompact(value, "전시") || containsCompact(value, "역사")) score += 45;
+        if (containsCompact(value, "궁") || containsCompact(value, "성곽") || containsCompact(value, "유적")) score += 34;
+        if (containsCompact(value, "공원") || containsCompact(value, "광장") || containsCompact(value, "거리") || containsCompact(value, "시장") || containsCompact(value, "서점")) score += 28;
         if (containsCompact(value, "KakaoLocal:CT1") || containsCompact(value, "KakaoLocal:AT4")) score += 30;
         if (containsCompact(value, "KakaoLocal:CE7") || containsCompact(value, "KakaoLocal:FD6")) score += 20;
         double distance = distanceMeters(anchor.getLatitude(), anchor.getLongitude(), candidate.getLatitude(), candidate.getLongitude());
@@ -1308,11 +1308,11 @@ public class AdminEpisodeService {
     private String categoryKeyword(AdminPlaceCandidateResponse candidate) {
         String source = blank(candidate.getSource(), "");
         String value = compact(blank(candidate.getTitle(), "") + " " + blank(candidate.getAddress(), "") + " " + source);
-        if (source.contains("CT1") || containsCompact(value, "??") || containsCompact(value, "???") || containsCompact(value, "???") || containsCompact(value, "??")) return "culture-exhibition";
-        if (source.contains("AT4") || containsCompact(value, "??") || containsCompact(value, "??")) return "tour-history";
-        if (source.contains("CE7") || containsCompact(value, "??") || containsCompact(value, "??")) return "cafe-rest-point";
-        if (source.contains("FD6") || containsCompact(value, "??") || containsCompact(value, "??")) return "local-food-business";
-        if (containsCompact(value, "??") || containsCompact(value, "??") || containsCompact(value, "??")) return "open-public-space";
+        if (source.contains("CT1") || containsCompact(value, "문화") || containsCompact(value, "박물관") || containsCompact(value, "미술관") || containsCompact(value, "전시")) return "culture-exhibition";
+        if (source.contains("AT4") || containsCompact(value, "역사") || containsCompact(value, "유적")) return "tour-history";
+        if (source.contains("CE7") || containsCompact(value, "카페") || containsCompact(value, "찻집")) return "cafe-rest-point";
+        if (source.contains("FD6") || containsCompact(value, "식당") || containsCompact(value, "음식")) return "local-food-business";
+        if (containsCompact(value, "공원") || containsCompact(value, "광장") || containsCompact(value, "거리")) return "open-public-space";
         return "nearby-place-signal";
     }
 

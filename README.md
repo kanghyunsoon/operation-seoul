@@ -63,11 +63,13 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | 지역 리워드/쿠폰 | Placeholder | `episode_partner_rewards` PLANNED/DISABLED 구조만 있음. 실제 쿠폰 지급 없음 |
 | OAuth 소셜 로그인 | 미구현 | 구글/네이버/카카오 로그인 버튼도 만들지 않음 |
 | 에피소드 찜/즐겨찾기 | 완료 | episode_favorites API, 목록/상세 favorited, 내 관심 목록 화면 구현 |
-| 일정 관리 | 미구현 | plans API/화면 없음 |
-| 팔로우/그룹 | 미구현 | follows/groups API/화면 없음 |
-| 챌린지/랭킹 | 미구현 | challenges/rankings API/화면 없음 |
-| 사용자 AI 추천 | 미구현 | user recommendation API/화면 없음 |
-| AI 코칭/분석 | 미구현 | play report 기반 coaching API/화면 없음 |
+| 일정 관리 | MVP 완료 | `UserPlanController`, `UserPlanService`, `PlansView.vue` |
+| 팔로우 | MVP 완료 | `UserFollowController`, `UserFollowService`, `MyPageView.vue` 팔로워/팔로잉 목록 |
+| 그룹 | MVP 완료 | `UserGroupController`, `UserGroupService`, `GroupsView.vue` |
+| 랭킹 | MVP 완료 | `RankingController`, `RankingService`, `RankingView.vue` |
+| 챌린지 | MVP 완료 | `ChallengeController`, `ChallengeService`, `ChallengesView.vue` |
+| 사용자 AI 추천 | MVP 완료 | `EpisodeRecommendationController`, `EpisodeRecommendationService`, `RecommendationsView.vue`. 현재는 설명 가능한 규칙 기반 추천 |
+| AI 코칭/분석 | MVP 완료 | `CoachingController`, `CoachingService`, `CoachingView.vue`. 현재는 플레이 기록 기반 규칙 코칭 |
 
 ## 사용자 플레이 API
 
@@ -94,6 +96,28 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | `POST` | `/api/v1/episodes/{episodeId}/reviews` | 리뷰 작성 |
 | `PUT` | `/api/v1/reviews/{reviewId}` | 리뷰 수정 |
 | `DELETE` | `/api/v1/reviews/{reviewId}` | 리뷰 삭제 |
+| `GET` | `/api/v1/users/me/following` | 내가 팔로우한 사용자 목록 |
+| `GET` | `/api/v1/users/me/followers` | 나를 팔로우한 사용자 목록 |
+| `POST` | `/api/v1/users/{targetUserId}/follow` | 사용자 팔로우 |
+| `DELETE` | `/api/v1/users/{targetUserId}/follow` | 사용자 팔로우 해제 |
+| `GET` | `/api/v1/rankings` | 전체/에피소드별 클리어 랭킹 |
+| `GET` | `/api/v1/rankings/me` | 내 클리어 랭킹 기록 |
+| `GET` | `/api/v1/users/me/plans` | 내 플레이 일정 목록 |
+| `POST` | `/api/v1/users/me/plans` | 플레이 일정 추가/갱신 |
+| `PUT` | `/api/v1/users/me/plans/{planId}` | 플레이 일정 수정/상태 변경 |
+| `DELETE` | `/api/v1/users/me/plans/{planId}` | 플레이 일정 삭제 |
+| `GET` | `/api/v1/groups` | 공개/가입 그룹 목록 |
+| `GET` | `/api/v1/groups/me` | 내 그룹 목록 |
+| `POST` | `/api/v1/groups` | 그룹 생성 |
+| `POST` | `/api/v1/groups/{groupId}/join` | 공개 그룹 가입 |
+| `DELETE` | `/api/v1/groups/{groupId}/join` | 그룹 탈퇴 |
+| `GET` | `/api/v1/groups/{groupId}/members` | 그룹 멤버 목록 |
+| `GET` | `/api/v1/challenges` | 공개 챌린지 목록과 진행률 |
+| `GET` | `/api/v1/challenges/me` | 내 챌린지 목록 |
+| `POST` | `/api/v1/challenges/{challengeId}/join` | 챌린지 참가 |
+| `GET` | `/api/v1/recommendations/episodes` | 관심/일정/클리어 기록 기반 사건파일 추천 |
+| `GET` | `/api/v1/coaching/me` | 내 플레이 코칭 요약 |
+| `GET` | `/api/v1/coaching/episodes/{episodeId}` | 에피소드별 코칭 리포트 |
 
 ## 관리자 API
 
@@ -132,6 +156,14 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | `/episodes/:episodeId/case-file` | 사건파일/자료/조사 기록 | 완료 |
 | `/episodes/:episodeId/deduction` | 최종 추리 | 완료 |
 | `/episodes/:episodeId/clear-report` | 클리어 리포트/리뷰 | 완료 |
+| `/regions/:regionId/community` | 권역 커뮤니티/리뷰/Q&A | MVP 완료 |
+| `/rankings` | 클리어 랭킹/내 기록 | MVP 완료 |
+| `/challenges` | 클리어 수 기반 챌린지 | MVP 완료 |
+| `/recommendations` | 맞춤 사건파일 추천 | MVP 완료 |
+| `/coaching` | 플레이 기록 기반 코칭/분석 | MVP 완료 |
+| `/plans` | 내 플레이 일정 관리 | MVP 완료 |
+| `/groups` | 그룹 생성/가입/멤버 확인 | MVP 완료 |
+| `/me` | 관심 에피소드/팔로우/일정/그룹 진입 | MVP 완료 |
 | `/admin/users` | 관리자 회원 관리 | 완료 |
 | `/admin/reviews` | 관리자 리뷰 관리 | 완료 |
 | `/admin/episodes` | 관리자 에피소드 생성/운영 | 완료 |
