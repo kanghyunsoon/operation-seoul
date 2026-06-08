@@ -3,10 +3,12 @@ package com.operation.seoul.global.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
+@Order(3)
 @RequiredArgsConstructor
 public class CommunitySchemaMigration implements ApplicationRunner {
 
@@ -131,6 +133,93 @@ public class CommunitySchemaMigration implements ApplicationRunner {
                     constraint fk_user_follow_following foreign key (following_id) references users (id) on delete cascade,
                     constraint chk_user_follow_not_self check (follower_id <> following_id)
                 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        createTableIfMissing("user_plans", """
+                create table user_plans (
+                    id bigint not null auto_increment,
+                    user_id bigint not null,
+                    episode_id bigint not null,
+                    planned_at datetime not null,
+                    memo varchar(500) null,
+                    status varchar(32) not null default 'PLANNED',
+                    created_at datetime not null default current_timestamp,
+                    updated_at datetime null,
+                    primary key (id),
+                    unique key uk_user_plans_user_episode (user_id, episode_id),
+                    index idx_user_plans_user_status_date (user_id, status, planned_at),
+                    index idx_user_plans_episode (episode_id),
+                    constraint fk_user_plans_user foreign key (user_id) references users (id) on delete cascade,
+                    constraint fk_user_plans_episode foreign key (episode_id) references episodes (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        createTableIfMissing("user_groups", """
+                create table user_groups (
+                    id bigint not null auto_increment,
+                    name varchar(80) not null,
+                    description varchar(500) null,
+                    owner_id bigint not null,
+                    visibility varchar(32) not null default 'PUBLIC',
+                    status varchar(32) not null default 'ACTIVE',
+                    created_at datetime not null default current_timestamp,
+                    updated_at datetime null,
+                    primary key (id),
+                    index idx_user_groups_owner (owner_id),
+                    index idx_user_groups_status_created (status, created_at),
+                    constraint fk_user_groups_owner foreign key (owner_id) references users (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        createTableIfMissing("user_group_members", """
+                create table user_group_members (
+                    group_id bigint not null,
+                    user_id bigint not null,
+                    role varchar(32) not null default 'MEMBER',
+                    joined_at datetime not null default current_timestamp,
+                    primary key (group_id, user_id),
+                    index idx_user_group_members_user (user_id),
+                    constraint fk_user_group_members_group foreign key (group_id) references user_groups (id) on delete cascade,
+                    constraint fk_user_group_members_user foreign key (user_id) references users (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        createTableIfMissing("challenges", """
+                create table challenges (
+                    id bigint not null auto_increment,
+                    title varchar(120) not null,
+                    description varchar(700) null,
+                    target_type varchar(40) not null default 'CLEAR_COUNT',
+                    target_count int not null,
+                    status varchar(32) not null default 'ACTIVE',
+                    start_at datetime null,
+                    end_at datetime null,
+                    created_at datetime not null default current_timestamp,
+                    updated_at datetime null,
+                    primary key (id),
+                    unique key uk_challenges_title (title),
+                    index idx_challenges_status_period (status, start_at, end_at)
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        createTableIfMissing("user_challenge_entries", """
+                create table user_challenge_entries (
+                    challenge_id bigint not null,
+                    user_id bigint not null,
+                    status varchar(32) not null default 'JOINED',
+                    joined_at datetime not null default current_timestamp,
+                    completed_at datetime null,
+                    primary key (challenge_id, user_id),
+                    index idx_user_challenge_entries_user (user_id, status),
+                    constraint fk_user_challenge_entries_challenge foreign key (challenge_id) references challenges (id) on delete cascade,
+                    constraint fk_user_challenge_entries_user foreign key (user_id) references users (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        seedDefaultChallenges();
+    }
+
+    private void seedDefaultChallenges() {
+        jdbcTemplate.update("""
+                insert ignore into challenges (title, description, target_type, target_count, status)
+                values
+                ('첫 사건 클리어', '아무 사건파일이나 1개 클리어하면 완료됩니다.', 'CLEAR_COUNT', 1, 'ACTIVE'),
+                ('현장 요원 루키', '서로 다른 사건파일 3개를 클리어하면 완료됩니다.', 'CLEAR_COUNT', 3, 'ACTIVE'),
+                ('작전 베테랑', '사건파일 5개 클리어를 목표로 하는 장기 챌린지입니다.', 'CLEAR_COUNT', 5, 'ACTIVE')
                 """);
     }
 

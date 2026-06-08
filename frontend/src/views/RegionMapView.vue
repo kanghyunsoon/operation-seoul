@@ -8,6 +8,10 @@
       </div>
       <div class="hero-actions">
         <button type="button" @click="router.push({ name: 'EpisodeList' })">전체 사건 보기</button>
+        <button type="button" @click="router.push({ name: 'Ranking' })">랭킹</button>
+        <button type="button" @click="router.push({ name: 'Recommendations' })">추천</button>
+        <button type="button" @click="router.push({ name: 'Coaching' })">코칭</button>
+        <button type="button" @click="router.push({ name: 'Challenges' })">챌린지</button>
         <button type="button" @click="router.push({ name: 'MyPage' })">내 관심 목록</button>
         <button type="button" class="danger" @click="logout">로그아웃</button>
       </div>
@@ -16,10 +20,10 @@
     <section class="region-shell">
       <div class="map-card">
         <div class="map-title">
-          <strong>대한민국 조사 권역</strong>
+          <strong>대전/수도권 조사 권역</strong>
           <span>서울 포함 10개 권역</span>
         </div>
-        <svg viewBox="60 20 330 540" role="img" aria-label="대한민국 권역 선택 지도">
+        <svg viewBox="60 20 330 540" role="img" aria-label="대전/수도권 권역 선택 지도">
           <defs>
             <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#020617" flood-opacity="0.35" />
@@ -33,15 +37,7 @@
             :aria-label="`${area.label} 선택`"
             @click="openRegion(area.code)"
           >
-            <rect
-              :x="area.x"
-              :y="area.y"
-              :width="area.w"
-              :height="area.h"
-              rx="18"
-              :fill="area.color"
-              filter="url(#shadow)"
-            />
+            <rect :x="area.x" :y="area.y" :width="area.w" :height="area.h" rx="18" :fill="area.color" filter="url(#shadow)" />
             <text :x="area.x + area.w / 2" :y="area.y + area.h / 2 - 4" text-anchor="middle">{{ area.label }}</text>
             <text :x="area.x + area.w / 2" :y="area.y + area.h / 2 + 16" text-anchor="middle" class="small">{{ area.includes }}</text>
           </button>
@@ -54,7 +50,7 @@
           />
         </svg>
         <p class="map-note">
-          현재 지도는 서비스 권역 선택용 도식입니다. 운영 단계에서는 행정 경계 GeoJSON으로 교체하면 더 정확하게 표시할 수 있습니다.
+          현재 지도는 서비스 권역 선택용 의식 지도입니다. 운영 단계에서 행정 경계 GeoJSON으로 교체하면 더 정확하게 표시할 수 있습니다.
         </p>
       </div>
 
@@ -65,9 +61,7 @@
             <strong>{{ area.label }}</strong>
             <small>{{ area.includes }}</small>
           </button>
-          <button type="button" class="community-link" @click="openCommunity(area)">
-            권역 커뮤니티
-          </button>
+          <button type="button" class="community-link" @click="openCommunity(area)">권역 커뮤니티</button>
         </article>
       </div>
     </section>
@@ -87,7 +81,7 @@ function openRegion(areaCode) {
 }
 
 function openCommunity(area) {
-  router.push({ name: 'RegionCommunity', params: { regionId: area.regionId || area.code }, query: { areaCode: area.code } });
+  router.push({ name: 'RegionCommunity', params: { regionId: area.regionId }, query: { areaCode: area.code } });
 }
 
 function logout() {
@@ -113,7 +107,7 @@ button.danger { background: #7f1d1d; }
 .map-title span, .map-note, .region-main small { color: #cbd5e1; }
 svg { width: 100%; min-height: 560px; border-radius: 22px; background: linear-gradient(180deg, rgba(8,47,73,.68), rgba(2,6,23,.78)); }
 .region-hit { all: unset; cursor: pointer; }
-.region-hit rect { stroke: rgba(255,255,255,.72); stroke-width: 3; transition: transform .16s ease, filter .16s ease, opacity .16s ease; transform-box: fill-box; transform-origin: center; opacity: .9; }
+.region-hit rect { stroke: rgba(255,255,255,.72); stroke-width: 3; transition: transform .16s ease, opacity .16s ease; transform-box: fill-box; transform-origin: center; opacity: .9; }
 .region-hit:hover rect { transform: scale(1.04); opacity: 1; }
 .region-hit text { pointer-events: none; fill: white; font-size: 14px; font-weight: 900; paint-order: stroke; stroke: rgba(2,6,23,.45); stroke-width: 3px; }
 .region-hit text.small { font-size: 9px; font-weight: 800; }

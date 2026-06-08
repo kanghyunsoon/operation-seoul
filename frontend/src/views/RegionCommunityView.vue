@@ -4,7 +4,7 @@
       <button type="button" class="ghost" @click="router.push({ name: 'RegionMap' })">권역 지도로</button>
       <p>REGION COMMUNITY</p>
       <h1>{{ regionName }} 커뮤니티</h1>
-      <span>클리어 리뷰와 현장 질문을 한 곳에서 확인합니다.</span>
+      <span>클리어 리뷰와 현장 질문을 한곳에서 확인합니다.</span>
       <div class="hero-actions">
         <button type="button" @click="router.push({ name: 'EpisodeList', query: { areaCode } })">이 권역 사건 보기</button>
         <button type="button" @click="reload">새로고침</button>
@@ -169,7 +169,7 @@ async function submitReview() {
 }
 
 async function deleteReview(review) {
-  if (!confirm('이 리뷰를 삭제할까요?')) return;
+  if (!confirm('내 리뷰를 삭제할까요?')) return;
   try {
     await regionCommunityApi.deleteReview(regionId.value, review.id);
     reviewForm.content = '';
@@ -198,7 +198,7 @@ async function submitQuestion() {
     await regionCommunityApi.createQuestion(regionId.value, questionForm);
     questionForm.title = '';
     questionForm.content = '';
-    setMessage('질문이 등록되었습니다.');
+    setMessage('질문을 등록했습니다.');
     await loadQuestions();
   } catch (error) {
     setMessage(error.userMessage || '질문을 등록하지 못했습니다.', 'error');
@@ -209,7 +209,7 @@ async function deleteQuestion(question) {
   if (!confirm('이 질문을 삭제할까요?')) return;
   try {
     await regionCommunityApi.deleteQuestion(regionId.value, question.id);
-    setMessage('질문이 삭제되었습니다.');
+    setMessage('질문을 삭제했습니다.');
     await loadQuestions();
   } catch (error) {
     setMessage(error.userMessage || '질문을 삭제하지 못했습니다.', 'error');

@@ -27,15 +27,15 @@
           <strong>{{ formatElapsed(report.elapsedSeconds) }}</strong>
         </div>
         <div>
-          <span>최종 장소</span>
+          <span>최종 조사 지점</span>
           <strong>{{ report.finalArrivedSpotName || '기록 없음' }}</strong>
         </div>
       </div>
 
       <div class="metric-grid">
         <article><strong>{{ report.completedSpotCount || 0 }}/{{ report.totalSpotCount || 0 }}</strong><span>조사 완료 장소</span></article>
-        <article><strong>{{ report.answerClueCount || 0 }}</strong><span>정답 힌트</span></article>
-        <article><strong>{{ report.destinationClueCount || 0 }}</strong><span>목적지 힌트</span></article>
+        <article><strong>{{ report.answerClueCount || 0 }}</strong><span>정답 단서</span></article>
+        <article><strong>{{ report.destinationClueCount || 0 }}</strong><span>목적지 단서</span></article>
         <article><strong>{{ report.deductionQuestionCount || 0 }}</strong><span>최종 추리 질문</span></article>
         <article><strong>{{ report.wrongAnswerCount || 0 }}</strong><span>오답</span></article>
         <article><strong>{{ report.unlockedEvidenceIds?.length || 0 }}</strong><span>해금 자료</span></article>
@@ -54,11 +54,11 @@
       <article class="paper-block">
         <h2>수집한 단서</h2>
         <div class="clue-section">
-          <h3>정답 힌트</h3>
+          <h3>정답 단서</h3>
           <div class="chips"><span v-for="clue in report.answerClues || []" :key="`a-${clue}`">{{ clue }}</span><em v-if="!(report.answerClues || []).length">없음</em></div>
         </div>
         <div class="clue-section">
-          <h3>목적지 힌트</h3>
+          <h3>목적지 단서</h3>
           <div class="chips"><span v-for="clue in report.destinationClues || []" :key="`d-${clue}`">{{ clue }}</span><em v-if="!(report.destinationClues || []).length">없음</em></div>
         </div>
         <div class="clue-section">
@@ -77,10 +77,11 @@
       <EpisodeReviewPanel v-if="report.canReview" :episode-id="episodeId" />
       <article v-else class="paper-block subdued">
         <h2>리뷰</h2>
-        <p>CLEARED 상태에서만 리뷰를 작성할 수 있습니다. 이미 작성한 리뷰가 있다면 목록에서 수정할 수 있습니다.</p>
+        <p>클리어 상태에서만 리뷰를 작성할 수 있습니다. 이미 작성한 리뷰가 있다면 목록에서 수정할 수 있습니다.</p>
       </article>
 
       <div class="actions">
+        <button type="button" @click="router.push({ name: 'Coaching' })">코칭 보기</button>
         <button type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 보기</button>
         <button type="button" class="ghost" @click="router.push({ name: 'EpisodeList' })">사건 목록으로</button>
       </div>
@@ -158,6 +159,6 @@ h1 { margin: 8px 0; font-size: clamp(1.8rem, 8vw, 3.4rem); line-height: 1.05; }
 .actions { display: grid; grid-template-columns: 1fr; gap: 9px; margin-top: 18px; }
 button { min-height: 48px; border: 0; border-radius: 13px; background: #24180d; color: #fff; font-weight: 900; }
 button.ghost { border: 1px solid rgba(36,24,13,.24); background: transparent; color: #24180d; }
-@media (min-width: 640px) { .score-card { grid-template-columns: repeat(3, 1fr); } .score-card div { display: grid; } .metric-grid { grid-template-columns: repeat(3, 1fr); } .actions { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 640px) { .score-card { grid-template-columns: repeat(3, 1fr); } .score-card div { display: grid; } .metric-grid { grid-template-columns: repeat(3, 1fr); } .actions { grid-template-columns: 1fr 1fr 1fr; } }
 @media (max-width: 370px) { .report { padding: 18px; } .metric-grid { grid-template-columns: 1fr; } }
 </style>

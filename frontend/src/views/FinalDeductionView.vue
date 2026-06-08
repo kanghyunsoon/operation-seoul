@@ -15,15 +15,15 @@
       </div>
 
       <section class="rules">
-        <strong>바다거북 스프식 질문 규칙</strong>
-        <p>AI는 예/아니오, 관련 있음/없음, 부분적으로 맞음, 질문이 모호함, 단서 부족, 정답 직접 노출 불가 범위로만 답합니다.</p>
+        <strong>바다거북 스프형 질문 규칙</strong>
+        <p>AI가 아닌 규칙 기반 응답입니다. 관련 있음/없음, 부분적으로 맞음, 질문이 모호함, 단서 부족, 정답 직접 노출 불가 범위로만 답합니다.</p>
         <p>정답이나 실제 최종 장소를 직접 묻는 질문에는 답하지 않습니다.</p>
       </section>
 
       <section class="clues">
         <strong>사용 가능한 단서</strong>
         <span v-for="clue in startData.collectedClues" :key="clue">{{ clue }}</span>
-        <em v-if="!startData.collectedClues?.length">수집한 단서가 없습니다. 질문 답변이 제한될 수 있습니다.</em>
+        <em v-if="!startData.collectedClues?.length">수집한 단서가 없습니다. 질문 응답이 제한될 수 있습니다.</em>
       </section>
 
       <section v-if="!startData.sessionId" class="blocked">
@@ -47,7 +47,7 @@
         </section>
 
         <form class="ask" @submit.prevent="ask">
-          <input v-model.trim="question" :disabled="remainingQuestions <= 0" placeholder="예: 렌즈가 사건과 관련 있나?" />
+          <input v-model.trim="question" :disabled="remainingQuestions <= 0" placeholder="예: 용의자가 사건과 관련 있나?" />
           <button type="submit" :disabled="remainingQuestions <= 0 || !question">질문</button>
         </form>
 

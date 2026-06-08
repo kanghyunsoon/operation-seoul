@@ -3,6 +3,7 @@ package com.operation.seoul.global.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@Order(2)
 @RequiredArgsConstructor
 public class EpisodeSchemaMigration implements ApplicationRunner {
     private static final String SAMPLE_TITLE = "EP.01 죽음을 비추는 렌즈";

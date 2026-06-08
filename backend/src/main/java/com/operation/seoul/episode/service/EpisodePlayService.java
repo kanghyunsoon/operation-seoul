@@ -414,7 +414,7 @@ public class EpisodePlayService {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (!"CLEARED".equals(progress.getStatus()) || progress.getClearedAt() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "CLEAR_REQUIRED", "??????????밸븶?????雅?퍔瑗?땟????????????녾컯???觀萸???轅붽틓????釉랁닑????轅붽틓???????????????????????놁졄.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "CLEAR_REQUIRED", "Clear report is available only after clearing the episode.");
         }
         List<Long> visitedSpotIds = readLongList(progress.getVisitedSpotIds());
         List<Long> completedSpotIds = readLongList(progress.getCompletedSpotIds());
@@ -459,7 +459,7 @@ public class EpisodePlayService {
     private Episode requireEpisode(Long episodeId) {
         Episode episode = episodeRepository.findEpisodeById(episodeId);
         if (episode == null || !"PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "??雅?퍔瑗?땟?????????饔낅떽???????????????깅즽????????놁졄.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "Episode was not found.");
         }
         return episode;
     }
@@ -467,7 +467,7 @@ public class EpisodePlayService {
     private MissionSpot requireSpot(Long spotId, Long episodeId) {
         MissionSpot spot = episodeRepository.findSpotById(spotId);
         if (spot == null || (episodeId != null && !episodeId.equals(spot.getEpisodeId()))) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "??????????饔낅떽???????????????깅즽????????놁졄.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "Investigation spot was not found.");
         }
         requireEpisode(spot.getEpisodeId());
         return spot;

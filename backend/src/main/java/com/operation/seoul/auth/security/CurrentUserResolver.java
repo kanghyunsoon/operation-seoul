@@ -22,10 +22,10 @@ public class CurrentUserResolver {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User user) {
             if (!user.isActive()) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_INACTIVE", "이용이 제한된 계정입니다.");
+                throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_INACTIVE", "Account is inactive.");
             }
             return user;
         }
-        throw new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_REQUIRED", "다시 로그인해 주세요.");
+        throw new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_REQUIRED", "Authentication is required.");
     }
 }

@@ -73,7 +73,7 @@ async function loadReviews() {
     const mine = (reviewState.value.reviews || []).find((review) => review.mine);
     if (mine && !editingReviewId.value) {
       reviewState.value.canReview = false;
-      reviewState.value.message = '이미 이 에피소드의 리뷰를 작성했습니다. 내 리뷰를 수정하거나 삭제할 수 있습니다.';
+      reviewState.value.message = '이미 이 에피소드에 리뷰를 작성했습니다. 내 리뷰를 수정하거나 삭제할 수 있습니다.';
     }
   } catch (error) {
     messageType.value = 'error';

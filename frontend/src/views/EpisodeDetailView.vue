@@ -27,6 +27,7 @@
       </div>
       <div class="actions">
         <button class="primary" type="button" @click="start">브리핑으로 이동</button>
+        <button class="secondary" type="button" :disabled="planBusy" @click="addPlan">내 일정에 추가</button>
         <button class="secondary" type="button" @click="router.push({ name: 'MyPage' })">내 관심 목록 보기</button>
       </div>
       <p v-if="message" class="message" :class="messageType">{{ message }}</p>
@@ -39,6 +40,7 @@ import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { episodeApi } from '@/api/episodeApi';
 import { favoriteApi } from '@/api/favoriteApi';
+import { planApi } from '@/api/planApi';
 
 const route = useRoute();
 const router = useRouter();
@@ -49,6 +51,7 @@ const error = ref('');
 const message = ref('');
 const messageType = ref('success');
 const favoriteBusy = ref(false);
+const planBusy = ref(false);
 
 onMounted(async () => {
   try {
@@ -87,6 +90,26 @@ async function toggleFavorite() {
     setMessage(err.userMessage || '관심 에피소드 상태를 변경하지 못했습니다.', 'error');
   } finally {
     favoriteBusy.value = false;
+  }
+}
+
+async function addPlan() {
+  if (!episode.value) return;
+  planBusy.value = true;
+  try {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    tomorrow.setSeconds(0, 0);
+    await planApi.createPlan({
+      episodeId: episode.value.id,
+      plannedAt: tomorrow.toISOString().slice(0, 16),
+      memo: '',
+      status: 'PLANNED'
+    });
+    setMessage('내 일정에 추가했습니다.');
+  } catch (err) {
+    setMessage(err.userMessage || '일정에 추가하지 못했습니다.', 'error');
+  } finally {
+    planBusy.value = false;
   }
 }
 

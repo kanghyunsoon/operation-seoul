@@ -1,6 +1,6 @@
 ﻿# Operation KOREA Requirements Audit
 
-Last updated: 2026-06-05
+Last updated: 2026-06-08
 Audit basis: 실제 Controller, Service, Repository, DTO, Vue route, API module, migration 파일 기준
 
 ## 1. 필수 기술 스택
@@ -100,11 +100,13 @@ Audit basis: 실제 Controller, Service, Repository, DTO, Vue route, API module,
 | 요구사항 | 실제 상태 | 판정 |
 | --- | --- | --- |
 | 에피소드 찜/즐겨찾기 | `episode_favorites`, favorite API, `MyPageView` | 완료 |
-| 일정 관리 | plans API/View 없음 | 미구현 |
-| 팔로우/그룹 | follows/groups API/View 없음 | 미구현 |
-| 챌린지/랭킹 | challenges/rankings API/View 없음 | 미구현 |
-| 사용자 AI 추천 | recommendations API/View 없음 | 미구현 |
-| AI 코칭/분석 | coaching reports API/View 없음 | 미구현 |
+| 일정 관리 | `UserPlanController`, `PlansView.vue` | MVP 완료 |
+| 팔로우 | `UserFollowController`, `MyPageView.vue` | MVP 완료 |
+| 그룹 | `UserGroupController`, `GroupsView.vue` | MVP 완료 |
+| 랭킹 | `RankingController`, `RankingView.vue` | MVP 완료 |
+| 챌린지 | `ChallengeController`, `ChallengesView.vue` | MVP 완료 |
+| 사용자 AI 추천 | `EpisodeRecommendationController`, `RecommendationsView.vue` | MVP 완료. 현재는 규칙 기반 추천 |
+| AI 코칭/분석 | `CoachingController`, `CoachingView.vue` | MVP 완료. 현재는 플레이 기록 기반 규칙 코칭 |
 | 실제 제휴 쿠폰/상품권 지급 | placeholder만 있음 | 미구현 |
 | 다국어/무장애/두루누비/기상청 API | 설계 문서 수준 | 미구현 |
 

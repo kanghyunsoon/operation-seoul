@@ -3,7 +3,7 @@
     <h3>최종 정답 제출</h3>
     <p>정답은 명확한 명사 또는 명사구입니다. 오답이어도 정답은 공개되지 않으며, 오답 횟수는 점수에 반영됩니다.</p>
     <form @submit.prevent="submit">
-      <input v-model.trim="answer" placeholder="예: 부서진 렌즈" />
+      <input v-model.trim="answer" placeholder="예: 부서진 열쇠" />
       <button type="submit">제출</button>
     </form>
   </section>

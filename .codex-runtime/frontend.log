@@ -1,0 +1,27 @@
+
+> com.operation.seoul@0.0.0 dev
+> vite --host 127.0.0.1
+
+[2m오후 2:17:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+
+  [32m[1mVITE[22m v8.0.8[39m  [2mready in [0m[1m864[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+  ➜  Vue DevTools: Open http://127.0.0.1:5173/__devtools__/ as a separate window
+  ➜  Vue DevTools: Press Alt(⌥)+Shift(⇧)+D in App to toggle the Vue DevTools
+[2m오후 2:24:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.vue, /src/App.vue?vue&type=style&index=0&lang.css[22m
+[2m오후 2:38:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/GroupsView.vue[22m
+[2m오후 2:48:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlansView.vue[22m
+[2m오후 2:48:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChallengesView.vue, /src/views/ChallengesView.vue?vue&type=style&index=0&scoped=4a93dfde&lang.css[22m
+[2m오후 2:48:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/RecommendationsView.vue[22m
+[2m오후 2:48:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/CoachingView.vue[22m
+[2m오후 2:52:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/EpisodeBriefingView.vue, /src/views/EpisodeBriefingView.vue?vue&type=style&index=0&scoped=6b93a8ab&lang.css[22m
+[2m오후 2:52:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/FinalDeductionView.vue, /src/views/FinalDeductionView.vue?vue&type=style&index=0&scoped=29a100e1&lang.css[22m
+[2m오후 2:52:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ClearReportView.vue[22m
+[2m오후 2:57:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/episode/CaseFileTabMenu.vue, /src/components/episode/CaseFileTabMenu.vue?vue&type=style&index=0&scoped=d9285e9f&lang.css[22m
+[2m오후 2:57:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/episode/ClueBoard.vue[22m
+[2m오후 2:57:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/episode/FinalAnswerSubmitBox.vue, /src/components/episode/FinalAnswerSubmitBox.vue?vue&type=style&index=0&scoped=6439f3d6&lang.css[22m
+[2m오후 2:58:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/episode/EpisodeReviewPanel.vue, /src/components/episode/EpisodeReviewPanel.vue?vue&type=style&index=0&scoped=53abfbe3&lang.css[22m
+[2m오후 3:15:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/IntroView.vue[22m
+[2m오후 3:15:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/RegionMapView.vue[22m
+[2m오후 3:16:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/RegionCommunityView.vue[22m
