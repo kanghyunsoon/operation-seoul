@@ -9,7 +9,10 @@
       <section class="cover dossier">
         <div class="cover-actions">
           <p class="stamp">CASE FILE</p>
-          <button type="button" @click="loadCaseFile">새로고침</button>
+          <div class="cover-buttons">
+            <button type="button" class="ghost" @click="loadCaseFile">새로고침</button>
+            <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">다음: 조사 지도</button>
+          </div>
         </div>
         <h1>{{ caseFile.title }}</h1>
         <h2>{{ caseFile.subtitle }}</h2>
@@ -36,6 +39,7 @@
           <div>
             <p class="section-label">용의자 파일</p>
             <h3>{{ caseFile.progressSummary.unlockedSuspectCount }}/{{ caseFile.progressSummary.totalSuspectCount }}명 확인</h3>
+            <p class="section-help">용의자는 반드시 범인이 아니라, 문서와 단서의 흐름을 왜곡했을 수 있는 관계자입니다. 관계, 의심 포인트, 알리바이를 증거 카드와 대조하세요.</p>
           </div>
         </div>
         <div class="card-grid">
@@ -63,6 +67,7 @@
           <div>
             <p class="section-label">증거 / 메모 / 사진 카드</p>
             <h3>{{ caseFile.progressSummary.unlockedEvidenceCount }}/{{ caseFile.progressSummary.totalEvidenceCount }}개 해금</h3>
+            <p class="section-help">각 카드는 정답, 목적지, 용의자 진술 중 하나를 좁히는 근거입니다. 해금 순서와 관련 인물을 함께 보면 최종 추리 난도가 내려갑니다.</p>
           </div>
         </div>
         <div class="evidence-grid">
@@ -132,11 +137,12 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { caseFileApi } from '@/api/caseFileApi';
 import CaseFileTabMenu from '@/components/episode/CaseFileTabMenu.vue';
 
 const route = useRoute();
+const router = useRouter();
 const episodeId = route.params.episodeId;
 const caseFile = ref(null);
 const loading = ref(true);
@@ -200,7 +206,9 @@ function escapeXml(value) { return String(value || '').replaceAll('&', '&amp;').
 .state.error { color: #fecaca; }
 .cover { padding: 22px; background: linear-gradient(145deg, rgba(120,53,15,.44), rgba(15,23,42,.88)); }
 .cover-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.cover-actions button { border: 1px solid rgba(245,158,11,.35); border-radius: 999px; background: rgba(120,53,15,.3); color: #fde68a; padding: 8px 11px; font-weight: 900; }
+.cover-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.cover-actions button { border: 1px solid rgba(245,158,11,.35); border-radius: 999px; background: #f59e0b; color: #111827; padding: 8px 11px; font-weight: 900; }
+.cover-actions button.ghost { background: rgba(120,53,15,.3); color: #fde68a; }
 .stamp, .section-label { margin: 0 0 8px; color: #f59e0b; font-size: .74rem; font-weight: 1000; letter-spacing: .14em; }
 h1 { margin: 0; font-size: clamp(2rem, 6vw, 3.3rem); line-height: 1; }
 h2 { margin: 10px 0 0; color: #fde68a; font-size: 1rem; }
@@ -213,6 +221,7 @@ strong { color: #fff; }
 blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; background: rgba(120,53,15,.22); color: #fff7ed; line-height: 1.6; }
 .goal, .team, .resume { color: #fde68a; }
 .section-head { display: flex; align-items: end; justify-content: space-between; gap: 10px; padding: 18px 18px 0; }
+.section-help { margin: 6px 0 0; color: #cbd5e1; font-size: .84rem; line-height: 1.55; }
 .card-grid, .evidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; padding: 14px 18px 18px; }
 .suspect-card, .evidence-card { position: relative; overflow: hidden; display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 14px; border: 1px solid rgba(148,163,184,.18); border-radius: 16px; background: rgba(2,6,23,.34); }
 .suspect-card.locked, .evidence-card.locked { filter: grayscale(.45); opacity: .72; }

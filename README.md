@@ -218,6 +218,7 @@ app.dev-mode.arrival-enabled=true
 tourapi.key=TOURAPI_SERVICE_KEY
 kakao.rest.api.key=KAKAO_REST_API_KEY
 gemini.api.key=GEMINI_API_KEY
+gemini.model=gemini-3.1-flash-lite
 jwt.secret=CHANGE_ME
 ```
 

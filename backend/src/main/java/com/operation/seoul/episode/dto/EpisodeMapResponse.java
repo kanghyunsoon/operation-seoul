@@ -15,4 +15,5 @@ public class EpisodeMapResponse {
     private Integer wrongAnswerCount;
     private Integer deductionQuestionCount;
     private List<SpotMarkerResponse> spots;
+    private SpotMarkerResponse adminFinalSpot;
 }
