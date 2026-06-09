@@ -171,7 +171,15 @@ public class AdminEpisodeGeminiService {
                 - The player must be able to infer the final answer by combining 3 to 5 unlocked cards without knowing the real final place name.
                 - Suspects must have concrete fictional names/titles, relationToVictim, suspiciousPoint, and alibiSummary. Do not return generic "AI draft" or "admin review" suspect text.
                 - Evidences must have specific case-file titles and summaries tied to mission rewardClue. Do not return generic "case sketch", "draft card", or "admin review" evidence text.
+                - For every suspect and every evidence card, provide a separate imagePrompt field. Each imagePrompt must be a copy-ready English prompt for an external image generator.
+                - imagePrompt must describe the subject, visual style, mood, composition, and negative constraints. It must not say "same as above" and must not depend on another card.
+                - Every suspect imagePrompt must explicitly say that the subject is a fictional Korean person from Seoul, South Korea. Preserve the character's intended age, gender, occupation, and historical era. Explicitly prevent the image generator from casting a Western or European-looking model or changing the character's Korean identity.
+                - Every evidence imagePrompt that may contain a person, hand, portrait, reflection, or silhouette must explicitly require a fictional Korean person and Seoul-appropriate styling for the story era.
+                - Do not put generated image URLs in imageUrl unless the admin provided one. Leave imageUrl empty by default and use imagePrompt for manual generation.
                 - Every mission puzzle must have a clear question, answer, three hints, and a rewardClue that advances either the final answer or destination inference.
+                - Vary puzzle reasoning patterns across missions. Mix number locks, word composition, color/order logic, memory cues, pattern locks, direction sequences, switch decisions, shadow/shape matching, quick-tap urgency, and small sliding-order puzzles.
+                - The UI will render from fixed minigame components; you should generate story-matched text, answer, clue labels, and reasoning, not arbitrary UI instructions.
+                - Brain-teaser style is encouraged: use shape counts, hidden letter meaning, zodiac/semantic mapping, sequence gaps, grid order, route direction, color-symbol code, and contradiction matching. Do not repeat the same puzzle mechanic more than twice in one episode.
                 - Do not include the real final place name in episodeTitle, subtitle, fictionSynopsis, finalTruthSummary, actualHistorySummary, destination clues, or evidence summaries.
                 - Hints must have 3 levels and must not directly reveal the answer.
                 - deductionForbiddenReveals must include the final answer and direct final place reveal.
@@ -215,8 +223,8 @@ public class AdminEpisodeGeminiService {
                       "groundRule": "string explaining which provided field data was used"
                     }
                   ],
-                  "suspects": [{"alias":"string","displayName":"string","portraitImageUrl":"","shortDescription":"string","relationToVictim":"string","suspiciousPoint":"string","alibiSummary":"string"}],
-                  "evidences": [{"title":"string","type":"PHOTO|MEMO|NOTE|DOCUMENT|EVIDENCE|SUSPECT_CLUE|POST_IT|ANSWER_CLUE|DESTINATION_CLUE|STORY_CLUE","imageUrl":"","textSummary":"string","sourceMissionOrder":1}]
+                  "suspects": [{"alias":"string","displayName":"string","portraitImageUrl":"","imagePrompt":"string","shortDescription":"string","relationToVictim":"string","suspiciousPoint":"string","alibiSummary":"string"}],
+                  "evidences": [{"title":"string","type":"PHOTO|MEMO|NOTE|DOCUMENT|EVIDENCE|SUSPECT_CLUE|POST_IT|ANSWER_CLUE|DESTINATION_CLUE|STORY_CLUE","imageUrl":"","imagePrompt":"string","textSummary":"string","sourceMissionOrder":1}]
                 }
                 
                 Input:

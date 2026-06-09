@@ -75,6 +75,7 @@ public class AiEpisodeDraftResponse {
         private String alias;
         private String displayName;
         private String portraitImageUrl;
+        private String imagePrompt;
         private String shortDescription;
         private String relationToVictim;
         private String suspiciousPoint;
@@ -89,6 +90,7 @@ public class AiEpisodeDraftResponse {
         private String title;
         private String type;
         private String imageUrl;
+        private String imagePrompt;
         private String textSummary;
         private Integer sourceMissionOrder;
     }

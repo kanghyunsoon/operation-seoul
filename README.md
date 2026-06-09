@@ -196,8 +196,7 @@ npm run dev
 검증:
 
 ```powershell
-cd frontend
-npm run build
+.\scripts\verify-release.ps1
 ```
 
 ## 환경 변수/설정
@@ -214,15 +213,16 @@ VITE_DEV_ARRIVAL=true
 ### backend application properties
 
 ```properties
-app.dev-mode.arrival-enabled=true
-tourapi.key=TOURAPI_SERVICE_KEY
-kakao.rest.api.key=KAKAO_REST_API_KEY
-gemini.api.key=GEMINI_API_KEY
-gemini.model=gemini-3.1-flash-lite
-jwt.secret=CHANGE_ME
+app.dev-mode.arrival-enabled=${DEV_ARRIVAL_ENABLED:false}
+tourapi.key=${TOURAPI_SERVICE_KEY:}
+kakao.rest.api.key=${KAKAO_REST_API_KEY:}
+gemini.api.key=${GEMINI_API_KEY:}
+gemini.model=${GEMINI_MODEL:gemini-3.1-flash-lite}
+jwt.secret=${JWT_SECRET:operation-seoul-local-development-jwt-secret}
 ```
 
 운영 모드에서는 `app.dev-mode.arrival-enabled=false`, `VITE_DEV_ARRIVAL=false`로 둡니다.
+운영 비밀값은 파일에 직접 기록하지 않고 배포 환경변수 또는 secret manager로 주입합니다.
 
 ## 중요한 보안/게임 규칙
 

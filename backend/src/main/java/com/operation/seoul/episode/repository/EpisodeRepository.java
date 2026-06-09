@@ -101,6 +101,40 @@ public interface EpisodeRepository {
     List<PuzzleHint> findHintsByPuzzleId(Long puzzleId);
 
     @Select("""
+            select wrong_count
+            from puzzle_attempt_limits
+            where user_id = #{userId}
+              and puzzle_id = #{puzzleId}
+              and window_expires_at > current_timestamp
+            limit 1
+            """)
+    Integer findActivePuzzleWrongCount(@Param("userId") Long userId, @Param("puzzleId") Long puzzleId);
+
+    @Insert("""
+            insert into puzzle_attempt_limits (user_id, puzzle_id, wrong_count, window_expires_at)
+            values (#{userId}, #{puzzleId}, 1, date_add(current_timestamp, interval #{windowSeconds} second))
+            on duplicate key update
+                wrong_count = if(window_expires_at <= current_timestamp, 1, wrong_count + 1),
+                window_expires_at = if(
+                    window_expires_at <= current_timestamp,
+                    date_add(current_timestamp, interval #{windowSeconds} second),
+                    window_expires_at
+                ),
+                updated_at = current_timestamp
+            """)
+    int recordPuzzleWrongAttempt(
+            @Param("userId") Long userId,
+            @Param("puzzleId") Long puzzleId,
+            @Param("windowSeconds") long windowSeconds
+    );
+
+    @Delete("delete from puzzle_attempt_limits where user_id = #{userId} and puzzle_id = #{puzzleId}")
+    int clearPuzzleAttempts(@Param("userId") Long userId, @Param("puzzleId") Long puzzleId);
+
+    @Delete("delete from puzzle_attempt_limits where window_expires_at <= current_timestamp")
+    int deleteExpiredPuzzleAttempts();
+
+    @Select("""
             select id, user_id, episode_id, visited_spot_ids, completed_spot_ids, collected_answer_clues,
                    collected_destination_clues, collected_story_clues, final_arrived_spot_id, hint_used_count,
                    wrong_answer_count, deduction_question_count, final_guess_count, score, started_at, last_played_at,

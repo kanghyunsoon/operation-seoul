@@ -7,6 +7,7 @@ public class AdminEvidenceUpdateRequest {
     private String title;
     private String type;
     private String imageUrl;
+    private String imagePrompt;
     private String textSummary;
     private Long sourceSpotId;
     private Long relatedSuspectId;

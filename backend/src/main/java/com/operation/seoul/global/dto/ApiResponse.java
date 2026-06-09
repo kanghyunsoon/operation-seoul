@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.slf4j.MDC;
 
 @Data
 @Builder
@@ -14,6 +15,7 @@ public class ApiResponse<T> {
     private String code;
     private String message;
     private T data;
+    private String requestId;
 
     public static <T> ApiResponse<T> ok(String message, T data) {
         return ApiResponse.<T>builder()
@@ -21,6 +23,7 @@ public class ApiResponse<T> {
                 .code("OK")
                 .message(message)
                 .data(data)
+                .requestId(MDC.get("requestId"))
                 .build();
     }
 
@@ -29,6 +32,7 @@ public class ApiResponse<T> {
                 .success(true)
                 .code("OK")
                 .message(message)
+                .requestId(MDC.get("requestId"))
                 .build();
     }
 
@@ -37,6 +41,7 @@ public class ApiResponse<T> {
                 .success(false)
                 .code(code)
                 .message(message)
+                .requestId(MDC.get("requestId"))
                 .build();
     }
 }
