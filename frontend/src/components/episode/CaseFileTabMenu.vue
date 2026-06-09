@@ -1,8 +1,8 @@
-<template>
+﻿<template>
   <nav class="case-tabs" aria-label="플레이 화면 전환">
     <button type="button" class="home" @click="router.push({ name: 'EpisodeList' })">홈</button>
-    <button type="button" :class="{ active: active === 'map' }" @click="go('EpisodeMap')">지도</button>
     <button type="button" :class="{ active: active === 'case' }" @click="go('EpisodeCaseFile')">사건파일</button>
+    <button type="button" :class="{ active: active === 'map' }" @click="go('EpisodeMap')">지도</button>
     <button type="button" :class="{ active: active === 'deduction' }" @click="go('FinalDeduction')">최종추리</button>
   </nav>
 </template>

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="briefing-page">
     <section v-if="episode" class="briefing-card">
       <p class="label">CASE BRIEFING</p>
@@ -6,7 +6,7 @@
       <p class="synopsis">{{ episode.fictionSynopsis }}</p>
       <div class="mission-rule">
         <strong>조사 방식</strong>
-        <span>모든 조사 장소는 처음부터 지도에 표시됩니다. 실제 최종 장소는 서버 내부에서만 판정되며, 사건파일에서 단서와 자료를 계속 대조해야 합니다.</span>
+        <span>먼저 사건 개요와 사건파일을 확인한 뒤 현장 지도로 이동합니다. 지도는 단서 수집 단계이며, 정답과 최종 장소는 사건파일의 자료를 대조해 추리해야 합니다.</span>
       </div>
       <div class="mission-rule">
         <strong>최종 질문</strong>
@@ -14,8 +14,7 @@
       </div>
       <div class="actions">
         <button type="button" class="ghost" @click="router.push({ name: 'EpisodeList' })">사건 목록</button>
-        <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">지도 진입</button>
-        <button type="button" class="secondary" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 열기</button>
+        <button type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 먼저 열기</button>
       </div>
     </section>
     <section v-else class="briefing-card">브리핑을 불러오는 중입니다.</section>
@@ -46,9 +45,8 @@ h1 { margin: 0 0 16px; font-size: clamp(1.9rem, 9vw, 3.7rem); line-height: 1; }
 .mission-rule { display: grid; gap: 6px; margin-top: 12px; padding: 14px; border-left: 3px solid #f97316; background: rgba(30,41,59,.52); }
 strong { color: #fed7aa; }
 span { color: #cbd5e1; line-height: 1.55; }
-.actions { display: grid; grid-template-columns: .85fr 1fr 1fr; gap: 8px; margin-top: 22px; }
+.actions { display: grid; grid-template-columns: .85fr 1fr; gap: 8px; margin-top: 22px; }
 button { min-height: 50px; border: 0; border-radius: 14px; background: #dc2626; color: #fff; font: inherit; font-weight: 900; }
-.secondary { background: #334155; }
 .ghost { border: 1px solid rgba(248,113,113,.3); background: rgba(15,23,42,.72); color: #fed7aa; }
 @media (max-width: 390px) { .actions { grid-template-columns: 1fr; } }
 </style>

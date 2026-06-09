@@ -104,6 +104,28 @@ public class EpisodePlayService {
         List<Long> visited = readLongList(progress.getVisitedSpotIds());
         List<Long> completed = readLongList(progress.getCompletedSpotIds());
 
+        List<MissionSpot> spots = episodeRepository.findSpotsByEpisodeId(episodeId);
+        SpotMarkerResponse adminFinalSpot = user != null && user.isAdmin()
+                ? spots.stream()
+                        .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
+                        .findFirst()
+                        .map(spot -> SpotMarkerResponse.builder()
+                                .spotId(spot.getId())
+                                .placeName(spot.getPlaceName())
+                                .address(spot.getAddress())
+                                .latitude(spot.getLatitude())
+                                .longitude(spot.getLongitude())
+                                .publicMarkerType("DESTINATION_HINT")
+                                .storyText(spot.getStoryText())
+                                .visited(visited.contains(spot.getId()))
+                                .completed(completed.contains(spot.getId()))
+                                .rewardClueCollected(completed.contains(spot.getId()))
+                                .canOpenPuzzle(visited.contains(spot.getId()))
+                                .canNavigate(true)
+                                .build())
+                        .orElse(null)
+                : null;
+
         return EpisodeMapResponse.builder()
                 .episodeId(episode.getId())
                 .title(episode.getTitle())
@@ -111,7 +133,7 @@ public class EpisodePlayService {
                 .hintUsedCount(value(progress.getHintUsedCount()))
                 .wrongAnswerCount(value(progress.getWrongAnswerCount()))
                 .deductionQuestionCount(value(progress.getDeductionQuestionCount()))
-                .spots(episodeRepository.findSpotsByEpisodeId(episodeId).stream()
+                .spots(spots.stream()
                         .filter(spot -> !Boolean.TRUE.equals(spot.getFinalPlace()))
                         .map(spot -> SpotMarkerResponse.builder()
                                 .spotId(spot.getId())
@@ -128,6 +150,7 @@ public class EpisodePlayService {
                                 .canNavigate(true)
                                 .build())
                         .toList())
+                .adminFinalSpot(adminFinalSpot)
                 .build();
     }
 
@@ -164,7 +187,7 @@ public class EpisodePlayService {
 
         String message = actualFinal
                 ? "Investigation site confirmed. You can start the final deduction, but missing clues may reduce your score."
-                : ("FINAL_CANDIDATE".equals(spot.getPublicMarkerType())
+                : ("DESTINATION_HINT".equals(spot.getPublicMarkerType())
                     ? "This is an investigation point to compare with your clues. Check the case file and clue board again."
                     : "Arrival confirmed. You can open the site puzzle.");
 

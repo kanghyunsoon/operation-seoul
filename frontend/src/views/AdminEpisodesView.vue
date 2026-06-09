@@ -121,11 +121,18 @@
             </div>
           </section>
 
-            <details class="edit-section">
+          <nav class="admin-section-tabs" aria-label="에피소드 편집 섹션 이동">
+            <button type="button" @click="scrollToAdminSection('admin-core')">핵심 정보</button>
+            <button type="button" @click="scrollToAdminSection('admin-spots')">장소/퍼즐</button>
+            <button type="button" @click="scrollToAdminSection('admin-assets')">용의자/증거</button>
+            <button type="button" @click="scrollToAdminSection('admin-draft')">AI 초안</button>
+          </nav>
+
+            <details id="admin-core" class="edit-section admin-anchor" open>
               <summary>에피소드 핵심 정보 수정</summary>
               <div class="publish-rules">
                 <strong>공개 전 필수 조건</strong>
-                <p>장소 8~9개 권장, START 1개, ANSWER_HINT 4개 이상, DESTINATION_HINT 2개 이상, 내부 최종 장소 1개, 조사 지점 공개 마커 1개 이상, 모든 퍼즐/힌트/reward_payload가 필요합니다.</p>
+                <p>장소 9개 권장, START 1개, ANSWER_HINT 4개, DESTINATION_HINT 3개, 내부 최종 장소 1개, 모든 퍼즐/힌트/reward_payload가 필요합니다.</p>
                 <div class="publish-actions">
                   <button type="button" class="ghost-btn" @click="checkPublishReadiness">공개 준비도 점검</button>
                   <button type="button" class="publish-btn" :disabled="!publishReadiness?.ready || selected?.status === 'PUBLISHED'" @click="publishEpisode">
@@ -198,7 +205,7 @@
             <article><strong>{{ selected.progressStats?.clearedPlayers || 0 }}</strong><span>클리어</span></article>
           </div>
 
-          <div class="section-title">
+          <div id="admin-spots" class="section-title admin-anchor">
             <h3>장소/퍼즐 검수</h3>
             <button type="button" class="ghost-btn" @click="addSpot">장소 추가</button>
           </div>
@@ -218,18 +225,14 @@
                     <select v-model="spot.publicMarkerType">
                       <option value="START">START</option>
                       <option value="ANSWER_HINT">ANSWER_HINT</option>
-                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
-                      <option value="STORY">STORY</option>
-                      <option value="FINAL_CANDIDATE">FINAL_CANDIDATE</option>
+                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
                     </select>
                   </label>
                   <label>내부 마커
                     <select v-model="spot.markerType">
                       <option value="START">START</option>
                       <option value="ANSWER_HINT">ANSWER_HINT</option>
-                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
-                      <option value="STORY">STORY</option>
-                      <option value="FINAL_CANDIDATE">FINAL_CANDIDATE</option>
+                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
                       <option value="FINAL">FINAL</option>
                     </select>
                   </label>
@@ -237,8 +240,7 @@
                     <select v-model="spot.clueRole">
                       <option value="START">START</option>
                       <option value="ANSWER_HINT">ANSWER_HINT</option>
-                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
-                      <option value="STORY_CONTEXT">STORY_CONTEXT</option>
+                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
                       <option value="FINAL_PLACE">FINAL_PLACE</option>
                     </select>
                   </label>
@@ -298,7 +300,7 @@
             </article>
           </div>
 
-          <div class="section-title">
+          <div id="admin-assets" class="section-title admin-anchor">
             <h3>용의자/증거 자료</h3>
             <div class="payload-actions">
               <button type="button" class="ghost-btn" @click="addSuspect">용의자 추가</button>
@@ -400,7 +402,7 @@
 
       </section>
 
-      <article class="draft-panel full-width">
+      <article id="admin-draft" class="draft-panel full-width admin-anchor">
           <div class="section-title">
             <div>
               <p class="eyebrow">CASE BUILDER</p>
@@ -509,7 +511,7 @@
             </article>
             <article :class="{ done: selectedCandidates.length >= 8 }">
               <b>3</b>
-              <strong>8~9개 장소 구성</strong>
+              <strong>9개 장소 구성</strong>
               <span>TourAPI 기준 장소는 루트의 마지막 내부 목적지로 저장됩니다.</span>
             </article>
             <article :class="{ done: Boolean(draftResult?.draft) }">
@@ -570,9 +572,9 @@
                 <button type="button" class="ghost-btn" :disabled="!canGenerateDraftFromSelection" @click="applyCandidatesToDraft">추천 루트를 초안 입력에 적용</button>
               </div>
             </div>
-            <p class="candidate-help">기준 장소 포함 8~9개를 사용합니다. Kakao 후보가 부족하면 아래 수동 후보를 추가하세요.</p>
+            <p class="candidate-help">기준 장소 포함 9개를 사용합니다. Kakao 후보가 부족하면 아래 수동 후보를 추가하세요.</p>
             <div class="selection-summary">
-              <strong>선택 {{ selectedCandidates.length }}개 / 권장 8~9개</strong>
+              <strong>선택 {{ selectedCandidates.length }}개 / 권장 9개</strong>
               <span :class="{ ready: canGenerateDraftFromSelection }">{{ selectedCandidateStatus }}</span>
             </div>
             <p v-if="nearbyLoading" class="empty">Kakao Local 주변 후보를 불러오는 중입니다.</p>
@@ -615,7 +617,7 @@
                   <em v-if="isAnchorCandidate(candidate)">TourAPI 기준 장소 · 관리자 내부 목적지</em>
                 </li>
               </ol>
-              <p>사용자 지도에는 내부 추리 기준 장소 여부가 노출되지 않고, 공개 마커는 조사 지점처럼 표시됩니다.</p>
+              <p>사용자 지도에는 내부 최종 장소가 노출되지 않고, 관리자 테스트에서만 최종 좌표를 확인합니다.</p>
             </div>
           </section>
           <div class="draft-actions-helper">
@@ -690,9 +692,7 @@
                       <select v-model="mission.markerType" @change="mission.finalPlace = mission.markerType === 'FINAL'; syncDraftMissionRole(mission)">
                         <option value="START">START</option>
                         <option value="ANSWER_HINT">ANSWER_HINT</option>
-                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
-                        <option value="STORY">STORY</option>
-                        <option value="FINAL_CANDIDATE">FINAL_CANDIDATE</option>
+                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
                         <option value="FINAL">FINAL</option>
                       </select>
                     </label>
@@ -700,22 +700,19 @@
                       <select v-model="mission.publicMarkerType">
                         <option value="START">START</option>
                         <option value="ANSWER_HINT">ANSWER_HINT</option>
-                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
-                        <option value="STORY">STORY</option>
-                        <option value="FINAL_CANDIDATE">FINAL_CANDIDATE</option>
+                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
                       </select>
                     </label>
                     <label>단서 역할
                       <select v-model="mission.clueRole">
                         <option value="START">START</option>
                         <option value="ANSWER_HINT">ANSWER_HINT</option>
-                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
-                        <option value="STORY_CONTEXT">STORY_CONTEXT</option>
+                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
                         <option value="FINAL_PLACE">FINAL_PLACE</option>
                       </select>
                     </label>
                     <label>도착 반경<input v-model.number="mission.arrivalRadius" type="number" min="10" /></label>
-                    <label class="check"><input v-model="mission.finalPlace" type="checkbox" @change="mission.markerType = mission.finalPlace ? 'FINAL' : 'FINAL_CANDIDATE'; syncDraftMissionRole(mission)" /> 실제 최종 장소</label>
+                    <label class="check"><input v-model="mission.finalPlace" type="checkbox" @change="mission.markerType = mission.finalPlace ? 'FINAL' : 'DESTINATION_HINT'; syncDraftMissionRole(mission)" /> 실제 최종 장소</label>
                     <label class="wide">사건 문구<textarea v-model="mission.storyText" rows="2"></textarea></label>
                     <label>퍼즐 유형
                       <select v-model="mission.puzzleType">
@@ -895,7 +892,7 @@ const draftInput = ref(JSON.stringify({
     { name: '정동제일교회', description: '붉은 벽과 목격 단서', visibleElements: ['붉은 벽', '건물명'], numbers: [], keywords: ['목격', '벽'], adminMemo: '건물명 확인', role: 'ANSWER_HINT' },
     { name: '배재학당 역사박물관', description: '기록 자료 단서', visibleElements: ['건물명', '안내판'], numbers: [], keywords: ['기록', '조수'], adminMemo: '운영시간 확인', role: 'ANSWER_HINT' },
     { name: '정동극장', description: '방향 단서', visibleElements: ['간판', '포스터'], numbers: [], keywords: ['방향', '문'], adminMemo: '포스터 내용은 고정 아님', role: 'DESTINATION_HINT' },
-    { name: '서울시립미술관 앞마당', description: '목적지 혼선을 주는 조사 지점', visibleElements: ['광장', '조형물'], numbers: [], keywords: ['그림자', '동선'], adminMemo: '목적지 힌트와 비교할 조사 지점', role: 'FINAL_CANDIDATE' },
+    { name: '서울시립미술관 앞마당', description: '목적지 혼선을 주는 조사 지점', visibleElements: ['광장', '조형물'], numbers: [], keywords: ['그림자', '동선'], adminMemo: '목적지 힌트와 비교할 조사 지점', role: 'DESTINATION_HINT' },
     { name: '중명전', description: '서버 내부에서만 최종 장소로 판정할 조사 지점', visibleElements: ['붉은 벽', '건물명'], numbers: ['1905'], keywords: ['밀서', '문'], adminMemo: '사용자 화면에는 최종 장소로 직접 노출하지 않음', role: 'FINAL' }
   ]
 }, null, 2));
@@ -920,11 +917,11 @@ const draftProgressSteps = computed(() => {
 });
 const canGenerateDraftFromSelection = computed(() => {
   const count = selectedCandidates.value.length;
-  return count >= 8 && count <= 9 && selectedCandidates.value.every(hasCandidateCoordinate);
+  return count === 9 && selectedCandidates.value.every(hasCandidateCoordinate);
 });
 const draftSelectionBlockReason = computed(() => {
   const count = selectedCandidates.value.length;
-  if (count < 8) return '기준 장소를 포함해 최소 8개 장소를 선택해야 초안 생성이 가능합니다.';
+  if (count < 9) return '기준 장소를 포함해 9개 장소를 선택해야 초안 생성이 가능합니다.';
   if (count > 9) return '장소는 최대 9개까지만 사용할 수 있습니다.';
   const missing = selectedCandidates.value.filter((candidate) => !hasCandidateCoordinate(candidate));
   if (missing.length) {
@@ -934,11 +931,11 @@ const draftSelectionBlockReason = computed(() => {
 });
 const selectedCandidateStatus = computed(() => {
   const count = selectedCandidates.value.length;
-  if (count < 8) return '장소가 부족합니다. 최소 8개 장소를 선택하세요.';
+  if (count < 9) return '장소가 부족합니다. 9개 장소를 선택하세요.';
   if (count > 9) return '장소가 너무 많습니다. 최대 9개까지만 사용하세요.';
   const missing = selectedCandidates.value.filter((candidate) => !hasCandidateCoordinate(candidate));
   if (missing.length) return `좌표가 없는 장소 ${missing.length}개가 있습니다. 좌표가 있는 후보로 교체하거나 수동 후보를 추가하세요.`;
-  return '초안 생성에 사용할 수 있는 장소 구성입니다.';
+  return '시작 1개, 정답 힌트 4개, 목적지 힌트 3개, 내부 최종 목적지 1개 구성입니다.';
 });
 const routeIdentitySummary = computed(() => {
   const count = selectedCandidates.value.length;
@@ -976,8 +973,8 @@ const caseBuilderNext = computed(() => {
   }
   if (!canGenerateDraftFromSelection.value) {
     return {
-      title: '4단계: 8~9개 장소 구성이 필요합니다.',
-      description: draftSelectionBlockReason.value || '추천 루트에는 좌표가 있는 장소 8~9개가 필요합니다.',
+      title: '4단계: 9개 장소 구성이 필요합니다.',
+      description: draftSelectionBlockReason.value || '추천 루트에는 좌표가 있는 장소 9개가 필요합니다.',
       button: '장소 구성 확인',
       action: 'showSelectionIssue',
       disabled: false
@@ -1093,9 +1090,7 @@ function markerPreviewLabel(type) {
   return {
     START: '시작',
     ANSWER_HINT: '정답 힌트',
-    DESTINATION_HINT: '목적지 힌트',
-    STORY: '스토리',
-    FINAL_CANDIDATE: '조사 지점'
+    DESTINATION_HINT: '목적지 힌트'
   }[type] || type;
 }
 
@@ -1254,9 +1249,9 @@ async function addSpot() {
   try {
     selected.value = await adminEpisodeApi.createSpot(selectedEpisodeId.value, {
       placeName: '새 조사 장소',
-      markerType: 'STORY',
-      publicMarkerType: 'STORY',
-      clueRole: 'STORY_CONTEXT',
+      markerType: 'ANSWER_HINT',
+      publicMarkerType: 'ANSWER_HINT',
+      clueRole: 'ANSWER_HINT',
       storyText: '관리자 검수용 새 조사 장소입니다.',
       arrivalRadius: 50,
       finalPlace: false
@@ -1711,13 +1706,13 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
     mission.hints = Array.isArray(mission.hints) ? mission.hints.slice(0, 3) : [];
     while (mission.hints.length < 3) mission.hints.push('현장 검수 후 힌트를 보강하세요.');
     if (finalIndex >= 0 && index !== finalIndex && mission.markerType === 'FINAL') {
-      mission.markerType = 'FINAL_CANDIDATE';
+      mission.markerType = 'DESTINATION_HINT';
       mission.finalPlace = false;
     }
     syncDraftMissionRole(mission);
     mission.publicMarkerType = safePublicMarkerType(mission.publicMarkerType, mission);
     if (mission.finalPlace) {
-      mission.publicMarkerType = 'FINAL_CANDIDATE';
+      mission.publicMarkerType = 'DESTINATION_HINT';
       mission.storyText = sanitizeFinalPlaceStory(mission.storyText);
     }
     if (!mission.rewardClue) mission.rewardClue = rewardClueForRole(mission.clueRole || mission.markerType, index);
@@ -1729,11 +1724,11 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
     finalMission.finalPlace = true;
     finalMission.markerType = 'FINAL';
     syncDraftMissionRole(finalMission);
-    finalMission.publicMarkerType = 'FINAL_CANDIDATE';
+    finalMission.publicMarkerType = 'DESTINATION_HINT';
   }
   ensureDraftIllustrationCards(draft);
   strengthenCaseMaterials(draft);
-  if (showMessage) setMessage('저장 전 자동 보정을 적용했습니다. 내부 최종 장소는 사용자 지도에서 조사 지점으로만 보입니다.', 'success');
+  if (showMessage) setMessage('저장 전 자동 보정을 적용했습니다. 내부 최종 장소는 사용자 지도에는 노출되지 않고 관리자 테스트 좌표로만 사용됩니다.', 'success');
 }
 
 function regenerateAllMissionsSafely() {
@@ -1749,7 +1744,7 @@ function regenerateMissionDraft(mission, showMessage = true) {
   if (!mission) return;
   syncDraftMissionRole(mission);
   const index = Math.max(0, Number(mission.order || 1) - 1);
-  const role = mission.clueRole || mission.markerType || 'STORY_CONTEXT';
+  const role = mission.clueRole || mission.markerType || 'ANSWER_HINT';
   const source = sourceCandidateForMission(mission);
   const keyword = primaryKeyword(source, mission);
   const rewardClue = rewardClueForRole(role, index);
@@ -2199,10 +2194,10 @@ function safeEvidenceType(type) {
 
 function safePublicMarkerType(type, mission) {
   const normalized = String(type || '').toUpperCase();
-  if (mission?.finalPlace || mission?.markerType === 'FINAL' || normalized === 'FINAL') return 'FINAL_CANDIDATE';
-  return ['START', 'ANSWER_HINT', 'DESTINATION_HINT', 'STORY', 'FINAL_CANDIDATE'].includes(normalized)
+  if (mission?.finalPlace || mission?.markerType === 'FINAL' || normalized === 'FINAL') return 'DESTINATION_HINT';
+  return ['START', 'ANSWER_HINT', 'DESTINATION_HINT'].includes(normalized)
     ? normalized
-    : String(mission?.markerType || 'STORY').replace('FINAL', 'FINAL_CANDIDATE');
+    : String(mission?.markerType || 'ANSWER_HINT').replace('FINAL', 'DESTINATION_HINT');
 }
 
 function generatedSuspectPortraitDataUrl(name = '용의자', alias = 'SUSPECT', seedText = '') {
@@ -2237,7 +2232,7 @@ function syncDraftMissionRole(mission) {
     mission.finalPlace = true;
     mission.markerType = 'FINAL';
     mission.clueRole = 'FINAL_PLACE';
-    mission.publicMarkerType = 'FINAL_CANDIDATE';
+    mission.publicMarkerType = 'DESTINATION_HINT';
     return;
   }
   if (mission.markerType === 'START') {
@@ -2249,12 +2244,10 @@ function syncDraftMissionRole(mission) {
   } else if (mission.markerType === 'DESTINATION_HINT') {
     mission.clueRole = 'DESTINATION_HINT';
     mission.publicMarkerType = 'DESTINATION_HINT';
-  } else if (mission.markerType === 'STORY') {
-    mission.clueRole = 'STORY_CONTEXT';
-    mission.publicMarkerType = 'STORY';
-  } else if (mission.markerType === 'FINAL_CANDIDATE') {
-    mission.clueRole = mission.clueRole === 'FINAL_PLACE' ? 'DESTINATION_HINT' : mission.clueRole;
-    mission.publicMarkerType = 'FINAL_CANDIDATE';
+  } else {
+    mission.markerType = 'ANSWER_HINT';
+    mission.clueRole = 'ANSWER_HINT';
+    mission.publicMarkerType = 'ANSWER_HINT';
   }
 }
 
@@ -2634,8 +2627,8 @@ function toggleCandidate(candidate) {
 }
 
 function applyCandidatesToDraft(showMessage = true) {
-  if (selectedCandidates.value.length < 8) {
-    setMessage('기준 장소를 포함해 최소 8개 이상의 장소를 선택해 주세요.', 'error');
+  if (selectedCandidates.value.length < 9) {
+    setMessage('기준 장소를 포함해 9개 장소를 선택해 주세요.', 'error');
     return;
   }
   if (!canGenerateDraftFromSelection.value) {
@@ -2680,20 +2673,19 @@ function buildRoles(count) {
   for (let index = 0; index < count; index += 1) {
     if (index === 0) roles.push('START');
     else if (index === count - 1) roles.push('FINAL');
-    else if (index >= count - 3) roles.push('DESTINATION_HINT');
-    else if (index <= 4) roles.push('ANSWER_HINT');
-    else roles.push('STORY');
+    else if (index >= count - 4) roles.push('DESTINATION_HINT');
+    else roles.push('ANSWER_HINT');
   }
   return roles;
 }
 
 function publicMarkerForCandidate(index, role, count) {
-  if (role === 'FINAL' || index === count - 2) return 'FINAL_CANDIDATE';
+  if (role === 'FINAL') return 'DESTINATION_HINT';
   return role;
 }
 
 function roleForCandidate(index) {
-  return buildRoles(orderedSelectedCandidates.value.length)[index] || 'STORY';
+  return buildRoles(orderedSelectedCandidates.value.length)[index] || 'ANSWER_HINT';
 }
 
 function roleLabel(role) {
@@ -2701,8 +2693,6 @@ function roleLabel(role) {
     START: '시작 장소',
     ANSWER_HINT: '정답 힌트',
     DESTINATION_HINT: '목적지 힌트',
-    STORY: '스토리 단서',
-    FINAL_CANDIDATE: '조사 지점',
     FINAL: '내부 최종 장소'
   }[role] || role;
 }
@@ -2737,6 +2727,10 @@ function setMessage(text, type = 'success') {
   message.value = text;
   messageType.value = type;
 }
+
+function scrollToAdminSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 </script>
 
 <style scoped>
@@ -2753,6 +2747,7 @@ button:focus-visible { outline: 3px solid rgba(251,191,36,.55); outline-offset: 
 button:disabled { opacity: .45; cursor: not-allowed; }
 .layout { width: min(100%, 1180px); margin: 0 auto; display: grid; grid-template-columns: 330px 1fr; gap: 14px; }
 .episode-list, .detail-card, .draft-panel { border: 1px solid rgba(148,163,184,.2); border-radius: 18px; background: rgba(15,23,42,.68); padding: 16px; }
+.episode-list { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; scrollbar-color: rgba(245,158,11,.55) rgba(15,23,42,.45); }
 .draft-panel.full-width { grid-column: 1 / -1; margin-top: 4px; }
 .section-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 h2, h3 { margin: 0 0 10px; }
@@ -2789,6 +2784,9 @@ h2, h3 { margin: 0 0 10px; }
 .secret-box p { margin: 6px 0; color: #fee2e2; }
 .admin-preview-panel { margin: 14px 0; padding: 14px; border: 1px solid rgba(59,130,246,.24); border-radius: 16px; background: rgba(30,64,175,.12); }
 .admin-preview-panel p { margin: 8px 0 0; color: #bfdbfe; font-size: .86rem; line-height: 1.55; }
+.admin-section-tabs { position: sticky; top: 10px; z-index: 5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 14px 0; padding: 8px; border: 1px solid rgba(245,158,11,.26); border-radius: 16px; background: rgba(15,23,42,.94); backdrop-filter: blur(14px); }
+.admin-section-tabs button { min-height: 38px; border: 1px solid rgba(148,163,184,.22); background: rgba(2,6,23,.42); color: #fde68a; }
+.admin-anchor { scroll-margin-top: 78px; }
 .preview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
 .preview-grid article { border: 1px solid rgba(148,163,184,.16); border-radius: 14px; background: rgba(2,6,23,.32); padding: 12px; }
 .preview-grid strong { display: block; margin-bottom: 8px; color: #fde68a; }
@@ -2797,9 +2795,7 @@ h2, h3 { margin: 0 0 10px; }
 .preview-grid span { width: fit-content; border-radius: 999px; padding: 3px 7px; background: rgba(148,163,184,.14); color: #cbd5e1; font-size: .72rem; font-weight: 900; }
 .preview-grid span.START { color: #93c5fd; background: rgba(37,99,235,.16); }
 .preview-grid span.ANSWER_HINT { color: #fdba74; background: rgba(234,88,12,.16); }
-.preview-grid span.DESTINATION_HINT { color: #d8b4fe; background: rgba(126,34,206,.16); }
-.preview-grid span.STORY { color: #86efac; background: rgba(21,128,61,.16); }
-.preview-grid span.FINAL_CANDIDATE { color: #cbd5e1; background: rgba(31,41,55,.7); }
+.preview-grid span.DESTINATION_HINT { color: #d8b4fe; background: rgba(126,34,206,.16); }
 .preview-grid em { color: #94a3b8; font-size: .72rem; font-style: normal; }
 .stat-grid, .mini-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 12px 0 18px; }
 .stat-grid article, .mini-grid article, .spot-card { border: 1px solid rgba(148,163,184,.16); border-radius: 14px; background: rgba(2,6,23,.32); padding: 12px; }
@@ -2940,8 +2936,7 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .selected-route li > span { border-radius: 999px; padding: 4px 7px; font-size: .72rem; font-weight: 900; }
 .selected-route .START { color: #93c5fd; background: rgba(37,99,235,.16); }
 .selected-route .ANSWER_HINT { color: #fdba74; background: rgba(234,88,12,.16); }
-.selected-route .DESTINATION_HINT { color: #d8b4fe; background: rgba(126,34,206,.16); }
-.selected-route .STORY { color: #86efac; background: rgba(21,128,61,.16); }
+.selected-route .DESTINATION_HINT { color: #d8b4fe; background: rgba(126,34,206,.16); }
 .selected-route .FINAL { color: #fecaca; background: rgba(127,29,29,.22); }
 .selected-route em { grid-column: 2 / -1; color: #fecaca; font-size: .75rem; font-style: normal; font-weight: 900; }
 .selected-route p { margin: 10px 0 0; color: #cbd5e1; font-size: .82rem; }
@@ -2949,6 +2944,7 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .draft-actions-helper strong { color: #fde68a; }
 .draft-actions-helper span { color: #cbd5e1; font-size: .84rem; line-height: 1.45; }
 .reward { opacity: .82; }
-@media (max-width: 860px) { .admin-hero, .layout { display: block; } .hero-actions { margin-top: 12px; } .detail-panel { margin-top: 14px; } .stat-grid, .mini-grid, .edit-grid, .candidate-grid, .manual-grid, .hint-edit-list, .creation-flow, .preview-grid, .ai-mode-grid, .draft-step-list { grid-template-columns: 1fr; } .selection-summary, .draft-actions-helper { display: grid; } .selected-route li { grid-template-columns: 24px 1fr; } .selected-route li > span { grid-column: 2; justify-self: start; } }
+@media (max-width: 860px) { .admin-hero, .layout { display: block; } .episode-list { position: static; max-height: 420px; } .hero-actions { margin-top: 12px; } .detail-panel { margin-top: 14px; } .admin-section-tabs, .stat-grid, .mini-grid, .edit-grid, .candidate-grid, .manual-grid, .hint-edit-list, .creation-flow, .preview-grid, .ai-mode-grid, .draft-step-list { grid-template-columns: 1fr; } .selection-summary, .draft-actions-helper { display: grid; } .selected-route li { grid-template-columns: 24px 1fr; } .selected-route li > span { grid-column: 2; justify-self: start; } }
 </style>
+
 
