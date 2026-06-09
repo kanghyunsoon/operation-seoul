@@ -13,8 +13,18 @@
       </div>
     </header>
 
-    <section class="layout">
-      <aside class="episode-list">
+    <nav class="admin-page-tabs" aria-label="관리자 사건 관리 모드">
+      <button type="button" :class="{ active: activeAdminTab === 'episodes' }" @click="activeAdminTab = 'episodes'">
+        사건 편집
+      </button>
+      <button type="button" :class="{ active: activeAdminTab === 'builder' }" @click="openBuilderTab">
+        AI 자동 작성
+      </button>
+    </nav>
+    <p v-if="message" class="message global-message" :class="messageType">{{ message }}</p>
+
+    <section class="layout" :class="{ 'builder-layout': activeAdminTab === 'builder' }">
+      <aside v-if="activeAdminTab === 'episodes'" class="episode-list">
         <div class="section-title">
           <h2>사건파일 목록</h2>
           <div class="payload-actions compact">
@@ -41,8 +51,7 @@
         </article>
       </aside>
 
-      <section class="detail-panel">
-        <p v-if="message" class="message" :class="messageType">{{ message }}</p>
+      <section v-if="activeAdminTab === 'episodes'" class="detail-panel">
         <article v-if="selected" class="detail-card">
           <div class="detail-head">
             <div>
@@ -125,7 +134,7 @@
             <button type="button" @click="scrollToAdminSection('admin-core')">핵심 정보</button>
             <button type="button" @click="scrollToAdminSection('admin-spots')">장소/퍼즐</button>
             <button type="button" @click="scrollToAdminSection('admin-assets')">용의자/증거</button>
-            <button type="button" @click="scrollToAdminSection('admin-draft')">AI 초안</button>
+            <button type="button" @click="openBuilderTab">AI 초안</button>
           </nav>
 
             <details id="admin-core" class="edit-section admin-anchor" open>
@@ -210,10 +219,13 @@
             <button type="button" class="ghost-btn" @click="addSpot">장소 추가</button>
           </div>
           <div class="spot-list">
-            <article v-for="spot in selected.spots || []" :key="spot.spotId" class="spot-card" :class="{ final: spot.finalPlace }">
+            <article v-for="spot in selected.spots || []" :key="spot.spotId" class="spot-card" :class="{ final: spot.finalPlace, 'review-required': isReviewRequiredSpot(spot) }">
               <div class="spot-head">
                 <strong>{{ spot.placeName }}</strong>
                 <span>{{ spot.publicMarkerType }} / {{ spot.clueRole }}</span>
+              </div>
+              <div v-if="isReviewRequiredSpot(spot)" class="review-required-badge">
+                검수필요 초안 · 문제/정답/힌트를 확정해야 합니다
               </div>
               <p>{{ spot.storyText }}</p>
               <p class="internal" v-if="spot.finalPlace">내부 실제 최종 장소입니다. 공개 API에는 노출되지 않습니다.</p>
@@ -402,7 +414,7 @@
 
       </section>
 
-      <article id="admin-draft" class="draft-panel full-width admin-anchor">
+      <article v-if="activeAdminTab === 'builder'" id="admin-draft" class="draft-panel full-width admin-anchor">
           <div class="section-title">
             <div>
               <p class="eyebrow">CASE BUILDER</p>
@@ -847,6 +859,7 @@ const router = useRouter();
 const episodes = ref([]);
 const selected = ref(null);
 const selectedEpisodeId = ref(null);
+const activeAdminTab = ref('episodes');
 const loading = ref(false);
 const message = ref('');
 const messageType = ref('success');
@@ -1043,6 +1056,13 @@ const orderedSelectedCandidates = computed(() => {
 
 onMounted(loadEpisodes);
 onUnmounted(stopDraftTimer);
+
+function openBuilderTab() {
+  activeAdminTab.value = 'builder';
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
 
 async function loadEpisodes() {
   loading.value = true;
@@ -2079,6 +2099,27 @@ function missionReadinessLabel(mission) {
   return '초안 준비';
 }
 
+function isReviewRequiredSpot(spot) {
+  const puzzle = spot?.puzzle || {};
+  const hintText = (puzzle.hints || []).map((hint) => hint?.hintText).join(' ');
+  return hasReviewRequiredText([
+    spot?.storyText,
+    puzzle.questionText,
+    puzzle.answer,
+    puzzle.rewardClue,
+    puzzle.rewardPayload,
+    hintText
+  ].join(' '));
+}
+
+function hasReviewRequiredText(value) {
+  const normalized = String(value || '').replace(/\s+/g, '').toLowerCase();
+  return normalized.includes('검수필요')
+    || normalized.includes('관리자검수')
+    || normalized.includes('review-required')
+    || normalized.includes('reviewrequired');
+}
+
 function ensureDraftIllustrationCards(draft) {
   draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
   draft.suspects.forEach((suspect) => {
@@ -2745,10 +2786,14 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22
 button:active:not(:disabled), button.busy { transform: translateY(1px) scale(.98); box-shadow: 0 0 0 3px rgba(245,158,11,.22); }
 button:focus-visible { outline: 3px solid rgba(251,191,36,.55); outline-offset: 2px; }
 button:disabled { opacity: .45; cursor: not-allowed; }
+.admin-page-tabs { width: min(100%, 1180px); margin: 0 auto 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 8px; border: 1px solid rgba(245,158,11,.22); border-radius: 18px; background: rgba(2,6,23,.48); }
+.admin-page-tabs button { min-height: 46px; border: 1px solid rgba(148,163,184,.2); background: rgba(15,23,42,.68); color: #cbd5e1; }
+.admin-page-tabs button.active { border-color: rgba(245,158,11,.72); background: linear-gradient(135deg, rgba(245,158,11,.95), rgba(251,191,36,.78)); color: #111827; box-shadow: 0 14px 30px rgba(245,158,11,.18); }
 .layout { width: min(100%, 1180px); margin: 0 auto; display: grid; grid-template-columns: 330px 1fr; gap: 14px; }
+.layout.builder-layout { grid-template-columns: minmax(0, 1fr); }
 .episode-list, .detail-card, .draft-panel { border: 1px solid rgba(148,163,184,.2); border-radius: 18px; background: rgba(15,23,42,.68); padding: 16px; }
 .episode-list { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; scrollbar-color: rgba(245,158,11,.55) rgba(15,23,42,.45); }
-.draft-panel.full-width { grid-column: 1 / -1; margin-top: 4px; }
+.draft-panel.full-width { grid-column: 1 / -1; margin-top: 0; }
 .section-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 h2, h3 { margin: 0 0 10px; }
 .episode-card { padding: 12px; border: 1px solid rgba(148,163,184,.18); border-radius: 14px; background: rgba(2,6,23,.38); margin-top: 10px; cursor: pointer; }
@@ -2758,6 +2803,7 @@ h2, h3 { margin: 0 0 10px; }
 .metrics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .metrics em { border-radius: 999px; background: rgba(245,158,11,.14); color: #fde68a; padding: 5px 8px; font-style: normal; font-size: .76rem; }
 .message { padding: 10px; border-radius: 12px; margin: 0 0 10px; }
+.global-message { width: min(100%, 1180px); box-sizing: border-box; margin: 0 auto 14px; }
 .message.success { background: rgba(22,101,52,.22); color: #bbf7d0; }
 .message.error { background: rgba(127,29,29,.34); color: #fecaca; }
 .draft-feedback-panel { margin: 10px 0 12px; padding: 12px; border: 1px solid rgba(34,197,94,.28); border-radius: 14px; background: rgba(22,101,52,.16); }
@@ -2803,6 +2849,9 @@ h2, h3 { margin: 0 0 10px; }
 .stat-grid span, .empty { color: #94a3b8; }
 .spot-list { display: grid; gap: 10px; }
 .spot-card.final { border-color: rgba(248,113,113,.62); }
+.spot-card.review-required { border-color: rgba(248,113,113,.78); background: linear-gradient(135deg, rgba(127,29,29,.5), rgba(69,10,10,.34) 48%, rgba(15,23,42,.56)); box-shadow: 0 0 0 1px rgba(248,113,113,.2) inset, 0 16px 34px rgba(127,29,29,.18); }
+.spot-card.review-required.final { border-color: rgba(252,165,165,.92); }
+.review-required-badge { width: fit-content; margin: 9px 0 4px; border: 1px solid rgba(254,202,202,.46); border-radius: 999px; background: rgba(127,29,29,.72); color: #fee2e2; padding: 6px 10px; font-size: .76rem; font-weight: 900; letter-spacing: .02em; }
 .spot-head { display: flex; justify-content: space-between; gap: 8px; }
 .spot-card p, .mini-grid p, .draft-panel p { color: #cbd5e1; line-height: 1.55; }
 .internal { color: #fecaca !important; font-weight: 900; }

@@ -345,7 +345,9 @@ async function submitPuzzle(answer) {
     puzzleCorrect.value = result.correct;
     clueBoard.value = result.clueBoard || await episodeApi.getClueBoard(episodeId);
     caseFileUpdated.value = Boolean(result.correct && result.caseFileUpdated);
-    if (result.correct && result.caseFileUpdated) setStatus('새 사건 자료가 사건파일에 추가되었습니다.', 'success');
+    const unlockedTypes = result.unlockedRewardTypes || [];
+    if (result.correct && unlockedTypes.includes('STORY_CLUE')) setStatus('스토리 단서가 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
+    else if (result.correct && result.caseFileUpdated) setStatus('새 사건 자료가 사건파일에 추가되었습니다.', 'success');
     else if (result.correct) setStatus('정답입니다. 단서 보드가 갱신되었습니다.', 'success');
     await loadAll();
   } catch (error) {

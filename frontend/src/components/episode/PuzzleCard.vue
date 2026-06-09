@@ -47,7 +47,7 @@ const puzzleGuide = computed(() => {
   const type = String(props.puzzle?.puzzleType || '').toUpperCase();
   if (type === 'NUMBER_LOCK') return '관리자가 입력한 현장 숫자가 있을 때만 사용하는 숫자 암호입니다.';
   if (type === 'PATTERN') return '그림이 아니라 단서 카드와 장소 분위기의 반복 패턴을 비교하세요.';
-  if (type === 'STORY_COMBINATION') return '지금까지 얻은 사건자료를 조합해 핵심 단어를 입력합니다.';
+  if (type === 'STORY_COMBINATION') return '현재 장소의 문제 문장과 사건파일의 관련 카드를 대조해 핵심 단어를 입력합니다.';
   if (type === 'INITIAL_SOUND') return '장소명 초성이 아니라 사건 메모 안의 키워드를 기준으로 풉니다.';
   return '현장에서 확인 가능한 단서와 사건파일 자료를 연결해 풉니다.';
 });
@@ -70,10 +70,24 @@ function puzzleTypeLabel(type) {
 
 function normalizeHint(hint, index) {
   const text = String(hint || '').trim();
-  if (!text || /^(answer|destination|story)-clue-\d+$/i.test(text)) {
-    return ['사건자료 제목과 질문의 역할을 먼저 비교하세요.', '장소명 글자 추출 문제라면 관리자 검수가 필요합니다.', '정답은 단서 보드에 붙일 짧은 키워드입니다.'][index % 3];
+  if (!text || /^(answer|destination|story)-clue-\d+$/i.test(text) || isEnglishSentence(text) || isRouteDependentHint(text)) {
+    return fallbackHint(index);
   }
   return text;
+}
+
+function fallbackHint(index) {
+  return ['문제 문장에 나온 현장 근거를 먼저 확인하세요.', '정답은 이 장소에서 확인한 단어 또는 숫자여야 합니다.', '다른 장소의 진행 순서가 아니라 현재 퍼즐의 단서만 기준으로 보세요.'][index % 3];
+}
+
+function isEnglishSentence(text) {
+  const alphabetCount = (text.match(/[A-Za-z]/g) || []).length;
+  return alphabetCount >= 3 && !/[가-힣]/.test(text);
+}
+
+function isRouteDependentHint(text) {
+  const compact = String(text || '').replace(/\s+/g, '');
+  return compact.includes('가장최근') || compact.includes('최근보상') || compact.includes('이전증거') || compact.includes('이전사건자료');
 }
 </script>
 
