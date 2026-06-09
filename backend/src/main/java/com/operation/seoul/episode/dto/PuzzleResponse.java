@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -15,4 +16,5 @@ public class PuzzleResponse {
     private String answerFormat;
     private String difficulty;
     private List<String> hints;
+    private Map<String, Object> interaction;
 }

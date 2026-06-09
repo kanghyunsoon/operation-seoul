@@ -16,4 +16,6 @@ public class MissionSpot {
     private String storyText;
     private Double arrivalRadius;
     private Boolean finalPlace;
+    private Boolean fieldVerified;
+    private String fieldVerificationNote;
 }

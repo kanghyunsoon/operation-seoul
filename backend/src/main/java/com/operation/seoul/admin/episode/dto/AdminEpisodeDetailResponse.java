@@ -58,6 +58,8 @@ public class AdminEpisodeDetailResponse {
         private Boolean finalPlace;
         private String storyText;
         private Double arrivalRadius;
+        private Boolean fieldVerified;
+        private String fieldVerificationNote;
         private Puzzle puzzle;
     }
 
@@ -90,6 +92,7 @@ public class AdminEpisodeDetailResponse {
         private String alias;
         private String shortDescription;
         private String portraitImageUrl;
+        private String imagePrompt;
         private String relationToVictim;
         private String suspiciousPoint;
         private String alibiSummary;
@@ -104,6 +107,7 @@ public class AdminEpisodeDetailResponse {
         private String title;
         private String type;
         private String imageUrl;
+        private String imagePrompt;
         private String textSummary;
         private Long sourceSpotId;
         private Long relatedSuspectId;

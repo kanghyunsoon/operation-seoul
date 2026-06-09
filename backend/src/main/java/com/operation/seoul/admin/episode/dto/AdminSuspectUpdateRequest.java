@@ -8,6 +8,7 @@ public class AdminSuspectUpdateRequest {
     private String alias;
     private String shortDescription;
     private String portraitImageUrl;
+    private String imagePrompt;
     private String relationToVictim;
     private String suspiciousPoint;
     private String alibiSummary;

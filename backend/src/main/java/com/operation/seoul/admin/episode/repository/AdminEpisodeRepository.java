@@ -126,7 +126,7 @@ public interface AdminEpisodeRepository {
 
     @Select("""
             select id, episode_id, place_name, address, latitude, longitude, marker_type, clue_role,
-                   public_marker_type, story_text, arrival_radius, is_final_place
+                   public_marker_type, story_text, arrival_radius, is_final_place, field_verified, field_verification_note
             from mission_spots
             where episode_id = #{episodeId}
             order by id asc
@@ -137,15 +137,16 @@ public interface AdminEpisodeRepository {
             @Result(property = "latitude", column = "latitude"), @Result(property = "longitude", column = "longitude"),
             @Result(property = "markerType", column = "marker_type"), @Result(property = "clueRole", column = "clue_role"),
             @Result(property = "publicMarkerType", column = "public_marker_type"), @Result(property = "storyText", column = "story_text"),
-            @Result(property = "arrivalRadius", column = "arrival_radius"), @Result(property = "finalPlace", column = "is_final_place")
+            @Result(property = "arrivalRadius", column = "arrival_radius"), @Result(property = "finalPlace", column = "is_final_place"),
+            @Result(property = "fieldVerified", column = "field_verified"), @Result(property = "fieldVerificationNote", column = "field_verification_note")
     })
     List<MissionSpot> findSpots(Long episodeId);
 
     @Insert("""
             insert into mission_spots (episode_id, place_name, address, latitude, longitude, marker_type, clue_role,
-            public_marker_type, story_text, arrival_radius, is_final_place)
+            public_marker_type, story_text, arrival_radius, is_final_place, field_verified, field_verification_note)
             values (#{episodeId}, #{placeName}, #{address}, #{latitude}, #{longitude}, #{markerType}, #{clueRole},
-            #{publicMarkerType}, #{storyText}, #{arrivalRadius}, #{finalPlace})
+            #{publicMarkerType}, #{storyText}, #{arrivalRadius}, #{finalPlace}, #{fieldVerified}, #{fieldVerificationNote})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertSpot(MissionSpot spot);
@@ -155,6 +156,7 @@ public interface AdminEpisodeRepository {
             set place_name = #{placeName}, address = #{address}, latitude = #{latitude}, longitude = #{longitude},
                 marker_type = #{markerType}, clue_role = #{clueRole}, public_marker_type = #{publicMarkerType},
                 story_text = #{storyText}, arrival_radius = #{arrivalRadius}, is_final_place = #{finalPlace},
+                field_verified = #{fieldVerified}, field_verification_note = #{fieldVerificationNote},
                 updated_at = current_timestamp
             where id = #{id}
             """)
@@ -229,7 +231,7 @@ public interface AdminEpisodeRepository {
     int insertHint(@Param("puzzleId") Long puzzleId, @Param("hintLevel") Integer hintLevel, @Param("hintText") String hintText);
 
     @Select("""
-            select id, episode_id, display_name, alias, short_description, portrait_image_url, relation_to_victim,
+            select id, episode_id, display_name, alias, short_description, portrait_image_url, image_prompt, relation_to_victim,
                    suspicious_point, alibi_summary, unlocked_by_default, display_order, created_at
             from case_suspects
             where episode_id = #{episodeId}
@@ -239,6 +241,7 @@ public interface AdminEpisodeRepository {
             @Result(property = "id", column = "id", id = true), @Result(property = "episodeId", column = "episode_id"),
             @Result(property = "displayName", column = "display_name"), @Result(property = "alias", column = "alias"),
             @Result(property = "shortDescription", column = "short_description"), @Result(property = "portraitImageUrl", column = "portrait_image_url"),
+            @Result(property = "imagePrompt", column = "image_prompt"),
             @Result(property = "relationToVictim", column = "relation_to_victim"), @Result(property = "suspiciousPoint", column = "suspicious_point"),
             @Result(property = "alibiSummary", column = "alibi_summary"), @Result(property = "unlockedByDefault", column = "unlocked_by_default"),
             @Result(property = "displayOrder", column = "display_order"), @Result(property = "createdAt", column = "created_at")
@@ -246,9 +249,9 @@ public interface AdminEpisodeRepository {
     List<CaseSuspect> findSuspects(Long episodeId);
 
     @Insert("""
-            insert into case_suspects (episode_id, display_name, alias, short_description, portrait_image_url,
+            insert into case_suspects (episode_id, display_name, alias, short_description, portrait_image_url, image_prompt,
             relation_to_victim, suspicious_point, alibi_summary, unlocked_by_default, display_order)
-            values (#{episodeId}, #{displayName}, #{alias}, #{shortDescription}, #{portraitImageUrl},
+            values (#{episodeId}, #{displayName}, #{alias}, #{shortDescription}, #{portraitImageUrl}, #{imagePrompt},
             #{relationToVictim}, #{suspiciousPoint}, #{alibiSummary}, #{unlockedByDefault}, #{displayOrder})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -257,7 +260,7 @@ public interface AdminEpisodeRepository {
     @Update("""
             update case_suspects
             set display_name = #{displayName}, alias = #{alias}, short_description = #{shortDescription},
-                portrait_image_url = #{portraitImageUrl}, relation_to_victim = #{relationToVictim},
+                portrait_image_url = #{portraitImageUrl}, image_prompt = #{imagePrompt}, relation_to_victim = #{relationToVictim},
                 suspicious_point = #{suspiciousPoint}, alibi_summary = #{alibiSummary},
                 unlocked_by_default = #{unlockedByDefault}, display_order = #{displayOrder}
             where id = #{id}
@@ -271,7 +274,7 @@ public interface AdminEpisodeRepository {
     int deleteSuspect(Long suspectId);
 
     @Select("""
-            select id, episode_id, title, type, image_url, text_summary, source_spot_id, related_suspect_id,
+            select id, episode_id, title, type, image_url, image_prompt, text_summary, source_spot_id, related_suspect_id,
                    related_clue_type, unlocked_by_default, display_order, created_at
             from case_evidences
             where episode_id = #{episodeId}
@@ -280,7 +283,8 @@ public interface AdminEpisodeRepository {
     @Results(id = "AdminCaseEvidenceMap", value = {
             @Result(property = "id", column = "id", id = true), @Result(property = "episodeId", column = "episode_id"),
             @Result(property = "title", column = "title"), @Result(property = "type", column = "type"),
-            @Result(property = "imageUrl", column = "image_url"), @Result(property = "textSummary", column = "text_summary"),
+            @Result(property = "imageUrl", column = "image_url"), @Result(property = "imagePrompt", column = "image_prompt"),
+            @Result(property = "textSummary", column = "text_summary"),
             @Result(property = "sourceSpotId", column = "source_spot_id"), @Result(property = "relatedSuspectId", column = "related_suspect_id"),
             @Result(property = "relatedClueType", column = "related_clue_type"), @Result(property = "unlockedByDefault", column = "unlocked_by_default"),
             @Result(property = "displayOrder", column = "display_order"), @Result(property = "createdAt", column = "created_at")
@@ -288,9 +292,9 @@ public interface AdminEpisodeRepository {
     List<CaseEvidence> findEvidences(Long episodeId);
 
     @Insert("""
-            insert into case_evidences (episode_id, title, type, image_url, text_summary, source_spot_id,
+            insert into case_evidences (episode_id, title, type, image_url, image_prompt, text_summary, source_spot_id,
             related_suspect_id, related_clue_type, unlocked_by_default, display_order)
-            values (#{episodeId}, #{title}, #{type}, #{imageUrl}, #{textSummary}, #{sourceSpotId},
+            values (#{episodeId}, #{title}, #{type}, #{imageUrl}, #{imagePrompt}, #{textSummary}, #{sourceSpotId},
             #{relatedSuspectId}, #{relatedClueType}, #{unlockedByDefault}, #{displayOrder})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -298,7 +302,7 @@ public interface AdminEpisodeRepository {
 
     @Update("""
             update case_evidences
-            set title = #{title}, type = #{type}, image_url = #{imageUrl}, text_summary = #{textSummary},
+            set title = #{title}, type = #{type}, image_url = #{imageUrl}, image_prompt = #{imagePrompt}, text_summary = #{textSummary},
                 source_spot_id = #{sourceSpotId}, related_suspect_id = #{relatedSuspectId},
                 related_clue_type = #{relatedClueType}, unlocked_by_default = #{unlockedByDefault},
                 display_order = #{displayOrder}

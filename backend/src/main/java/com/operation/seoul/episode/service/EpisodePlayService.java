@@ -11,9 +11,11 @@ import com.operation.seoul.favorite.repository.EpisodeFavoriteRepository;
 import com.operation.seoul.global.exception.ApiException;
 import com.operation.seoul.location.service.OperationAreaResolver;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -22,23 +24,26 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EpisodePlayService {
     private static final TypeReference<List<Long>> LONG_LIST = new TypeReference<>() {};
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
     private static final Set<String> ALLOWED_DEDUCTION_ANSWER_TYPES = Set.of(
             "YES", "NO", "RELATED", "NOT_RELATED", "PARTIAL", "AMBIGUOUS", "INSUFFICIENT_CLUE", "REFUSED_DIRECT_REVEAL"
     );
-
     private final EpisodeRepository episodeRepository;
     private final EpisodeFavoriteRepository favoriteRepository;
     private final ObjectMapper objectMapper;
     private final OperationAreaResolver operationAreaResolver;
+    private final MinigameProofValidator minigameProofValidator;
+    private final PuzzleAttemptGuard puzzleAttemptGuard;
 
     @Value("${app.dev-mode.arrival-enabled:false}")
     private boolean arrivalDevModeEnabled;
@@ -163,6 +168,7 @@ public class EpisodePlayService {
             throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "이 서버에서는 개발용 도착 판정이 비활성화되어 있습니다.");
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
+        requireCoordinatesUnlessDevMode(request, devMode);
         double distance = devMode ? 0.0 : calculateDistanceMeters(request.getUserLat(), request.getUserLng(), spot.getLatitude(), spot.getLongitude());
         boolean arrived = devMode || distance <= safeRadius(spot.getArrivalRadius());
 
@@ -213,6 +219,7 @@ public class EpisodePlayService {
             throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "이 서버에서는 개발용 도착 판정이 비활성화되어 있습니다.");
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
+        requireCoordinatesUnlessDevMode(request, devMode);
         double distance = devMode ? 0.0 : calculateDistanceMeters(request.getUserLat(), request.getUserLng(), finalSpot.getLatitude(), finalSpot.getLongitude());
         boolean arrived = devMode || distance <= safeRadius(finalSpot.getArrivalRadius());
         if (!arrived) {
@@ -256,9 +263,34 @@ public class EpisodePlayService {
                 .answerFormat(puzzle.getAnswerFormat())
                 .difficulty(puzzle.getDifficulty())
                 .hints(episodeRepository.findHintsByPuzzleId(puzzle.getId()).stream().map(PuzzleHint::getHintText).toList())
+                .interaction(readPuzzleInteraction(puzzle.getRewardPayload()))
                 .build();
     }
 
+    private Map<String, Object> readPuzzleInteraction(String rewardPayload) {
+        if (rewardPayload == null || rewardPayload.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode interaction = objectMapper.readTree(rewardPayload).path("interaction");
+            if (!interaction.isObject()) {
+                return null;
+            }
+            return objectMapper.convertValue(interaction, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isPuzzleAnswerAccepted(Puzzle puzzle, String submittedAnswer) {
+        String normalizedSubmitted = normalizeAnswer(submittedAnswer);
+        if (normalizeAnswer(puzzle.getAnswer()).equals(normalizedSubmitted)) {
+            return true;
+        }
+        return minigameProofValidator.validate(puzzle.getRewardPayload(), submittedAnswer);
+    }
+
+    @Transactional
     public PuzzleSubmitResponse submitPuzzle(Long puzzleId, PuzzleSubmitRequest request, User user) {
         Puzzle puzzle = episodeRepository.findPuzzleById(puzzleId);
         if (puzzle == null) {
@@ -270,10 +302,19 @@ public class EpisodePlayService {
             throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "퍼즐을 풀기 전에 해당 장소에 도착해야 합니다.");
         }
 
-        boolean correct = normalizeAnswer(puzzle.getAnswer()).equals(normalizeAnswer(request.getAnswer()));
+        puzzleAttemptGuard.enforce(user.getId(), puzzle.getId());
+        boolean correct = isPuzzleAnswerAccepted(puzzle, request.getAnswer());
         if (!correct) {
+            puzzleAttemptGuard.recordWrong(user.getId(), puzzle.getId());
             progress.setWrongAnswerCount(value(progress.getWrongAnswerCount()) + 1);
             episodeRepository.updateProgress(progress);
+            log.info(
+                    "puzzle_submission outcome=wrong userId={} episodeId={} puzzleId={} totalWrongCount={}",
+                    user.getId(),
+                    spot.getEpisodeId(),
+                    puzzle.getId(),
+                    progress.getWrongAnswerCount()
+            );
             return PuzzleSubmitResponse.builder()
                     .correct(false)
                     .message("정답이 아닙니다. 현장 단서와 힌트를 다시 확인해 주세요.")
@@ -282,8 +323,16 @@ public class EpisodePlayService {
         }
 
         addLong(progress, "completed", spot.getId());
+        puzzleAttemptGuard.clear(user.getId(), puzzle.getId());
         RewardApplyResult rewardResult = applyPuzzleRewards(progress, spot, puzzle);
         episodeRepository.updateProgress(progress);
+        log.info(
+                "puzzle_submission outcome=correct userId={} episodeId={} puzzleId={} rewardTypes={}",
+                user.getId(),
+                spot.getEpisodeId(),
+                puzzle.getId(),
+                rewardResult.rewardTypes()
+        );
         return PuzzleSubmitResponse.builder()
                 .correct(true)
                 .rewardClue(puzzle.getRewardClue())
@@ -881,6 +930,12 @@ public class EpisodePlayService {
         return radius == null || radius <= 0 ? 50.0 : radius;
     }
 
+    private void requireCoordinatesUnlessDevMode(ArriveRequest request, boolean devMode) {
+        if (!devMode && (request == null || request.getUserLat() == null || request.getUserLng() == null)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_REQUIRED", "현재 위치 좌표가 필요합니다.");
+        }
+    }
+
     private double calculateDistanceMeters(Double lat1, Double lng1, Double lat2, Double lng2) {
         if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) {
             return Double.MAX_VALUE;
@@ -929,5 +984,6 @@ public class EpisodePlayService {
                                      List<Long> suspectIds, List<Long> updatedSuspectIds, List<Long> photoIds,
                                      List<Long> memoIds, List<PuzzleSubmitResponse.UnlockedCaseFileItem> items) {
     }
+
 }
 

@@ -10,6 +10,9 @@ export const adminEpisodeApi = {
   async getEpisode(episodeId) {
     return unwrap(await apiClient.get(`/v1/admin/episodes/${episodeId}`));
   },
+  async getAuditLogs(episodeId, limit = 50) {
+    return unwrap(await apiClient.get(`/v1/admin/episodes/${episodeId}/audit-logs`, { params: { limit } }));
+  },
   async getPublishReadiness(episodeId) {
     return unwrap(await apiClient.get(`/v1/admin/episodes/${episodeId}/publish-readiness`));
   },

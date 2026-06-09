@@ -281,6 +281,8 @@ public class AdminEpisodeService {
         spot.setPublicMarkerType(validateValue(text(request.getPublicMarkerType(), spot.getPublicMarkerType()), PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType must not expose FINAL."));
         spot.setStoryText(text(request.getStoryText(), spot.getStoryText()));
         spot.setArrivalRadius(request.getArrivalRadius() == null ? spot.getArrivalRadius() : Math.max(10.0, request.getArrivalRadius()));
+        spot.setFieldVerified(request.getFieldVerified() == null ? spot.getFieldVerified() : request.getFieldVerified());
+        spot.setFieldVerificationNote(text(request.getFieldVerificationNote(), spot.getFieldVerificationNote()));
         spot.setFinalPlace(request.getFinalPlace() == null ? spot.getFinalPlace() : request.getFinalPlace());
         if (Boolean.TRUE.equals(spot.getFinalPlace())) {
             spot.setMarkerType("FINAL");
@@ -309,6 +311,8 @@ public class AdminEpisodeService {
         spot.setPublicMarkerType(validateValue(text(request.getPublicMarkerType(), spot.getMarkerType()), PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType must not expose FINAL."));
         spot.setStoryText(text(request.getStoryText(), "Review required."));
         spot.setArrivalRadius(request.getArrivalRadius() == null ? 50.0 : Math.max(10.0, request.getArrivalRadius()));
+        spot.setFieldVerified(Boolean.TRUE.equals(request.getFieldVerified()));
+        spot.setFieldVerificationNote(text(request.getFieldVerificationNote(), null));
         spot.setFinalPlace(Boolean.TRUE.equals(request.getFinalPlace()));
         if (Boolean.TRUE.equals(spot.getFinalPlace())) {
             spot.setMarkerType("FINAL");
@@ -400,6 +404,7 @@ public class AdminEpisodeService {
         suspect.setAlias(text(request.getAlias(), suspect.getAlias()));
         suspect.setShortDescription(text(request.getShortDescription(), suspect.getShortDescription()));
         suspect.setPortraitImageUrl(text(request.getPortraitImageUrl(), suspect.getPortraitImageUrl()));
+        suspect.setImagePrompt(ensureKoreanPersonPrompt(text(request.getImagePrompt(), suspect.getImagePrompt())));
         suspect.setRelationToVictim(text(request.getRelationToVictim(), suspect.getRelationToVictim()));
         suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), suspect.getSuspiciousPoint()));
         suspect.setAlibiSummary(text(request.getAlibiSummary(), suspect.getAlibiSummary()));
@@ -418,6 +423,7 @@ public class AdminEpisodeService {
         suspect.setDisplayName(text(request.getDisplayName(), "임시 용의자"));
         suspect.setShortDescription(text(request.getShortDescription(), "Review required."));
         suspect.setPortraitImageUrl(text(request.getPortraitImageUrl(), null));
+        suspect.setImagePrompt(ensureKoreanPersonPrompt(text(request.getImagePrompt(), null)));
         suspect.setRelationToVictim(text(request.getRelationToVictim(), "Review required."));
         suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), "Review required."));
         suspect.setAlibiSummary(text(request.getAlibiSummary(), "Review required."));
@@ -447,6 +453,7 @@ public class AdminEpisodeService {
         evidence.setTitle(text(request.getTitle(), evidence.getTitle()));
         evidence.setType(validateValue(text(request.getType(), evidence.getType()), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Review required."));
         evidence.setImageUrl(text(request.getImageUrl(), evidence.getImageUrl()));
+        evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(request.getImagePrompt(), evidence.getImagePrompt())));
         evidence.setTextSummary(text(request.getTextSummary(), evidence.getTextSummary()));
         evidence.setSourceSpotId(validateOptionalSpot(episodeId, request.getSourceSpotId(), evidence.getSourceSpotId()));
         evidence.setRelatedSuspectId(validateOptionalSuspect(episodeId, request.getRelatedSuspectId(), evidence.getRelatedSuspectId()));
@@ -465,6 +472,7 @@ public class AdminEpisodeService {
         evidence.setTitle(text(request.getTitle(), "Review required."));
         evidence.setType(validateValue(text(request.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Review required."));
         evidence.setImageUrl(text(request.getImageUrl(), null));
+        evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(request.getImagePrompt(), null)));
         evidence.setTextSummary(text(request.getTextSummary(), "Review required."));
         evidence.setSourceSpotId(validateOptionalSpot(episodeId, request.getSourceSpotId(), null));
         evidence.setRelatedSuspectId(validateOptionalSuspect(episodeId, request.getRelatedSuspectId(), null));
@@ -691,7 +699,12 @@ public class AdminEpisodeService {
         return missions.stream().limit(8).map(mission -> AiEpisodeDraftResponse.EvidenceDraft.builder()
                 .title(mission.getRewardClue() + " clue card")
                 .type("ANSWER_HINT".equals(mission.getClueRole()) ? "ANSWER_CLUE" : "DESTINATION_HINT".equals(mission.getClueRole()) ? "DESTINATION_CLUE" : "NOTE")
-                .imageUrl(generatedEvidenceImage("ANSWER_HINT".equals(mission.getClueRole()) ? "ANSWER_CLUE" : "NOTE"))
+                .imageUrl("")
+                .imagePrompt("Create a high-quality detective evidence image for a Korean outdoor escape-room case file. Subject: "
+                        + mission.getRewardClue() + " clue card. Story detail: Case material unlocked after solving this mission. "
+                        + "Style: cinematic close-up, realistic prop photography, aged paper, soft shadows, archival texture, moody natural light. "
+                        + "If any person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story era. "
+                        + "No Western or European-looking models, no readable text, no watermark, no logo, no UI frame.")
                 .textSummary("Case material unlocked after solving this mission.")
                 .sourceMissionOrder(mission.getOrder())
                 .build()).toList();
@@ -771,6 +784,8 @@ public class AdminEpisodeService {
             spot.setPublicMarkerType(publicMarkerType(mission.getPublicMarkerType(), finalPlace, markerType));
             spot.setStoryText(mission.getStoryText());
             spot.setArrivalRadius(mission.getArrivalRadius() == null ? 50.0 : Math.max(10.0, mission.getArrivalRadius()));
+            spot.setFieldVerified(false);
+            spot.setFieldVerificationNote("AI draft: field verification required before publishing.");
             adminEpisodeRepository.insertSpot(spot);
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
             spotByOrder.put(order, spot);
@@ -782,9 +797,9 @@ public class AdminEpisodeService {
             puzzle.setMissionSpotId(spot.getId());
             puzzle.setPuzzleType(validateValue(blank(mission.getPuzzleType(), "OBSERVATION"), PUZZLE_TYPES, "INVALID_PUZZLE_TYPE", "Unsupported puzzleType."));
             puzzle.setQuestionText(blank(mission.getQuestionText(), "Review required."));
-            puzzle.setAnswer(blank(mission.getAnswer(), "검수필요"));
+            puzzle.setAnswer(blank(mission.getAnswer(), "현장단서"));
             puzzle.setAnswerFormat(validateValue(blank(mission.getAnswerFormat(), "TEXT"), ANSWER_FORMATS, "INVALID_ANSWER_FORMAT", "Unsupported answerFormat."));
-            puzzle.setRewardClue(blank(mission.getRewardClue(), "검수필요"));
+            puzzle.setRewardClue(blank(mission.getRewardClue(), "보정 단서"));
             puzzle.setRewardPayload(null);
             puzzle.setDifficulty("NORMAL");
             adminEpisodeRepository.insertPuzzle(puzzle);
@@ -816,6 +831,8 @@ public class AdminEpisodeService {
                 .finalPlace(spot.getFinalPlace())
                 .storyText(spot.getStoryText())
                 .arrivalRadius(spot.getArrivalRadius())
+                .fieldVerified(Boolean.TRUE.equals(spot.getFieldVerified()))
+                .fieldVerificationNote(spot.getFieldVerificationNote())
                 .puzzle(puzzle == null ? null : toPuzzle(puzzle))
                 .build();
     }
@@ -848,6 +865,7 @@ public class AdminEpisodeService {
                 .alias(suspect.getAlias())
                 .shortDescription(suspect.getShortDescription())
                 .portraitImageUrl(suspect.getPortraitImageUrl())
+                .imagePrompt(suspect.getImagePrompt())
                 .relationToVictim(suspect.getRelationToVictim())
                 .suspiciousPoint(suspect.getSuspiciousPoint())
                 .alibiSummary(suspect.getAlibiSummary())
@@ -862,6 +880,7 @@ public class AdminEpisodeService {
                 .title(evidence.getTitle())
                 .type(evidence.getType())
                 .imageUrl(evidence.getImageUrl())
+                .imagePrompt(evidence.getImagePrompt())
                 .textSummary(evidence.getTextSummary())
                 .sourceSpotId(evidence.getSourceSpotId())
                 .relatedSuspectId(evidence.getRelatedSuspectId())
@@ -897,6 +916,7 @@ public class AdminEpisodeService {
             suspect.setSuspiciousPoint(blank(draft.getSuspiciousPoint(), "There is an unexplained gap in the timeline."));
             suspect.setAlibiSummary(blank(draft.getAlibiSummary(), "The alibi requires comparison with evidence cards."));
             suspect.setPortraitImageUrl(draft.getPortraitImageUrl());
+            suspect.setImagePrompt(ensureKoreanPersonPrompt(blank(draft.getImagePrompt(), buildSuspectImagePrompt(draft))));
             suspect.setUnlockedByDefault(index == 0);
             suspect.setDisplayOrder(index + 1);
             adminEpisodeRepository.insertSuspect(suspect);
@@ -919,6 +939,7 @@ public class AdminEpisodeService {
             evidence.setTitle(blank(draft.getTitle(), "Case material " + (index + 1)));
             evidence.setType(validateValue(blank(draft.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Unsupported evidence type."));
             evidence.setImageUrl(draft.getImageUrl());
+            evidence.setImagePrompt(ensureKoreanEvidencePrompt(blank(draft.getImagePrompt(), buildEvidenceImagePrompt(draft))));
             evidence.setTextSummary(blank(draft.getTextSummary(), "Case material that helps combine field clues for final deduction."));
             evidence.setSourceSpotId(resolveSourceSpotId(draft, spotByOrder));
             evidence.setRelatedSuspectId(resolveLinkedSuspectId(draft, suspects, index));
@@ -939,6 +960,53 @@ public class AdminEpisodeService {
         }
         MissionSpot spot = spotByOrder.get(draft.getSourceMissionOrder());
         return spot == null ? null : spot.getId();
+    }
+
+    private String buildSuspectImagePrompt(AiEpisodeDraftResponse.SuspectDraft draft) {
+        String name = blank(draft.getDisplayName(), blank(draft.getAlias(), "case-file suspect"));
+        String suspicion = blank(draft.getSuspiciousPoint(), "ambiguous motive and hidden route contradiction");
+        return "Create a high-quality fictional detective case-file portrait of " + name
+                + ". Casting is mandatory: depict a fictional Korean person from Seoul, South Korea. The subject must look unmistakably Korean; preserve the story's specified age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character's Korean identity. "
+                + "Visual tone: Seoul outdoor mystery, cinematic noir, realistic but not a real person, neutral background, subtle paper texture, evidence board lighting. "
+                + "Character clue: " + suspicion
+                + ". Composition: bust portrait, 3/4 view, natural Korean styling and grooming appropriate to the character, restrained expression, sharp facial silhouette. "
+                + "Negative constraints: no foreign tourist styling, no Western fashion editorial look, no text, no watermark, no logo, no celebrity likeness.";
+    }
+
+    private String ensureKoreanPersonPrompt(String prompt) {
+        if (missing(prompt)) {
+            return prompt;
+        }
+        String normalized = prompt.toLowerCase(Locale.ROOT);
+        if (normalized.contains("fictional korean person") || normalized.contains("korean identity")) {
+            return prompt;
+        }
+        return prompt.trim()
+                + " Casting is mandatory: every visible person must be a fictional Korean person from Seoul, South Korea. "
+                + "Preserve the story's age, gender, occupation, and era. Do not cast a Western or European-looking model or change the character's Korean identity.";
+    }
+
+    private String ensureKoreanEvidencePrompt(String prompt) {
+        if (missing(prompt)) {
+            return prompt;
+        }
+        String normalized = prompt.toLowerCase(Locale.ROOT);
+        if (normalized.contains("if any person") || normalized.contains("every visible person")) {
+            return prompt;
+        }
+        return prompt.trim()
+                + " If any person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story's age and era. "
+                + "Do not cast a Western or European-looking model.";
+    }
+
+    private String buildEvidenceImagePrompt(AiEpisodeDraftResponse.EvidenceDraft draft) {
+        String title = blank(draft.getTitle(), "case evidence card");
+        String summary = blank(draft.getTextSummary(), "a clue object connected to the route and final deduction");
+        return "Create a high-quality detective evidence image for a Korean outdoor escape-room case file. "
+                + "Subject: " + title + ". Story detail: " + summary
+                + ". Style: cinematic close-up, realistic prop photography, aged paper, soft shadows, archival texture, moody natural light. "
+                + "If any person, hand, portrait, reflection, or human silhouette appears, it must belong to a fictional Korean person in Seoul and match the story's era. "
+                + "No Western or European-looking models, no readable text, no watermark, no logo, no UI frame.";
     }
 
     private Long resolveLinkedSuspectId(AiEpisodeDraftResponse.EvidenceDraft draft, List<CaseSuspect> suspects, int index) {
@@ -965,19 +1033,250 @@ public class AdminEpisodeService {
                 default -> "STORY_CLUE";
             };
             CaseEvidence evidence = evidenceByMissionOrder.get(order);
-            StringBuilder payload = new StringBuilder();
-            payload.append("{\"rewards\":[");
-            payload.append("{\"type\":\"").append(clueType).append("\",\"value\":\"").append(jsonEscape(blank(mission.getRewardClue(), "검수필요"))).append("\"}");
+            List<Map<String, Object>> rewards = new ArrayList<>();
+            Map<String, Object> clueReward = new LinkedHashMap<>();
+            clueReward.put("type", clueType);
+            clueReward.put("value", blank(mission.getRewardClue(), "검수단서"));
+            rewards.add(clueReward);
             if (evidence != null) {
-                payload.append(",{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":").append(evidence.getId()).append("}");
+                Map<String, Object> evidenceReward = new LinkedHashMap<>();
+                evidenceReward.put("type", "EVIDENCE_UNLOCK");
+                evidenceReward.put("targetId", evidence.getId());
+                rewards.add(evidenceReward);
             }
-            payload.append("]}");
-            puzzle.setRewardPayload(payload.toString());
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("rewards", rewards);
+            payload.put("interaction", buildPuzzleInteraction(mission, i, clueType));
+            puzzle.setRewardPayload(writeObjectJson(payload));
             AdminRewardPayloadValidationResponse validation = validateRewardPayload(episodeId, AdminRewardPayloadValidationRequestWrapper.of(puzzle.getRewardPayload()));
             if (!validation.isValid()) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DRAFT_REWARD_PAYLOAD", String.join(" / ", validation.getErrors()));
             }
             adminEpisodeRepository.updatePuzzle(puzzle);
+        }
+    }
+
+    private Map<String, Object> buildPuzzleInteraction(AiEpisodeDraftResponse.MissionDraft mission, int index, String clueType) {
+        String basis = firstGroundingText(mission);
+        String localSolution = localGameSolution(mission, basis, index);
+        String type = chooseInteractionType(mission, index, localSolution);
+        Map<String, Object> interaction = new LinkedHashMap<>();
+        interaction.put("version", 1);
+        interaction.put("type", type);
+        interaction.put("title", interactionTitle(type, clueType));
+        interaction.put("prompt", blank(mission.getQuestionText(), "단서 장치를 풀고 제출 버튼을 누르세요."));
+        interaction.put("storyHook", "해금 단서: " + blank(mission.getRewardClue(), "사건 단서"));
+        interaction.put("basis", basis);
+        interaction.put("localSolution", localSolution);
+        interaction.put("timeLimitSeconds", type.equals("RAPID_TAP") ? 12 : 0);
+        interaction.put("config", interactionConfig(type, localSolution, basis, index));
+        return interaction;
+    }
+
+    private String chooseInteractionType(AiEpisodeDraftResponse.MissionDraft mission, int index, String answer) {
+        String puzzleType = normalizeType(mission.getPuzzleType());
+        String answerFormat = normalizeType(mission.getAnswerFormat());
+        if ("NUMBER_LOCK".equals(puzzleType) || "NUMBER".equals(answerFormat) || answer.matches("\\d{2,}")) return "NUMBER_LOCK";
+        return switch (Math.floorMod(index, 10)) {
+            case 0 -> "WORD_COMPOSE";
+            case 1 -> "COLOR_CODE";
+            case 2 -> "MEMORY_CARD";
+            case 3 -> "PATTERN_LOCK";
+            case 4 -> "SWITCH_TOGGLE";
+            case 5 -> "RAPID_TAP";
+            case 6 -> "DIRECTION_SEQUENCE";
+            case 7 -> "SHADOW_FIND";
+            case 8 -> "SLIDE_PUZZLE";
+            default -> "WORD_COMPOSE";
+        };
+    }
+
+    private Map<String, Object> interactionConfig(String type, String answer, String basis, int index) {
+        Map<String, Object> config = new LinkedHashMap<>();
+        switch (type) {
+            case "NUMBER_LOCK" -> {
+                String digits = answer.replaceAll("\\D", "");
+                if (digits.isBlank()) digits = String.format("%04d", Math.abs((basis + index).hashCode()) % 10000);
+                int digitCount = Math.min(6, Math.max(1, digits.length()));
+                String solutionDigits = digits.substring(0, digitCount);
+                config.put("digits", digitCount);
+                config.put("initial", "0".repeat(digitCount));
+                config.put("solutionDigits", solutionDigits);
+            }
+            case "WORD_COMPOSE" -> config.put("tiles", shuffledCharacters(answer));
+            case "COLOR_CODE" -> {
+                List<String> palette = List.of("#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#111827");
+                config.put("palette", palette);
+                config.put("solution", colorSolution(answer, index, palette));
+                config.put("labels", List.of("붉은 봉인", "노란 메모", "녹색 경로", "푸른 사진", "검은 봉투"));
+            }
+            case "MEMORY_CARD" -> config.put("cards", memoryCards(answer, basis));
+            case "PATTERN_LOCK" -> config.put("nodes", patternNodes(answer, index));
+            case "SWITCH_TOGGLE" -> {
+                List<String> switches = switchLabels(answer, basis);
+                config.put("switches", switches);
+                config.put("targetStates", switchTargetStates(switches.size()));
+            }
+            case "RAPID_TAP" -> {
+                config.put("target", Math.min(9, Math.max(5, answer.length() + 2)));
+                config.put("label", basis);
+            }
+            case "DIRECTION_SEQUENCE" -> config.put("sequence", directionSequence(answer, index));
+            case "SHADOW_FIND" -> {
+                int targetIndex = Math.floorMod(Math.abs((answer + basis + index).hashCode()), 4);
+                List<String> shadows = shadowLabels(answer, basis, targetIndex);
+                config.put("label", basis);
+                config.put("targetIndex", targetIndex);
+                config.put("shadows", shadows);
+            }
+            case "SLIDE_PUZZLE" -> {
+                List<String> tiles = slideTiles(answer, basis);
+                config.put("tiles", tiles);
+                config.put("initialTiles", scrambledSlideTiles(tiles));
+            }
+            default -> config.put("label", basis);
+        }
+        return config;
+    }
+
+    private String interactionTitle(String type, String clueType) {
+        String prefix = switch (clueType) {
+            case "ANSWER_CLUE" -> "증거 해독";
+            case "DESTINATION_CLUE" -> "동선 복원";
+            default -> "사건 장치";
+        };
+        return prefix + " · " + switch (type) {
+            case "NUMBER_LOCK" -> "숫자 락";
+            case "WORD_COMPOSE" -> "단어 조합";
+            case "COLOR_CODE" -> "색상 코드";
+            case "MEMORY_CARD" -> "기억 카드";
+            case "PATTERN_LOCK" -> "패턴 잠금";
+            case "SWITCH_TOGGLE" -> "스위치 토글";
+            case "RAPID_TAP" -> "빠른 탭";
+            case "DIRECTION_SEQUENCE" -> "방향키 조합";
+            case "SHADOW_FIND" -> "그림자 찾기";
+            case "SLIDE_PUZZLE" -> "슬라이드 퍼즐";
+            default -> "단서 입력";
+        };
+    }
+
+    private String safeInteractionAnswer(AiEpisodeDraftResponse.MissionDraft mission) {
+        String answer = blank(mission.getAnswer(), firstGroundingText(mission));
+        if (containsCompact(answer, "검수필요") || containsCompact(answer, "review-required")) {
+            return firstGroundingText(mission);
+        }
+        return answer;
+    }
+
+    private String localGameSolution(AiEpisodeDraftResponse.MissionDraft mission, String basis, int index) {
+        String source = blank(basis, "");
+        if (containsCompact(source, "검수필요") || containsCompact(source, "review-required") || source.isBlank()) {
+            source = blank(mission.getRewardClue(), "단서" + (index + 1));
+        }
+        return source.length() > 8 ? source.substring(0, 8) : source;
+    }
+
+    private List<String> shuffledCharacters(String answer) {
+        List<String> chars = new ArrayList<>(answer.codePoints()
+                .mapToObj(codePoint -> new String(Character.toChars(codePoint)))
+                .filter(value -> !value.isBlank())
+                .toList());
+        if (chars.size() < 2) {
+            chars.add("단");
+            chars.add("서");
+        }
+        java.util.Collections.rotate(chars, Math.max(1, chars.size() / 2));
+        return chars;
+    }
+
+    private List<String> memoryCards(String answer, String basis) {
+        List<String> seeds = new ArrayList<>(List.of(answer, basis, "봉인", "사진", "문서", "그림자"));
+        return seeds.stream().filter(value -> value != null && !value.isBlank()).distinct().limit(4).toList();
+    }
+
+    private List<Integer> patternNodes(String answer, int index) {
+        int seed = Math.abs((answer + index).hashCode());
+        List<Integer> nodes = new ArrayList<>();
+        for (int divisor : List.of(1, 3, 7, 11, 13)) {
+            int node = (seed / divisor) % 9;
+            if (!nodes.contains(node)) {
+                nodes.add(node);
+            }
+            if (nodes.size() >= 4) {
+                break;
+            }
+        }
+        return nodes;
+    }
+
+    private List<String> switchLabels(String answer, String basis) {
+        List<String> labels = new ArrayList<>(List.of(basis, answer, "위장 단서", "동선 단서"));
+        return labels.stream().filter(value -> value != null && !value.isBlank()).distinct().limit(4).toList();
+    }
+
+    private List<String> colorSolution(String answer, int index, List<String> palette) {
+        int seed = Math.abs((answer + index).hashCode());
+        int length = Math.min(4, Math.max(3, answer.length()));
+        List<String> solution = new ArrayList<>();
+        for (int i = 0; i < length; i++) {
+            solution.add(palette.get((seed + i * 2) % palette.size()));
+        }
+        return solution;
+    }
+
+    private List<Boolean> switchTargetStates(int size) {
+        List<Boolean> states = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            states.add(i == 0 || i == 1);
+        }
+        return states;
+    }
+
+    private List<String> shadowLabels(String answer, String basis, int targetIndex) {
+        List<String> labels = new ArrayList<>(List.of("봉투", "렌즈", "문서", "그림자"));
+        String target = basis == null || basis.isBlank() ? answer : basis;
+        labels.set(targetIndex, target == null || target.isBlank() ? "단서" : target);
+        return labels;
+    }
+
+    private List<String> directionSequence(String answer, int index) {
+        List<String> directions = List.of("UP", "RIGHT", "DOWN", "LEFT");
+        int seed = Math.abs((answer + index).hashCode());
+        return List.of(
+                directions.get(seed % directions.size()),
+                directions.get((seed / 3) % directions.size()),
+                directions.get((seed / 7) % directions.size()),
+                directions.get((seed / 11) % directions.size())
+        );
+    }
+
+    private List<String> slideTiles(String answer, String basis) {
+        String source = answer == null || answer.isBlank() ? basis : answer;
+        List<String> tiles = new ArrayList<>(source.codePoints()
+                .mapToObj(codePoint -> new String(Character.toChars(codePoint)))
+                .filter(value -> !value.isBlank())
+                .limit(4)
+                .toList());
+        while (tiles.size() < 4) {
+            tiles.add(List.of("단", "서", "봉", "인").get(tiles.size()));
+        }
+        return tiles;
+    }
+
+    private List<String> scrambledSlideTiles(List<String> tiles) {
+        List<String> initial = new ArrayList<>(tiles);
+        java.util.Collections.reverse(initial);
+        if (initial.equals(tiles) && initial.size() > 1) {
+            java.util.Collections.rotate(initial, 1);
+        }
+        return initial;
+    }
+
+    private String writeObjectJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return "{\"rewards\":[]}";
         }
     }
 
@@ -1073,6 +1372,8 @@ public class AdminEpisodeService {
         for (MissionSpot spot : spots) {
             if (missing(spot.getPlaceName()) || spot.getLatitude() == null || spot.getLongitude() == null) errors.add("Every spot needs a name and coordinates.");
             if (spot.getArrivalRadius() == null || spot.getArrivalRadius() < 10) errors.add("Arrival radius must be at least 10m: " + spot.getPlaceName());
+            if (!Boolean.TRUE.equals(spot.getFieldVerified())) errors.add("Field verification is required: " + spot.getPlaceName());
+            if (missing(spot.getFieldVerificationNote())) errors.add("Field verification note is required: " + spot.getPlaceName());
             if (same(episode.getFinalAnswer(), spot.getPlaceName())) errors.add("Final answer must not equal a real place name: " + spot.getPlaceName());
             Puzzle puzzle = adminEpisodeRepository.findPuzzleBySpotId(spot.getId());
             if (puzzle == null) { errors.add("Puzzle is missing: " + spot.getPlaceName()); continue; }
@@ -1083,9 +1384,27 @@ public class AdminEpisodeService {
             if (adminEpisodeRepository.findHints(puzzle.getId()).size() < 3) errors.add("Three puzzle hints are required: " + spot.getPlaceName());
             if (containsCompact(puzzle.getQuestionText(), episode.getFinalAnswer())) errors.add("Puzzle question exposes final answer: " + spot.getPlaceName());
         }
-        if (adminEpisodeRepository.findSuspects(episode.getId()).size() < 3) errors.add("At least three suspect cards are required.");
-        if (adminEpisodeRepository.findEvidences(episode.getId()).size() < Math.max(1, spots.size() - 1)) errors.add("Evidence cards should cover the route.");
+        List<CaseSuspect> suspects = adminEpisodeRepository.findSuspects(episode.getId());
+        List<CaseEvidence> evidences = adminEpisodeRepository.findEvidences(episode.getId());
+        if (suspects.size() < 3) errors.add("At least three suspect cards are required.");
+        for (CaseSuspect suspect : suspects) {
+            if (missing(suspect.getImagePrompt())) errors.add("Suspect image prompt is required: " + suspect.getDisplayName());
+            if (!validExternalImageUrl(suspect.getPortraitImageUrl())) errors.add("Suspect portrait image URL must be an external http(s) URL: " + suspect.getDisplayName());
+        }
+        if (evidences.size() < Math.max(1, spots.size() - 1)) errors.add("Evidence cards should cover the route.");
+        for (CaseEvidence evidence : evidences) {
+            if (missing(evidence.getImagePrompt())) errors.add("Evidence image prompt is required: " + evidence.getTitle());
+            if (!validExternalImageUrl(evidence.getImageUrl())) errors.add("Evidence image URL must be an external http(s) URL: " + evidence.getTitle());
+        }
         if (!errors.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "EPISODE_PUBLISH_NOT_READY", "Cannot publish: " + String.join(" / ", errors));
+    }
+
+    private boolean validExternalImageUrl(String value) {
+        if (missing(value)) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return value.length() <= 1000 && (normalized.startsWith("https://") || normalized.startsWith("http://"));
     }
 
 
@@ -1433,15 +1752,21 @@ public class AdminEpisodeService {
     }
 
     private void normalizeMissionForReview(AiEpisodeDraftResponse.MissionDraft mission) {
+        String basis = firstGroundingText(mission);
+        if (containsCompact(basis, "검수필요") || containsCompact(basis, "review-required")) {
+            basis = "현장단서";
+        }
         mission.setPuzzleType("STORY_COMBINATION");
-        mission.setQuestionText("\ubb38\uc81c\uc640 \uc815\ub2f5\uc758 \uadfc\uac70\uac00 \uc5f0\uacb0\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uad00\ub9ac\uc790 \ud654\uba74\uc5d0\uc11c \ubb38\uc81c, \ud78c\ud2b8, \uc815\ub2f5\uc744 \ub2e4\uc2dc \ub9de\ucdb0 \uc8fc\uc138\uc694.");
-        mission.setAnswer("\uac80\uc218\ud544\uc694");
+        mission.setQuestionText("제공된 현장 근거 [" + basis + "]를 사건파일 카드와 연결한 핵심 단어를 입력하세요.");
+        mission.setAnswer(basis);
         mission.setAnswerFormat("TEXT");
-        mission.setRewardClue("\uac80\uc218\ud544\uc694");
+        if (missing(mission.getRewardClue()) || containsCompact(mission.getRewardClue(), "검수필요")) {
+            mission.setRewardClue("보정 단서");
+        }
         mission.setHints(List.of(
-                "\ubb38\uc81c \ubb38\uc7a5 \uc548\uc5d0 \uc815\ub2f5\uc73c\ub85c \uc774\uc5b4\uc9c0\ub294 \ud604\uc7a5 \uadfc\uac70\ub97c \uba85\ud655\ud788 \ub123\uc5b4 \uc8fc\uc138\uc694.",
-                "\uc608: \uc77c\uae30\uc7a5 \ub2e8\uc11c\ub77c\uba74 \uc77c\uae30\uc7a5 \uc548\uc758 \ubc29\ud5a5, \uc0c9, \ubb38\uad6c \uc911 \uc5b4\ub5a4 \uc694\uc18c\uac00 \uc815\ub2f5 \uadfc\uac70\uc778\uc9c0 \uc801\uc5b4 \uc8fc\uc138\uc694.",
-                "\ud50c\ub808\uc774\uc5b4 \ub3d9\uc120\uacfc \ubb34\uad00\ud558\uac8c \uc774 \uc7a5\uc18c\uc5d0\uc11c \uc5bb\uc740 \ub2e8\uc11c\ub9cc\uc73c\ub85c \ud480 \uc218 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4."
+                "문제에 제시된 [" + basis + "] 단서를 먼저 확인하세요.",
+                "장소명 글자 추출이 아니라 현장 근거와 사건파일의 의미 연결을 보세요.",
+                "현재 장소에서 얻은 단서만으로 풀 수 있어야 합니다."
         ));
     }
 

@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 @Order(2)
 @RequiredArgsConstructor
 public class EpisodeSchemaMigration implements ApplicationRunner {
-    private static final String SAMPLE_TITLE = "EP.01 죽음을 비추는 렌즈";
+    private static final String SAMPLE_TITLE = "EP.01 The Lens That Lit the Silence";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -26,6 +26,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         createFavoriteTables();
         addColumns();
         createCaseFileTables();
+        addCaseFileColumns();
         seedSampleEpisode();
     }
 
@@ -83,6 +84,8 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     story_text text null,
                     arrival_radius double not null default 50,
                     is_final_place boolean not null default false,
+                    field_verified boolean not null default false,
+                    field_verification_note text null,
                     created_at datetime not null default current_timestamp,
                     updated_at datetime null,
                     primary key (id),
@@ -174,6 +177,39 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
                 """);
         jdbcTemplate.execute("""
+                create table if not exists puzzle_attempt_limits (
+                    user_id bigint not null,
+                    puzzle_id bigint not null,
+                    wrong_count int not null default 0,
+                    window_expires_at datetime not null,
+                    updated_at datetime not null default current_timestamp on update current_timestamp,
+                    primary key (user_id, puzzle_id),
+                    index idx_puzzle_attempt_limits_expiry (window_expires_at),
+                    constraint fk_puzzle_attempt_limits_user foreign key (user_id) references users (id) on delete cascade,
+                    constraint fk_puzzle_attempt_limits_puzzle foreign key (puzzle_id) references puzzles (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        jdbcTemplate.execute("""
+                create table if not exists admin_episode_audit_logs (
+                    id bigint not null auto_increment,
+                    episode_id bigint null,
+                    episode_title varchar(255) null,
+                    actor_user_id bigint not null,
+                    actor_email varchar(255) not null,
+                    actor_nickname varchar(255) null,
+                    action varchar(64) not null,
+                    target_type varchar(64) not null,
+                    target_id bigint null,
+                    summary varchar(1000) not null,
+                    request_id varchar(100) null,
+                    created_at datetime not null default current_timestamp,
+                    primary key (id),
+                    index idx_admin_episode_audit_episode (episode_id, created_at),
+                    index idx_admin_episode_audit_actor (actor_user_id, created_at),
+                    index idx_admin_episode_audit_action (action, created_at)
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        jdbcTemplate.execute("""
                 create table if not exists episode_reviews (
                     id bigint not null auto_increment,
                     episode_id bigint not null,
@@ -216,6 +252,8 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         addColumnIfMissing("episodes", "team_role_guide", "alter table episodes add column team_role_guide text null");
         addColumnIfMissing("episodes", "notice_text", "alter table episodes add column notice_text text null");
         addColumnIfMissing("puzzles", "reward_payload", "alter table puzzles add column reward_payload text null");
+        addColumnIfMissing("mission_spots", "field_verified", "alter table mission_spots add column field_verified boolean not null default false");
+        addColumnIfMissing("mission_spots", "field_verification_note", "alter table mission_spots add column field_verification_note text null");
         addColumnIfMissing("user_episode_progress", "last_played_at", "alter table user_episode_progress add column last_played_at datetime null");
         addColumnIfMissing("user_episode_progress", "unlocked_suspect_ids", "alter table user_episode_progress add column unlocked_suspect_ids text null");
         addColumnIfMissing("user_episode_progress", "cleared_suspect_ids", "alter table user_episode_progress add column cleared_suspect_ids text null");
@@ -231,6 +269,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     alias varchar(100) null,
                     short_description text null,
                     portrait_image_url varchar(1000) null,
+                    image_prompt text null,
                     relation_to_victim varchar(500) null,
                     suspicious_point text null,
                     alibi_summary text null,
@@ -249,6 +288,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     title varchar(255) not null,
                     type varchar(60) not null,
                     image_url varchar(1000) null,
+                    image_prompt text null,
                     text_summary text null,
                     source_spot_id bigint null,
                     related_suspect_id bigint null,
@@ -283,6 +323,11 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                 """);
     }
 
+    private void addCaseFileColumns() {
+        addColumnIfMissing("case_suspects", "image_prompt", "alter table case_suspects add column image_prompt text null");
+        addColumnIfMissing("case_evidences", "image_prompt", "alter table case_evidences add column image_prompt text null");
+    }
+
     private void seedSampleEpisode() {
         Long episodeId = findEpisodeIdByTitle(SAMPLE_TITLE);
         if (episodeId == null) {
@@ -291,23 +336,23 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     fiction_synopsis, final_answer_type, final_answer, final_answer_aliases, final_question,
                     final_truth_summary, actual_history_summary, deduction_secret_facts, deduction_forbidden_reveals,
                     max_deduction_questions, recommended_players, team_role_guide, notice_text, status)
-                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 20, ?, ?, ?, 'PUBLISHED')
-                    """, SAMPLE_TITLE, "마지막 필름에 남은 그림자", "대한제국 말기", "야외 방탈출 / 추리 / 현장 관찰", "NORMAL",
-                    "약 3시간", "약 2.4km", fictionSynopsis(), "WEAPON", "깨진 렌즈", "깨진렌즈,부서진 렌즈,렌즈 조각",
-                    "사진사를 죽음으로 이끈 진짜 흉기는 무엇인가?", finalTruth(), historySummary(), secretFacts(), forbiddenReveals(),
-                    "2~4명", teamGuide(), noticeText());
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 20, ?, ?, ?, 'DRAFT')
+                    """, SAMPLE_TITLE, "A field puzzle mystery around Jeong-dong", "Late Daehan Empire", "Outdoor mystery / observation / escape room", "NORMAL",
+                    "About 3 hours", "About 2.4km", fictionSynopsis(), "OBJECT", "cracked lens", "lens,cracked lens,broken lens",
+                    "What object made the final photograph look like a murder clue?", finalTruth(), historySummary(), secretFacts(), forbiddenReveals(),
+                    "2-4 players", teamGuide(), noticeText());
             episodeId = findEpisodeIdByTitle(SAMPLE_TITLE);
         } else {
             jdbcTemplate.update("""
                     update episodes set subtitle=?, era=?, genre=?, difficulty=?, estimated_time=?, estimated_distance=?,
                     fiction_synopsis=?, final_answer_type=?, final_answer=?, final_answer_aliases=?, final_question=?,
                     final_truth_summary=?, actual_history_summary=?, deduction_secret_facts=?, deduction_forbidden_reveals=?,
-                    max_deduction_questions=20, recommended_players=?, team_role_guide=?, notice_text=?, status='PUBLISHED',
+                    max_deduction_questions=20, recommended_players=?, team_role_guide=?, notice_text=?, status='DRAFT',
                     updated_at=current_timestamp where id=?
-                    """, "마지막 필름에 남은 그림자", "대한제국 말기", "야외 방탈출 / 추리 / 현장 관찰", "NORMAL",
-                    "약 3시간", "약 2.4km", fictionSynopsis(), "WEAPON", "깨진 렌즈", "깨진렌즈,부서진 렌즈,렌즈 조각",
-                    "사진사를 죽음으로 이끈 진짜 흉기는 무엇인가?", finalTruth(), historySummary(), secretFacts(), forbiddenReveals(),
-                    "2~4명", teamGuide(), noticeText(), episodeId);
+                    """, "A field puzzle mystery around Jeong-dong", "Late Daehan Empire", "Outdoor mystery / observation / escape room", "NORMAL",
+                    "About 3 hours", "About 2.4km", fictionSynopsis(), "OBJECT", "cracked lens", "lens,cracked lens,broken lens",
+                    "What object made the final photograph look like a murder clue?", finalTruth(), historySummary(), secretFacts(), forbiddenReveals(),
+                    "2-4 players", teamGuide(), noticeText(), episodeId);
         }
         seedSpotsAndPuzzlesIfMissing(episodeId);
         seedCaseDataIfMissing(episodeId);
@@ -318,55 +363,56 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         Integer count = jdbcTemplate.queryForObject("select count(*) from mission_spots where episode_id = ?", Integer.class, episodeId);
         if (count != null && count > 0) return;
         List<Object[]> spots = List.of(
-                spot(episodeId, "덕수궁 대한문", "서울 중구 세종대로 99", 37.565804, 126.975146, "START", "START", "START", "첫 사진은 굳게 닫힌 문 앞에서 시작된다.", false),
-                spot(episodeId, "덕수궁 돌담길", "서울 중구 정동길", 37.566258, 126.973766, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "돌담 아래의 균열은 사진 속 깨진 선과 닮아 있다.", false),
-                spot(episodeId, "정동제일교회", "서울 중구 정동길 46", 37.566637, 126.972559, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "붉은 벽돌과 창의 곡선 사이에 렌즈의 윤곽이 숨어 있다.", false),
-                spot(episodeId, "배재학당 역사박물관", "서울 중구 서소문로11길 19", 37.564815, 126.972420, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "기록의 표면에 남은 반짝임은 흉기의 재질을 암시한다.", false),
-                spot(episodeId, "서울시립미술관 서소문본관", "서울 중구 덕수궁길 61", 37.564104, 126.973747, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "빛이 꺾이는 방향이 사건의 형태를 바꾼다.", false),
-                spot(episodeId, "정동극장", "서울 중구 정동길 43", 37.565840, 126.972007, "DESTINATION_HINT", "DESTINATION_HINT", "DESTINATION_HINT", "무대 뒤 기록은 붉은 벽이 있는 장소를 가리킨다.", false),
-                spot(episodeId, "이화학당 사적비", "서울 중구 정동길 26", 37.565055, 126.971380, "DESTINATION_HINT", "DESTINATION_HINT", "DESTINATION_HINT", "침묵으로 남은 마지막 문을 찾아라.", false),
-                spot(episodeId, "서울시립미술관 앞마당", "서울 중구 덕수궁길 61", 37.564010, 126.973780, "FINAL_CANDIDATE", "STORY_CONTEXT", "FINAL_CANDIDATE", "마지막 필름이 숨겨졌다는 후보지다.", false),
-                spot(episodeId, "중명전", "서울 중구 정동길 41-11", 37.566289, 126.971856, "FINAL", "FINAL_PLACE", "FINAL_CANDIDATE", "붉은 벽 앞에서 마지막 질문이 열린다.", true)
+                spot(episodeId, "Daehanmun Gate", "99 Sejong-daero, Jung-gu, Seoul", 37.565804, 126.975146, "START", "START", "START", "The investigation begins at the gate shown in the torn photograph.", false),
+                spot(episodeId, "Jeongdong-gil Stone Wall", "Jeong-dong, Jung-gu, Seoul", 37.566258, 126.973766, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "A crack pattern on the wall matches the damaged lens mark.", false),
+                spot(episodeId, "Jeongdong First Methodist Church", "46 Jeongdong-gil, Jung-gu, Seoul", 37.566637, 126.972559, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "The window grid hides an initial-sound clue.", false),
+                spot(episodeId, "Pai Chai Hall Museum", "19 Seosomun-ro 11-gil, Jung-gu, Seoul", 37.564815, 126.972420, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "The archive years narrow down the code.", false),
+                spot(episodeId, "SeMA Seosomun Main Building", "61 Deoksugung-gil, Jung-gu, Seoul", 37.564104, 126.973747, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "Light and shadow reveal the direction of the reflection.", false),
+                spot(episodeId, "Jeongdong Theater", "43 Jeongdong-gil, Jung-gu, Seoul", 37.565840, 126.972007, "DESTINATION_HINT", "DESTINATION_HINT", "DESTINATION_HINT", "A stage record points to the red-brick destination.", false),
+                spot(episodeId, "Ewha Hakdang Historic Marker", "26 Jeongdong-gil, Jung-gu, Seoul", 37.565055, 126.971380, "DESTINATION_HINT", "DESTINATION_HINT", "DESTINATION_HINT", "The last door clue is hidden near the old school marker.", false),
+                spot(episodeId, "SeMA Front Yard", "61 Deoksugung-gil, Jung-gu, Seoul", 37.564010, 126.973780, "FINAL_CANDIDATE", "STORY_CONTEXT", "FINAL_CANDIDATE", "This location tests whether the team followed the wrong final trail.", false),
+                spot(episodeId, "Jungmyeongjeon Hall", "41-11 Jeongdong-gil, Jung-gu, Seoul", 37.566289, 126.971856, "FINAL", "FINAL_PLACE", "FINAL_CANDIDATE", "The final deduction opens where the red-brick record ends.", true)
         );
         spots.forEach(values -> jdbcTemplate.update("""
                 insert into mission_spots (episode_id, place_name, address, latitude, longitude, marker_type, clue_role,
-                public_marker_type, story_text, arrival_radius, is_final_place) values (?, ?, ?, ?, ?, ?, ?, ?, ?, 80, ?)
+                public_marker_type, story_text, arrival_radius, is_final_place, field_verified, field_verification_note)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, 80, ?, false, 'Seed data requires real field verification before publishing.')
                 """, values));
 
         Map<String, Long> spotIds = spotIds(episodeId);
-        insertPuzzle(spotIds.get("덕수궁 대한문"), "OBSERVATION", "시작 장소의 문 이름을 입력하라.", "대한문", "TEXT", "마지막 사진", "EASY");
-        insertPuzzle(spotIds.get("덕수궁 돌담길"), "OBSERVATION", "사건파일의 깨진 선과 가장 닮은 현장 요소를 한 단어로 입력하라.", "균열", "TEXT", "깨", "EASY");
-        insertPuzzle(spotIds.get("정동제일교회"), "INITIAL_SOUND", "초성 ㄹㅈ가 가리키는 사진기 부품을 입력하라.", "렌즈", "TEXT", "ㄹㅈ", "NORMAL");
-        insertPuzzle(spotIds.get("배재학당 역사박물관"), "NUMBER_LOCK", "관리자 입력 메모의 연도 1897과 1907 중 더 오래된 연도를 입력하라.", "1897", "NUMBER", "유리", "EASY");
-        insertPuzzle(spotIds.get("서울시립미술관 서소문본관"), "PATTERN", "빛이 표면에서 되돌아오는 현상을 두 글자로 입력하라.", "반사", "TEXT", "반사", "NORMAL");
-        insertPuzzle(spotIds.get("정동극장"), "STORY_COMBINATION", "목적지 힌트: 외교 기록이 잠든 벽의 색을 입력하라.", "붉은 벽", "TEXT", "외교 기록이 잠든 붉은 벽", "NORMAL");
-        insertPuzzle(spotIds.get("이화학당 사적비"), "STORY_COMBINATION", "목적지 힌트: 마지막으로 열려야 하는 것을 한 글자로 입력하라.", "문", "TEXT", "침묵으로 남은 마지막 문", "EASY");
-        insertPuzzle(spotIds.get("서울시립미술관 앞마당"), "OBSERVATION", "최종 후보 확인: 이 장소가 예술 기록과 관련 있음을 나타내는 단어를 입력하라.", "미술", "TEXT", "예술 기록 후보", "EASY");
-        insertPuzzle(spotIds.get("중명전"), "STORY_COMBINATION", "최종 후보 확인: 목적지 힌트 두 개를 조합해 '외교 기록'을 입력하라.", "외교 기록", "TEXT", "최종 장소 확인", "NORMAL");
+        insertPuzzle(spotIds.get("Daehanmun Gate"), "OBSERVATION", "Enter the name of the gate where the first photo was taken.", "Daehanmun", "TEXT", "first photo", "EASY");
+        insertPuzzle(spotIds.get("Jeongdong-gil Stone Wall"), "OBSERVATION", "Which visible wall feature matches the broken photo mark?", "crack", "TEXT", "crack mark", "EASY");
+        insertPuzzle(spotIds.get("Jeongdong First Methodist Church"), "INITIAL_SOUND", "Combine the initials from the window-grid clue to name the damaged object.", "lens", "TEXT", "lens", "NORMAL");
+        insertPuzzle(spotIds.get("Pai Chai Hall Museum"), "NUMBER_LOCK", "From 1897 and 1907, enter the earlier archive year.", "1897", "NUMBER", "archive year", "EASY");
+        insertPuzzle(spotIds.get("SeMA Seosomun Main Building"), "PATTERN", "The reflected light points to one word. Enter that word.", "reflection", "TEXT", "reflection", "NORMAL");
+        insertPuzzle(spotIds.get("Jeongdong Theater"), "STORY_COMBINATION", "The stage record points to a color and material. Enter the destination phrase.", "red brick", "TEXT", "red brick record", "NORMAL");
+        insertPuzzle(spotIds.get("Ewha Hakdang Historic Marker"), "STORY_COMBINATION", "The final route clue says the last thing to open is a ___.", "door", "TEXT", "last door", "EASY");
+        insertPuzzle(spotIds.get("SeMA Front Yard"), "OBSERVATION", "This candidate location is tied to art records. Enter the matching word.", "art", "TEXT", "art record", "EASY");
+        insertPuzzle(spotIds.get("Jungmyeongjeon Hall"), "STORY_COMBINATION", "Combine the destination clues: red brick + last door. What record phrase completes the route?", "red-brick record", "TEXT", "final place confirmation", "NORMAL");
     }
 
     private void seedCaseDataIfMissing(Long episodeId) {
         if (count("case_suspects", episodeId) == 0) {
-            insertSuspect(episodeId, "붉은 장갑의 남자", "용의자 A", "사건 당일 붉은 벽 근처에서 목격된 인물.", "피해자의 사진 의뢰인", "마지막 필름을 회수하려 했다는 증언이 있다.", "정동극장 인근에 있었다고 주장한다.", true, 1);
-            insertSuspect(episodeId, "사라진 조수", "용의자 B", "피해자의 암실을 가장 잘 아는 조수. 사건 직후 행적이 끊겼다.", "피해자의 조수", "사진기 부품 기록을 마지막으로 열람했다.", "촬영 장비를 정리하고 있었다고 주장하지만 확인자가 없다.", false, 2);
-            insertSuspect(episodeId, "검은 외투의 기록상", "용의자 C", "오래된 기록을 사고팔던 인물. 피해자와 문서 거래를 했다.", "비공식 기록 중개인", "외교 기록을 둘러싼 거래 흔적이 남아 있다.", "사건 당일 비가 와 외투를 입었다고 진술했다.", false, 3);
+            insertSuspect(episodeId, "Witness with a Red Umbrella", "Suspect A", "Seen near the red-brick path after the photo was taken.", "Claimed to protect the victim's last photo envelope.", "His statement changes whenever the broken lens is mentioned.", "Says he was waiting near Jeongdong Theater.", true, 1);
+            insertSuspect(episodeId, "Vanished Photographer's Assistant", "Suspect B", "Handled the victim's camera case before disappearing.", "Managed the photo equipment.", "The camera mount shows signs of forced adjustment.", "Claims she was repairing a tripod, with no witness.", false, 2);
+            insertSuspect(episodeId, "Black-Coat Archivist", "Suspect C", "Brokered old records around Jeong-dong.", "Connected to confidential archive trades.", "A trade memo mentions the imperial record route.", "Admits meeting the victim but denies seeing the final photo.", false, 3);
         }
         if (count("case_evidences", episodeId) == 0) {
             Map<String, Long> spotIds = spotIds(episodeId);
             Map<String, Long> suspectIds = suspectIds(episodeId);
-            insertEvidence(episodeId, "현장 사진", "PHOTO", "피해자가 남긴 마지막 사진. 얼굴 대신 문과 그림자만 찍혀 있다.", spotIds.get("덕수궁 대한문"), null, "STORY_CLUE", true, 1);
-            insertEvidence(episodeId, "찢어진 포스트잇", "POST_IT", "렌즈는 죽은 자가 아니라 사라진 진실을 비춘다.", spotIds.get("덕수궁 돌담길"), null, "ANSWER_CLUE", true, 2);
-            insertEvidence(episodeId, "깨진 유리 조각 메모", "MEMO", "작은 유리 조각에서 강한 빛 반사 흔적이 발견되었다.", spotIds.get("배재학당 역사박물관"), suspectIds.get("사라진 조수"), "ANSWER_CLUE", false, 3);
-            insertEvidence(episodeId, "사진기 부품 기록", "DOCUMENT", "렌즈 고정 링이 강제로 비틀린 흔적이 기록되어 있다.", spotIds.get("정동제일교회"), suspectIds.get("사라진 조수"), "ANSWER_CLUE", false, 4);
-            insertEvidence(episodeId, "목격자 진술 메모", "NOTE", "붉은 장갑을 낀 사람이 마지막 사진 봉투를 들고 있었다는 진술.", spotIds.get("정동극장"), suspectIds.get("붉은 장갑의 남자"), "DESTINATION_CLUE", false, 5);
-            insertEvidence(episodeId, "붉은 장갑 관련 기록", "SUSPECT_CLUE", "장갑의 붉은 색은 피가 아니라 낡은 인주 자국에 가까웠다.", spotIds.get("중명전"), suspectIds.get("붉은 장갑의 남자"), "STORY_CLUE", false, 6);
-            insertEvidence(episodeId, "렌즈 반사 메모", "MEMO", "반사 방향은 흉기가 카메라 안쪽에서 나왔음을 암시한다.", spotIds.get("서울시립미술관 서소문본관"), null, "ANSWER_CLUE", false, 7);
-            insertEvidence(episodeId, "마지막 사진 카드", "PHOTO", "사진 뒷면에는 '붉은 벽, 마지막 문'이라는 짧은 메모가 남아 있다.", spotIds.get("이화학당 사적비"), suspectIds.get("검은 외투의 기록상"), "DESTINATION_CLUE", false, 8);
+            insertEvidence(episodeId, "Torn Field Photograph", "PHOTO", "The last photo shows a gate, a red-brick shadow, and a distorted corner.", spotIds.get("Daehanmun Gate"), null, "STORY_CLUE", true, 1);
+            insertEvidence(episodeId, "Post-it with a Crack Mark", "POST_IT", "A note warns that the puzzle is not the dead person, but the disappearing object.", spotIds.get("Jeongdong-gil Stone Wall"), null, "ANSWER_CLUE", true, 2);
+            insertEvidence(episodeId, "Broken Lens Memo", "MEMO", "A small memo describes a strong reflection from a cracked lens piece.", spotIds.get("Pai Chai Hall Museum"), suspectIds.get("Vanished Photographer's Assistant"), "ANSWER_CLUE", false, 3);
+            insertEvidence(episodeId, "Camera Mount Repair Log", "DOCUMENT", "The repair log shows the mount was deliberately twisted before the incident.", spotIds.get("Jeongdong First Methodist Church"), suspectIds.get("Vanished Photographer's Assistant"), "ANSWER_CLUE", false, 4);
+            insertEvidence(episodeId, "Witness Statement", "NOTE", "A witness saw the red-umbrella man carrying the final photo envelope.", spotIds.get("Jeongdong Theater"), suspectIds.get("Witness with a Red Umbrella"), "DESTINATION_CLUE", false, 5);
+            insertEvidence(episodeId, "Red Umbrella Record", "SUSPECT_CLUE", "The umbrella was a signal, not the murder weapon.", spotIds.get("Jungmyeongjeon Hall"), suspectIds.get("Witness with a Red Umbrella"), "STORY_CLUE", false, 6);
+            insertEvidence(episodeId, "Reflection Direction Memo", "MEMO", "The reflection direction connects the camera trace to the left-side shadow.", spotIds.get("SeMA Seosomun Main Building"), null, "ANSWER_CLUE", false, 7);
+            insertEvidence(episodeId, "Last Door Photo Card", "PHOTO", "The photo back says: red brick, last door, not the museum yard.", spotIds.get("Ewha Hakdang Historic Marker"), suspectIds.get("Black-Coat Archivist"), "DESTINATION_CLUE", false, 8);
         }
         if (count("episode_partner_rewards", episodeId) == 0) {
             jdbcTemplate.update("""
                     insert into episode_partner_rewards (episode_id, title, description, reward_type, partner_name, location_name, status)
-                    values (?, '지역 리워드 준비 중', '향후 지자체/지역 상권 연계 리워드가 제공될 수 있습니다. MVP에서는 실제 쿠폰 지급 기능이 비활성화되어 있습니다.', 'COUPON', 'Operation Korea 제휴 준비', '정동 일대', 'PLANNED')
+                    values (?, 'Local reward placeholder', 'Partner coupons are disabled until a real local partner contract exists.', 'COUPON', 'Operation Seoul', 'Jeong-dong area', 'PLANNED')
                     """, episodeId);
         }
     }
@@ -374,14 +420,14 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
     private void seedRewardPayloads(Long episodeId) {
         Map<String, Long> evidence = evidenceIds(episodeId);
         Map<String, Long> suspect = suspectIds(episodeId);
-        payload(episodeId, "덕수궁 대한문", "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"마지막 사진\"}]}");
-        payload(episodeId, "덕수궁 돌담길", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"깨\"}]}");
-        payload(episodeId, "정동제일교회", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"ㄹㅈ\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("사진기 부품 기록") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("사라진 조수") + "}]}");
-        payload(episodeId, "배재학당 역사박물관", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"유리\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("깨진 유리 조각 메모") + "}]}");
-        payload(episodeId, "서울시립미술관 서소문본관", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"반사\"},{\"type\":\"MEMO_UNLOCK\",\"value\":\"렌즈 반사 방향은 카메라 안쪽의 파손 흔적과 연결된다.\",\"targetId\":" + evidence.get("렌즈 반사 메모") + "}]}");
-        payload(episodeId, "정동극장", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"외교 기록이 잠든 붉은 벽\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("목격자 진술 메모") + "}]}");
-        payload(episodeId, "이화학당 사적비", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"침묵으로 남은 마지막 문\"},{\"type\":\"PHOTO_UNLOCK\",\"targetId\":" + evidence.get("마지막 사진 카드") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("검은 외투의 기록상") + "}]}");
-        payload(episodeId, "중명전", "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"붉은 장갑의 색은 피가 아니라 인주 자국에 가깝다.\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("붉은 장갑 관련 기록") + "},{\"type\":\"SUSPECT_UPDATE\",\"targetId\":" + suspect.get("붉은 장갑의 남자") + "}]}");
+        payload(episodeId, "Daehanmun Gate", "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"first photo\"}]}");
+        payload(episodeId, "Jeongdong-gil Stone Wall", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"crack\"}]}");
+        payload(episodeId, "Jeongdong First Methodist Church", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"lens\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Camera Mount Repair Log") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("Vanished Photographer's Assistant") + "}]}");
+        payload(episodeId, "Pai Chai Hall Museum", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"archive year\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Broken Lens Memo") + "}]}");
+        payload(episodeId, "SeMA Seosomun Main Building", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"reflection\"},{\"type\":\"MEMO_UNLOCK\",\"value\":\"The reflection direction connects the camera trace to the left-side shadow.\",\"targetId\":" + evidence.get("Reflection Direction Memo") + "}]}");
+        payload(episodeId, "Jeongdong Theater", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"red brick record\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Witness Statement") + "}]}");
+        payload(episodeId, "Ewha Hakdang Historic Marker", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"last door\"},{\"type\":\"PHOTO_UNLOCK\",\"targetId\":" + evidence.get("Last Door Photo Card") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("Black-Coat Archivist") + "}]}");
+        payload(episodeId, "Jungmyeongjeon Hall", "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"The red-brick route ends at the final record hall.\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Red Umbrella Record") + "},{\"type\":\"SUSPECT_UPDATE\",\"targetId\":" + suspect.get("Witness with a Red Umbrella") + "}]}");
     }
 
     private void payload(Long episodeId, String placeName, String payload) {
@@ -412,22 +458,22 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                 values (?, ?, ?, ?, ?, ?, ?)
                 """, spotId, type, question, answer, format, rewardClue, difficulty);
         Long puzzleId = jdbcTemplate.queryForObject("select id from puzzles where mission_spot_id = ?", Long.class, spotId);
-        jdbcTemplate.update("insert into puzzle_hints (puzzle_id, hint_level, hint_text) values (?, 1, '현장 요소를 먼저 확인하라.'), (?, 2, '문제의 핵심 단어를 좁혀라.'), (?, 3, '정답 형식에 맞춰 짧게 입력하라.')",
+        jdbcTemplate.update("insert into puzzle_hints (puzzle_id, hint_level, hint_text) values (?, 1, 'Check the visible field element first.'), (?, 2, 'Focus on the noun requested by the question.'), (?, 3, 'Enter the answer in the requested format.')",
                 puzzleId, puzzleId, puzzleId);
     }
 
     private void insertSuspect(Long episodeId, String name, String alias, String description, String relation, String suspicious, String alibi, boolean unlocked, int order) {
         jdbcTemplate.update("""
-                insert into case_suspects (episode_id, display_name, alias, short_description, relation_to_victim, suspicious_point, alibi_summary, unlocked_by_default, display_order)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, episodeId, name, alias, description, relation, suspicious, alibi, unlocked, order);
+                insert into case_suspects (episode_id, display_name, alias, short_description, portrait_image_url, image_prompt, relation_to_victim, suspicious_point, alibi_summary, unlocked_by_default, display_order)
+                values (?, ?, ?, ?, null, ?, ?, ?, ?, ?, ?)
+                """, episodeId, name, alias, description, sampleSuspectPrompt(name, alias, description), relation, suspicious, alibi, unlocked, order);
     }
 
     private void insertEvidence(Long episodeId, String title, String type, String summary, Long sourceSpotId, Long suspectId, String clueType, boolean unlocked, int order) {
         jdbcTemplate.update("""
-                insert into case_evidences (episode_id, title, type, text_summary, source_spot_id, related_suspect_id, related_clue_type, unlocked_by_default, display_order)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, episodeId, title, type, summary, sourceSpotId, suspectId, clueType, unlocked, order);
+                insert into case_evidences (episode_id, title, type, image_url, image_prompt, text_summary, source_spot_id, related_suspect_id, related_clue_type, unlocked_by_default, display_order)
+                values (?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?)
+                """, episodeId, title, type, sampleEvidencePrompt(title, type, summary), summary, sourceSpotId, suspectId, clueType, unlocked, order);
     }
 
     private Map<String, Long> spotIds(Long episodeId) {
@@ -445,32 +491,44 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                 .collect(Collectors.toMap(row -> String.valueOf(row.get("title")), row -> ((Number) row.get("id")).longValue()));
     }
 
+    private String sampleSuspectPrompt(String name, String alias, String description) {
+        return "Cinematic detective suspect card portrait of " + name + " (" + alias + "), " + description
+                + ". Mandatory casting: a fictional Korean person from Seoul, South Korea, with natural Korean styling appropriate to the character's age and era. "
+                + "Do not cast a Western or European-looking model. Modern Seoul outdoor mystery mood, sharp facial expression, dramatic rim light, clean card composition, no text, no watermark, no extra fingers.";
+    }
+
+    private String sampleEvidencePrompt(String title, String type, String summary) {
+        return "High-detail escape-room evidence card image, subject: " + title + ", evidence type: " + type + ", story detail: " + summary
+                + ". If a person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story era. "
+                + "No Western or European-looking models. Realistic tabletop investigation photography, moody natural light, clear central object, no readable text, no watermark.";
+    }
+
     private String fictionSynopsis() {
-        return "정동의 한 사진사가 의문의 죽음을 맞았다. 그는 죽기 전 마지막 사진 한 장을 남겼지만, 사진 속에는 피해자도 범인도 없었다. 남은 것은 깨진 렌즈 조각, 붉은 벽을 가리키는 메모, 그리고 여러 장소에 흩어진 암호뿐이다.";
+        return "A photographer dies after leaving a final field route through Jeong-dong. The team must separate a staged murder clue from the real object hidden in the photograph: a cracked lens.";
     }
 
     private String finalTruth() {
-        return "사진사를 죽음으로 이끈 것은 외부에서 가져온 흉기가 아니라, 강제로 파손된 카메라의 깨진 렌즈였다.";
+        return "The decisive clue is not a weapon or a person. The distorted final photograph was caused by a cracked lens deliberately placed on the camera mount.";
     }
 
     private String historySummary() {
-        return "이 에피소드는 정동 일대의 근대 기록, 외교 공간, 사진과 문서의 상징성을 바탕으로 만든 가상 사건입니다. 실제 역사 인물을 범인으로 단정하지 않습니다.";
+        return "This is a fictional field mystery using public Jeong-dong landmarks, archive motifs, photographs, and documents as puzzle material.";
     }
 
     private String secretFacts() {
-        return "최종 정답은 깨진 렌즈다. 정답 힌트는 깨, ㄹㅈ, 유리, 반사다. 목적지 힌트는 붉은 벽과 마지막 문이며 실제 최종 장소는 중명전이다.";
+        return "Final answer: cracked lens. Answer clues are crack, lens, archive year, and reflection. Destination clues are red brick and last door, leading to Jungmyeongjeon Hall.";
     }
 
     private String forbiddenReveals() {
-        return "깨진 렌즈, 중명전, 최종 장소를 직접 노출하지 않는다. 실제 역사 인물을 범인으로 지목하지 않는다.";
+        return "Do not directly reveal cracked lens or Jungmyeongjeon Hall before the player has earned the relevant clues.";
     }
 
     private String teamGuide() {
-        return "2~4명이 함께 플레이할 경우 지도 담당, 사건파일 담당, 문제 풀이 담당, 기록 담당으로 역할을 나누면 편합니다.";
+        return "Recommended roles: navigator, field observer, puzzle solver, and note keeper. Teams of two can combine navigator and note keeper.";
     }
 
     private String noticeText() {
-        return "인터넷 연결이 필요합니다.\n예상 소요 시간은 약 3시간입니다.\n권장 인원은 2~4명입니다.\n현장 지형지물과 안내문은 변경되었을 수 있습니다.\n다른 플레이어에게 정답이 노출되지 않도록 주의해 주세요.\n시설 운영을 방해하지 말고 조용히 플레이해 주세요.\n당일 완료하지 못해도 이어하기가 가능합니다.";
+        return "Internet access is required. Estimated play time is about 3 hours. Recommended team size is 2-4 players. Field signs and access routes can change, so admins must verify all spots before publishing. Avoid blocking sidewalks or revealing answers to other players.";
     }
 
     private void addColumnIfMissing(String tableName, String columnName, String sql) {

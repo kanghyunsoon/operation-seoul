@@ -262,6 +262,8 @@
                   <label>위도<input v-model.number="spot.latitude" type="number" step="0.000001" /></label>
                   <label>경도<input v-model.number="spot.longitude" type="number" step="0.000001" /></label>
                   <label class="wide">사건 문구<textarea v-model="spot.storyText" rows="2"></textarea></label>
+                  <label class="check"><input v-model="spot.fieldVerified" type="checkbox" /> 현장 검수 완료</label>
+                  <label class="wide">현장 검수 메모<textarea v-model="spot.fieldVerificationNote" rows="2" placeholder="좌표, 안내판/숫자/오브젝트, 접근 가능 여부를 확인한 내용을 기록"></textarea></label>
                 </div>
                 <button type="button" @click="saveSpot(spot)">장소 저장</button>
                 <button type="button" class="danger-btn" @click="removeSpot(spot)">장소 삭제</button>
@@ -333,6 +335,9 @@
                 <label>의심 포인트<textarea v-model="suspect.suspiciousPoint" rows="2"></textarea></label>
                 <label>알리바이<textarea v-model="suspect.alibiSummary" rows="2"></textarea></label>
                 <label>초상 이미지 URL<input v-model.trim="suspect.portraitImageUrl" type="url" /></label>
+                <label class="wide">초상 이미지 생성 프롬프트<textarea v-model="suspect.imagePrompt" rows="4" placeholder="외부 이미지 AI에 붙여넣을 카드별 프롬프트"></textarea></label>
+                <button type="button" class="ghost-btn mini" @click="suspect.imagePrompt = buildSuspectImagePrompt(suspect)">프롬프트 재생성</button>
+                <button type="button" class="ghost-btn mini" @click="copyImagePrompt(suspect.imagePrompt)">프롬프트 복사</button>
                 <label>표시 순서<input v-model.number="suspect.displayOrder" type="number" /></label>
                 <label class="check"><input v-model="suspect.unlockedByDefault" type="checkbox" /> 기본 해금</label>
                 <button type="button" @click="saveSuspect(suspect)">용의자 저장</button>
@@ -361,6 +366,9 @@
                   </select>
                 </label>
                 <label>이미지 URL<input v-model.trim="evidence.imageUrl" type="url" /></label>
+                <label class="wide">이미지 생성 프롬프트<textarea v-model="evidence.imagePrompt" rows="4" placeholder="외부 이미지 AI에 붙여넣을 카드별 프롬프트"></textarea></label>
+                <button type="button" class="ghost-btn mini" @click="evidence.imagePrompt = buildEvidenceImagePrompt(evidence)">프롬프트 재생성</button>
+                <button type="button" class="ghost-btn mini" @click="copyImagePrompt(evidence.imagePrompt)">프롬프트 복사</button>
                 <label>출처 장소 ID<input v-model.number="evidence.sourceSpotId" type="number" /></label>
                 <label>관련 용의자 ID<input v-model.number="evidence.relatedSuspectId" type="number" /></label>
                 <label>관련 단서 타입<input v-model.trim="evidence.relatedClueType" type="text" /></label>
@@ -409,6 +417,37 @@
             </article>
             <p v-if="!(selected.partnerRewards || []).length" class="empty">등록된 예정 리워드가 없습니다.</p>
           </div>
+
+          <section class="audit-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">OPERATION AUDIT</p>
+                <h3>관리자 변경 이력</h3>
+              </div>
+              <button type="button" class="ghost-btn" :disabled="auditLoading" @click="loadAuditLogs(selected.id)">
+                {{ auditLoading ? '불러오는 중' : '이력 새로고침' }}
+              </button>
+            </div>
+            <p class="audit-help">정답이나 프롬프트 원문은 기록하지 않고, 관리자·작업 대상·요청 추적 ID만 보존합니다.</p>
+            <ol v-if="auditLogs.length" class="audit-list">
+              <li v-for="log in auditLogs" :key="log.auditId">
+                <span class="audit-marker" :class="auditActionTone(log.action)"></span>
+                <div>
+                  <div class="audit-title">
+                    <strong>{{ auditActionLabel(log.action) }}</strong>
+                    <time>{{ formatAuditDate(log.createdAt) }}</time>
+                  </div>
+                  <p>{{ log.summary }}</p>
+                  <small>
+                    {{ log.actorNickname || log.actorEmail }} · {{ log.targetType }}
+                    <template v-if="log.targetId"> #{{ log.targetId }}</template>
+                    <template v-if="log.requestId"> · request {{ log.requestId }}</template>
+                  </small>
+                </div>
+              </li>
+            </ol>
+            <p v-else-if="!auditLoading" class="empty">아직 기록된 관리자 변경 이력이 없습니다.</p>
+          </section>
         </article>
 
 
@@ -774,10 +813,13 @@
                   <label>표시 이름<input v-model.trim="suspect.displayName" type="text" /></label>
                   <div class="wide evidence-preview-box">
                     <img v-if="suspect.portraitImageUrl" class="draft-suspect-image" :src="suspect.portraitImageUrl" alt="용의자 초상 미리보기" />
+                    <textarea v-model="suspect.imagePrompt" rows="5" placeholder="외부 이미지 AI에 넣을 용의자별 프롬프트"></textarea>
+                    <button type="button" class="ghost-btn mini" @click="suspect.imagePrompt = buildSuspectImagePrompt(suspect)">프롬프트 재생성</button>
+                    <button type="button" class="ghost-btn mini" @click="copyImagePrompt(suspect.imagePrompt)">프롬프트 복사</button>
                     <button type="button" class="ghost-btn mini" @click="suspect.portraitImageUrl = generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint)">
-                      용의자 카드 다시 생성
+                      임시 카드 생성
                     </button>
-                    <small>실제 인물 사진이 아니라 사건파일용 가상 인물 카드입니다.</small>
+                    <small>이미지는 외부 이미지 AI에서 생성한 뒤 아래 URL에 붙여넣는 방식을 권장합니다.</small>
                   </div>
                   <details class="wide image-url-edit">
                     <summary>초상 이미지 URL 직접 수정</summary>
@@ -817,8 +859,11 @@
                   <label>출처 미션<input v-model.number="evidence.sourceMissionOrder" type="number" min="1" /></label>
                   <div class="wide evidence-preview-box">
                     <img v-if="evidence.imageUrl" class="draft-evidence-image" :src="evidence.imageUrl" alt="사건자료 이미지 미리보기" />
-                    <button type="button" class="ghost-btn mini" @click="evidence.imageUrl = generatedEvidenceCardDataUrl(evidence.title, evidence.type)">스토리 카드 다시 생성</button>
-                    <small>현재는 실사 생성이 아니라 제목/유형 기반 사건파일 일러스트 카드입니다.</small>
+                    <textarea v-model="evidence.imagePrompt" rows="5" placeholder="외부 이미지 AI에 넣을 증거/힌트 카드별 프롬프트"></textarea>
+                    <button type="button" class="ghost-btn mini" @click="evidence.imagePrompt = buildEvidenceImagePrompt(evidence)">프롬프트 재생성</button>
+                    <button type="button" class="ghost-btn mini" @click="copyImagePrompt(evidence.imagePrompt)">프롬프트 복사</button>
+                    <button type="button" class="ghost-btn mini" @click="evidence.imageUrl = generatedEvidenceCardDataUrl(evidence.title, evidence.type)">임시 카드 생성</button>
+                    <small>이미지는 외부 이미지 AI에서 생성한 뒤 아래 URL에 붙여넣는 방식을 권장합니다.</small>
                   </div>
                   <details class="wide image-url-edit">
                     <summary>이미지 URL 직접 수정</summary>
@@ -867,6 +912,8 @@ const episodeForm = ref({});
 const payloadValidation = ref({});
 const publishReadiness = ref(null);
 const previewOpen = ref(false);
+const auditLogs = ref([]);
+const auditLoading = ref(false);
 const draftResult = ref(null);
 const draftValidation = ref(null);
 const activeAction = ref('');
@@ -1084,6 +1131,7 @@ async function selectEpisode(episodeId) {
   previewOpen.value = false;
   try {
     selected.value = await adminEpisodeApi.getEpisode(episodeId);
+    strengthenEpisodeImagePrompts(selected.value);
     hydrateEpisodeForm(selected.value);
   } catch (error) {
     setMessage(error.userMessage || '에피소드 상세를 불러올 수 없습니다.', 'error');
@@ -1138,6 +1186,66 @@ function hydrateEpisodeForm(episode) {
     noticeText: episode.noticeText || '',
     status: episode.status || 'DRAFT'
   };
+  void loadAuditLogs(episode.id, true);
+}
+
+async function loadAuditLogs(episodeId = selectedEpisodeId.value, silent = false) {
+  if (!episodeId) return;
+  auditLoading.value = true;
+  try {
+    auditLogs.value = await adminEpisodeApi.getAuditLogs(episodeId, 50);
+  } catch (error) {
+    if (!silent) setMessage(error.userMessage || '관리자 변경 이력을 불러올 수 없습니다.', 'error');
+  } finally {
+    auditLoading.value = false;
+  }
+}
+
+function auditActionLabel(action) {
+  return {
+    CREATE_EPISODE: '사건 생성',
+    UPDATE_EPISODE: '핵심 정보 수정',
+    PUBLISH_EPISODE: '사건 게시',
+    ARCHIVE_EPISODE: '사건 보관',
+    REOPEN_EPISODE: '초안 재전환',
+    DELETE_EPISODE: '사건 삭제',
+    CREATE_SPOT: '장소 추가',
+    UPDATE_SPOT: '장소 수정',
+    DELETE_SPOT: '장소 삭제',
+    UPDATE_PUZZLE: '퍼즐 수정',
+    CREATE_SUSPECT: '용의자 추가',
+    UPDATE_SUSPECT: '용의자 수정',
+    DELETE_SUSPECT: '용의자 삭제',
+    CREATE_EVIDENCE: '증거 추가',
+    UPDATE_EVIDENCE: '증거 수정',
+    DELETE_EVIDENCE: '증거 삭제',
+    UPDATE_PARTNER_REWARD: '리워드 수정',
+    SAVE_AI_DRAFT: 'AI 초안 저장'
+  }[action] || action;
+}
+
+function auditActionTone(action) {
+  if (action === 'PUBLISH_EPISODE') return 'publish';
+  if (String(action || '').startsWith('DELETE')) return 'delete';
+  if (String(action || '').startsWith('CREATE') || action === 'SAVE_AI_DRAFT') return 'create';
+  return 'update';
+}
+
+function formatAuditDate(value) {
+  if (!value) return '-';
+  return new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(new Date(value));
+}
+
+function strengthenEpisodeImagePrompts(episode) {
+  (episode?.suspects || []).forEach((suspect) => {
+    suspect.imagePrompt = strengthenKoreanPersonPrompt(suspect.imagePrompt || buildSuspectImagePrompt(suspect));
+  });
+  (episode?.evidences || []).forEach((evidence) => {
+    evidence.imagePrompt = strengthenKoreanEvidencePrompt(evidence.imagePrompt || buildEvidenceImagePrompt(evidence));
+  });
 }
 
 async function refreshEpisodeList() {
@@ -1254,7 +1362,9 @@ async function saveSpot(spot) {
       publicMarkerType: spot.publicMarkerType,
       storyText: spot.storyText,
       arrivalRadius: spot.arrivalRadius,
-      finalPlace: spot.finalPlace
+      finalPlace: spot.finalPlace,
+      fieldVerified: spot.fieldVerified,
+      fieldVerificationNote: spot.fieldVerificationNote
     });
     hydrateEpisodeForm(selected.value);
     publishReadiness.value = null;
@@ -1332,6 +1442,7 @@ async function saveSuspect(suspect) {
       displayName: suspect.displayName,
       shortDescription: suspect.shortDescription,
       portraitImageUrl: suspect.portraitImageUrl,
+      imagePrompt: suspect.imagePrompt,
       relationToVictim: suspect.relationToVictim,
       suspiciousPoint: suspect.suspiciousPoint,
       alibiSummary: suspect.alibiSummary,
@@ -1380,6 +1491,7 @@ async function saveEvidence(evidence) {
       title: evidence.title,
       type: evidence.type,
       imageUrl: evidence.imageUrl,
+      imagePrompt: evidence.imagePrompt,
       textSummary: evidence.textSummary,
       sourceSpotId: evidence.sourceSpotId || null,
       relatedSuspectId: evidence.relatedSuspectId || null,
@@ -1573,7 +1685,14 @@ async function generateGeminiDraft() {
   if (!prepareDraftInputFromSelection()) return;
   startDraftProgress('gemini', 'Gemini가 사건 개요, 퍼즐, 단서, 용의자, 증거 카드 초안을 작성하고 있습니다. 최대 180초까지 기다립니다.');
   try {
-    const payload = JSON.parse(draftInput.value);
+    let payload = JSON.parse(draftInput.value);
+    if (!siteDataEnriched.value) {
+      draftProgressStep.value = 'request';
+      draftStatus.value = '현장 근거를 먼저 자동 보강한 뒤 Gemini 초안을 요청합니다.';
+      payload = await adminEpisodeApi.enrichSiteData(payload);
+      draftInput.value = JSON.stringify(payload, null, 2);
+      siteDataEnriched.value = true;
+    }
     draftProgressStep.value = 'request';
     draftResult.value = await adminEpisodeApi.createGeminiDraft(payload);
     draftProgressStep.value = 'hydrate';
@@ -1652,9 +1771,7 @@ function hydrateDraftForEditing() {
   }
   draft.subtitle = draft.subtitle || suggestedDraftSubtitle(draft);
   draft.era = draft.era || suggestedDraftEra(draft);
-  draft.evidences.forEach((evidence) => {
-    evidence.imageUrl = evidence.imageUrl || generatedEvidenceCardDataUrl(evidence.title, evidence.type);
-  });
+  ensureDraftImagePrompts(draft);
   draft.missions.forEach((mission, index) => {
     mission.order = mission.order || index + 1;
     mission.hints = Array.isArray(mission.hints) ? mission.hints : [];
@@ -2122,26 +2239,46 @@ function hasReviewRequiredText(value) {
 
 function ensureDraftIllustrationCards(draft) {
   draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
-  draft.suspects.forEach((suspect) => {
-    suspect.portraitImageUrl = suspect.portraitImageUrl || generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint);
-  });
   draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
   const hasPhoto = draft.evidences.some((evidence) => evidence.type === 'PHOTO');
   if (!hasPhoto) {
     draft.evidences.unshift({
       title: '사건 현장 스케치',
       type: 'PHOTO',
-      imageUrl: generatedEvidenceCardDataUrl('첫 현장 봉투 사진', 'PHOTO', '사건이 시작된 장소에서 발견된 봉투와 훼손된 기록 조각입니다.'),
+      imageUrl: '',
       textSummary: '사건이 시작된 장소에서 발견된 봉투와 훼손된 기록 조각입니다.',
       sourceMissionOrder: 1
     });
   }
   draft.evidences.forEach((evidence) => {
     evidence.type = safeEvidenceType(evidence.type);
-    if (isWeakImageUrl(evidence.imageUrl)) {
-      evidence.imageUrl = generatedEvidenceCardDataUrl(evidence.title, evidence.type, evidence.textSummary);
-    }
   });
+  ensureDraftImagePrompts(draft);
+}
+
+function ensureDraftImagePrompts(draft) {
+  draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
+  draft.suspects.forEach((suspect) => {
+    suspect.imagePrompt = strengthenKoreanPersonPrompt(suspect.imagePrompt || buildSuspectImagePrompt(suspect));
+  });
+  draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
+  draft.evidences.forEach((evidence) => {
+    evidence.imagePrompt = strengthenKoreanEvidencePrompt(evidence.imagePrompt || buildEvidenceImagePrompt(evidence));
+  });
+}
+
+function strengthenKoreanPersonPrompt(prompt) {
+  const text = String(prompt || '').trim();
+  const normalized = text.toLowerCase();
+  if (!text || normalized.includes('fictional korean person') || normalized.includes('korean identity')) return text;
+  return `${text} Mandatory casting: every visible person must be a fictional Korean person from Seoul, South Korea. Preserve the story-specific age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character’s Korean identity.`;
+}
+
+function strengthenKoreanEvidencePrompt(prompt) {
+  const text = String(prompt || '').trim();
+  const normalized = text.toLowerCase();
+  if (!text || normalized.includes('if any person') || normalized.includes('every visible person')) return text;
+  return `${text} If any person, hand, portrait, reflection, or silhouette appears, it must depict a fictional Korean person from Seoul and match the story-specific age and era. Do not cast a Western or European-looking model.`;
 }
 
 function strengthenCaseMaterials(draft) {
@@ -2182,7 +2319,8 @@ function strengthenCaseMaterials(draft) {
       relationToVictim: seed.relation,
       suspiciousPoint: isWeakText(current.suspiciousPoint) ? seed.suspicion : current.suspiciousPoint,
       alibiSummary: isWeakText(current.alibiSummary) ? seed.alibi : current.alibiSummary,
-      portraitImageUrl: current.portraitImageUrl || generatedSuspectPortraitDataUrl(displayName, seed.alias, seed.suspicion)
+      imagePrompt: current.imagePrompt || buildSuspectImagePrompt({ ...current, displayName, alias: seed.alias, suspiciousPoint: seed.suspicion }),
+      portraitImageUrl: current.portraitImageUrl || ''
     };
   });
   const evidenceByOrder = new Map((draft.evidences || []).map((evidence) => [Number(evidence.sourceMissionOrder || 0), evidence]));
@@ -2198,7 +2336,8 @@ function strengthenCaseMaterials(draft) {
       type,
       textSummary,
       sourceMissionOrder: order,
-      imageUrl: isWeakImageUrl(current.imageUrl) ? generatedEvidenceCardDataUrl(title, type, textSummary) : current.imageUrl
+      imagePrompt: current.imagePrompt || buildEvidenceImagePrompt({ ...current, title, type, textSummary }),
+      imageUrl: isWeakImageUrl(current.imageUrl) ? '' : current.imageUrl
     };
   });
 }
@@ -2212,6 +2351,48 @@ function isWeakText(value) {
 function isWeakImageUrl(value) {
   const url = String(value || '').trim();
   return !url || url.includes('generated-case-card') || url.includes('placeholder');
+}
+
+function buildSuspectImagePrompt(suspect = {}) {
+  const name = suspect.displayName || suspect.alias || 'case-file suspect';
+  const suspicion = suspect.suspiciousPoint || suspect.shortDescription || 'a hidden contradiction in the route timeline';
+  return [
+    `Create a high-quality fictional detective case-file portrait of ${name}.`,
+    'Mandatory casting: depict a fictional Korean person from Seoul, South Korea. The subject must look unmistakably Korean while preserving the story-specific age, gender, occupation, and historical era.',
+    'Do not cast a Western or European-looking model, and do not change the character’s Korean identity.',
+    'Visual style: Seoul outdoor mystery, cinematic noir, realistic digital painting, subtle paper grain, evidence-board lighting.',
+    `Character clue: ${suspicion}`,
+    'Composition: bust portrait, 3/4 view, natural Korean styling and grooming appropriate to the character, sharp silhouette, restrained expression, neutral archival background.',
+    'Negative constraints: no foreign tourist styling, no Western fashion editorial look, no text, no watermark, no logo, not a real celebrity, not a real historical person.'
+  ].join(' ');
+}
+
+function buildEvidenceImagePrompt(evidence = {}) {
+  const title = evidence.title || 'case evidence card';
+  const summary = evidence.textSummary || 'a clue object connected to the route and final deduction';
+  const type = evidence.type || 'EVIDENCE';
+  return [
+    'Create a high-quality detective evidence image for a Korean outdoor escape-room case file.',
+    `Subject: ${title}. Evidence type: ${type}.`,
+    `Story detail: ${summary}`,
+    'Visual style: cinematic close-up, realistic prop photography, aged paper, archival texture, soft shadows, moody natural light.',
+    'Human casting rule: if any person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story-specific age and era.',
+    'Negative constraints: no Western or European-looking models, no readable text, no watermark, no logo, no UI frame.'
+  ].join(' ');
+}
+
+async function copyImagePrompt(prompt) {
+  const text = String(prompt || '').trim();
+  if (!text) {
+    setMessage('복사할 이미지 프롬프트가 없습니다.', 'error');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    setMessage('이미지 프롬프트를 클립보드에 복사했습니다.', 'success');
+  } catch {
+    setMessage('클립보드 복사에 실패했습니다. 프롬프트를 직접 선택해 복사해 주세요.', 'error');
+  }
 }
 
 function finalAnswerTypeLabel(type) {
@@ -2955,6 +3136,21 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .card-editor label { display: grid; gap: 6px; margin-top: 8px; color: #cbd5e1; font-size: .8rem; font-weight: 800; }
 .card-editor label.check { display: flex; align-items: center; gap: 8px; }
 .card-editor button { margin-top: 10px; width: 100%; }
+.audit-panel { margin-top: 18px; padding: 14px; border: 1px solid rgba(56,189,248,.28); border-radius: 16px; background: linear-gradient(145deg, rgba(8,47,73,.25), rgba(2,6,23,.48)); }
+.audit-panel .section-title { align-items: flex-start; }
+.audit-help { margin: 4px 0 12px; color: #bae6fd; font-size: .82rem; line-height: 1.5; }
+.audit-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.audit-list li { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; padding: 10px 0; }
+.audit-list li:not(:last-child)::after { content: ''; position: absolute; left: 6px; top: 27px; bottom: -3px; width: 1px; background: rgba(148,163,184,.24); }
+.audit-marker { position: relative; z-index: 1; width: 11px; height: 11px; margin-top: 5px; border: 2px solid #0f172a; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 2px rgba(56,189,248,.24); }
+.audit-marker.create { background: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,.24); }
+.audit-marker.publish { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,.28); }
+.audit-marker.delete { background: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,.24); }
+.audit-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.audit-title strong { color: #f8fafc; }
+.audit-title time { color: #94a3b8; font-size: .74rem; white-space: nowrap; }
+.audit-list p { margin: 4px 0; color: #cbd5e1; font-size: .84rem; }
+.audit-list small { display: block; color: #7dd3fc; font: .72rem ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
 .candidate-panel { margin: 14px 0; padding: 12px; border: 1px solid rgba(245,158,11,.22); border-radius: 14px; background: rgba(2,6,23,.28); }
 .candidate-help { color: #fde68a !important; font-size: .86rem; }
 .ops-notice, .manual-candidate-form { margin: 10px 0; padding: 12px; border: 1px solid rgba(125,211,252,.24); border-radius: 14px; background: rgba(8,47,73,.22); }

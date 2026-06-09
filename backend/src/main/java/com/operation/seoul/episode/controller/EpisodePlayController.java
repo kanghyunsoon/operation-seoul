@@ -4,6 +4,7 @@ import com.operation.seoul.auth.security.CurrentUserResolver;
 import com.operation.seoul.episode.dto.*;
 import com.operation.seoul.episode.service.EpisodePlayService;
 import com.operation.seoul.global.dto.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,13 +45,13 @@ public class EpisodePlayController {
     }
 
     @PostMapping("/episodes/{episodeId}/spots/{spotId}/arrive")
-    public ResponseEntity<ApiResponse<ArriveResponse>> arrive(@PathVariable Long episodeId, @PathVariable Long spotId, @RequestBody ArriveRequest request) {
+    public ResponseEntity<ApiResponse<ArriveResponse>> arrive(@PathVariable Long episodeId, @PathVariable Long spotId, @Valid @RequestBody ArriveRequest request) {
         ArriveResponse response = episodePlayService.arrive(episodeId, spotId, request, currentUserResolver.requireCurrentUser());
         return ResponseEntity.ok(ApiResponse.ok(response.getMessage(), response));
     }
 
     @PostMapping("/episodes/{episodeId}/final-arrive")
-    public ResponseEntity<ApiResponse<ArriveResponse>> arriveFinalPlace(@PathVariable Long episodeId, @RequestBody ArriveRequest request) {
+    public ResponseEntity<ApiResponse<ArriveResponse>> arriveFinalPlace(@PathVariable Long episodeId, @Valid @RequestBody ArriveRequest request) {
         ArriveResponse response = episodePlayService.arriveFinalPlace(episodeId, request, currentUserResolver.requireCurrentUser());
         return ResponseEntity.ok(ApiResponse.ok(response.getMessage(), response));
     }
@@ -61,7 +62,7 @@ public class EpisodePlayController {
     }
 
     @PostMapping("/puzzles/{puzzleId}/submit")
-    public ResponseEntity<ApiResponse<PuzzleSubmitResponse>> submitPuzzle(@PathVariable Long puzzleId, @RequestBody PuzzleSubmitRequest request) {
+    public ResponseEntity<ApiResponse<PuzzleSubmitResponse>> submitPuzzle(@PathVariable Long puzzleId, @Valid @RequestBody PuzzleSubmitRequest request) {
         PuzzleSubmitResponse response = episodePlayService.submitPuzzle(puzzleId, request, currentUserResolver.requireCurrentUser());
         return ResponseEntity.ok(ApiResponse.ok(response.getMessage(), response));
     }
@@ -78,7 +79,7 @@ public class EpisodePlayController {
     }
 
     @PostMapping("/deduction/{sessionId}/ask")
-    public ResponseEntity<ApiResponse<DeductionAskResponse>> askDeduction(@PathVariable Long sessionId, @RequestBody DeductionAskRequest request) {
+    public ResponseEntity<ApiResponse<DeductionAskResponse>> askDeduction(@PathVariable Long sessionId, @Valid @RequestBody DeductionAskRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("추리 질문 답변입니다.", episodePlayService.askDeduction(sessionId, request, currentUserResolver.requireCurrentUser())));
     }
 
@@ -88,7 +89,7 @@ public class EpisodePlayController {
     }
 
     @PostMapping("/episodes/{episodeId}/final-answer")
-    public ResponseEntity<ApiResponse<FinalAnswerResponse>> submitFinalAnswer(@PathVariable Long episodeId, @RequestBody FinalAnswerRequest request) {
+    public ResponseEntity<ApiResponse<FinalAnswerResponse>> submitFinalAnswer(@PathVariable Long episodeId, @Valid @RequestBody FinalAnswerRequest request) {
         FinalAnswerResponse response = episodePlayService.submitFinalAnswer(episodeId, request, currentUserResolver.requireCurrentUser());
         return ResponseEntity.ok(ApiResponse.ok(response.getMessage(), response));
     }
