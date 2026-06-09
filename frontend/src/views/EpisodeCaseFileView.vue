@@ -26,10 +26,18 @@
         </div>
       </section>
 
-      <section class="dossier overview">
+      <section class="dossier overview" :class="{ unlocked: caseFile.overview?.storyUnlocked }">
         <p class="section-label">사건 개요</p>
-        <h3>{{ caseFile.overview?.briefingTitle || '사건 브리핑' }}</h3>
-        <p>{{ caseFile.overview?.summary }}</p>
+        <div class="story-card-head">
+          <h3>{{ caseFile.overview?.briefingTitle || '사건 브리핑' }}</h3>
+          <span>{{ caseFile.overview?.storyUnlocked ? '스토리 기록 해금' : '시작 미션 필요' }}</span>
+        </div>
+        <p class="story-summary">{{ caseFile.overview?.summary }}</p>
+        <div v-if="caseFile.overview?.storyUnlocked && caseFile.overview?.unlockedStoryClues?.length" class="story-clue-strip">
+          <strong>해금된 스토리 단서</strong>
+          <span v-for="(clue, index) in caseFile.overview.unlockedStoryClues" :key="`overview-story-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
+        </div>
+        <p v-else class="story-locked-help">시작 장소의 현장 퍼즐을 해결하면 이 카드가 상세 스토리 기록으로 갱신됩니다.</p>
         <blockquote>{{ caseFile.finalQuestion }}</blockquote>
         <p class="goal">목표: {{ caseFile.overview?.goal }}</p>
       </section>
@@ -218,6 +226,18 @@ p { color: #dbeafe; line-height: 1.6; }
 .cover-grid span, .log-grid span { display: grid; gap: 5px; padding: 11px; border-radius: 14px; background: rgba(2,6,23,.38); color: #94a3b8; font-size: .78rem; }
 strong { color: #fff; }
 .overview, .board, .log, .notices { padding: 18px; }
+.overview { position: relative; overflow: hidden; }
+.overview::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(135deg, rgba(71,85,105,.18), transparent 42%); }
+.overview.unlocked { border-color: rgba(34,197,94,.38); background: linear-gradient(145deg, rgba(20,83,45,.28), rgba(15,23,42,.78)); }
+.overview.unlocked::before { background: radial-gradient(circle at top right, rgba(34,197,94,.2), transparent 38%); }
+.story-card-head { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.story-card-head span { flex: 0 0 auto; border-radius: 999px; padding: 5px 9px; background: rgba(100,116,139,.22); color: #cbd5e1; font-size: .72rem; font-weight: 1000; }
+.overview.unlocked .story-card-head span { background: rgba(22,101,52,.72); color: #bbf7d0; }
+.story-summary { position: relative; white-space: pre-line; }
+.story-locked-help { position: relative; margin: 10px 0 0; color: #94a3b8; font-size: .86rem; }
+.story-clue-strip { position: relative; display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 0; padding: 12px; border-radius: 14px; background: rgba(2,6,23,.28); }
+.story-clue-strip strong { width: 100%; color: #bbf7d0; font-size: .8rem; }
+.story-clue-strip span { border-radius: 999px; padding: 5px 8px; background: rgba(21,128,61,.24); color: #bbf7d0; font-size: .74rem; font-weight: 900; }
 blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; background: rgba(120,53,15,.22); color: #fff7ed; line-height: 1.6; }
 .goal, .team, .resume { color: #fde68a; }
 .section-head { display: flex; align-items: end; justify-content: space-between; gap: 10px; padding: 18px 18px 0; }

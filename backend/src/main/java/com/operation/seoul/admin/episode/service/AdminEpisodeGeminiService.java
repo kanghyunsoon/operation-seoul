@@ -502,6 +502,10 @@ public class AdminEpisodeGeminiService {
                 applyPlayableStoryPuzzle(mission, place, role, i);
                 warnings.add("Mission " + (i + 1) + " was normalized; review before publishing.");
             }
+            if (hasInvalidPuzzleAnswer(mission, place, request)) {
+                applyPlayableStoryPuzzle(mission, place, role, i);
+                warnings.add("Mission " + (i + 1) + " answer was a place name or invalid fallback; review before publishing.");
+            }
             if (blank(mission.getAnswer())) {
                 mission.setAnswer(fallbackAnswer(place));
                 warnings.add("Mission " + (i + 1) + " was normalized; review before publishing.");
@@ -644,7 +648,8 @@ public class AdminEpisodeGeminiService {
         if (place.getKeywords() != null && !place.getKeywords().isEmpty()) return place.getKeywords().get(0);
         if (place.getVisibleElements() != null && !place.getVisibleElements().isEmpty())
             return place.getVisibleElements().get(0);
-        return place.getName();
+        String basis = bestPuzzleBasis(place);
+        return isReviewRequiredBasis(basis) ? "\ud604\uc7a5\ub2e8\uc11c" : basis;
     }
 
     private String fallbackReward(String role, int index) {
@@ -804,6 +809,52 @@ public class AdminEpisodeGeminiService {
     }
 
 
+    private boolean hasInvalidPuzzleAnswer(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            AiEpisodeDraftRequest.PlaceInput place,
+            AiEpisodeDraftRequest request) {
+        if (mission == null || place == null || blank(mission.getAnswer())) {
+            return false;
+        }
+        String answer = compact(mission.getAnswer());
+        if (answer.isBlank() || "review-required".equals(answer) || answer.contains("\uac80\uc218\ud544\uc694")) {
+            return false;
+        }
+        if (isGenericBasisLabel(answer) || isPlaceNameAnswer(answer, place.getName())) {
+            return true;
+        }
+        if (request != null && request.getPlaces() != null && request.getPlaces().stream()
+                .map(AiEpisodeDraftRequest.PlaceInput::getName)
+                .anyMatch(name -> isPlaceNameAnswer(answer, name))) {
+            return true;
+        }
+        if ("NUMBER".equals(normalize(mission.getAnswerFormat())) || "NUMBER_LOCK".equals(normalize(mission.getPuzzleType()))) {
+            return place.getNumbers() == null || place.getNumbers().stream()
+                    .filter(value -> !blank(value))
+                    .noneMatch(value -> same(value, mission.getAnswer()));
+        }
+        return false;
+    }
+
+    private boolean isPlaceNameAnswer(String compactAnswer, String placeName) {
+        if (blank(compactAnswer) || blank(placeName)) {
+            return false;
+        }
+        String compactPlaceName = compact(placeName);
+        return compactPlaceName.equals(compactAnswer)
+                || compactAnswer.equals(compactPlaceName)
+                || (compactPlaceName.length() >= 4 && compactAnswer.contains(compactPlaceName));
+    }
+
+    private boolean isGenericBasisLabel(String compactAnswer) {
+        return Set.of(
+                "placedescription", "adminmemo", "casememo", "selectedoperationspot",
+                "selected", "operation", "spot", "nearby", "verification", "focus",
+                "place", "address", "entrance", "area", "siteverificationfocus", "nearbyfamousplacesignal"
+        ).contains(compactAnswer);
+    }
+
+
     private boolean usesWeakTextExtractionPuzzle(AiEpisodeDraftResponse.MissionDraft mission) {
         String text = compact(String.join(" ", blank(mission.getQuestionText()) ? "" : mission.getQuestionText(), blank(mission.getAnswer()) ? "" : mission.getAnswer(), mission.getHints() == null ? "" : String.join(" ", mission.getHints())));
         return containsAny(text, "letter count", "nth letter", "syllable", "initial only", "first letter", "last letter", "combine in order", "substring");
@@ -819,46 +870,105 @@ public class AdminEpisodeGeminiService {
                 ? fallbackReward(role, index)
                 : mission.getRewardClue();
         String basis = bestPuzzleBasis(place);
+        if (isReviewRequiredBasis(basis)) {
+            basis = fallbackPuzzleBasis(role, index);
+        }
         if (!textContains(mission.getStoryText(), basis)) {
-            String story = blank(mission.getStoryText()) ? "Review this generated draft before publishing." : mission.getStoryText();
-            mission.setStoryText(story + "Review this generated draft before publishing." + basis + ".");
+            String story = blank(mission.getStoryText()) ? "\uacf5\uac1c \uc804 \uad00\ub9ac\uc790 \uac80\uc218\uac00 \ud544\uc694\ud55c \ucd08\uc548\uc785\ub2c8\ub2e4." : mission.getStoryText();
+            mission.setStoryText(story + " \uac80\uc99d \uae30\uc900 \ub2e8\uc11c: " + basis + ".");
         }
         mission.setPuzzleType("STORY_COMBINATION");
-        mission.setQuestionText("Use the provided field basis [" + basis + "] to connect this spot to the case file.");
+        mission.setQuestionText("\uc81c\uacf5\ub41c \ud604\uc7a5 \uadfc\uac70 [" + basis + "]\ub97c \uc0ac\uac74\ud30c\uc77c\uacfc \uc5f0\uacb0\ud55c \ud575\uc2ec \ub2e8\uc5b4\ub97c \uc785\ub825\ud558\uc138\uc694.");
         mission.setAnswer(basis);
         mission.setAnswerFormat("TEXT");
         mission.setRewardClue(reward);
         mission.setHints(List.of(
-                "Review this generated draft before publishing.",
-                "This hint supports the " + markerRoleLabel(role) + " chain.",
-                "Review this generated draft before publishing."
+                "\ubb38\uc81c\uc5d0 \uc81c\uc2dc\ub41c [" + basis + "] \ub2e8\uc11c\ub97c \uba3c\uc800 \ud655\uc778\ud558\uc138\uc694.",
+                "\uc774 \ub2e8\uc11c\ub294 " + markerRoleLabel(role) + " \ud750\ub984\uc744 \ubcf4\uac15\ud569\ub2c8\ub2e4.",
+                "\ub2e4\ub978 \uc7a5\uc18c\uc758 \uc9c4\ud589 \uc21c\uc11c\uac00 \uc544\ub2c8\ub77c \ud604\uc7ac \uc7a5\uc18c\uc758 \uadfc\uac70\ub9cc \uc0ac\uc6a9\ud558\uc138\uc694."
         ));
-        mission.setGroundRule("Use the provided field basis [" + basis + "] to connect this spot to the case file.");
+        mission.setGroundRule("\uc81c\uacf5\ub41c \ud604\uc7a5 \uadfc\uac70 [" + basis + "]\ub97c \uc0ac\uac74\ud30c\uc77c\uacfc \uc5f0\uacb0\ud569\ub2c8\ub2e4.");
     }
 
 
     private String bestPuzzleBasis(AiEpisodeDraftRequest.PlaceInput place) {
-        if (place == null) return "case memo";
+        if (place == null) return "\uac80\uc218\ud544\uc694";
         if (place.getKeywords() != null) {
-            String keyword = place.getKeywords().stream().filter(value -> !blank(value)).findFirst().orElse(null);
+            String keyword = place.getKeywords().stream()
+                    .filter(value -> isUsableAnswerBasis(value, place.getName()))
+                    .findFirst()
+                    .orElse(null);
             if (!blank(keyword)) return keyword;
         }
         if (place.getVisibleElements() != null) {
-            String visible = place.getVisibleElements().stream().filter(value -> !blank(value)).findFirst().orElse(null);
+            String visible = place.getVisibleElements().stream()
+                    .filter(value -> isUsableAnswerBasis(value, place.getName()))
+                    .findFirst()
+                    .orElse(null);
             if (!blank(visible)) return visible;
         }
-        if (!blank(place.getDescription())) return "place description";
-        if (!blank(place.getAdminMemo())) return "admin memo";
-        return "case memo";
+        String memoBasis = extractBasisPhrase(place.getAdminMemo(), place.getName());
+        if (!blank(memoBasis)) return memoBasis;
+        String descriptionBasis = extractBasisPhrase(place.getDescription(), place.getName());
+        if (!blank(descriptionBasis)) return descriptionBasis;
+        return "\uac80\uc218\ud544\uc694";
+    }
+
+    private boolean isReviewRequiredBasis(String basis) {
+        String compactBasis = compact(basis);
+        return compactBasis.isBlank() || compactBasis.contains("\uac80\uc218\ud544\uc694") || "review-required".equals(compactBasis);
+    }
+
+    private String fallbackPuzzleBasis(String role, int index) {
+        return switch (role) {
+            case "START" -> "\uccab\uae30\ub85d";
+            case "ANSWER_HINT" -> List.of("\ubd09\uc778", "\uc0ac\uc9c4", "\ubb38\uc11c", "\uadf8\ub9bc\uc790").get(Math.min(Math.max(index - 1, 0), 3));
+            case "DESTINATION_HINT", "FINAL" -> index % 2 == 0 ? "\ubd89\uc740\ubcbd" : "\ub2eb\ud78c\ubb38";
+            default -> "\ud604\uc7a5\ub2e8\uc11c";
+        };
+    }
+
+    private boolean isUsableAnswerBasis(String value, String placeName) {
+        if (blank(value)) {
+            return false;
+        }
+        String compactValue = compact(value);
+        return !isGenericBasisLabel(compactValue) && !isPlaceNameAnswer(compactValue, placeName);
+    }
+
+    private String extractBasisPhrase(String text, String placeName) {
+        if (blank(text)) {
+            return null;
+        }
+        String compactPlaceName = compact(placeName);
+        String cleaned = text
+                .replaceAll("[\\[\\]{}()\"'`.,:;!?/\\\\|<>]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        for (String token : cleaned.split(" ")) {
+            String candidate = token.trim();
+            String compactCandidate = compact(candidate);
+            if (candidate.length() < 2 || candidate.length() > 12) {
+                continue;
+            }
+            if (!compactPlaceName.isBlank() && (compactPlaceName.contains(compactCandidate) || compactCandidate.contains(compactPlaceName))) {
+                continue;
+            }
+            if (isGenericBasisLabel(compactCandidate)) {
+                continue;
+            }
+            return candidate;
+        }
+        return null;
     }
 
 
     private String markerRoleLabel(String role) {
         return switch (role) {
-            case "ANSWER_HINT" -> "answer clue";
-            case "DESTINATION_HINT", "FINAL" -> "destination clue";
-            case "START" -> "start clue";
-            default -> "story clue";
+            case "ANSWER_HINT" -> "\uc815\ub2f5 \ub2e8\uc11c";
+            case "DESTINATION_HINT", "FINAL" -> "\ubaa9\uc801\uc9c0 \ub2e8\uc11c";
+            case "START" -> "\uc2dc\uc791 \ub2e8\uc11c";
+            default -> "\uc2a4\ud1a0\ub9ac \ub2e8\uc11c";
         };
     }
 
@@ -1223,4 +1333,3 @@ public class AdminEpisodeGeminiService {
         return sourceInput.getPlaces().get(missionOrder - 1);
     }
 }
-

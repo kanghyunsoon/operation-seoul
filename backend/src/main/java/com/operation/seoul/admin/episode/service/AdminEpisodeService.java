@@ -774,6 +774,9 @@ public class AdminEpisodeService {
             adminEpisodeRepository.insertSpot(spot);
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
             spotByOrder.put(order, spot);
+            if (isMissionAnswerDisconnected(mission, missions)) {
+                normalizeMissionForReview(mission);
+            }
 
             Puzzle puzzle = new Puzzle();
             puzzle.setMissionSpotId(spot.getId());
@@ -788,7 +791,7 @@ public class AdminEpisodeService {
             puzzleByOrder.put(order, puzzle);
             List<String> hints = mission.getHints() == null ? List.of() : mission.getHints();
             for (int hintIndex = 0; hintIndex < Math.min(3, hints.size()); hintIndex++) {
-                adminEpisodeRepository.insertHint(puzzle.getId(), hintIndex + 1, hints.get(hintIndex));
+                adminEpisodeRepository.insertHint(puzzle.getId(), hintIndex + 1, sanitizeHintText(hints.get(hintIndex), mission));
             }
         }
 
@@ -1228,17 +1231,14 @@ public class AdminEpisodeService {
 
     private List<String> focusedKeywords(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
         List<String> values = new ArrayList<>();
-        if (!missing(place.getName())) values.add(place.getName());
-        if (!missing(place.getAddress())) values.add(place.getAddress());
         rankedNearby.stream()
                 .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
                 .limit(5)
                 .forEach(candidate -> {
-                    values.add(candidate.getTitle());
                     values.add(categoryKeyword(candidate));
                 });
-        values.add("site-verification-focus");
-        values.add("nearby-famous-place-signal");
+        values.add("\ud604\uc7a5\ub2e8\uc11c");
+        values.add("\ub3d9\uc120\ud754\uc801");
         return values;
     }
 
@@ -1294,10 +1294,10 @@ public class AdminEpisodeService {
     private String categoryKeyword(AdminPlaceCandidateResponse candidate) {
         String source = blank(candidate.getSource(), "");
         String value = String.join(" ", blank(candidate.getTitle(), ""), blank(candidate.getSource(), ""), blank(candidate.getDescription(), ""), blank(candidate.getAddress(), ""));
-        if (source.contains("CT1") || containsCompact(value, "culture") || containsCompact(value, "museum") || containsCompact(value, "gallery") || containsCompact(value, "exhibition")) return "culture-exhibition";
-        if (source.contains("CE7") || containsCompact(value, "cafe") || containsCompact(value, "coffee")) return "cafe-rest-point";
-        if (containsCompact(value, "park") || containsCompact(value, "square") || containsCompact(value, "street")) return "open-public-space";
-        return "field-clue-site";
+        if (source.contains("CT1") || containsCompact(value, "culture") || containsCompact(value, "museum") || containsCompact(value, "gallery") || containsCompact(value, "exhibition")) return "\ubb38\ud654\uc804\uc2dc";
+        if (source.contains("CE7") || containsCompact(value, "cafe") || containsCompact(value, "coffee")) return "\uce74\ud398\uc270\ud130";
+        if (containsCompact(value, "park") || containsCompact(value, "square") || containsCompact(value, "street")) return "\uacf5\uac1c\uad11\uc7a5";
+        return "\ud604\uc7a5\ub2e8\uc11c";
     }
 
 
@@ -1395,11 +1395,112 @@ public class AdminEpisodeService {
 
 
 
+    private boolean isMissionAnswerDisconnected(AiEpisodeDraftResponse.MissionDraft mission, List<AiEpisodeDraftResponse.MissionDraft> missions) {
+        if (mission == null || missing(mission.getAnswer())) {
+            return false;
+        }
+        String answer = compact(mission.getAnswer());
+        if (answer.isBlank() || answer.contains("\uac80\uc218\ud544\uc694") || "review-required".equals(answer)) {
+            return false;
+        }
+        if ("NUMBER".equals(normalizeType(mission.getAnswerFormat()))) {
+            return false;
+        }
+        if (isGenericPuzzleAnswer(answer) || isPlaceNameAnswer(answer, mission.getPlaceName())) {
+            return true;
+        }
+        return missions != null && missions.stream()
+                .map(AiEpisodeDraftResponse.MissionDraft::getPlaceName)
+                .anyMatch(placeName -> isPlaceNameAnswer(answer, placeName));
+    }
+
+    private boolean isPlaceNameAnswer(String compactAnswer, String placeName) {
+        if (compactAnswer == null || compactAnswer.isBlank() || missing(placeName)) {
+            return false;
+        }
+        String compactPlaceName = compact(placeName);
+        return compactPlaceName.equals(compactAnswer)
+                || compactAnswer.equals(compactPlaceName)
+                || (compactPlaceName.length() >= 4 && compactAnswer.contains(compactPlaceName));
+    }
+
+    private boolean isGenericPuzzleAnswer(String compactAnswer) {
+        return Set.of(
+                "placedescription", "adminmemo", "casememo", "selectedoperationspot",
+                "selected", "operation", "spot", "nearby", "verification", "focus",
+                "place", "address", "entrance", "area", "siteverificationfocus", "nearbyfamousplacesignal"
+        ).contains(compactAnswer);
+    }
+
+    private void normalizeMissionForReview(AiEpisodeDraftResponse.MissionDraft mission) {
+        mission.setPuzzleType("STORY_COMBINATION");
+        mission.setQuestionText("\ubb38\uc81c\uc640 \uc815\ub2f5\uc758 \uadfc\uac70\uac00 \uc5f0\uacb0\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uad00\ub9ac\uc790 \ud654\uba74\uc5d0\uc11c \ubb38\uc81c, \ud78c\ud2b8, \uc815\ub2f5\uc744 \ub2e4\uc2dc \ub9de\ucdb0 \uc8fc\uc138\uc694.");
+        mission.setAnswer("\uac80\uc218\ud544\uc694");
+        mission.setAnswerFormat("TEXT");
+        mission.setRewardClue("\uac80\uc218\ud544\uc694");
+        mission.setHints(List.of(
+                "\ubb38\uc81c \ubb38\uc7a5 \uc548\uc5d0 \uc815\ub2f5\uc73c\ub85c \uc774\uc5b4\uc9c0\ub294 \ud604\uc7a5 \uadfc\uac70\ub97c \uba85\ud655\ud788 \ub123\uc5b4 \uc8fc\uc138\uc694.",
+                "\uc608: \uc77c\uae30\uc7a5 \ub2e8\uc11c\ub77c\uba74 \uc77c\uae30\uc7a5 \uc548\uc758 \ubc29\ud5a5, \uc0c9, \ubb38\uad6c \uc911 \uc5b4\ub5a4 \uc694\uc18c\uac00 \uc815\ub2f5 \uadfc\uac70\uc778\uc9c0 \uc801\uc5b4 \uc8fc\uc138\uc694.",
+                "\ud50c\ub808\uc774\uc5b4 \ub3d9\uc120\uacfc \ubb34\uad00\ud558\uac8c \uc774 \uc7a5\uc18c\uc5d0\uc11c \uc5bb\uc740 \ub2e8\uc11c\ub9cc\uc73c\ub85c \ud480 \uc218 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4."
+        ));
+    }
+
+    private String sanitizeHintText(String hint, AiEpisodeDraftResponse.MissionDraft mission) {
+        String text = hint == null ? "" : hint.trim();
+        String compactText = compact(text);
+        if (text.isBlank() || isEnglishOnlyHint(text) || compactText.contains("\uac00\uc7a5\ucd5c\uadfc") || compactText.contains("\ucd5c\uadfc\ubcf4\uc0c1")
+                || compactText.contains("\uc774\uc804\uc99d\uac70") || compactText.contains("\uc774\uc804\uc0ac\uac74\uc790\ub8cc")) {
+            String basis = firstGroundingText(mission);
+            return "\ubb38\uc81c\uc5d0 \uc81c\uc2dc\ub41c [" + basis + "] \ub2e8\uc11c\ub97c \uae30\uc900\uc73c\ub85c \ub2f5\uc744 \uc881\ud788\uc138\uc694.";
+        }
+        return text;
+    }
+
+    private boolean isEnglishOnlyHint(String text) {
+        if (text == null || text.isBlank() || text.chars().anyMatch(ch -> ch >= 0xAC00 && ch <= 0xD7A3)) {
+            return false;
+        }
+        return text.chars().filter(ch -> (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')).count() >= 3;
+    }
+
+    private String firstGroundingText(AiEpisodeDraftResponse.MissionDraft mission) {
+        if (mission == null) {
+            return "\ud604\uc7a5 \uadfc\uac70";
+        }
+        if (!missing(mission.getAnswer()) && !compact(mission.getAnswer()).contains("\uac80\uc218\ud544\uc694")) {
+            return mission.getAnswer().trim();
+        }
+        if (!missing(mission.getRewardClue()) && !compact(mission.getRewardClue()).contains("\uac80\uc218\ud544\uc694")) {
+            return mission.getRewardClue().trim();
+        }
+        return "\ud604\uc7a5 \uadfc\uac70";
+    }
+
     private String buildAnswer(AiEpisodeDraftRequest.PlaceInput place) {
         if (place.getNumbers() != null && !place.getNumbers().isEmpty()) return place.getNumbers().get(0);
-        if (place.getKeywords() != null && !place.getKeywords().isEmpty()) return place.getKeywords().get(0);
-        if (place.getVisibleElements() != null && !place.getVisibleElements().isEmpty()) return place.getVisibleElements().get(0);
-        return "검수필요";
+        if (place.getKeywords() != null) {
+            String keyword = place.getKeywords().stream()
+                    .filter(value -> isUsableAnswerBasis(value, place.getName()))
+                    .findFirst()
+                    .orElse(null);
+            if (!missing(keyword)) return keyword;
+        }
+        if (place.getVisibleElements() != null) {
+            String visible = place.getVisibleElements().stream()
+                    .filter(value -> isUsableAnswerBasis(value, place.getName()))
+                    .findFirst()
+                    .orElse(null);
+            if (!missing(visible)) return visible;
+        }
+        return "\ud604\uc7a5\ub2e8\uc11c";
+    }
+
+    private boolean isUsableAnswerBasis(String value, String placeName) {
+        if (missing(value)) {
+            return false;
+        }
+        String compactValue = compact(value);
+        return !isGenericPuzzleAnswer(compactValue) && !isPlaceNameAnswer(compactValue, placeName);
     }
 
     private String answerFormat(AiEpisodeDraftRequest.PlaceInput place) {
@@ -1579,4 +1680,3 @@ public class AdminEpisodeService {
     private record AreaSeed(double lat, double lng) {
     }
 }
-

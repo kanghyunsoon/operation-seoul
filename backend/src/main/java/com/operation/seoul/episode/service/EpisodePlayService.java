@@ -160,7 +160,7 @@ public class EpisodePlayService {
         UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
         boolean adminBypass = user != null && user.isAdmin();
         if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled && !adminBypass) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "Dev arrival is disabled on this server.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "이 서버에서는 개발용 도착 판정이 비활성화되어 있습니다.");
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
         double distance = devMode ? 0.0 : calculateDistanceMeters(request.getUserLat(), request.getUserLng(), spot.getLatitude(), spot.getLongitude());
@@ -173,7 +173,7 @@ public class EpisodePlayService {
                     .canOpenPuzzle(false)
                     .isActualFinalArrived(false)
                     .canStartDeduction(false)
-                    .message("You are outside the arrival radius. Move closer to the site.")
+                    .message("도착 반경 밖입니다. 장소에 더 가까이 이동해 주세요.")
                     .build();
         }
 
@@ -186,10 +186,10 @@ public class EpisodePlayService {
         episodeRepository.updateProgress(progress);
 
         String message = actualFinal
-                ? "Investigation site confirmed. You can start the final deduction, but missing clues may reduce your score."
+                ? "조사 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다."
                 : ("DESTINATION_HINT".equals(spot.getPublicMarkerType())
-                    ? "This is an investigation point to compare with your clues. Check the case file and clue board again."
-                    : "Arrival confirmed. You can open the site puzzle.");
+                    ? "단서와 대조할 조사 지점입니다. 사건파일과 단서 보드를 다시 확인해 주세요."
+                    : "도착이 확인되었습니다. 현장 퍼즐을 열 수 있습니다.");
 
         return ArriveResponse.builder()
                 .arrived(true)
@@ -206,11 +206,11 @@ public class EpisodePlayService {
         MissionSpot finalSpot = episodeRepository.findSpotsByEpisodeId(episodeId).stream()
                 .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "Investigation site information was not found."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "조사 장소 정보를 찾을 수 없습니다."));
         UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
         boolean adminBypass = user != null && user.isAdmin();
         if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled && !adminBypass) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "Dev arrival is disabled on this server.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "이 서버에서는 개발용 도착 판정이 비활성화되어 있습니다.");
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
         double distance = devMode ? 0.0 : calculateDistanceMeters(request.getUserLat(), request.getUserLng(), finalSpot.getLatitude(), finalSpot.getLongitude());
@@ -222,7 +222,7 @@ public class EpisodePlayService {
                     .canOpenPuzzle(false)
                     .isActualFinalArrived(false)
                     .canStartDeduction(false)
-                    .message("You cannot start the final deduction from this location. Check the clue board and case file again.")
+                    .message("현재 위치에서는 최종 추리를 시작할 수 없습니다. 단서 보드와 사건파일을 다시 확인해 주세요.")
                     .build();
         }
         progress.setFinalArrivedSpotId(finalSpot.getId());
@@ -234,7 +234,7 @@ public class EpisodePlayService {
                 .canOpenPuzzle(false)
                 .isActualFinalArrived(true)
                 .canStartDeduction(true)
-                .message("Investigation site confirmed. You can start the final deduction, but missing clues may reduce your score.")
+                .message("조사 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다.")
                 .build();
     }
 
@@ -242,11 +242,11 @@ public class EpisodePlayService {
         MissionSpot spot = requireSpot(spotId, null);
         UserEpisodeProgress progress = requireProgress(user.getId(), spot.getEpisodeId());
         if (!readLongList(progress.getVisitedSpotIds()).contains(spotId)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "You must arrive at the site before opening the puzzle.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "퍼즐을 열기 전에 해당 장소에 도착해야 합니다.");
         }
         Puzzle puzzle = episodeRepository.findPuzzleBySpotId(spotId);
         if (puzzle == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "Puzzle was not found.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "퍼즐을 찾을 수 없습니다.");
         }
         return PuzzleResponse.builder()
                 .puzzleId(puzzle.getId())
@@ -262,12 +262,12 @@ public class EpisodePlayService {
     public PuzzleSubmitResponse submitPuzzle(Long puzzleId, PuzzleSubmitRequest request, User user) {
         Puzzle puzzle = episodeRepository.findPuzzleById(puzzleId);
         if (puzzle == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "Puzzle was not found.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "퍼즐을 찾을 수 없습니다.");
         }
         MissionSpot spot = requireSpot(puzzle.getMissionSpotId(), null);
         UserEpisodeProgress progress = requireProgress(user.getId(), spot.getEpisodeId());
         if (!readLongList(progress.getVisitedSpotIds()).contains(spot.getId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "You must arrive at the site before solving the puzzle.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "퍼즐을 풀기 전에 해당 장소에 도착해야 합니다.");
         }
 
         boolean correct = normalizeAnswer(puzzle.getAnswer()).equals(normalizeAnswer(request.getAnswer()));
@@ -276,7 +276,7 @@ public class EpisodePlayService {
             episodeRepository.updateProgress(progress);
             return PuzzleSubmitResponse.builder()
                     .correct(false)
-                    .message("That is not correct. Check the site clues and hints again.")
+                    .message("정답이 아닙니다. 현장 단서와 힌트를 다시 확인해 주세요.")
                     .clueBoard(buildClueBoard(progress))
                     .build();
         }
@@ -296,8 +296,8 @@ public class EpisodePlayService {
                 .unlockedMemoIds(rewardResult.memoIds())
                 .newlyUnlockedItems(rewardResult.items())
                 .message(rewardResult.caseFileUpdated()
-                        ? "Correct. Clues and case materials were added to the case file bag."
-                        : "Correct. The clue was saved to the clue board.")
+                        ? "정답입니다. 단서와 사건자료가 사건파일에 추가되었습니다."
+                        : "정답입니다. 단서가 단서 보드에 저장되었습니다.")
                 .clueBoard(buildClueBoard(progress))
                 .build();
     }
@@ -311,14 +311,14 @@ public class EpisodePlayService {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (!"IN_PROGRESS".equals(progress.getStatus()) && !"FINAL_READY".equals(progress.getStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "INVALID_PROGRESS", "Final deduction cannot start in the current progress state.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "INVALID_PROGRESS", "현재 진행 상태에서는 최종 추리를 시작할 수 없습니다.");
         }
         MissionSpot finalSpot = episodeRepository.findSpotsByEpisodeId(episodeId).stream()
                 .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "Investigation site was not found."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "조사 장소를 찾을 수 없습니다."));
         if (!finalSpot.getId().equals(progress.getFinalArrivedSpotId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "Confirm the investigation site before starting final deduction.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "최종 추리를 시작하기 전에 조사 장소를 확인해야 합니다.");
         }
 
         FinalDeductionSession session = episodeRepository.findOpenDeductionSession(user.getId(), episodeId);
@@ -331,8 +331,8 @@ public class EpisodePlayService {
         }
         List<String> clues = allClues(progress);
         String message = clues.size() < 3
-                ? "Not enough clues. Investigate more answer-hint sites for better questions."
-                : "Final deduction chat has started.";
+                ? "단서가 부족합니다. 더 정확한 질문을 위해 정답 힌트 장소를 더 조사해 주세요."
+                : "최종 추리 채팅이 시작되었습니다.";
         return DeductionStartResponse.builder()
                 .sessionId(session.getId())
                 .maxQuestionCount(maxQuestions(episode))
@@ -349,12 +349,12 @@ public class EpisodePlayService {
         int maxQuestions = maxQuestions(episode);
         int current = value(session.getQuestionCount());
         if (current >= maxQuestions) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_LIMIT_EXCEEDED", "All questions have been used.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_LIMIT_EXCEEDED", "사용 가능한 질문 횟수를 모두 사용했습니다.");
         }
         UserEpisodeProgress progress = requireProgress(user.getId(), session.getEpisodeId());
         String question = request.getQuestion() == null ? "" : request.getQuestion().trim();
         if (question.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "Enter a question.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "질문을 입력해 주세요.");
         }
 
         DeductionAnswer answer = sanitizeDeductionAnswer(episode, answerDeductionQuestion(episode, progress, question));
@@ -386,7 +386,7 @@ public class EpisodePlayService {
                         .id(question.getId())
                         .userQuestion(question.getUserQuestion())
                         .aiAnswerType(question.getAiAnswerType())
-                        .aiAnswerText(question.getAiAnswerText())
+                        .aiAnswerText(localizeDeductionAnswer(question.getAiAnswerType(), question.getAiAnswerText()))
                         .createdAt(question.getCreatedAt())
                         .build())
                 .toList();
@@ -396,7 +396,7 @@ public class EpisodePlayService {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (progress.getFinalArrivedSpotId() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "Confirm the investigation site before submitting the final answer.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "최종 정답을 제출하기 전에 조사 장소를 확인해야 합니다.");
         }
         FinalDeductionSession session = request.getSessionId() == null ? null : requireSession(request.getSessionId(), user);
         boolean correct = acceptedFinalAnswers(episode).contains(normalizeAnswer(request.getFinalAnswer()));
@@ -412,7 +412,7 @@ public class EpisodePlayService {
                     .correct(false)
                     .status(progress.getStatus())
                     .score(progress.getScore())
-                    .message("That is not correct. Check the clue board and question history again.")
+                    .message("정답이 아닙니다. 단서 보드와 질문 기록을 다시 확인해 주세요.")
                     .build();
         }
 
@@ -430,14 +430,14 @@ public class EpisodePlayService {
                 .correct(true)
                 .status("CLEARED")
                 .score(progress.getScore())
-                .message("Case solved. The clear report is now available.")
+                .message("사건을 해결했습니다. 클리어 리포트를 확인할 수 있습니다.")
                 .build();
     }
     public ClearReportResponse getClearReport(Long episodeId, User user) {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (!"CLEARED".equals(progress.getStatus()) || progress.getClearedAt() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "CLEAR_REQUIRED", "Clear report is available only after clearing the episode.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "CLEAR_REQUIRED", "클리어 리포트는 에피소드 클리어 후에만 확인할 수 있습니다.");
         }
         List<Long> visitedSpotIds = readLongList(progress.getVisitedSpotIds());
         List<Long> completedSpotIds = readLongList(progress.getCompletedSpotIds());
@@ -482,7 +482,7 @@ public class EpisodePlayService {
     private Episode requireEpisode(Long episodeId) {
         Episode episode = episodeRepository.findEpisodeById(episodeId);
         if (episode == null || !"PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "Episode was not found.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "에피소드를 찾을 수 없습니다.");
         }
         return episode;
     }
@@ -490,7 +490,7 @@ public class EpisodePlayService {
     private MissionSpot requireSpot(Long spotId, Long episodeId) {
         MissionSpot spot = episodeRepository.findSpotById(spotId);
         if (spot == null || (episodeId != null && !episodeId.equals(spot.getEpisodeId()))) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "Investigation spot was not found.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "조사 지점을 찾을 수 없습니다.");
         }
         requireEpisode(spot.getEpisodeId());
         return spot;
@@ -503,7 +503,7 @@ public class EpisodePlayService {
     private UserEpisodeProgress requireProgress(Long userId, Long episodeId) {
         UserEpisodeProgress progress = findProgress(userId, episodeId);
         if (progress == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "EPISODE_NOT_STARTED", "Start the episode first.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "EPISODE_NOT_STARTED", "먼저 에피소드를 시작해 주세요.");
         }
         return progress;
     }
@@ -532,10 +532,10 @@ public class EpisodePlayService {
     private FinalDeductionSession requireSession(Long sessionId, User user) {
         FinalDeductionSession session = episodeRepository.findDeductionSession(sessionId);
         if (session == null || !user.getId().equals(session.getUserId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "DEDUCTION_SESSION_NOT_FOUND", "Final deduction session was not found.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEDUCTION_SESSION_NOT_FOUND", "최종 추리 세션을 찾을 수 없습니다.");
         }
         if (!"OPEN".equals(session.getStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_SESSION_CLOSED", "This final deduction session is closed.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_SESSION_CLOSED", "이 최종 추리 세션은 종료되었습니다.");
         }
         return session;
     }
@@ -638,7 +638,7 @@ public class EpisodePlayService {
 
         if (!payloadApplied) {
             addRewardClue(progress, spot, puzzle.getRewardClue());
-            rewardTypes.add(spot.getClueRole());
+            rewardTypes.add(rewardTypeForSpot(spot));
         }
 
         return new RewardApplyResult(!rewardTypes.isEmpty(), rewardTypes, evidenceIds, suspectIds, updatedSuspectIds, photoIds, memoIds, items);
@@ -654,6 +654,15 @@ public class EpisodePlayService {
             case "SUSPECT_UNLOCK" -> targetId != null && addLongReward(progress.getUnlockedSuspectIds(), targetId, progress::setUnlockedSuspectIds);
             case "SUSPECT_UPDATE" -> applySuspectUpdate(progress, targetId);
             default -> false;
+        };
+    }
+
+    private String rewardTypeForSpot(MissionSpot spot) {
+        String role = spot == null ? "" : spot.getClueRole();
+        return switch (role) {
+            case "ANSWER_HINT" -> "ANSWER_CLUE";
+            case "DESTINATION_HINT", "FINAL_PLACE" -> "DESTINATION_CLUE";
+            default -> "STORY_CLUE";
         };
     }
 
@@ -722,44 +731,100 @@ public class EpisodePlayService {
     private DeductionAnswer answerDeductionQuestion(Episode episode, UserEpisodeProgress progress, String question) {
         String normalizedQuestion = normalizeAnswer(question);
         if (acceptedFinalAnswers(episode).stream().anyMatch(normalizedQuestion::contains)) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "That question would reveal the answer directly, so I cannot answer it.");
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 정답을 직접 노출할 수 있어 답변할 수 없습니다.");
         }
-        if (containsAny(normalizedQuestion, "finalplace", "actualplace", "answerplace", "destination", "where")) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "That question would reveal the investigation site directly, so I cannot answer it.");
+        if (containsAny(normalizedQuestion,
+                "finalplace", "actualplace", "answerplace", "destination", "where",
+                "최종장소", "실제장소", "정답장소", "목적지", "장소", "위치", "어디")) {
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 조사 장소를 직접 노출할 수 있어 답변할 수 없습니다.");
         }
-        if (containsAny(normalizedQuestion, "answer", "killer", "weapon", "tellme", "who", "what")) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "That question would reveal the answer directly, so I cannot answer it.");
+        if (containsAny(normalizedQuestion,
+                "answer", "killer", "weapon", "tellme", "who", "what",
+                "정답", "범인", "흉기", "무기", "알려줘", "누구", "무엇", "뭐")) {
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 정답을 직접 노출할 수 있어 답변할 수 없습니다.");
         }
         if (allClues(progress).size() < 2) {
-            return new DeductionAnswer("INSUFFICIENT_CLUE", "Not enough clues. Investigate more answer-hint sites first.");
+            return new DeductionAnswer("INSUFFICIENT_CLUE", "단서가 부족합니다. 먼저 정답 힌트 장소를 더 조사해 주세요.");
         }
-        if (containsAny(normalizedQuestion, "lens", "glass", "photo", "camera", "reflection", "fragment")) {
-            return new DeductionAnswer("RELATED", "Related. Compare it with the answer-hint clues.");
+        if (containsAny(normalizedQuestion,
+                "lens", "glass", "photo", "camera", "reflection", "fragment",
+                "렌즈", "유리", "사진", "카메라", "반사", "조각")) {
+            return new DeductionAnswer("RELATED", "관련 있습니다. 정답 힌트 단서들과 함께 비교해 보세요.");
         }
-        if (containsAny(normalizedQuestion, "film", "album", "lastword", "redwall")) {
-            return new DeductionAnswer("PARTIAL", "Partially correct. The direction is right, but the final answer is a more specific object.");
+        if (containsAny(normalizedQuestion,
+                "film", "album", "lastword", "redwall",
+                "필름", "앨범", "마지막말", "붉은벽")) {
+            return new DeductionAnswer("PARTIAL", "부분적으로 맞습니다. 방향은 맞지만 최종 정답은 더 구체적인 물건입니다.");
         }
-        if (containsAny(normalizedQuestion, "metal", "gun", "knife")) {
-            return new DeductionAnswer("NO", "No. It does not directly match the collected clues.");
+        if (containsAny(normalizedQuestion, "metal", "gun", "knife", "금속", "총", "칼", "나이프")) {
+            return new DeductionAnswer("NO", "아닙니다. 수집한 단서와 직접 맞물리지는 않습니다.");
         }
         if (question.length() < 6) {
-            return new DeductionAnswer("AMBIGUOUS", "The question is ambiguous. Ask again about a suspect, motive, or evidence.");
+            return new DeductionAnswer("AMBIGUOUS", "질문이 모호합니다. 용의자, 동기, 증거 중 하나를 더 구체적으로 물어봐 주세요.");
         }
-        return new DeductionAnswer("AMBIGUOUS", "The question is ambiguous. Ask more specifically which collected clue it connects to.");
+        return new DeductionAnswer("AMBIGUOUS", "질문이 모호합니다. 어떤 수집 단서와 연결되는지 더 구체적으로 물어봐 주세요.");
     }
 
     private DeductionAnswer sanitizeDeductionAnswer(Episode episode, DeductionAnswer answer) {
         String type = ALLOWED_DEDUCTION_ANSWER_TYPES.contains(answer.type()) ? answer.type() : "AMBIGUOUS";
-        String text = answer.text() == null ? "" : answer.text();
+        String text = localizeDeductionAnswer(type, answer.text());
         String normalizedText = normalizeAnswer(text);
         boolean revealsAnswer = acceptedFinalAnswers(episode).stream()
                 .filter(value -> !value.isBlank())
                 .anyMatch(normalizedText::contains);
-        boolean revealsFinalPlace = containsAny(normalizedText, "finalplace", "actualplace", "answerplace");
+        boolean revealsFinalPlace = containsAny(normalizedText, "finalplace", "actualplace", "answerplace", "최종장소", "실제장소", "정답장소");
         if (revealsAnswer || revealsFinalPlace) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "That question would reveal the answer or investigation site directly, so I cannot answer it.");
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "정답이나 조사 지점을 직접 노출할 수 있어 답변할 수 없습니다.");
         }
         return new DeductionAnswer(type, text);
+    }
+
+    private String localizeDeductionAnswer(String type, String text) {
+        String value = text == null ? "" : text.trim();
+        if (value.isBlank()) {
+            return fallbackDeductionAnswer(type);
+        }
+        String normalized = value.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "that question would reveal the answer directly, so i cannot answer it." ->
+                    "그 질문은 정답을 직접 노출할 수 있어 답변할 수 없습니다.";
+            case "that question would reveal the investigation site directly, so i cannot answer it." ->
+                    "그 질문은 조사 장소를 직접 노출할 수 있어 답변할 수 없습니다.";
+            case "that question would reveal the answer or investigation site directly, so i cannot answer it." ->
+                    "정답이나 조사 지점을 직접 노출할 수 있어 답변할 수 없습니다.";
+            case "not enough clues. investigate more answer-hint sites first." ->
+                    "단서가 부족합니다. 먼저 정답 힌트 장소를 더 조사해 주세요.";
+            case "related. compare it with the answer-hint clues." ->
+                    "관련 있습니다. 정답 힌트 단서들과 함께 비교해 보세요.";
+            case "partially correct. the direction is right, but the final answer is a more specific object." ->
+                    "부분적으로 맞습니다. 방향은 맞지만 최종 정답은 더 구체적인 물건입니다.";
+            case "no. it does not directly match the collected clues." ->
+                    "아닙니다. 수집한 단서와 직접 맞물리지는 않습니다.";
+            case "the question is ambiguous. ask again about a suspect, motive, or evidence." ->
+                    "질문이 모호합니다. 용의자, 동기, 증거 중 하나를 더 구체적으로 물어봐 주세요.";
+            case "the question is ambiguous. ask more specifically which collected clue it connects to." ->
+                    "질문이 모호합니다. 어떤 수집 단서와 연결되는지 더 구체적으로 물어봐 주세요.";
+            default -> isEnglishSentence(value) ? fallbackDeductionAnswer(type) : value;
+        };
+    }
+
+    private String fallbackDeductionAnswer(String type) {
+        return switch (type) {
+            case "YES", "RELATED" -> "관련 있습니다. 수집한 단서와 함께 비교해 보세요.";
+            case "NO", "NOT_RELATED" -> "아닙니다. 수집한 단서와 직접 맞물리지는 않습니다.";
+            case "PARTIAL" -> "부분적으로 맞습니다. 방향은 맞지만 더 구체적인 단서가 필요합니다.";
+            case "INSUFFICIENT_CLUE" -> "단서가 부족합니다. 먼저 정답 힌트 장소를 더 조사해 주세요.";
+            case "REFUSED_DIRECT_REVEAL" -> "정답이나 조사 지점을 직접 노출할 수 있어 답변할 수 없습니다.";
+            default -> "질문이 모호합니다. 어떤 수집 단서와 연결되는지 더 구체적으로 물어봐 주세요.";
+        };
+    }
+
+    private boolean isEnglishSentence(String value) {
+        long alphabetCount = value == null ? 0 : value.chars()
+                .filter(ch -> (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
+                .count();
+        boolean hasHangul = value != null && value.chars().anyMatch(ch -> ch >= 0xAC00 && ch <= 0xD7A3);
+        return alphabetCount >= 3 && !hasHangul;
     }
 
     private boolean containsAny(String source, String... keywords) {

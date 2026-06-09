@@ -49,6 +49,8 @@ public class CaseFileService {
         List<CaseSuspect> suspects = caseFileRepository.findSuspects(episodeId);
         List<CaseEvidence> evidences = caseFileRepository.findEvidences(episodeId);
         int totalSpotCount = caseFileRepository.countSpots(episodeId);
+        Long startSpotId = caseFileRepository.findStartSpotId(episodeId);
+        boolean storyUnlocked = (startSpotId != null && completedSpotIds.contains(startSpotId)) || !storyClues.isEmpty();
 
         return CaseFileResponse.builder()
                 .episodeId(episode.getId())
@@ -64,9 +66,13 @@ public class CaseFileService {
                 .finalQuestion(episode.getFinalQuestion())
                 .overview(CaseFileResponse.Overview.builder()
                         .briefingTitle(briefingTitle(episode))
-                        .summary(caseSummary(episode))
+                        .summary(storyUnlocked ? detailedStorySummary(episode, storyClues) : lockedStorySummary(episode))
+                        .lockedSummary(lockedStorySummary(episode))
+                        .detailedSummary(detailedStorySummary(episode, storyClues))
                         .goal(caseGoal(episode))
                         .fictionSynopsis(episode.getFictionSynopsis())
+                        .storyUnlocked(storyUnlocked)
+                        .unlockedStoryClues(storyClues)
                         .build())
                 .suspects(suspects.stream().map(suspect -> toSuspect(suspect, unlockedSuspectIds, clearedSuspectIds, evidences)).toList())
                 .evidences(evidences.stream().map(evidence -> toEvidence(evidence, unlockedEvidenceIds)).toList())
@@ -169,6 +175,24 @@ public class CaseFileService {
         }
         String title = episode == null || episode.getTitle() == null || episode.getTitle().isBlank() ? "이 사건" : episode.getTitle().trim();
         return title + "의 현장 기록이 서로 맞지 않습니다. 플레이어는 조사 지점을 돌며 단서와 사건자료를 대조해야 합니다.";
+    }
+
+    private String lockedStorySummary(Episode episode) {
+        String title = episode == null || episode.getTitle() == null || episode.getTitle().isBlank() ? "이 사건" : episode.getTitle().trim();
+        return title + "의 핵심 기록은 아직 봉인되어 있습니다. 시작 장소의 스토리 미션을 해결하면 사건의 첫 목격 기록과 더 자세한 배경이 이 카드에 추가됩니다.";
+    }
+
+    private String detailedStorySummary(Episode episode, List<String> storyClues) {
+        String base = caseSummary(episode);
+        List<String> safeClues = storyClues == null ? List.of() : storyClues.stream()
+                .filter(clue -> clue != null && !clue.isBlank())
+                .map(String::trim)
+                .toList();
+        if (safeClues.isEmpty()) {
+            return base + "\n\n시작 기록이 해금되었습니다. 첫 현장 단서와 사건자료를 대조해 정답 단서와 목적지 단서를 분리하세요.";
+        }
+        return base + "\n\n해금된 시작 기록: " + String.join(" · ", safeClues)
+                + "\n이 기록은 사건의 배경을 보강하는 단서입니다. 최종 정답이나 장소를 직접 말하지 않으므로 다른 증거 카드와 함께 대조해야 합니다.";
     }
 
     private String caseGoal(Episode episode) {

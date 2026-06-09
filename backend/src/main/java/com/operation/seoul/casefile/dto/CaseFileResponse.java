@@ -34,8 +34,12 @@ public class CaseFileResponse {
     public static class Overview {
         private String briefingTitle;
         private String summary;
+        private String lockedSummary;
+        private String detailedSummary;
         private String goal;
         private String fictionSynopsis;
+        private boolean storyUnlocked;
+        private List<String> unlockedStoryClues;
     }
 
     @Data

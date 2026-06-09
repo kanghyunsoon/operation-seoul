@@ -116,4 +116,13 @@ public interface CaseFileRepository {
 
     @Select("select count(*) from mission_spots where episode_id = #{episodeId}")
     int countSpots(Long episodeId);
+
+    @Select("""
+            select id
+            from mission_spots
+            where episode_id = #{episodeId} and clue_role = 'START'
+            order by id asc
+            limit 1
+            """)
+    Long findStartSpotId(Long episodeId);
 }
