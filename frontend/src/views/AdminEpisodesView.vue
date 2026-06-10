@@ -2747,6 +2747,37 @@ function candidateRouteScore(candidate, anchor) {
   return score;
 }
 
+const recommendedMinSpotDistanceMeters = 180;
+
+function isFarEnoughFromRoute(candidate, selected, minDistance = recommendedMinSpotDistanceMeters) {
+  if (!selected.length || minDistance <= 0) return true;
+  return selected.every((item) => {
+    const distance = candidateDistanceMeters(candidate, item);
+    return !Number.isFinite(distance) || distance >= minDistance;
+  });
+}
+
+function pickSpacedRouteCandidates(pool, anchor, count = 8) {
+  const normalizedAnchor = normalizeCandidate(anchor);
+  const selected = [];
+  const selectedForSpacing = hasCandidateCoordinate(normalizedAnchor) ? [normalizedAnchor] : [];
+  const distancePasses = [
+    recommendedMinSpotDistanceMeters,
+    Math.round(recommendedMinSpotDistanceMeters * 0.65),
+    0
+  ];
+  for (const minDistance of distancePasses) {
+    for (const candidate of pool) {
+      if (selected.some((item) => candidateKey(item) === candidateKey(candidate))) continue;
+      if (!isFarEnoughFromRoute(candidate, selectedForSpacing, minDistance)) continue;
+      selected.push(candidate);
+      selectedForSpacing.push(candidate);
+      if (selected.length >= count) return selected;
+    }
+  }
+  return selected;
+}
+
 function candidateDistanceMeters(a, b) {
   const from = normalizeCandidate(a);
   const to = normalizeCandidate(b);
@@ -2767,15 +2798,7 @@ function buildRecommendedRouteCandidates(anchor, candidates) {
     .map(normalizeCandidate)
     .filter((candidate) => hasCandidateCoordinate(candidate) && candidateKey(candidate) !== anchorKey)
     .sort((a, b) => candidateRouteScore(b, normalizedAnchor) - candidateRouteScore(a, normalizedAnchor));
-  const selected = [];
-  const used = new Set([anchorKey]);
-  for (const candidate of pool) {
-    const key = candidateKey(candidate);
-    if (used.has(key)) continue;
-    selected.push(candidate);
-    used.add(key);
-    if (selected.length >= 8) break;
-  }
+  const selected = pickSpacedRouteCandidates(pool, normalizedAnchor, 8);
   return [...selected, normalizedAnchor].slice(0, 9);
 }
 
@@ -2792,7 +2815,7 @@ function rerollRecommendedRoute() {
       const bSelectedPenalty = currentKeys.has(candidateKey(b)) ? -18 : 0;
       return (candidateRouteScore(b, anchor) + bSelectedPenalty) - (candidateRouteScore(a, anchor) + aSelectedPenalty);
     });
-  selectedCandidates.value = [...pool.slice(0, 8), anchor].slice(0, 9);
+  selectedCandidates.value = [...pickSpacedRouteCandidates(pool, anchor, 8), anchor].slice(0, 9);
   siteDataEnriched.value = false;
   applyCandidatesToDraft(false);
   setMessage('\uCD94\uCC9C \uB8E8\uD2B8\uB97C \uB2E4\uC2DC \uAD6C\uC131\uD588\uC2B5\uB2C8\uB2E4. \uD544\uC694\uD558\uBA74 \uD6C4\uBCF4\uBCC4 \uAD50\uCCB4 \uBC84\uD2BC\uC73C\uB85C \uB354 \uC870\uC815\uD558\uC138\uC694.', 'success');
@@ -2809,6 +2832,7 @@ function replaceSelectedCandidate(candidate) {
   const replacement = nearbyCandidates.value
     .map(normalizeCandidate)
     .filter((item) => hasCandidateCoordinate(item) && !selectedKeys.has(candidateKey(item)))
+    .filter((item) => isFarEnoughFromRoute(item, selectedCandidates.value.filter((selected) => candidateKey(selected) !== oldKey)))
     .sort((a, b) => candidateRouteScore(b, anchor) - candidateRouteScore(a, anchor))[0];
   if (!replacement) {
     setMessage('\uAD50\uCCB4\uD560 \uC218 \uC788\uB294 \uD6C4\uBCF4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uBC18\uACBD\uC744 \uB113\uD788\uAC70\uB098 \uC218\uB3D9 \uD6C4\uBCF4\uB97C \uCD94\uAC00\uD558\uC138\uC694.', 'error');

@@ -74,7 +74,7 @@ public class KakaoLocalCandidateService {
                             .latitude(lat)
                             .longitude(lng)
                             .areaCode("nearby")
-                            .source("KakaoLocal:" + categoryCode)
+                            .source("KakaoLocal:" + categoryLabel(categoryCode))
                             .description("Kakao Local 기준 주변 상권/문화 후보지입니다. 실제 운영 전 현장 관찰 요소를 관리자 메모로 보강하세요.")
                             .contentId(node.path("id").asText(null))
                             .build());
@@ -104,5 +104,15 @@ public class KakaoLocalCandidateService {
 
     private String firstNonBlank(String first, String second) {
         return first != null && !first.isBlank() ? first : second;
+    }
+
+    private String categoryLabel(String categoryCode) {
+        return switch (categoryCode) {
+            case "FD6" -> "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c";
+            case "CE7" -> "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810";
+            case "CT1" -> "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810";
+            case "AT4" -> "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810";
+            default -> "\uc8fc\ubcc0 \uc870\uc0ac \ud6c4\ubcf4";
+        };
     }
 }

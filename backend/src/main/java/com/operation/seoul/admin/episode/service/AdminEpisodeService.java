@@ -564,7 +564,7 @@ public class AdminEpisodeService {
             }
             missions.add(AiEpisodeDraftResponse.MissionDraft.builder()
                     .order(i + 1)
-                    .placeName(blank(place.getName(), "Investigation spot " + (i + 1)))
+                    .placeName(blank(place.getName(), "\uC870\uC0AC \uC9C0\uC810 " + (i + 1)))
                     .address(place.getAddress())
                     .latitude(place.getLatitude())
                     .longitude(place.getLongitude())
@@ -572,44 +572,44 @@ public class AdminEpisodeService {
                     .publicMarkerType(publicMarkerType(place.getPublicMarkerType(), "FINAL".equals(role), role))
                     .clueRole("FINAL".equals(role) ? "FINAL_PLACE" : toClueRole(role))
                     .finalPlace("FINAL".equals(role))
-                    .storyText(blank(place.getDescription(), i == 0 ? "Open the case file and establish the clue categories." : "Compare field material with the case memo."))
+                    .storyText(blank(place.getDescription(), i == 0 ? "\uC0AC\uAC74\uD30C\uC77C\uC744 \uC5F4\uACE0 \uB2E8\uC11C \uBD84\uB958\uB97C \uD655\uC778\uD558\uC138\uC694." : "\uD604\uC7A5 \uC790\uB8CC\uC640 \uC0AC\uAC74 \uBA54\uBAA8\uB97C \uBE44\uAD50\uD558\uC138\uC694."))
                     .arrivalRadius(place.getArrivalRadius() == null ? 50.0 : place.getArrivalRadius())
                     .puzzleType(recommendPuzzleType(place))
                     .questionText(buildQuestion(place))
                     .answer(buildAnswer(place))
                     .answerFormat(answerFormat(place))
                     .rewardClue(buildRewardClue(role, i))
-                    .hints(List.of("Use only admin-provided field data.", "Classify whether this clue supports the answer or destination.", "Confirm the clue evidence on site before publishing."))
-                    .groundRule("Rule-based admin draft. Verify every field claim before publishing.")
+                    .hints(List.of("\uAD00\uB9AC\uC790\uAC00 \uC81C\uACF5\uD55C \uD604\uC7A5 \uB370\uC774\uD130\uB9CC \uAE30\uC900\uC73C\uB85C \uBCF4\uC138\uC694.", "\uC774 \uB2E8\uC11C\uAC00 \uC815\uB2F5 \uD78C\uD2B8\uC778\uC9C0 \uBAA9\uC801\uC9C0 \uD78C\uD2B8\uC778\uC9C0 \uBD84\uB958\uD558\uC138\uC694.", "\uACF5\uAC1C \uC804 \uD604\uC7A5\uC5D0\uC11C \uB2E8\uC11C \uADFC\uAC70\uB97C \uD655\uC778\uD558\uC138\uC694."))
+                    .groundRule("\uADDC\uCE59 \uAE30\uBC18 \uAD00\uB9AC\uC790 \uCD08\uC548\uC785\uB2C8\uB2E4. \uACF5\uAC1C \uC804 \uD604\uC7A5 \uC8FC\uC7A5\uC744 \uD655\uC778\uD558\uC138\uC694.")
                     .build());
         }
         String finalObject = draftFinalObject(request, places);
         AiEpisodeDraftResponse.EpisodeDraft draft = AiEpisodeDraftResponse.EpisodeDraft.builder()
-                .episodeTitle("EP.NEW " + blank(request.getTheme(), "Hidden Record") + " Case")
+                .episodeTitle("EP.NEW " + blank(request.getTheme(), "\uC228\uACA8\uC9C4 \uAE30\uB85D") + " \uC0AC\uAC74")
                 .subtitle(draftSubtitle(request, places))
-                .genre(blank(request.getTheme(), "Outdoor case-file mystery"))
+                .genre(blank(request.getTheme(), "\uC57C\uC678 \uC0AC\uAC74\uD30C\uC77C \uBBF8\uC2A4\uD130\uB9AC"))
                 .era(draftEra(request, places))
                 .fictionSynopsis(draftFictionSynopsis(request, places))
                 .finalAnswerType("EVIDENCE")
                 .finalAnswer(finalObject)
                 .finalAnswerAliases(List.of(finalObject.replace(" ", ""), draftFinalAlias(request, places)))
                 .finalQuestion(draftFinalQuestion(request, places))
-                .finalTruthSummary("Collected clues point to " + finalObject + ", a fictional evidence object inside the case.")
-                .actualHistorySummary("Historical notes must be reviewed by an admin before publishing. Do not expose real people as culprits.")
-                .deductionSecretFacts(List.of("The final answer is not a real place or real person.", "The answer requires combining at least four clue cards."))
+                .finalTruthSummary("\uBAA8\uC740 \uB2E8\uC11C\uB294 \uC0AC\uAC74 \uC18D \uAC00\uC0C1 \uC99D\uAC70\uBB3C\uC778 [" + finalObject + "]\uB97C \uAC00\uB9AC\uD0B5\uB2C8\uB2E4.")
+                .actualHistorySummary("\uC2E4\uC81C \uC5ED\uC0AC \uBA54\uBAA8\uB294 \uACF5\uAC1C \uC804 \uAD00\uB9AC\uC790\uAC00 \uAC80\uD1A0\uD574\uC57C \uD558\uBA70, \uC2E4\uC874 \uC778\uBB3C\uC744 \uBC94\uC778\uC73C\uB85C \uB178\uCD9C\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.")
+                .deductionSecretFacts(List.of("\uCD5C\uC885 \uC815\uB2F5\uC740 \uC2E4\uC81C \uC7A5\uC18C\uB098 \uC2E4\uC874 \uC778\uBB3C\uC774 \uC544\uB2D9\uB2C8\uB2E4.", "\uC815\uB2F5\uC740 \uCD5C\uC18C \uB124 \uAC1C\uC758 \uB2E8\uC11C \uCE74\uB4DC\uB97C \uC870\uD569\uD574\uC57C \uD655\uC815\uB429\uB2C8\uB2E4."))
                 .deductionForbiddenReveals(List.of(finalObject, "actualFinalPlace", "realPersonAsCulprit"))
                 .maxDeductionQuestions(20)
                 .missions(missions)
                 .suspects(defaultDraftSuspects())
                 .evidences(defaultDraftEvidences(missions))
                 .build();
-        warnings.add("Rule-based draft generated. Review puzzle answers, reward_payload, and finalPlace before saving.");
+        warnings.add("\uADDC\uCE59 \uAE30\uBC18 \uCD08\uC548\uC744 \uC0DD\uC131\uD588\uC2B5\uB2C8\uB2E4. \uC800\uC7A5 \uC804 \uD37C\uC990 \uC815\uB2F5, reward_payload, finalPlace\uB97C \uD655\uC778\uD558\uC138\uC694.");
         return AiEpisodeDraftResponse.builder()
                 .generatorType("MVP_RULE_BASED_DRAFT")
-                .message("Rule-based case-file draft created. It has not been saved to DB yet.")
+                .message("\uADDC\uCE59 \uAE30\uBC18 \uC0AC\uAC74\uD30C\uC77C \uCD08\uC548\uC744 \uC0DD\uC131\uD588\uC2B5\uB2C8\uB2E4. \uC544\uC9C1 DB\uC5D0 \uC800\uC7A5\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.")
                 .draft(draft)
                 .validationWarnings(warnings)
-                .nextSteps(List.of("Review field observations", "Confirm final answer is not a place or real person", "Connect rewards to suspects and evidences", "Save as DRAFT after validation"))
+                .nextSteps(List.of("\uD604\uC7A5 \uAD00\uCC30 \uADFC\uAC70 \uD655\uC778", "\uCD5C\uC885 \uC815\uB2F5\uC774 \uC7A5\uC18C\uB098 \uC2E4\uC874 \uC778\uBB3C\uC774 \uC544\uB2CC\uC9C0 \uD655\uC778", "\uBCF4\uC0C1\uC744 \uC6A9\uC758\uC790/\uC99D\uAC70\uC640 \uC5F0\uACB0", "\uAC80\uC99D \uD6C4 DRAFT\uB85C \uC800\uC7A5"))
                 .build();
     }
 
@@ -624,17 +624,17 @@ public class AdminEpisodeService {
                 .map(AiEpisodeDraftRequest.PlaceInput::getName)
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst()
-                .orElseGet(() -> places.isEmpty() ? "field site" : blank(places.get(places.size() - 1).getName(), "field site"));
-        return area + " clues converge on " + anchor;
+                .orElseGet(() -> places.isEmpty() ? "\uD604\uC7A5 \uC9C0\uC810" : blank(places.get(places.size() - 1).getName(), "\uD604\uC7A5 \uC9C0\uC810"));
+        return area + "\uC758 \uB2E8\uC11C\uAC00 " + anchor + "\uB85C \uC218\uB834\uB429\uB2C8\uB2E4";
     }
 
     private String draftEra(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
         if (!missing(request.getEra()) && !containsCompact(request.getEra(), "review") && !containsCompact(request.getEra(), "unknown")) return request.getEra().trim();
         String joined = routeText(request, places);
-        if (containsCompact(joined, "1905") || containsCompact(joined, "1897") || containsCompact(joined, "empire")) return "Late Empire period";
-        if (containsCompact(joined, "palace") || containsCompact(joined, "royal")) return "Royal archive case";
-        if (containsCompact(joined, "independence") || containsCompact(joined, "colonial")) return "Independence-era mystery";
-        return "Past and present crossover";
+        if (containsCompact(joined, "1905") || containsCompact(joined, "1897") || containsCompact(joined, "empire")) return "\uB300\uD55C\uC81C\uAD6D \uD6C4\uAE30";
+        if (containsCompact(joined, "palace") || containsCompact(joined, "royal")) return "\uC655\uC2E4 \uAE30\uB85D\uACE0 \uC0AC\uAC74";
+        if (containsCompact(joined, "independence") || containsCompact(joined, "colonial")) return "\uB3C5\uB9BD\uC6B4\uB3D9\uAE30 \uBBF8\uC2A4\uD130\uB9AC";
+        return "\uACFC\uAC70\uC640 \uD604\uC7AC\uAC00 \uACB9\uCE58\uB294 \uC2DC\uB300";
     }
 
 
@@ -642,18 +642,18 @@ public class AdminEpisodeService {
 
     private String draftFictionSynopsis(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
         String area = blank(request.getArea(), "selected area");
-        String first = places.isEmpty() ? "first spot" : blank(places.get(0).getName(), "first spot");
-        String anchor = places.isEmpty() ? "last spot" : blank(places.get(places.size() - 1).getName(), "last spot");
+        String first = places.isEmpty() ? "\uCCAB \uC870\uC0AC \uC9C0\uC810" : blank(places.get(0).getName(), "\uCCAB \uC870\uC0AC \uC9C0\uC810");
+        String anchor = places.isEmpty() ? "\uB9C8\uC9C0\uB9C9 \uC870\uC0AC \uC9C0\uC810" : blank(places.get(places.size() - 1).getName(), "\uB9C8\uC9C0\uB9C9 \uC870\uC0AC \uC9C0\uC810");
         String object = draftFinalObject(request, places);
         String routeSignal = routeSignal(places);
-        return "The case opens at " + first + " in " + area + ". Clues lead toward " + anchor + ", but the " + routeSignal + " records conflict. Players must compare field materials to identify " + object + ".";
+        return area + "\uC758 " + first + "\uC5D0\uC11C \uC0AC\uAC74\uC774 \uC2DC\uC791\uB429\uB2C8\uB2E4. \uB2E8\uC11C\uB294 " + anchor + "\uB97C \uD5A5\uD558\uC9C0\uB9CC, " + routeSignal + " \uAE30\uB85D\uC774 \uC11C\uB85C \uC5C7\uAC08\uB9BD\uB2C8\uB2E4. \uD50C\uB808\uC774\uC5B4\uB294 \uD604\uC7A5 \uC790\uB8CC\uB97C \uBE44\uAD50\uD574 [" + object + "]\uC758 \uC815\uCCB4\uB97C \uBC1D\uD600\uC57C \uD569\uB2C8\uB2E4.";
     }
 
 
 
 
     private String draftFinalQuestion(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
-        return "What is the identity of " + draftFinalObject(request, places) + " indicated by the collected clues?";
+        return "\uBAA8\uC740 \uB2E8\uC11C\uAC00 \uAC00\uB9AC\uD0A4\uB294 [" + draftFinalObject(request, places) + "]\uC758 \uC815\uCCB4\uB294 \uBB34\uC5C7\uC785\uB2C8\uAE4C?";
     }
 
 
@@ -661,12 +661,12 @@ public class AdminEpisodeService {
 
     private String draftFinalObject(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
         String joined = routeText(request, places);
-        if (containsCompact(joined, "coffee") || containsCompact(joined, "cafe") || containsCompact(joined, "tea")) return "cold tea record";
-        if (containsCompact(joined, "document") || containsCompact(joined, "seal") || containsCompact(joined, "signature")) return "red-sealed document";
-        if (containsCompact(joined, "photo") || containsCompact(joined, "film") || containsCompact(joined, "lens")) return "sealed film envelope";
-        if (containsCompact(joined, "market") || containsCompact(joined, "restaurant") || containsCompact(joined, "receipt")) return "torn receipt fragment";
-        if (containsCompact(joined, "palace") || containsCompact(joined, "archive")) return "folded archive copy";
-        return "sealed record fragment";
+        if (containsCompact(joined, "coffee") || containsCompact(joined, "cafe") || containsCompact(joined, "tea")) return "\uCC28\uAC00\uC6B4 \uCC28 \uAE30\uB85D";
+        if (containsCompact(joined, "document") || containsCompact(joined, "seal") || containsCompact(joined, "signature")) return "\uBD89\uC740 \uBD09\uC778 \uBB38\uC11C";
+        if (containsCompact(joined, "photo") || containsCompact(joined, "film") || containsCompact(joined, "lens")) return "\uBD09\uC778\uB41C \uD544\uB984 \uBD09\uD22C";
+        if (containsCompact(joined, "market") || containsCompact(joined, "restaurant") || containsCompact(joined, "receipt")) return "\uCC22\uAE34 \uC601\uC218\uC99D \uC870\uAC01";
+        if (containsCompact(joined, "palace") || containsCompact(joined, "archive")) return "\uC811\uD78C \uAE30\uB85D\uACE0 \uC0AC\uBCF8";
+        return "\uBD09\uC778\uB41C \uAE30\uB85D \uC870\uAC01";
     }
 
 
@@ -679,7 +679,7 @@ public class AdminEpisodeService {
     }
 
     private String routeSignal(List<AiEpisodeDraftRequest.PlaceInput> places) {
-        return places.stream().flatMap(place -> place.getKeywords() == null ? java.util.stream.Stream.empty() : place.getKeywords().stream()).filter(value -> value != null && !value.isBlank()).findFirst().orElse("route");
+        return places.stream().flatMap(place -> place.getKeywords() == null ? java.util.stream.Stream.empty() : place.getKeywords().stream()).filter(value -> value != null && !value.isBlank()).findFirst().orElse("\uB3D9\uC120");
     }
 
 
@@ -688,24 +688,24 @@ public class AdminEpisodeService {
 
     private List<AiEpisodeDraftResponse.SuspectDraft> defaultDraftSuspects() {
         return List.of(
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("Suspect A").displayName("Witness with the red envelope").shortDescription("A witness who saw the last envelope near the field route.").relationToVictim("Last request contact").suspiciousPoint("Part of the route timeline is missing.").alibiSummary("Claims to have stayed near a cafe until the rain stopped.").build(),
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("Suspect B").displayName("Missing record keeper").shortDescription("A helper who managed film and evidence files.").relationToVictim("Archive handler").suspiciousPoint("Knew where the missing film was stored.").alibiSummary("Claims to have stayed in the archive room, but no witness confirms it.").build(),
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("Suspect C").displayName("Black envelope courier").shortDescription("A courier whose route overlaps with destination clues.").relationToVictim("Final clue carrier").suspiciousPoint("May have hidden the clue flow rather than stolen the answer.").alibiSummary("Delivery route and witness time do not match.").build()
+                AiEpisodeDraftResponse.SuspectDraft.builder().alias("\uC6A9\uC758\uC790 A").displayName("\uBD89\uC740 \uBD09\uD22C\uB97C \uBCF8 \uBAA9\uACA9\uC790").shortDescription("\uD604\uC7A5 \uB3D9\uC120 \uADFC\uCC98\uC5D0\uC11C \uB9C8\uC9C0\uB9C9 \uBD09\uD22C\uB97C \uBCF8 \uC778\uBB3C\uC785\uB2C8\uB2E4.").relationToVictim("\uB9C8\uC9C0\uB9C9 \uC758\uB8B0 \uC5F0\uB77D\uCC45").suspiciousPoint("\uB3D9\uC120 \uC2DC\uAC04\uD45C \uC77C\uBD80\uAC00 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4.").alibiSummary("\uBE44\uAC00 \uADF8\uCE60 \uB54C\uAE4C\uC9C0 \uCE74\uD398 \uADFC\uCC98\uC5D0 \uC788\uC5C8\uB2E4\uACE0 \uC8FC\uC7A5\uD569\uB2C8\uB2E4.").build(),
+                AiEpisodeDraftResponse.SuspectDraft.builder().alias("\uC6A9\uC758\uC790 B").displayName("\uC0AC\uB77C\uC9C4 \uAE30\uB85D \uAD00\uB9AC\uC778").shortDescription("\uD544\uB984\uACFC \uC99D\uAC70 \uD30C\uC77C\uC744 \uAD00\uB9AC\uD558\uB358 \uBCF4\uC870\uC778\uC785\uB2C8\uB2E4.").relationToVictim("\uAE30\uB85D\uACE0 \uCDE8\uAE09\uC790").suspiciousPoint("\uC0AC\uB77C\uC9C4 \uD544\uB984\uC758 \uBCF4\uAD00 \uC704\uCE58\uB97C \uC54C\uACE0 \uC788\uC5C8\uC2B5\uB2C8\uB2E4.").alibiSummary("\uAE30\uB85D\uC2E4\uC5D0 \uC788\uC5C8\uB2E4\uACE0 \uC8FC\uC7A5\uD558\uC9C0\uB9CC \uD655\uC778\uD55C \uBAA9\uACA9\uC790\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.").build(),
+                AiEpisodeDraftResponse.SuspectDraft.builder().alias("\uC6A9\uC758\uC790 C").displayName("\uAC80\uC740 \uBD09\uD22C\uB97C \uC62E\uAE34 \uBC30\uB2EC\uC778").shortDescription("\uBAA9\uC801\uC9C0 \uB2E8\uC11C\uC640 \uB3D9\uC120\uC774 \uACB9\uCE58\uB294 \uBC30\uB2EC\uC778\uC785\uB2C8\uB2E4.").relationToVictim("\uCD5C\uC885 \uB2E8\uC11C \uC6B4\uBC18\uC790").suspiciousPoint("\uC815\uB2F5\uC744 \uD6D4\uCE5C \uAC83\uC774 \uC544\uB2C8\uB77C \uB2E8\uC11C \uD750\uB984\uC744 \uC228\uACBC\uC744 \uAC00\uB2A5\uC131\uC774 \uC788\uC2B5\uB2C8\uB2E4.").alibiSummary("\uBC30\uB2EC \uB3D9\uC120\uACFC \uBAA9\uACA9 \uC2DC\uAC04\uC774 \uB9DE\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.").build()
         );
     }
 
 
     private List<AiEpisodeDraftResponse.EvidenceDraft> defaultDraftEvidences(List<AiEpisodeDraftResponse.MissionDraft> missions) {
         return missions.stream().limit(8).map(mission -> AiEpisodeDraftResponse.EvidenceDraft.builder()
-                .title(mission.getRewardClue() + " clue card")
+                .title(mission.getRewardClue() + " \uB2E8\uC11C \uCE74\uB4DC")
                 .type("ANSWER_HINT".equals(mission.getClueRole()) ? "ANSWER_CLUE" : "DESTINATION_HINT".equals(mission.getClueRole()) ? "DESTINATION_CLUE" : "NOTE")
                 .imageUrl("")
                 .imagePrompt("Create a high-quality detective evidence image for a Korean outdoor escape-room case file. Subject: "
                         + mission.getRewardClue() + " clue card. Story detail: Case material unlocked after solving this mission. "
-                        + "Style: cinematic close-up, realistic prop photography, aged paper, soft shadows, archival texture, moody natural light. "
+                        + caseFileIllustrationStylePrompt()
                         + "If any person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story era. "
-                        + "No Western or European-looking models, no readable text, no watermark, no logo, no UI frame.")
-                .textSummary("Case material unlocked after solving this mission.")
+                        + caseFileNegativeImagePrompt())
+                .textSummary("\uC774 \uBBF8\uC158\uC744 \uD480\uBA74 \uD574\uAE08\uB418\uB294 \uC0AC\uAC74 \uC790\uB8CC\uC785\uB2C8\uB2E4.")
                 .sourceMissionOrder(mission.getOrder())
                 .build()).toList();
     }
@@ -782,10 +782,10 @@ public class AdminEpisodeService {
             spot.setFinalPlace(finalPlace);
             spot.setClueRole(finalPlace ? "FINAL_PLACE" : validateValue(blank(mission.getClueRole(), toClueRole(markerType)), CLUE_ROLES, "INVALID_CLUE_ROLE", "Unsupported clueRole."));
             spot.setPublicMarkerType(publicMarkerType(mission.getPublicMarkerType(), finalPlace, markerType));
-            spot.setStoryText(mission.getStoryText());
+            spot.setStoryText(sanitizeCategoryCodes(mission.getStoryText()));
             spot.setArrivalRadius(mission.getArrivalRadius() == null ? 50.0 : Math.max(10.0, mission.getArrivalRadius()));
             spot.setFieldVerified(true);
-            spot.setFieldVerificationNote("AI/site-data verified draft. Coordinates, arrival radius, and puzzle grounding were checked against provided candidate data; live GPS QA remains optional.");
+            spot.setFieldVerificationNote("AI/\uC0AC\uC774\uD2B8 \uB370\uC774\uD130 \uAE30\uBC18 \uAC80\uC218 \uC644\uB8CC \uCD08\uC548\uC785\uB2C8\uB2E4. \uC88C\uD45C, \uB3C4\uCC29 \uBC18\uACBD, \uD37C\uC990 \uADFC\uAC70\uB294 \uC81C\uACF5\uB41C \uD6C4\uBCF4 \uB370\uC774\uD130\uB85C \uD655\uC778\uD588\uC73C\uBA70 \uC2E4\uC81C GPS QA\uB294 \uC120\uD0DD \uC0AC\uD56D\uC785\uB2C8\uB2E4.");
             adminEpisodeRepository.insertSpot(spot);
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
             spotByOrder.put(order, spot);
@@ -796,17 +796,17 @@ public class AdminEpisodeService {
             Puzzle puzzle = new Puzzle();
             puzzle.setMissionSpotId(spot.getId());
             puzzle.setPuzzleType(validateValue(blank(mission.getPuzzleType(), "OBSERVATION"), PUZZLE_TYPES, "INVALID_PUZZLE_TYPE", "Unsupported puzzleType."));
-            puzzle.setQuestionText(blank(mission.getQuestionText(), "Review required."));
-            puzzle.setAnswer(blank(mission.getAnswer(), "현장단서"));
+            puzzle.setQuestionText(blank(sanitizeCategoryCodes(mission.getQuestionText()), "Review required."));
+            puzzle.setAnswer(blank(sanitizeCategoryCodes(mission.getAnswer()), "현장단서"));
             puzzle.setAnswerFormat(validateValue(blank(mission.getAnswerFormat(), "TEXT"), ANSWER_FORMATS, "INVALID_ANSWER_FORMAT", "Unsupported answerFormat."));
-            puzzle.setRewardClue(blank(mission.getRewardClue(), "보정 단서"));
+            puzzle.setRewardClue(blank(sanitizeCategoryCodes(mission.getRewardClue()), "보정 단서"));
             puzzle.setRewardPayload(null);
             puzzle.setDifficulty("NORMAL");
             adminEpisodeRepository.insertPuzzle(puzzle);
             puzzleByOrder.put(order, puzzle);
             List<String> hints = mission.getHints() == null ? List.of() : mission.getHints();
             for (int hintIndex = 0; hintIndex < Math.min(3, hints.size()); hintIndex++) {
-                adminEpisodeRepository.insertHint(puzzle.getId(), hintIndex + 1, sanitizeHintText(hints.get(hintIndex), mission));
+                adminEpisodeRepository.insertHint(puzzle.getId(), hintIndex + 1, sanitizeHintText(sanitizeCategoryCodes(hints.get(hintIndex)), mission));
             }
         }
 
@@ -865,7 +865,7 @@ public class AdminEpisodeService {
                 .alias(suspect.getAlias())
                 .shortDescription(suspect.getShortDescription())
                 .portraitImageUrl(suspect.getPortraitImageUrl())
-                .imagePrompt(suspect.getImagePrompt())
+                .imagePrompt(ensureKoreanPersonPrompt(suspect.getImagePrompt()))
                 .relationToVictim(suspect.getRelationToVictim())
                 .suspiciousPoint(suspect.getSuspiciousPoint())
                 .alibiSummary(suspect.getAlibiSummary())
@@ -880,7 +880,7 @@ public class AdminEpisodeService {
                 .title(evidence.getTitle())
                 .type(evidence.getType())
                 .imageUrl(evidence.getImageUrl())
-                .imagePrompt(evidence.getImagePrompt())
+                .imagePrompt(ensureKoreanEvidencePrompt(evidence.getImagePrompt()))
                 .textSummary(evidence.getTextSummary())
                 .sourceSpotId(evidence.getSourceSpotId())
                 .relatedSuspectId(evidence.getRelatedSuspectId())
@@ -936,11 +936,11 @@ public class AdminEpisodeService {
         for (AiEpisodeDraftResponse.EvidenceDraft draft : source) {
             CaseEvidence evidence = new CaseEvidence();
             evidence.setEpisodeId(episodeId);
-            evidence.setTitle(blank(draft.getTitle(), "Case material " + (index + 1)));
+            evidence.setTitle(blank(draft.getTitle(), "\uC0AC\uAC74 \uC790\uB8CC " + (index + 1)));
             evidence.setType(validateValue(blank(draft.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Unsupported evidence type."));
             evidence.setImageUrl(draft.getImageUrl());
             evidence.setImagePrompt(ensureKoreanEvidencePrompt(blank(draft.getImagePrompt(), buildEvidenceImagePrompt(draft))));
-            evidence.setTextSummary(blank(draft.getTextSummary(), "Case material that helps combine field clues for final deduction."));
+            evidence.setTextSummary(blank(draft.getTextSummary(), "\uD604\uC7A5 \uB2E8\uC11C\uB97C \uC870\uD569\uD574 \uCD5C\uC885 \uCD94\uB9AC\uB97C \uB3D5\uB294 \uC0AC\uAC74 \uC790\uB8CC\uC785\uB2C8\uB2E4."));
             evidence.setSourceSpotId(resolveSourceSpotId(draft, spotByOrder));
             evidence.setRelatedSuspectId(resolveLinkedSuspectId(draft, suspects, index));
             evidence.setRelatedClueType(blank(draft.getType(), "NOTE"));
@@ -967,21 +967,22 @@ public class AdminEpisodeService {
         String suspicion = blank(draft.getSuspiciousPoint(), "ambiguous motive and hidden route contradiction");
         return "Create a high-quality fictional detective case-file portrait of " + name
                 + ". Casting is mandatory: depict a fictional Korean person from Seoul, South Korea. The subject must look unmistakably Korean; preserve the story's specified age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character's Korean identity. "
-                + "Visual tone: Seoul outdoor mystery, cinematic noir, realistic but not a real person, neutral background, subtle paper texture, evidence board lighting. "
+                + caseFileIllustrationStylePrompt()
                 + "Character clue: " + suspicion
                 + ". Composition: bust portrait, 3/4 view, natural Korean styling and grooming appropriate to the character, restrained expression, sharp facial silhouette. "
-                + "Negative constraints: no foreign tourist styling, no Western fashion editorial look, no text, no watermark, no logo, no celebrity likeness.";
+                + caseFileNegativeImagePrompt() + " No celebrity likeness.";
     }
 
     private String ensureKoreanPersonPrompt(String prompt) {
         if (missing(prompt)) {
             return prompt;
         }
-        String normalized = prompt.toLowerCase(Locale.ROOT);
+        String styled = ensureCaseFileIllustrationStyle(prompt);
+        String normalized = styled.toLowerCase(Locale.ROOT);
         if (normalized.contains("fictional korean person") || normalized.contains("korean identity")) {
-            return prompt;
+            return styled;
         }
-        return prompt.trim()
+        return styled.trim()
                 + " Casting is mandatory: every visible person must be a fictional Korean person from Seoul, South Korea. "
                 + "Preserve the story's age, gender, occupation, and era. Do not cast a Western or European-looking model or change the character's Korean identity.";
     }
@@ -990,11 +991,12 @@ public class AdminEpisodeService {
         if (missing(prompt)) {
             return prompt;
         }
-        String normalized = prompt.toLowerCase(Locale.ROOT);
+        String styled = ensureCaseFileIllustrationStyle(prompt);
+        String normalized = styled.toLowerCase(Locale.ROOT);
         if (normalized.contains("if any person") || normalized.contains("every visible person")) {
-            return prompt;
+            return styled;
         }
-        return prompt.trim()
+        return styled.trim()
                 + " If any person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story's age and era. "
                 + "Do not cast a Western or European-looking model.";
     }
@@ -1004,9 +1006,28 @@ public class AdminEpisodeService {
         String summary = blank(draft.getTextSummary(), "a clue object connected to the route and final deduction");
         return "Create a high-quality detective evidence image for a Korean outdoor escape-room case file. "
                 + "Subject: " + title + ". Story detail: " + summary
-                + ". Style: cinematic close-up, realistic prop photography, aged paper, soft shadows, archival texture, moody natural light. "
+                + ". " + caseFileIllustrationStylePrompt()
                 + "If any person, hand, portrait, reflection, or human silhouette appears, it must belong to a fictional Korean person in Seoul and match the story's era. "
-                + "No Western or European-looking models, no readable text, no watermark, no logo, no UI frame.";
+                + caseFileNegativeImagePrompt();
+    }
+
+    private String ensureCaseFileIllustrationStyle(String prompt) {
+        if (missing(prompt)) {
+            return prompt;
+        }
+        String normalized = prompt.toLowerCase(Locale.ROOT);
+        if (normalized.contains("flat 2d korean webtoon") || normalized.contains("matte paper grain")) {
+            return prompt;
+        }
+        return prompt.trim() + " " + caseFileIllustrationStylePrompt() + caseFileNegativeImagePrompt();
+    }
+
+    private String caseFileIllustrationStylePrompt() {
+        return "Visual style reference: flat 2D Korean webtoon / printed storybook illustration like the attached references, muted earth-tone palette, soft matte paper grain, subtle archival texture, simplified shapes, clean dark ink outlines, gentle cel shading, restrained noir mood, poster-like composition, not photorealistic. Match the case era exactly: Joseon, Daehan Empire, colonial modern, or contemporary Korean styling as specified by the story; use era-appropriate clothing, hair, props, architecture, paper, seals, and handwriting-like marks. ";
+    }
+
+    private String caseFileNegativeImagePrompt() {
+        return "Negative constraints: no photorealism, no 3D render, no glossy game art, no Western comic style, no European-looking models, no foreign tourist styling, no modern objects unless the story era is contemporary, no readable real text, no watermark, no logo, no UI frame. ";
     }
 
     private Long resolveLinkedSuspectId(AiEpisodeDraftResponse.EvidenceDraft draft, List<CaseSuspect> suspects, int index) {
@@ -1036,7 +1057,7 @@ public class AdminEpisodeService {
             List<Map<String, Object>> rewards = new ArrayList<>();
             Map<String, Object> clueReward = new LinkedHashMap<>();
             clueReward.put("type", clueType);
-            clueReward.put("value", blank(mission.getRewardClue(), "검수단서"));
+            clueReward.put("value", sanitizeCategoryCodes(blank(mission.getRewardClue(), "검수단서")));
             rewards.add(clueReward);
             if (evidence != null) {
                 Map<String, Object> evidenceReward = new LinkedHashMap<>();
@@ -1057,16 +1078,16 @@ public class AdminEpisodeService {
     }
 
     private Map<String, Object> buildPuzzleInteraction(AiEpisodeDraftResponse.MissionDraft mission, int index, String clueType) {
-        String basis = firstGroundingText(mission);
+        String basis = sanitizeCategoryCodes(firstGroundingText(mission));
         String localSolution = localGameSolution(mission, basis, index);
         String type = chooseInteractionType(mission, index, localSolution);
         Map<String, Object> interaction = new LinkedHashMap<>();
         interaction.put("version", 1);
         interaction.put("type", type);
         interaction.put("title", interactionTitle(type, clueType));
-        interaction.put("prompt", blank(mission.getQuestionText(), "단서 장치를 풀고 제출 버튼을 누르세요."));
-        interaction.put("storyHook", "해금 단서: " + blank(mission.getRewardClue(), "사건 단서"));
-        interaction.put("basis", basis);
+        interaction.put("prompt", sanitizeCategoryCodes(blank(mission.getQuestionText(), "단서 장치를 풀고 제출 버튼을 누르세요.")));
+        interaction.put("storyHook", "해금 단서: " + sanitizeCategoryCodes(blank(mission.getRewardClue(), "사건 단서")));
+        interaction.put("basis", sanitizeCategoryCodes(basis));
         interaction.put("localSolution", localSolution);
         interaction.put("timeLimitSeconds", type.equals("RAPID_TAP") ? 12 : 0);
         interaction.put("config", interactionConfig(type, localSolution, basis, index));
@@ -1407,6 +1428,21 @@ public class AdminEpisodeService {
         return value.length() <= 1000 && (normalized.startsWith("https://") || normalized.startsWith("http://"));
     }
 
+    private String sanitizeCategoryCodes(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value
+                .replace("KakaoLocal:CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
+                .replace("KakaoLocal:FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
+                .replace("KakaoLocal:CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
+                .replace("KakaoLocal:AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810")
+                .replace("CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
+                .replace("FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
+                .replace("CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
+                .replace("AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810");
+    }
+
 
 
 
@@ -1421,8 +1457,8 @@ public class AdminEpisodeService {
         episode.setEra(blank(safeRequest.getEra(), "Review required"));
         episode.setGenre(blank(safeRequest.getGenre(), "Outdoor case-file mystery"));
         episode.setDifficulty(blank(safeRequest.getDifficulty(), "NORMAL"));
-        episode.setEstimatedTime(blank(safeRequest.getEstimatedTime(), "90~120 min"));
-        episode.setEstimatedDistance(blank(safeRequest.getEstimatedDistance(), "Review required"));
+        episode.setEstimatedTime(blank(safeRequest.getEstimatedTime(), "90~120\uBD84"));
+        episode.setEstimatedDistance(blank(safeRequest.getEstimatedDistance(), "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694"));
         episode.setFictionSynopsis(blank(safeRequest.getFictionSynopsis(), "Admin draft. Write the case synopsis before publishing."));
         episode.setFinalAnswerType(blank(safeRequest.getFinalAnswerType(), "EVIDENCE"));
         episode.setFinalAnswer(blank(safeRequest.getFinalAnswer(), "review-required"));
@@ -1433,9 +1469,9 @@ public class AdminEpisodeService {
         episode.setDeductionSecretFacts(blank(safeRequest.getDeductionSecretFacts(), "Enter internal facts for deduction."));
         episode.setDeductionForbiddenReveals(blank(safeRequest.getDeductionForbiddenReveals(), "Do not reveal the final answer or actual final place."));
         episode.setMaxDeductionQuestions(safeRequest.getMaxDeductionQuestions() == null ? 20 : safeRequest.getMaxDeductionQuestions());
-        episode.setRecommendedPlayers(blank(safeRequest.getRecommendedPlayers(), "2~4 players"));
-        episode.setTeamRoleGuide(blank(safeRequest.getTeamRoleGuide(), "Split roles into map, case-file, puzzle, and recorder."));
-        episode.setNoticeText(blank(safeRequest.getNoticeText(), "Complete field review before publishing."));
+        episode.setRecommendedPlayers(blank(safeRequest.getRecommendedPlayers(), "2~4\uBA85"));
+        episode.setTeamRoleGuide(blank(safeRequest.getTeamRoleGuide(), "\uC9C0\uB3C4, \uC0AC\uAC74\uD30C\uC77C, \uD37C\uC990, \uAE30\uB85D \uC5ED\uD560\uB85C \uB098\uB204\uC5B4 \uC9C4\uD589\uD558\uC138\uC694."));
+        episode.setNoticeText(blank(safeRequest.getNoticeText(), "\uACF5\uAC1C \uC804 \uD604\uC7A5 \uAC80\uC218\uB97C \uC644\uB8CC\uD558\uC138\uC694."));
         episode.setStatus(validateValue(text(safeRequest.getStatus(), "DRAFT"), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "Status must be DRAFT, PUBLISHED, or ARCHIVED."));
         if ("PUBLISHED".equals(episode.getStatus())) validatePublishReadiness(episode);
         adminEpisodeRepository.insertEpisode(episode);
@@ -1522,8 +1558,8 @@ public class AdminEpisodeService {
         if (containsCompact(value, "culture") || containsCompact(value, "museum") || containsCompact(value, "gallery") || containsCompact(value, "exhibition") || containsCompact(value, "history")) score += 45;
         if (containsCompact(value, "palace") || containsCompact(value, "gate") || containsCompact(value, "heritage")) score += 34;
         if (containsCompact(value, "park") || containsCompact(value, "square") || containsCompact(value, "street") || containsCompact(value, "market") || containsCompact(value, "bookstore")) score += 28;
-        if (containsCompact(value, "KakaoLocal:CT1") || containsCompact(value, "KakaoLocal:AT4")) score += 30;
-        if (containsCompact(value, "KakaoLocal:CE7") || containsCompact(value, "KakaoLocal:FD6")) score += 20;
+        if (containsCompact(value, "KakaoLocal:CT1") || containsCompact(value, "KakaoLocal:AT4") || containsCompact(value, "\uBB38\uD654\uC2DC\uC124") || containsCompact(value, "\uAD00\uAD11\uBA85\uC18C")) score += 30;
+        if (containsCompact(value, "KakaoLocal:CE7") || containsCompact(value, "KakaoLocal:FD6") || containsCompact(value, "\uCE74\uD398") || containsCompact(value, "\uC74C\uC2DD\uC810")) score += 20;
         double distance = distanceMeters(anchor.getLatitude(), anchor.getLongitude(), candidate.getLatitude(), candidate.getLongitude());
         if (Double.isFinite(distance)) {
             if (distance >= 80 && distance <= 700) score += 25;
@@ -1536,7 +1572,7 @@ public class AdminEpisodeService {
 
 
     private String enrichedDescription(AiEpisodeDraftRequest.PlaceInput source, List<AdminPlaceCandidateResponse> rankedNearby) {
-        String base = blank(source.getDescription(), "Selected operation spot.");
+        String base = blank(source.getDescription(), "\uC120\uD0DD\uB41C \uC870\uC0AC \uC9C0\uC810\uC785\uB2C8\uB2E4.");
         String topSignals = rankedNearby.stream()
                 .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
                 .limit(3)
@@ -1545,7 +1581,7 @@ public class AdminEpisodeService {
         if (topSignals.isBlank()) {
             return base;
         }
-        return base + " Nearby verification focus: " + topSignals + ".";
+        return base + " \uC8FC\uBCC0 \uD655\uC778 \uD6C4\uBCF4: " + topSignals + ".";
     }
 
     private List<String> focusedKeywords(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
@@ -1564,14 +1600,14 @@ public class AdminEpisodeService {
 
     private List<String> inferredVisibleElements(List<AdminPlaceCandidateResponse> rankedNearby) {
         List<String> values = new ArrayList<>();
-        values.add("place name sign to verify on site");
-        values.add("address and entrance area to verify on site");
+        values.add("\uD604\uC7A5\uC5D0\uC11C \uD655\uC778\uD560 \uC7A5\uC18C\uBA85 \uAC04\uD310");
+        values.add("\uD604\uC7A5\uC5D0\uC11C \uD655\uC778\uD560 \uC8FC\uC18C\uC640 \uC785\uAD6C \uC601\uC5ED");
         rankedNearby.stream()
                 .filter(candidate -> !"RAG_ERROR".equals(candidate.getSource()))
                 .limit(4)
                 .map(this::categoryVisibleElement)
                 .forEach(values::add);
-        values.add("nearby route context to verify on site");
+        values.add("\uD604\uC7A5\uC5D0\uC11C \uD655\uC778\uD560 \uC8FC\uBCC0 \uB3D9\uC120 \uB2E8\uC11C");
         return values;
     }
 
@@ -1580,14 +1616,14 @@ public class AdminEpisodeService {
         if (!missing(place.getAdminMemo())) {
             memo.add(place.getAdminMemo());
         }
-        memo.add("RAG/site enrichment narrowed the admin verification scope using nearby Kakao Local signals.");
-        memo.add("Use these signals only as candidate verification targets. Do not treat signs, numbers, sculptures, or opening hours as confirmed until on-site inspection.");
+        memo.add("RAG/\uC0AC\uC774\uD2B8 \uBCF4\uAC15\uC73C\uB85C \uC8FC\uBCC0 Kakao Local \uC2E0\uD638\uB97C \uC0AC\uC6A9\uD574 \uAD00\uB9AC\uC790 \uD655\uC778 \uBC94\uC704\uB97C \uC881\uD614\uC2B5\uB2C8\uB2E4.");
+        memo.add("\uC774 \uC2E0\uD638\uB294 \uD655\uC778 \uD6C4\uBCF4\uB85C\uB9CC \uC0AC\uC6A9\uD558\uC138\uC694. \uAC04\uD310, \uC22B\uC790, \uC870\uD615\uBB3C, \uC601\uC5C5\uC2DC\uAC04\uC740 \uD604\uC7A5 \uD655\uC778 \uC804\uAE4C\uC9C0 \uD655\uC815 \uC815\uBCF4\uB85C \uCDE8\uAE09\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.");
         if (place.getLatitude() == null || place.getLongitude() == null) {
-            memo.add("No coordinates: external search could not run. Add latitude/longitude before publishing.");
+            memo.add("\uC88C\uD45C\uAC00 \uC5C6\uC5B4 \uC678\uBD80 \uAC80\uC0C9\uC744 \uC2E4\uD589\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uACF5\uAC1C \uC804 \uC704\uB3C4/\uACBD\uB3C4\uB97C \uCD94\uAC00\uD558\uC138\uC694.");
             return String.join("\n", memo);
         }
         if (rankedNearby.isEmpty()) {
-            memo.add("No nearby signals found within 900m. Admin should add manual field notes.");
+            memo.add("900m \uC774\uB0B4\uC5D0\uC11C \uC8FC\uBCC0 \uC2E0\uD638\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uAD00\uB9AC\uC790\uAC00 \uC218\uB3D9 \uD604\uC7A5 \uBA54\uBAA8\uB97C \uCD94\uAC00\uD558\uC138\uC694.");
             return String.join("\n", memo);
         }
         List<AdminPlaceCandidateResponse> usable = rankedNearby.stream()
@@ -1595,26 +1631,27 @@ public class AdminEpisodeService {
                 .limit(5)
                 .toList();
         if (usable.isEmpty()) {
-            rankedNearby.stream().findFirst().ifPresent(candidate -> memo.add(candidate.getTitle() + " - " + blank(candidate.getDescription(), "external search failed")));
+            rankedNearby.stream().findFirst().ifPresent(candidate -> memo.add(candidate.getTitle() + " - " + blank(candidate.getDescription(), "\uC678\uBD80 \uAC80\uC0C9 \uC2E4\uD328")));
             return String.join("\n", memo);
         }
-        memo.add("Top verification targets:");
+        memo.add("\uC8FC\uC694 \uD655\uC778 \uD6C4\uBCF4:");
         for (int i = 0; i < usable.size(); i++) {
             AdminPlaceCandidateResponse candidate = usable.get(i);
             memo.add((i + 1) + ". " + candidate.getTitle()
                     + " / " + categoryKeyword(candidate)
-                    + " / approx " + Math.round(distanceMeters(place.getLatitude(), place.getLongitude(), candidate.getLatitude(), candidate.getLongitude())) + "m"
-                    + " / verify: " + categoryVisibleElement(candidate));
+                    + " / \uC57D " + Math.round(distanceMeters(place.getLatitude(), place.getLongitude(), candidate.getLatitude(), candidate.getLongitude())) + "m"
+                    + " / \uD655\uC778 \uB300\uC0C1: " + categoryVisibleElement(candidate));
         }
-        memo.add("Recommended puzzle basis: use only admin-confirmed visibleElements/numbers after field check. Until then, AI may create story clues and verification placeholders, not factual observation claims.");
+        memo.add("\uAD8C\uC7A5 \uD37C\uC990 \uADFC\uAC70: \uD604\uC7A5 \uD655\uC778 \uD6C4 \uAD00\uB9AC\uC790\uAC00 \uD655\uC815\uD55C visibleElements/numbers\uB9CC \uC0AC\uC6A9\uD558\uC138\uC694. \uADF8 \uC804\uC5D0\uB294 AI\uAC00 \uC2E4\uC81C \uAD00\uCC30 \uC0AC\uC2E4\uC774 \uC544\uB2CC \uC2A4\uD1A0\uB9AC \uB2E8\uC11C\uC640 \uD655\uC778\uC6A9 \uC784\uC2DC \uB2E8\uC11C\uB9CC \uB9CC\uB4ED\uB2C8\uB2E4.");
         return String.join("\n", memo);
     }
 
     private String categoryKeyword(AdminPlaceCandidateResponse candidate) {
         String source = blank(candidate.getSource(), "");
         String value = String.join(" ", blank(candidate.getTitle(), ""), blank(candidate.getSource(), ""), blank(candidate.getDescription(), ""), blank(candidate.getAddress(), ""));
-        if (source.contains("CT1") || containsCompact(value, "culture") || containsCompact(value, "museum") || containsCompact(value, "gallery") || containsCompact(value, "exhibition")) return "\ubb38\ud654\uc804\uc2dc";
-        if (source.contains("CE7") || containsCompact(value, "cafe") || containsCompact(value, "coffee")) return "\uce74\ud398\uc270\ud130";
+        if (source.contains("CT1") || containsCompact(value, "\ubb38\ud654\uc2dc\uc124") || containsCompact(value, "culture") || containsCompact(value, "museum") || containsCompact(value, "gallery") || containsCompact(value, "exhibition")) return "\ubb38\ud654\uc804\uc2dc";
+        if (source.contains("CE7") || containsCompact(value, "\uce74\ud398") || containsCompact(value, "cafe") || containsCompact(value, "coffee")) return "\uce74\ud398\uc270\ud130";
+        if (source.contains("FD6") || containsCompact(value, "\uc74c\uc2dd\uc810") || containsCompact(value, "\uc2dd\ub2f9") || containsCompact(value, "restaurant") || containsCompact(value, "food")) return "\uc2dd\ub2f9\uc0c1\uad8c";
         if (containsCompact(value, "park") || containsCompact(value, "square") || containsCompact(value, "street")) return "\uacf5\uac1c\uad11\uc7a5";
         return "\ud604\uc7a5\ub2e8\uc11c";
     }
@@ -1625,10 +1662,11 @@ public class AdminEpisodeService {
     private String categoryVisibleElement(AdminPlaceCandidateResponse candidate) {
         String keyword = categoryKeyword(candidate);
         return switch (keyword) {
-            case "culture-exhibition" -> "exhibition sign or building marker";
-            case "cafe-rest-point" -> "menu board or entrance marker";
-            case "open-public-space" -> "public sign stone or route guide";
-            default -> "field marker or nearby structure";
+            case "\ubb38\ud654\uc804\uc2dc" -> "\uc804\uc2dc \uc548\ub0b4\ubb38 \ub610\ub294 \uac74\ubb3c \ud45c\uc9c0";
+            case "\uce74\ud398\uc270\ud130" -> "\uba54\ub274\ud310 \ub610\ub294 \uc785\uad6c \ud45c\uc9c0";
+            case "\uc2dd\ub2f9\uc0c1\uad8c" -> "\uac00\uac8c \uac04\ud310 \ub610\ub294 \uc0c1\uad8c \ub3d9\uc120 \ud45c\uc9c0";
+            case "\uacf5\uac1c\uad11\uc7a5" -> "\uacf5\uacf5 \ud45c\uc9c0\uc11d \ub610\ub294 \ub3d9\uc120 \uc548\ub0b4\ud45c";
+            default -> "\ud604\uc7a5 \ud45c\uc9c0\ubb3c \ub610\ub294 \uc8fc\ubcc0 \uad6c\uc870\ubb3c";
         };
     }
 
@@ -1834,10 +1872,10 @@ public class AdminEpisodeService {
 
     private String buildRewardClue(String role, int index) {
         return switch (role) {
-            case "ANSWER_HINT" -> List.of("seal", "photo", "document", "shadow").get(Math.min(Math.max(index - 1, 0), 3));
-            case "DESTINATION_HINT", "FINAL" -> index % 2 == 0 ? "red wall" : "last door";
-            case "START" -> "case start";
-            default -> "case clue";
+            case "ANSWER_HINT" -> List.of("\uBC00\uB78D \uC778\uC7A5", "\uD750\uB9B0 \uC0AC\uC9C4", "\uC811\uD78C \uBB38\uC11C", "\uAE34 \uADF8\uB9BC\uC790").get(Math.min(Math.max(index - 1, 0), 3));
+            case "DESTINATION_HINT", "FINAL" -> index % 2 == 0 ? "\uBD89\uC740 \uB2F4\uC7A5" : "\uB9C8\uC9C0\uB9C9 \uBB38";
+            case "START" -> "\uC0AC\uAC74 \uC2DC\uC791 \uB2E8\uC11C";
+            default -> "\uC0AC\uAC74 \uB2E8\uC11C";
         };
     }
 
@@ -1845,7 +1883,7 @@ public class AdminEpisodeService {
 
 
     private String estimateDraftDistance(List<AiEpisodeDraftResponse.MissionDraft> missions) {
-        if (missions == null || missions.size() < 2) return "walking route review required";
+        if (missions == null || missions.size() < 2) return "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694";
         double meters = 0;
         for (int i = 1; i < missions.size(); i++) {
             AiEpisodeDraftResponse.MissionDraft prev = missions.get(i - 1);
@@ -1853,9 +1891,9 @@ public class AdminEpisodeService {
             double segment = distanceMeters(prev.getLatitude(), prev.getLongitude(), current.getLatitude(), current.getLongitude());
             if (Double.isFinite(segment)) meters += segment;
         }
-        if (meters <= 0) return "walking route review required";
+        if (meters <= 0) return "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694";
         double km = Math.round((meters / 1000.0) * 10.0) / 10.0;
-        return "about " + km + "km";
+        return "\uC57D " + km + "km";
     }
 
 

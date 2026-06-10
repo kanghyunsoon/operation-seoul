@@ -1,36 +1,40 @@
 ﻿<template>
-  <section v-if="puzzle" class="puzzle-card" :class="{ immersive: hasInteraction }">
-    <div class="puzzle-head">
-      <span>{{ interactionTitle || puzzleTypeLabel(puzzle.puzzleType) }}</span>
-      <strong>{{ puzzle.difficulty || 'NORMAL' }}</strong>
-      <button type="button" class="close-btn" aria-label="퍼즐 닫기" @click="$emit('close')">닫기</button>
-    </div>
+  <Teleport to="body">
+    <section v-if="puzzle" class="puzzle-overlay" role="dialog" aria-modal="true" aria-labelledby="puzzle-title">
+      <article class="puzzle-card" :class="{ immersive: hasInteraction }">
+        <div class="puzzle-head">
+          <span>{{ interactionTitle || puzzleTypeLabel(puzzle.puzzleType) }}</span>
+          <strong>{{ puzzle.difficulty || 'NORMAL' }}</strong>
+          <button type="button" class="close-btn" aria-label="퍼즐 닫기" @click="$emit('close')">닫기</button>
+        </div>
 
-    <h3>{{ hasInteraction ? '단서 장치' : '현장 퍼즐' }}</h3>
-    <p class="guide">{{ puzzleGuide }}</p>
-    <p class="question">{{ interactionPrompt || puzzle.questionText || '이 장소의 퍼즐 질문이 아직 없습니다. 관리자 화면에서 질문을 보강하세요.' }}</p>
+        <h3 id="puzzle-title">{{ hasInteraction ? '단서 장치와 현장 퍼즐' : '현장 퍼즐' }}</h3>
+        <p class="guide">{{ puzzleGuide }}</p>
+        <p class="question">{{ interactionPrompt || puzzle.questionText || '이 장소의 퍼즐 질문이 아직 없습니다. 관리자 화면에서 질문을 보강하세요.' }}</p>
 
-    <MiniGameRenderer v-if="hasInteraction" :interaction="interaction" @solved-change="miniGameSolved = $event" @proof-change="miniGameProof = $event" />
+        <MiniGameRenderer v-if="hasInteraction" :interaction="interaction" @solved-change="miniGameSolved = $event" @proof-change="miniGameProof = $event" />
 
-    <button v-if="hasInteraction" type="button" class="unlock-btn" :disabled="!miniGameSolved" @click="submitInteraction">
-      {{ miniGameSolved ? '장치 해제 · 정답 제출' : '장치를 먼저 해제하세요' }}
-    </button>
+        <button v-if="hasInteraction" type="button" class="unlock-btn" :disabled="!miniGameSolved" @click="submitInteraction">
+          {{ miniGameSolved ? '장치 해제 · 정답 제출' : '장치를 먼저 해제하세요' }}
+        </button>
 
-    <details class="hint-box">
-      <summary>힌트 보기</summary>
-      <ol v-if="safeHints.length">
-        <li v-for="(hint, index) in safeHints" :key="`${index}-${hint}`">{{ normalizeHint(hint, index) }}</li>
-      </ol>
-      <p v-else>등록된 힌트가 없습니다. 관리자 화면에서 3단계 힌트를 추가하세요.</p>
-    </details>
+        <details class="hint-box">
+          <summary>힌트 보기</summary>
+          <ol v-if="safeHints.length">
+            <li v-for="(hint, index) in safeHints" :key="`${index}-${hint}`">{{ normalizeHint(hint, index) }}</li>
+          </ol>
+          <p v-else>등록된 힌트가 없습니다. 관리자 화면에서 3단계 힌트를 추가하세요.</p>
+        </details>
 
-    <form v-if="!hasInteraction" @submit.prevent="submit">
-      <input v-model.trim="answer" :placeholder="`정답 형식: ${puzzle.answerFormat || 'TEXT'}`" autocomplete="off" />
-      <button type="submit">정답 제출</button>
-    </form>
+        <form v-if="!hasInteraction" @submit.prevent="submit">
+          <input v-model.trim="answer" :placeholder="`정답 형식: ${puzzle.answerFormat || 'TEXT'}`" autocomplete="off" />
+          <button type="submit">정답 제출</button>
+        </form>
 
-    <p v-if="message" class="message" :class="{ success: correct === true, error: correct === false }">{{ message }}</p>
-  </section>
+        <p v-if="message" class="message" :class="{ success: correct === true, error: correct === false }">{{ message }}</p>
+      </article>
+    </section>
+  </Teleport>
 </template>
 
 <script setup>
@@ -115,7 +119,8 @@ function isRouteDependentHint(text) {
 </script>
 
 <style scoped>
-.puzzle-card { position: fixed; left: 50%; bottom: 232px; z-index: 28; width: min(calc(100% - 24px), 430px); max-height: 56vh; overflow: auto; transform: translateX(-50%); box-sizing: border-box; padding: 16px; border: 1px solid rgba(251,146,60,.3); border-radius: 20px; background: radial-gradient(circle at top left, rgba(14,116,144,.32), transparent 34%), rgba(2,6,23,.97); color: #e2e8f0; box-shadow: 0 18px 50px rgba(0,0,0,.35); }
+.puzzle-overlay { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; box-sizing: border-box; padding: 18px; background: radial-gradient(circle at 22% 12%, rgba(8,145,178,.32), transparent 30%), rgba(2,6,23,.72); backdrop-filter: blur(10px); }
+.puzzle-card { width: min(100%, 780px); max-height: min(86vh, 860px); overflow: auto; box-sizing: border-box; padding: clamp(16px, 3vw, 24px); border: 1px solid rgba(251,146,60,.3); border-radius: 24px; background: radial-gradient(circle at top left, rgba(14,116,144,.32), transparent 34%), rgba(2,6,23,.98); color: #e2e8f0; box-shadow: 0 28px 90px rgba(0,0,0,.5); }
 .puzzle-card.immersive { border-color: rgba(56,189,248,.42); }
 .puzzle-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: #fb923c; font-size: .74rem; font-weight: 900; }
 h3 { margin: 8px 0; color: #fff; }
@@ -133,8 +138,5 @@ button { border: 0; border-radius: 10px; background: #ea580c; color: #fff; font-
 .message { margin: 10px 0 0; padding: 9px; border-radius: 10px; font-size: .84rem; }
 .success { background: rgba(22,101,52,.22); color: #bbf7d0; }
 .error { background: rgba(127,29,29,.22); color: #fecaca; }
-@media (min-width: 900px) {
-  .puzzle-card { left: 24px; bottom: 24px; transform: none; width: 440px; max-height: calc(100vh - 120px); }
-}
 @media (max-width: 370px) { form { grid-template-columns: 1fr; } button { min-height: 42px; } }
 </style>
