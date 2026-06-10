@@ -60,14 +60,14 @@ public class AdminEpisodeGeminiService {
         List<String> warnings = normalizeAndValidateDraft(draft, request);
         return AiEpisodeDraftResponse.builder()
                 .generatorType("GEMINI_STRUCTURED_DRAFT")
-                .message("Gemini created a structured case-file draft. Review all field observations before publishing.")
+                .message("Gemini created a structured case-file draft with AI/site-data verification targets.")
                 .draft(draft)
                 .validationWarnings(warnings)
                 .nextSteps(List.of(
                         "Review final answer, aliases, and forbidden reveals.",
-                        "Verify every sign, number, object, and facility condition on site.",
+                        "Verify each puzzle is grounded in selected place data, admin memo, AI/site enrichment, or fiction-safe clues.",
                         "Edit puzzles, hints, reward_payload, suspects, and evidences before saving as DRAFT.",
-                        "Save as DRAFT only, then publish after manual inspection."
+                        "Save as DRAFT first, then publish when AI/site-data checks pass."
                 ))
                 .build();
     }
@@ -93,16 +93,16 @@ public class AdminEpisodeGeminiService {
                 .valid(requiredFixes.isEmpty())
                 .riskScore(riskScore)
                 .summary(requiredFixes.isEmpty()
-                        ? "Draft passed required validation checks. Manual site inspection is still required before publishing."
+                        ? "Draft passed required validation checks for AI/site-data operation."
                         : "Draft has blocking issues. Fix required items before saving or publishing.")
                 .findings(findings)
                 .requiredFixes(requiredFixes)
                 .publishChecklist(List.of(
-                        "Confirm every place coordinate and arrival radius on site.",
-                        "Confirm every visible element, sign, number, and object used in puzzles.",
+                        "Confirm every place coordinate and arrival radius from selected place data or admin GPS QA.",
+                        "Confirm every puzzle uses provided candidate data, admin memo, AI/site enrichment, or generated fiction-safe clues.",
                         "Confirm final answer is fictional and not a real place, person, or event.",
                         "Confirm map API will expose only publicMarkerType, never internal finalPlace.",
-                        "Save generated content as DRAFT first and publish only after admin review."
+                        "Save generated content as DRAFT first and publish when blocking issues are resolved."
                 ))
                 .build();
     }
