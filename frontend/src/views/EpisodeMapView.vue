@@ -270,7 +270,13 @@ async function arriveAtSpot(spot) {
     arrivalResults.value = { ...arrivalResults.value, [spot.spotId]: result };
     const wrongFinalCandidate = ['FINAL_CANDIDATE', 'DESTINATION_HINT'].includes(spot.publicMarkerType) && result.arrived && !result.canStartDeduction;
     setStatus(wrongFinalCandidate ? '이 장소에서는 최종 추리를 시작할 수 없습니다. 목적지 힌트를 다시 확인해 주세요.' : result.message, result.arrived ? 'success' : 'info');
+    const shouldOpenPuzzle = Boolean(result.arrived && result.canOpenPuzzle);
     await loadAll();
+    if (shouldOpenPuzzle) {
+      const updatedSpot = (mapData.value?.spots || []).find((item) => item.spotId === spot.spotId) || spot;
+      selectedSpot.value = updatedSpot;
+      await openPuzzle(updatedSpot);
+    }
   } catch (error) {
     setStatus(error.userMessage || error.message || '도착 판정을 진행할 수 없습니다.', 'error');
   }

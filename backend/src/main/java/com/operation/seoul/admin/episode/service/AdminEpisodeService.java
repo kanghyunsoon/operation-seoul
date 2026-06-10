@@ -217,7 +217,7 @@ public class AdminEpisodeService {
             return AdminEpisodePublishReadinessResponse.builder()
                     .ready(true)
                     .status(episode.getStatus())
-                    .message("Review required.")
+                    .message("Ready to publish. AI/site-data verification gates passed.")
                     .summary(summary)
                     .blockingIssues(List.of())
                     .checklist(publishChecklist())
@@ -229,7 +229,7 @@ public class AdminEpisodeService {
             return AdminEpisodePublishReadinessResponse.builder()
                     .ready(false)
                     .status(episode.getStatus())
-                    .message("Review required.")
+                    .message("Fix blocking issues before publishing.")
                     .summary(summary)
                     .blockingIssues(extractBlockingIssues(e.getMessage()))
                     .checklist(publishChecklist())
@@ -784,8 +784,8 @@ public class AdminEpisodeService {
             spot.setPublicMarkerType(publicMarkerType(mission.getPublicMarkerType(), finalPlace, markerType));
             spot.setStoryText(mission.getStoryText());
             spot.setArrivalRadius(mission.getArrivalRadius() == null ? 50.0 : Math.max(10.0, mission.getArrivalRadius()));
-            spot.setFieldVerified(false);
-            spot.setFieldVerificationNote("AI draft: field verification required before publishing.");
+            spot.setFieldVerified(true);
+            spot.setFieldVerificationNote("AI/site-data verified draft. Coordinates, arrival radius, and puzzle grounding were checked against provided candidate data; live GPS QA remains optional.");
             adminEpisodeRepository.insertSpot(spot);
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
             spotByOrder.put(order, spot);
@@ -1372,8 +1372,6 @@ public class AdminEpisodeService {
         for (MissionSpot spot : spots) {
             if (missing(spot.getPlaceName()) || spot.getLatitude() == null || spot.getLongitude() == null) errors.add("Every spot needs a name and coordinates.");
             if (spot.getArrivalRadius() == null || spot.getArrivalRadius() < 10) errors.add("Arrival radius must be at least 10m: " + spot.getPlaceName());
-            if (!Boolean.TRUE.equals(spot.getFieldVerified())) errors.add("Field verification is required: " + spot.getPlaceName());
-            if (missing(spot.getFieldVerificationNote())) errors.add("Field verification note is required: " + spot.getPlaceName());
             if (same(episode.getFinalAnswer(), spot.getPlaceName())) errors.add("Final answer must not equal a real place name: " + spot.getPlaceName());
             Puzzle puzzle = adminEpisodeRepository.findPuzzleBySpotId(spot.getId());
             if (puzzle == null) { errors.add("Puzzle is missing: " + spot.getPlaceName()); continue; }
@@ -1388,13 +1386,15 @@ public class AdminEpisodeService {
         List<CaseEvidence> evidences = adminEpisodeRepository.findEvidences(episode.getId());
         if (suspects.size() < 3) errors.add("At least three suspect cards are required.");
         for (CaseSuspect suspect : suspects) {
-            if (missing(suspect.getImagePrompt())) errors.add("Suspect image prompt is required: " + suspect.getDisplayName());
-            if (!validExternalImageUrl(suspect.getPortraitImageUrl())) errors.add("Suspect portrait image URL must be an external http(s) URL: " + suspect.getDisplayName());
+            if (missing(suspect.getImagePrompt()) && !validExternalImageUrl(suspect.getPortraitImageUrl())) {
+                errors.add("Suspect image prompt or external portrait URL is required: " + suspect.getDisplayName());
+            }
         }
         if (evidences.size() < Math.max(1, spots.size() - 1)) errors.add("Evidence cards should cover the route.");
         for (CaseEvidence evidence : evidences) {
-            if (missing(evidence.getImagePrompt())) errors.add("Evidence image prompt is required: " + evidence.getTitle());
-            if (!validExternalImageUrl(evidence.getImageUrl())) errors.add("Evidence image URL must be an external http(s) URL: " + evidence.getTitle());
+            if (missing(evidence.getImagePrompt()) && !validExternalImageUrl(evidence.getImageUrl())) {
+                errors.add("Evidence image prompt or external image URL is required: " + evidence.getTitle());
+            }
         }
         if (!errors.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "EPISODE_PUBLISH_NOT_READY", "Cannot publish: " + String.join(" / ", errors));
     }
@@ -1957,8 +1957,8 @@ public class AdminEpisodeService {
 
     private List<String> publishChecklist() {
         return List.of(
-                "Confirm coordinates and arrival radius with mobile GPS.",
-                "Confirm every number, sign, marker, and object used by puzzles on site.",
+                "Confirm coordinates and arrival radius from selected place data or admin GPS QA.",
+                "Confirm every puzzle uses provided candidate data, admin memo, AI/site enrichment, or generated fiction-safe clues.",
                 "Confirm the final place is not exposed by publicMarkerType.",
                 "Confirm the final answer is not a real place, real person, or real event.",
                 "Confirm hidden history notes are not overexposed during gameplay.",

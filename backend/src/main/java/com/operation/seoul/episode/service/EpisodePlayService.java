@@ -21,6 +21,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -263,7 +265,7 @@ public class EpisodePlayService {
                 .answerFormat(puzzle.getAnswerFormat())
                 .difficulty(puzzle.getDifficulty())
                 .hints(episodeRepository.findHintsByPuzzleId(puzzle.getId()).stream().map(PuzzleHint::getHintText).toList())
-                .interaction(readPuzzleInteraction(puzzle.getRewardPayload()))
+                .interaction(puzzleInteraction(puzzle))
                 .build();
     }
 
@@ -282,12 +284,73 @@ public class EpisodePlayService {
         }
     }
 
+    private Map<String, Object> puzzleInteraction(Puzzle puzzle) {
+        Map<String, Object> existing = readPuzzleInteraction(puzzle.getRewardPayload());
+        return existing == null ? buildFallbackInteraction(puzzle) : existing;
+    }
+
+    private String minigamePayload(Puzzle puzzle) {
+        Map<String, Object> existing = readPuzzleInteraction(puzzle.getRewardPayload());
+        if (existing != null) {
+            return puzzle.getRewardPayload();
+        }
+        try {
+            return objectMapper.writeValueAsString(Map.of("interaction", buildFallbackInteraction(puzzle)));
+        } catch (Exception ignored) {
+            return puzzle.getRewardPayload();
+        }
+    }
+
+    private Map<String, Object> buildFallbackInteraction(Puzzle puzzle) {
+        String localSolution = fallbackMinigameSolution(puzzle);
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("tiles", rotatedCharacters(localSolution));
+
+        Map<String, Object> interaction = new LinkedHashMap<>();
+        interaction.put("version", 1);
+        interaction.put("type", "WORD_COMPOSE");
+        interaction.put("title", "단서 장치 · 단어 조합");
+        interaction.put("prompt", puzzle.getQuestionText());
+        interaction.put("storyHook", "해금 단서: " + fallbackText(puzzle.getRewardClue(), "사건 단서"));
+        interaction.put("basis", fallbackText(puzzle.getRewardClue(), "사건 단서"));
+        interaction.put("localSolution", localSolution);
+        interaction.put("timeLimitSeconds", 0);
+        interaction.put("config", config);
+        return interaction;
+    }
+
+    private String fallbackMinigameSolution(Puzzle puzzle) {
+        String source = fallbackText(puzzle.getRewardClue(), fallbackText(puzzle.getQuestionText(), "단서장치"));
+        String compact = source.replaceAll("\\s+", "");
+        if (compact.length() > 8) {
+            compact = compact.substring(0, 8);
+        }
+        return compact.isBlank() ? "단서장치" : compact;
+    }
+
+    private List<String> rotatedCharacters(String value) {
+        List<String> characters = new ArrayList<>(value.codePoints()
+                .mapToObj(codePoint -> new String(Character.toChars(codePoint)))
+                .filter(text -> !text.isBlank())
+                .toList());
+        if (characters.size() < 2) {
+            characters.add("단");
+            characters.add("서");
+        }
+        Collections.rotate(characters, Math.max(1, characters.size() / 2));
+        return characters;
+    }
+
+    private String fallbackText(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
     private boolean isPuzzleAnswerAccepted(Puzzle puzzle, String submittedAnswer) {
         String normalizedSubmitted = normalizeAnswer(submittedAnswer);
         if (normalizeAnswer(puzzle.getAnswer()).equals(normalizedSubmitted)) {
             return true;
         }
-        return minigameProofValidator.validate(puzzle.getRewardPayload(), submittedAnswer);
+        return minigameProofValidator.validate(minigamePayload(puzzle), submittedAnswer);
     }
 
     @Transactional
