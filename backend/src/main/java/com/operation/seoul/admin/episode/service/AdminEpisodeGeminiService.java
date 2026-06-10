@@ -142,6 +142,7 @@ public class AdminEpisodeGeminiService {
                 
                 Hard rules:
                 - Use only the provided places and provided field data.
+                - Never show raw Kakao Local category codes such as CE7, FD6, CT1, or AT4 in player-facing text. Translate them to Korean meanings such as 카페/커피 휴식 지점, 음식점/식당 상권, 문화시설/전시 지점, or 관광명소/명소 지점.
                 - Do not invent real signs, plaque text, numbers, stairs, sculptures, murals, access rules, or photo-verifiable objects.
                 - NUMBER_LOCK puzzles may use only numbers listed in place.numbers.
                 - OBSERVATION puzzles may use only visibleElements, keywords, description, and adminMemo.
@@ -173,6 +174,8 @@ public class AdminEpisodeGeminiService {
                 - Evidences must have specific case-file titles and summaries tied to mission rewardClue. Do not return generic "case sketch", "draft card", or "admin review" evidence text.
                 - For every suspect and every evidence card, provide a separate imagePrompt field. Each imagePrompt must be a copy-ready English prompt for an external image generator.
                 - imagePrompt must describe the subject, visual style, mood, composition, and negative constraints. It must not say "same as above" and must not depend on another card.
+                - All imagePrompt values must use the attached reference style: flat 2D Korean webtoon / printed storybook illustration, muted earth-tone palette, soft matte paper grain, subtle archival texture, simplified shapes, clean dark ink outlines, gentle cel shading, restrained noir mood, and poster-like composition. Do not request photorealism, 3D render, glossy game art, Western comic style, or realistic prop photography.
+                - All imagePrompt values must match the story era exactly. Use era-appropriate Korean clothing, hair, props, architecture, paper, seals, and handwriting-like marks for Joseon, Daehan Empire, colonial modern, or contemporary settings.
                 - Every suspect imagePrompt must explicitly say that the subject is a fictional Korean person from Seoul, South Korea. Preserve the character's intended age, gender, occupation, and historical era. Explicitly prevent the image generator from casting a Western or European-looking model or changing the character's Korean identity.
                 - Every evidence imagePrompt that may contain a person, hand, portrait, reflection, or silhouette must explicitly require a fictional Korean person and Seoul-appropriate styling for the story era.
                 - Do not put generated image URLs in imageUrl unless the admin provided one. Leave imageUrl empty by default and use imagePrompt for manual generation.
@@ -531,6 +534,7 @@ public class AdminEpisodeGeminiService {
             if (blank(mission.getGroundRule())) {
                 mission.setGroundRule("Uses only provided visibleElements, numbers, keywords, description, and adminMemo.");
             }
+            sanitizeCategoryCodes(mission);
         }
         if (!finalExists) {
             warnings.add("Final place and final answer require admin review.");
@@ -566,19 +570,19 @@ public class AdminEpisodeGeminiService {
                     .publicMarkerType(publicMarkerType(place.getPublicMarkerType(), "FINAL".equals(role), role))
                     .clueRole("FINAL".equals(role) ? "FINAL_PLACE" : toClueRole(role))
                     .finalPlace("FINAL".equals(role))
-                    .storyText(blank(place.getDescription()) ? "Open the case file and identify how this spot supports the story premise." : place.getDescription())
+                    .storyText(blank(place.getDescription()) ? "\uC0AC\uAC74\uD30C\uC77C\uC744 \uD655\uC778\uD558\uACE0 \uC774 \uC9C0\uC810\uC774 \uC2A4\uD1A0\uB9AC \uB2E8\uC11C\uC640 \uC5B4\uB5BB\uAC8C \uC5F0\uACB0\uB418\uB294\uC9C0 \uCC3E\uC73C\uC138\uC694." : place.getDescription())
                     .arrivalRadius(place.getArrivalRadius() == null ? 50.0 : place.getArrivalRadius())
                     .puzzleType(recommendedPuzzleType(place))
-                    .questionText("Enter the clue keyword that connects this spot to the case file.")
+                    .questionText("\uC774 \uC9C0\uC810\uACFC \uC0AC\uAC74\uD30C\uC77C\uC744 \uC5F0\uACB0\uD558\uB294 \uB2E8\uC11C \uD0A4\uC6CC\uB4DC\uB97C \uC785\uB825\uD558\uC138\uC694.")
                     .answer(fallbackAnswer(place))
                     .answerFormat(answerFormat(place))
                     .rewardClue(fallbackReward(role, index))
                     .hints(List.of(
-                            "Review this generated draft before publishing.",
-                            "Review this generated draft before publishing.",
-                            "Review this generated draft before publishing."
+                            "\uC0AC\uAC74\uD30C\uC77C\uC758 \uAD00\uB828 \uB2E8\uC11C\uB97C \uBA3C\uC800 \uD655\uC778\uD558\uC138\uC694.",
+                            "\uD604\uC7A5 \uC815\uBCF4\uC640 \uC0AC\uAC74 \uBA54\uBAA8\uC5D0 \uBC18\uBCF5\uB418\uB294 \uD0A4\uC6CC\uB4DC\uB97C \uCC3E\uC73C\uC138\uC694.",
+                            "\uC815\uB2F5\uC740 \uC774 \uC9C0\uC810\uC744 \uC124\uBA85\uD558\uB294 \uC9E7\uC740 \uB2E8\uC11C\uC785\uB2C8\uB2E4."
                     ))
-                    .groundRule("Generated locally because Gemini omitted this selected place.")
+                    .groundRule("Gemini\uAC00 \uC120\uD0DD \uC7A5\uC18C\uB97C \uB204\uB77D\uD574 \uB85C\uCEEC \uADDC\uCE59\uC73C\uB85C \uC0DD\uC131\uD55C \uBCF4\uC815 \uBBF8\uC158\uC785\uB2C8\uB2E4.")
                     .build());
         }
         if (draft.getMissions() == null || draft.getMissions().size() != expected) {
@@ -589,9 +593,35 @@ public class AdminEpisodeGeminiService {
 
     private String defaultSubtitle(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
         List<AiEpisodeDraftRequest.PlaceInput> places = request == null || request.getPlaces() == null ? List.of() : request.getPlaces();
-        String start = places.isEmpty() ? "case start" : places.get(0).getName();
-        String genre = blank(draft.getGenre()) ? "case mystery" : draft.getGenre();
-        return start + " case-file route: " + genre;
+        String start = places.isEmpty() ? "\uC0AC\uAC74 \uC2DC\uC791\uC810" : places.get(0).getName();
+        String genre = blank(draft.getGenre()) ? "\uC0AC\uAC74 \uBBF8\uC2A4\uD130\uB9AC" : draft.getGenre();
+        return start + " \uC0AC\uAC74\uD30C\uC77C \uB3D9\uC120: " + genre;
+    }
+
+    private void sanitizeCategoryCodes(AiEpisodeDraftResponse.MissionDraft mission) {
+        mission.setStoryText(sanitizeCategoryCodes(mission.getStoryText()));
+        mission.setQuestionText(sanitizeCategoryCodes(mission.getQuestionText()));
+        mission.setAnswer(sanitizeCategoryCodes(mission.getAnswer()));
+        mission.setRewardClue(sanitizeCategoryCodes(mission.getRewardClue()));
+        mission.setGroundRule(sanitizeCategoryCodes(mission.getGroundRule()));
+        if (mission.getHints() != null) {
+            mission.setHints(mission.getHints().stream().map(this::sanitizeCategoryCodes).toList());
+        }
+    }
+
+    private String sanitizeCategoryCodes(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value
+                .replace("KakaoLocal:CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
+                .replace("KakaoLocal:FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
+                .replace("KakaoLocal:CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
+                .replace("KakaoLocal:AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810")
+                .replace("CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
+                .replace("FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
+                .replace("CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
+                .replace("AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810");
     }
 
 
@@ -662,12 +692,11 @@ public class AdminEpisodeGeminiService {
 
     private String fallbackReward(String role, int index) {
         return switch (role) {
-            case "ANSWER_HINT" -> List.of("찢긴 흔적", "렌즈의 곡면", "차가운 유리", "반사된 그림자").get(Math.min(index, 3));
-            case "DESTINATION_HINT", "FINAL" -> index % 2 == 0 ? "붉은 벽의 침묵" : "기록이 닫힌 문";
-            default -> List.of("마지막 사진", "봉인된 봉투", "엇갈린 진술", "사라진 시간").get(Math.min(index % 4, 3));
+            case "ANSWER_HINT" -> List.of("\uCC22\uAE34 \uD754\uC801", "\uBE5B\uBC14\uB79C \uD45C\uBA74", "\uC811\uD78C \uC790\uB9AC", "\uBC18\uC0AC\uB41C \uADF8\uB9BC\uC790").get(Math.min(index, 3));
+            case "DESTINATION_HINT", "FINAL" -> index % 2 == 0 ? "\uBD89\uC740 \uBCBD\uC758 \uCE58\uD658" : "\uAE30\uB85D\uC744 \uC5F0 \uBB38";
+            default -> List.of("\uB9C8\uC9C0\uB9C9 \uC0AC\uC9C4", "\uBD09\uC778\uB41C \uBD09\uD22C", "\uC5C7\uAC08\uB9B0 \uC9C4\uC220", "\uC0AC\uB77C\uC9C4 \uC2DC\uAC04").get(Math.min(index % 4, 3));
         };
     }
-
     private void sanitizeForbiddenReveals(
             AiEpisodeDraftResponse.EpisodeDraft draft,
             AiEpisodeDraftRequest request,
@@ -719,7 +748,7 @@ public class AdminEpisodeGeminiService {
             return;
         }
         if (revealsFinal || repeatsFinalPlaceName || blank(mission.getStoryText())) {
-            mission.setStoryText("Review this generated draft before publishing.");
+            mission.setStoryText("\uCD5C\uC885 \uC7A5\uC18C\uB97C \uC9C1\uC811 \uBC1D\uD788\uC9C0 \uC54A\uACE0, \uC0AC\uAC74\uD30C\uC77C\uC758 \uB2E8\uC11C\uB85C \uD604\uC7A5 \uC815\uBCF4\uB97C \uBE44\uAD50\uD558\uC138\uC694.");
             warnings.add("Mission " + (index + 1) + " was normalized; review before publishing.");
         }
     }
@@ -1042,16 +1071,16 @@ public class AdminEpisodeGeminiService {
 
     private String safeQuestionText(String role) {
         if ("FINAL".equals(role)) {
-            return "Use the unlocked case-file cards to infer the hidden truth without naming the location directly.";
+            return "\uD574\uAE08\uB41C \uC0AC\uAC74\uD30C\uC77C \uCE74\uB4DC\uB97C \uC870\uD569\uD574 \uC7A5\uC18C\uBA85\uC744 \uC9C1\uC811 \uB9D0\uD558\uC9C0 \uC54A\uACE0 \uC228\uACA8\uC9C4 \uC9C4\uC2E4\uC744 \uCD94\uB9AC\uD558\uC138\uC694.";
         }
-        return "Compare this spot's verified clue with the case memo and enter the clue keyword.";
+        return "\uC774 \uC9C0\uC810\uC758 \uD655\uC778\uB41C \uB2E8\uC11C\uC640 \uC0AC\uAC74 \uBA54\uBAA8\uB97C \uBE44\uAD50\uD574 \uB2E8\uC11C \uD0A4\uC6CC\uB4DC\uB97C \uC785\uB825\uD558\uC138\uC694.";
     }
 
     private String safeHint(int index) {
         return switch (index) {
-            case 0 -> "Separate object clues from route clues before guessing.";
-            case 1 -> "Use suspect statements only as contradiction checks.";
-            default -> "Combine the latest reward clue with previously unlocked evidence cards.";
+            case 0 -> "\uC815\uB2F5\uC744 \uCD94\uCE21\uD558\uAE30 \uC804\uC5D0 \uBB3C\uAC74 \uB2E8\uC11C\uC640 \uB3D9\uC120 \uB2E8\uC11C\uB97C \uBD84\uB9AC\uD558\uC138\uC694.";
+            case 1 -> "\uC6A9\uC758\uC790 \uC9C4\uC220\uC740 \uBAA8\uC21C\uC744 \uD655\uC778\uD558\uB294 \uBCF4\uC870 \uADFC\uAC70\uB85C\uB9CC \uC0AC\uC6A9\uD558\uC138\uC694.";
+            default -> "\uCD5C\uADFC \uBCF4\uC0C1 \uB2E8\uC11C\uC640 \uC774\uC804\uC5D0 \uD574\uAE08\uB41C \uC99D\uAC70 \uCE74\uB4DC\uB97C \uD568\uAED8 \uC870\uD569\uD558\uC138\uC694.";
         };
     }
 
@@ -1242,31 +1271,31 @@ public class AdminEpisodeGeminiService {
 
     private String defaultEvidenceTitle(int order) {
         return switch (order) {
-            case 1 -> "first field photo envelope";
-            case 2 -> "torn route memo";
-            case 3 -> "conflicting witness note";
-            case 4 -> "lens fragment record";
-            case 5 -> "red seal sketch";
-            case 6 -> "destination cipher memo";
-            case 7 -> "final route log";
-            case 8 -> "sealed name card";
-            default -> "final deduction support file";
+            case 1 -> "\uCCAB \uD604\uC7A5 \uC0AC\uC9C4 \uBD09\uD22C";
+            case 2 -> "\uCC22\uAE34 \uB3D9\uC120 \uBA54\uBAA8";
+            case 3 -> "\uC5C7\uAC08\uB9B0 \uBAA9\uACA9 \uAE30\uB85D";
+            case 4 -> "\uB80C\uC988 \uD30C\uD3B8 \uAE30\uB85D";
+            case 5 -> "\uBD89\uC740 \uC778\uC7A5 \uC2A4\uCF00\uCE58";
+            case 6 -> "\uBAA9\uC801\uC9C0 \uC554\uD638 \uBA54\uBAA8";
+            case 7 -> "\uCD5C\uC885 \uB3D9\uC120 \uAE30\uB85D";
+            case 8 -> "\uBD09\uC778\uB41C \uBA85\uD568";
+            default -> "\uCD5C\uC885 \uCD94\uB9AC \uBCF4\uC870 \uD30C\uC77C";
         };
     }
 
 
     private String defaultEvidenceSummary(int order, AiEpisodeDraftRequest.PlaceInput place) {
-        String name = place == null || blank(place.getName()) ? "this spot" : place.getName();
+        String name = place == null || blank(place.getName()) ? "\uC774 \uC9C0\uC810" : place.getName();
         return switch (order) {
-            case 1 -> name + " marks the opening point of the case.";
-            case 2 -> name + " links route movement with a missing trace.";
-            case 3 -> "A witness record that exposes a contradiction.";
-            case 4 -> "Evidence that narrows the nature of the final object.";
-            case 5 -> "A clue connecting suspect motive to the case.";
-            case 6 -> "A memo that narrows the destination without naming it.";
-            case 7 -> "A log for reconstructing the final movement path.";
-            case 8 -> "A sealed file to check before final deduction.";
-            default -> "Support material for combining collected clues.";
+            case 1 -> name + "\uC774 \uC0AC\uAC74\uC758 \uC2DC\uC791 \uC9C0\uC810\uC784\uC744 \uD45C\uC2DC\uD569\uB2C8\uB2E4.";
+            case 2 -> name + "\uC758 \uB3D9\uC120\uACFC \uC0AC\uB77C\uC9C4 \uD754\uC801\uC744 \uC5F0\uACB0\uD569\uB2C8\uB2E4.";
+            case 3 -> "\uC11C\uB85C \uB9DE\uC9C0 \uC54A\uB294 \uC9C4\uC220\uC744 \uB4DC\uB7EC\uB0B4\uB294 \uBAA9\uACA9 \uAE30\uB85D\uC785\uB2C8\uB2E4.";
+            case 4 -> "\uCD5C\uC885 \uC99D\uAC70\uBB3C\uC758 \uC815\uCCB4\uB97C \uC881\uD600\uC8FC\uB294 \uC790\uB8CC\uC785\uB2C8\uB2E4.";
+            case 5 -> "\uC6A9\uC758\uC790\uC758 \uB3D9\uAE30\uC640 \uC0AC\uAC74\uC744 \uC5F0\uACB0\uD558\uB294 \uB2E8\uC11C\uC785\uB2C8\uB2E4.";
+            case 6 -> "\uC7A5\uC18C\uBA85\uC744 \uC9C1\uC811 \uB9D0\uD558\uC9C0 \uC54A\uACE0 \uBAA9\uC801\uC9C0\uB97C \uC881\uD600\uC8FC\uB294 \uBA54\uBAA8\uC785\uB2C8\uB2E4.";
+            case 7 -> "\uCD5C\uC885 \uB3D9\uC120\uC744 \uB2E4\uC2DC \uAD6C\uC131\uD558\uB294 \uB370 \uD544\uC694\uD55C \uAE30\uB85D\uC785\uB2C8\uB2E4.";
+            case 8 -> "\uCD5C\uC885 \uCD94\uB9AC \uC804\uC5D0 \uD655\uC778\uD574\uC57C \uD560 \uBD09\uC778\uB41C \uD30C\uC77C\uC785\uB2C8\uB2E4.";
+            default -> "\uBAA8\uC740 \uB2E8\uC11C\uB97C \uC870\uD569\uD558\uB294 \uB370 \uD544\uC694\uD55C \uBCF4\uC870 \uC790\uB8CC\uC785\uB2C8\uB2E4.";
         };
     }
 

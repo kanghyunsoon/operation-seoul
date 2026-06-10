@@ -62,8 +62,8 @@ public class EpisodePlayService {
                         .era(episode.getEra())
                         .genre(episode.getGenre())
                         .difficulty(episode.getDifficulty())
-                        .estimatedTime(episode.getEstimatedTime())
-                        .estimatedDistance(episode.getEstimatedDistance())
+                        .estimatedTime(localizeEstimatedTime(episode.getEstimatedTime()))
+                        .estimatedDistance(localizeEstimatedDistance(episode.getEstimatedDistance()))
                         .favorited(favoriteEpisodeIds.contains(episode.getId()))
                         .build())
                 .toList();
@@ -73,6 +73,27 @@ public class EpisodePlayService {
         return episodeRepository.findSpotsByEpisodeId(episodeId).stream()
                 .filter(spot -> spot.getLatitude() != null && spot.getLongitude() != null)
                 .anyMatch(spot -> operationAreaResolver.isInsideAreaCode(areaCode, spot.getLatitude(), spot.getLongitude()));
+    }
+
+    private String localizeEstimatedTime(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        return value.trim()
+                .replaceAll("(?i)\\bmin\\b", "\uBD84")
+                .replaceAll("(?i)\\bhours?\\b", "\uC2DC\uAC04")
+                .replaceAll("(?i)\\babout\\b\\s*", "\uC57D ");
+    }
+
+    private String localizeEstimatedDistance(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        String normalized = value.trim();
+        if (normalized.equalsIgnoreCase("walking route review required") || normalized.equalsIgnoreCase("review required")) {
+            return "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694";
+        }
+        return normalized.replaceAll("(?i)\\babout\\b\\s*", "\uC57D ");
     }
 
     public EpisodeDetailResponse getEpisode(Long episodeId, User user) {
@@ -85,8 +106,8 @@ public class EpisodePlayService {
                 .era(episode.getEra())
                 .genre(episode.getGenre())
                 .difficulty(episode.getDifficulty())
-                .estimatedTime(episode.getEstimatedTime())
-                .estimatedDistance(episode.getEstimatedDistance())
+                .estimatedTime(localizeEstimatedTime(episode.getEstimatedTime()))
+                .estimatedDistance(localizeEstimatedDistance(episode.getEstimatedDistance()))
                 .fictionSynopsis(episode.getFictionSynopsis())
                 .finalAnswerType(episode.getFinalAnswerType())
                 .finalQuestion(episode.getFinalQuestion())
@@ -123,7 +144,7 @@ public class EpisodePlayService {
                                 .latitude(spot.getLatitude())
                                 .longitude(spot.getLongitude())
                                 .publicMarkerType("DESTINATION_HINT")
-                                .storyText(spot.getStoryText())
+                                .storyText(sanitizeCategoryCodes(spot.getStoryText()))
                                 .visited(visited.contains(spot.getId()))
                                 .completed(completed.contains(spot.getId()))
                                 .rewardClueCollected(completed.contains(spot.getId()))
@@ -149,7 +170,7 @@ public class EpisodePlayService {
                                 .latitude(spot.getLatitude())
                                 .longitude(spot.getLongitude())
                                 .publicMarkerType(spot.getPublicMarkerType())
-                                .storyText(spot.getStoryText())
+                                .storyText(sanitizeCategoryCodes(spot.getStoryText()))
                                 .visited(visited.contains(spot.getId()))
                                 .completed(completed.contains(spot.getId()))
                                 .rewardClueCollected(completed.contains(spot.getId()))
@@ -261,10 +282,10 @@ public class EpisodePlayService {
                 .puzzleId(puzzle.getId())
                 .spotId(spotId)
                 .puzzleType(puzzle.getPuzzleType())
-                .questionText(puzzle.getQuestionText())
+                .questionText(sanitizeCategoryCodes(puzzle.getQuestionText()))
                 .answerFormat(puzzle.getAnswerFormat())
                 .difficulty(puzzle.getDifficulty())
-                .hints(episodeRepository.findHintsByPuzzleId(puzzle.getId()).stream().map(PuzzleHint::getHintText).toList())
+                .hints(episodeRepository.findHintsByPuzzleId(puzzle.getId()).stream().map(PuzzleHint::getHintText).map(this::sanitizeCategoryCodes).toList())
                 .interaction(puzzleInteraction(puzzle))
                 .build();
     }
@@ -286,7 +307,18 @@ public class EpisodePlayService {
 
     private Map<String, Object> puzzleInteraction(Puzzle puzzle) {
         Map<String, Object> existing = readPuzzleInteraction(puzzle.getRewardPayload());
-        return existing == null ? buildFallbackInteraction(puzzle) : existing;
+        return existing == null ? buildFallbackInteraction(puzzle) : sanitizeInteraction(existing);
+    }
+
+    private Map<String, Object> sanitizeInteraction(Map<String, Object> interaction) {
+        Map<String, Object> copy = new LinkedHashMap<>(interaction);
+        for (String key : List.of("title", "prompt", "storyHook", "basis")) {
+            Object value = copy.get(key);
+            if (value instanceof String text) {
+                copy.put(key, sanitizeCategoryCodes(text));
+            }
+        }
+        return copy;
     }
 
     private String minigamePayload(Puzzle puzzle) {
@@ -310,9 +342,9 @@ public class EpisodePlayService {
         interaction.put("version", 1);
         interaction.put("type", "WORD_COMPOSE");
         interaction.put("title", "단서 장치 · 단어 조합");
-        interaction.put("prompt", puzzle.getQuestionText());
-        interaction.put("storyHook", "해금 단서: " + fallbackText(puzzle.getRewardClue(), "사건 단서"));
-        interaction.put("basis", fallbackText(puzzle.getRewardClue(), "사건 단서"));
+        interaction.put("prompt", sanitizeCategoryCodes(puzzle.getQuestionText()));
+        interaction.put("storyHook", "해금 단서: " + sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "사건 단서")));
+        interaction.put("basis", sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "사건 단서")));
         interaction.put("localSolution", localSolution);
         interaction.put("timeLimitSeconds", 0);
         interaction.put("config", config);
@@ -320,7 +352,7 @@ public class EpisodePlayService {
     }
 
     private String fallbackMinigameSolution(Puzzle puzzle) {
-        String source = fallbackText(puzzle.getRewardClue(), fallbackText(puzzle.getQuestionText(), "단서장치"));
+        String source = sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), fallbackText(puzzle.getQuestionText(), "단서장치")));
         String compact = source.replaceAll("\\s+", "");
         if (compact.length() > 8) {
             compact = compact.substring(0, 8);
@@ -343,6 +375,21 @@ public class EpisodePlayService {
 
     private String fallbackText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private String sanitizeCategoryCodes(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value
+                .replace("KakaoLocal:CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
+                .replace("KakaoLocal:FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
+                .replace("KakaoLocal:CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
+                .replace("KakaoLocal:AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810")
+                .replace("CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
+                .replace("FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
+                .replace("CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
+                .replace("AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810");
     }
 
     private boolean isPuzzleAnswerAccepted(Puzzle puzzle, String submittedAnswer) {
@@ -398,7 +445,7 @@ public class EpisodePlayService {
         );
         return PuzzleSubmitResponse.builder()
                 .correct(true)
-                .rewardClue(puzzle.getRewardClue())
+                .rewardClue(sanitizeCategoryCodes(puzzle.getRewardClue()))
                 .caseFileUpdated(rewardResult.caseFileUpdated())
                 .unlockedRewardTypes(rewardResult.rewardTypes())
                 .unlockedEvidenceIds(rewardResult.evidenceIds())
@@ -653,9 +700,9 @@ public class EpisodePlayService {
     }
 
     private ClueBoardResponse buildClueBoard(UserEpisodeProgress progress) {
-        List<String> answer = readStringList(progress.getCollectedAnswerClues());
-        List<String> destination = readStringList(progress.getCollectedDestinationClues());
-        List<String> story = readStringList(progress.getCollectedStoryClues());
+        List<String> answer = readStringList(progress.getCollectedAnswerClues()).stream().map(this::sanitizeCategoryCodes).toList();
+        List<String> destination = readStringList(progress.getCollectedDestinationClues()).stream().map(this::sanitizeCategoryCodes).toList();
+        List<String> story = readStringList(progress.getCollectedStoryClues()).stream().map(this::sanitizeCategoryCodes).toList();
         return ClueBoardResponse.builder()
                 .episodeId(progress.getEpisodeId())
                 .answerClues(answer)
@@ -689,12 +736,13 @@ public class EpisodePlayService {
         if (clue == null || clue.isBlank()) {
             return;
         }
+        String clean = sanitizeCategoryCodes(clue.trim());
         if ("ANSWER_HINT".equals(spot.getClueRole())) {
-            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), clue));
+            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), clean));
         } else if ("DESTINATION_HINT".equals(spot.getClueRole()) || "FINAL_PLACE".equals(spot.getClueRole())) {
-            progress.setCollectedDestinationClues(addString(progress.getCollectedDestinationClues(), clue));
+            progress.setCollectedDestinationClues(addString(progress.getCollectedDestinationClues(), clean));
         } else {
-            progress.setCollectedStoryClues(addString(progress.getCollectedStoryClues(), clue));
+            progress.setCollectedStoryClues(addString(progress.getCollectedStoryClues(), clean));
         }
     }
 
@@ -714,7 +762,7 @@ public class EpisodePlayService {
                 if (rewards.isArray()) {
                     for (JsonNode reward : rewards) {
                         String type = reward.path("type").asText("");
-                        String value = reward.path("value").asText("");
+                        String value = sanitizeCategoryCodes(reward.path("value").asText(""));
                         Long targetId = reward.hasNonNull("targetId") ? reward.path("targetId").asLong() : null;
                         boolean added = applyReward(progress, type, value, targetId);
                         if (added) {

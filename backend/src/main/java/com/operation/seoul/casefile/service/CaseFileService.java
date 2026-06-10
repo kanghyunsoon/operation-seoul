@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -39,9 +40,9 @@ public class CaseFileService {
         UserEpisodeProgress progress = caseFileRepository.findProgress(user.getId(), episodeId);
         List<Long> visitedSpotIds = readLongList(progress == null ? null : progress.getVisitedSpotIds());
         List<Long> completedSpotIds = readLongList(progress == null ? null : progress.getCompletedSpotIds());
-        List<String> answerClues = readStringList(progress == null ? null : progress.getCollectedAnswerClues());
-        List<String> destinationClues = readStringList(progress == null ? null : progress.getCollectedDestinationClues());
-        List<String> storyClues = readStringList(progress == null ? null : progress.getCollectedStoryClues());
+        List<String> answerClues = readStringList(progress == null ? null : progress.getCollectedAnswerClues()).stream().map(this::localizeClueValue).toList();
+        List<String> destinationClues = readStringList(progress == null ? null : progress.getCollectedDestinationClues()).stream().map(this::localizeClueValue).toList();
+        List<String> storyClues = readStringList(progress == null ? null : progress.getCollectedStoryClues()).stream().map(this::localizeClueValue).toList();
         Set<Long> unlockedSuspectIds = readLongList(progress == null ? null : progress.getUnlockedSuspectIds()).stream().collect(Collectors.toSet());
         Set<Long> clearedSuspectIds = readLongList(progress == null ? null : progress.getClearedSuspectIds()).stream().collect(Collectors.toSet());
         Set<Long> unlockedEvidenceIds = readLongList(progress == null ? null : progress.getUnlockedEvidenceIds()).stream().collect(Collectors.toSet());
@@ -58,8 +59,8 @@ public class CaseFileService {
                 .subtitle(episode.getSubtitle())
                 .genre(episode.getGenre())
                 .difficulty(episode.getDifficulty())
-                .estimatedTime(episode.getEstimatedTime())
-                .estimatedDistance(episode.getEstimatedDistance())
+                .estimatedTime(localizeEstimatedTime(episode.getEstimatedTime()))
+                .estimatedDistance(localizeEstimatedDistance(episode.getEstimatedDistance()))
                 .recommendedPlayers(episode.getRecommendedPlayers())
                 .startRegion("서울 정동길")
                 .progressStatus(progress == null ? "NOT_STARTED" : progress.getStatus())
@@ -139,17 +140,16 @@ public class CaseFileService {
         boolean unlocked = Boolean.TRUE.equals(evidence.getUnlockedByDefault()) || unlockedIds.contains(evidence.getId());
         return CaseFileResponse.Evidence.builder()
                 .evidenceId(evidence.getId())
-                .title(unlocked ? evidence.getTitle() : "잠긴 사건 자료")
+                .title(unlocked ? localizeEvidenceTitle(evidence.getTitle()) : "\uC7A0\uAE34 \uC0AC\uAC74\uC790\uB8CC")
                 .type(evidence.getType())
                 .imageUrl(unlocked ? evidence.getImageUrl() : null)
-                .textSummary(unlocked ? evidence.getTextSummary() : "현장 퍼즐을 해결하면 자료가 해금됩니다.")
+                .textSummary(unlocked ? localizeEvidenceSummary(evidence.getTextSummary(), evidence.getTitle()) : "\uD604\uC7A5 \uD37C\uC990\uC744 \uD574\uACB0\uD558\uBA74 \uC774 \uC790\uB8CC\uAC00 \uC0AC\uAC74\uD30C\uC77C\uC5D0 \uCD94\uAC00\uB429\uB2C8\uB2E4.")
                 .sourceSpotId(unlocked ? evidence.getSourceSpotId() : null)
                 .relatedSuspectIds(unlocked && evidence.getRelatedSuspectId() != null ? List.of(evidence.getRelatedSuspectId()) : List.of())
                 .relatedClueType(evidence.getRelatedClueType())
                 .unlocked(unlocked)
                 .build();
     }
-
     private int countUnlockedSuspects(List<CaseSuspect> suspects, Set<Long> unlockedIds) {
         return (int) suspects.stream().filter(suspect -> Boolean.TRUE.equals(suspect.getUnlockedByDefault()) || unlockedIds.contains(suspect.getId())).count();
     }
@@ -161,6 +161,120 @@ public class CaseFileService {
     private List<String> splitLines(String text) {
         if (text == null || text.isBlank()) return List.of();
         return text.lines().map(String::trim).filter(line -> !line.isBlank()).toList();
+    }
+
+    private String localizeEstimatedTime(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        String normalized = value.trim();
+        return normalized.replaceAll("(?i)\\bmin\\b", "\uBD84").replaceAll("(?i)\\bhours?\\b", "\uC2DC\uAC04").replaceAll("(?i)\\babout\\b\\s*", "\uC57D ");
+    }
+
+    private String localizeEstimatedDistance(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        String normalized = value.trim();
+        if (normalized.equalsIgnoreCase("walking route review required") || normalized.equalsIgnoreCase("review required")) {
+            return "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694";
+        }
+        return normalized.replaceAll("(?i)\\babout\\b\\s*", "\uC57D ");
+    }
+
+    private String localizeClueValue(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        String text = value.trim();
+        String normalized = text.toLowerCase(Locale.ROOT).replaceAll("[_\\-]+", " ").replaceAll("\\s+", " ");
+        return switch (normalized) {
+            case "red wall" -> "\uBD89\uC740 \uB2F4\uC7A5";
+            case "last door" -> "\uB9C8\uC9C0\uB9C9 \uBB38";
+            case "north" -> "\uBD81\uCABD";
+            case "waterfront", "water side", "waterside" -> "\uBB3C\uAC00";
+            case "bell sound", "bell", "bell ring" -> "\uC885\uC18C\uB9AC";
+            case "seal" -> "\uBC00\uB78D \uC778\uC7A5";
+            case "photo" -> "\uD750\uB9B0 \uC0AC\uC9C4";
+            case "document" -> "\uC811\uD78C \uBB38\uC11C";
+            case "shadow" -> "\uAE34 \uADF8\uB9BC\uC790";
+            case "case start" -> "\uC0AC\uAC74 \uC2DC\uC791 \uB2E8\uC11C";
+            case "case clue" -> "\uC0AC\uAC74 \uB2E8\uC11C";
+            case "final place confirmation" -> "\uCD5C\uC885 \uC7A5\uC18C \uD655\uC778 \uB2E8\uC11C";
+            case "nearby verification focus", "site verification focus" -> "\uC8FC\uBCC0 \uD655\uC778 \uC9C0\uC810";
+            case "nearby famous place signal" -> "\uC8FC\uBCC0 \uBA85\uC18C \uB2E8\uC11C";
+            default -> isEnglishOnly(text) ? "\uD574\uB3C5 \uD544\uC694 \uB2E8\uC11C" : text;
+        };
+    }
+
+    private String localizeEvidenceTitle(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        String text = value.trim();
+        String normalized = text.toLowerCase(Locale.ROOT).replaceAll("[_\\-]+", " ").replaceAll("\\s+", " ");
+        return switch (normalized) {
+            case "first field photo envelope" -> "\uCCAB \uD604\uC7A5 \uC0AC\uC9C4 \uBD09\uD22C";
+            case "torn route memo" -> "\uCC22\uAE34 \uB3D9\uC120 \uBA54\uBAA8";
+            case "conflicting witness note" -> "\uC5C7\uAC08\uB9B0 \uBAA9\uACA9 \uAE30\uB85D";
+            case "lens fragment record" -> "\uB80C\uC988 \uD30C\uD3B8 \uAE30\uB85D";
+            case "red seal sketch" -> "\uBD89\uC740 \uC778\uC7A5 \uC2A4\uCF00\uCE58";
+            case "destination cipher memo" -> "\uBAA9\uC801\uC9C0 \uC554\uD638 \uBA54\uBAA8";
+            case "final route log" -> "\uCD5C\uC885 \uB3D9\uC120 \uAE30\uB85D";
+            case "sealed name card" -> "\uBD09\uC778\uB41C \uBA85\uD568";
+            case "final deduction support file" -> "\uCD5C\uC885 \uCD94\uB9AC \uBCF4\uC870 \uD30C\uC77C";
+            default -> {
+                String clueTitle = normalized.endsWith(" clue card")
+                        ? localizeClueValue(text.substring(0, text.length() - " clue card".length())) + " \uB2E8\uC11C \uCE74\uB4DC"
+                        : text;
+                yield isEnglishOnly(clueTitle) ? "\uD574\uB3C5 \uD544\uC694 \uC0AC\uAC74\uC790\uB8CC" : clueTitle;
+            }
+        };
+    }
+
+    private String localizeEvidenceSummary(String value, String title) {
+        if (value == null || value.isBlank()) {
+            return "\uD604\uC7A5 \uB2E8\uC11C\uB97C \uCD94\uB9AC\uC5D0 \uC5F0\uACB0\uD558\uB294 \uC0AC\uAC74\uC790\uB8CC\uC785\uB2C8\uB2E4.";
+        }
+        String text = value.trim();
+        String lower = text.toLowerCase(Locale.ROOT);
+        if (lower.contains("marks the opening point of the case")) {
+            return "\uC0AC\uAC74\uC758 \uC2DC\uC791 \uC9C0\uC810\uC744 \uD45C\uC2DC\uD558\uB294 \uC790\uB8CC\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("links route movement with a missing trace")) {
+            return "\uB3D9\uC120\uACFC \uC0AC\uB77C\uC9C4 \uD754\uC801\uC744 \uC5F0\uACB0\uD558\uB294 \uBA54\uBAA8\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("witness record") && lower.contains("contradiction")) {
+            return "\uC11C\uB85C \uB9DE\uC9C0 \uC54A\uB294 \uC9C4\uC220\uC744 \uB4DC\uB7EC\uB0B4\uB294 \uBAA9\uACA9 \uAE30\uB85D\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("narrows the nature of the final object")) {
+            return "\uCD5C\uC885 \uC99D\uAC70\uBB3C\uC758 \uC815\uCCB4\uB97C \uC881\uD600\uC8FC\uB294 \uC790\uB8CC\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("connecting suspect motive to the case")) {
+            return "\uC6A9\uC758\uC790\uC758 \uB3D9\uAE30\uC640 \uC0AC\uAC74\uC744 \uC5F0\uACB0\uD558\uB294 \uB2E8\uC11C\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("narrows the destination without naming it")) {
+            return "\uC7A5\uC18C\uBA85\uC744 \uC9C1\uC811 \uB9D0\uD558\uC9C0 \uC54A\uACE0 \uBAA9\uC801\uC9C0\uB97C \uC881\uD600\uC8FC\uB294 \uBA54\uBAA8\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("reconstructing the final movement path")) {
+            return "\uCD5C\uC885 \uB3D9\uC120\uC744 \uB2E4\uC2DC \uAD6C\uC131\uD558\uB294 \uB370 \uD544\uC694\uD55C \uAE30\uB85D\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("sealed file") && lower.contains("final deduction")) {
+            return "\uCD5C\uC885 \uCD94\uB9AC \uC804\uC5D0 \uD655\uC778\uD574\uC57C \uD560 \uBD09\uC778\uB41C \uD30C\uC77C\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("support material for combining collected clues")) {
+            return "\uBAA8\uC740 \uB2E8\uC11C\uB97C \uC870\uD569\uD558\uB294 \uB370 \uD544\uC694\uD55C \uBCF4\uC870 \uC790\uB8CC\uC785\uB2C8\uB2E4.";
+        }
+        if (lower.contains("case material unlocked after solving this mission")) {
+            return "\uC774 \uBBF8\uC158\uC744 \uD480\uBA74 \uD574\uAE08\uB418\uB294 \uC0AC\uAC74\uC790\uB8CC\uC785\uB2C8\uB2E4.";
+        }
+        return isEnglishOnly(text) ? localizeEvidenceTitle(title) + "\uC5D0 \uC5F0\uACB0\uB41C \uC0AC\uAC74\uC790\uB8CC\uC785\uB2C8\uB2E4." : text;
+    }
+    private boolean isEnglishOnly(String text) {
+        if (text == null || text.isBlank() || text.chars().anyMatch(ch -> ch >= 0xAC00 && ch <= 0xD7A3)) {
+            return false;
+        }
+        return text.chars().filter(ch -> (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')).count() >= 3;
     }
 
     private String briefingTitle(Episode episode) {
