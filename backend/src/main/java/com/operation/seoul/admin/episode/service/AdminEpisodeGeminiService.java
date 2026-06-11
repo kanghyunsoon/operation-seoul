@@ -6,6 +6,7 @@ import com.operation.seoul.admin.episode.dto.AiEpisodeDraftRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftResponse;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftValidationRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftValidationResponse;
+import com.operation.seoul.admin.episode.dto.AiEpisodePlanResponse;
 import com.operation.seoul.global.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -70,6 +71,44 @@ public class AdminEpisodeGeminiService {
                         "Save as DRAFT first, then publish when AI/site-data checks pass."
                 ))
                 .build();
+    }
+
+    public AiEpisodePlanResponse createAnswerPlan(AiEpisodeDraftRequest request) {
+        validateRequest(request);
+        ensureApiKey();
+        String prompt = buildPlanPrompt(request);
+        String json = callGemini(prompt);
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode keywordsNode = root.path("finalAnswerKeywords");
+            List<AiEpisodePlanResponse.AnswerKeyword> keywords = new ArrayList<>();
+            if (keywordsNode.isArray()) {
+                for (JsonNode node : keywordsNode) {
+                    String label = node.path("label").asText("");
+                    String keyword = node.path("keyword").asText("");
+                    if (!blank(label) && !blank(keyword)) {
+                        keywords.add(AiEpisodePlanResponse.AnswerKeyword.builder()
+                                .label(label.trim())
+                                .keyword(keyword.trim())
+                                .build());
+                    }
+                }
+            }
+            if (keywords.size() < 2) {
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_SCHEMA_INVALID", "Gemini answer plan must include at least two final answer keywords.");
+            }
+            return AiEpisodePlanResponse.builder()
+                    .selectedGenre(root.path("selectedGenre").asText("역사 미스터리"))
+                    .finalAnswerKeywords(keywords)
+                    .finalQuestionGuide(root.path("finalQuestionGuide").asText(""))
+                    .rationale(root.path("rationale").asText(""))
+                    .nextSteps(List.of("관리자가 장르와 정답 키워드를 확인합니다.", "확인 후 이 키워드 전체가 포함되도록 Gemini 전체 초안을 생성합니다."))
+                    .build();
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_PARSE_FAILED", "Gemini 장르/정답 키워드 계획을 해석할 수 없습니다.");
+        }
     }
 
     public AiEpisodeDraftValidationResponse validateDraft(AiEpisodeDraftValidationRequest request) {
@@ -142,6 +181,29 @@ public class AdminEpisodeGeminiService {
                 
                 Hard rules:
                 - Use only the provided places and provided field data.
+                - Treat provided TourAPI/place description, keywords, visibleElements, numbers, and adminMemo as the factual source material. Do not use outside facts unless they are explicitly present in those fields.
+                - Identify the internal FINAL/FINAL_PLACE location from the provided places. Build the episode around the historical event, person, object, or cultural memory connected to that final location's provided facts.
+                - TOP PRIORITY STORY CONTRACT: First decide the fictionSynopsis operation objective, then make finalQuestion and finalAnswer match that exact objective. The final question must never ask about a different objective than the synopsis.
+                - If input.selectedGenre and input.finalAnswerKeywords are present, they are already admin-approved. You must use that selectedGenre as the episode genre and every finalAnswerKeywords value as mandatory final answer keywords.
+                - When admin-approved finalAnswerKeywords exist, finalAnswer must be a natural Korean sentence that includes every keyword value exactly or near-exactly. finalAnswerAliases must include one item prefixed with "KW:" followed by all keyword values joined by "|", for example "KW:용의자 A|얼린 북어|궁전 뒷뜰".
+                - finalQuestion must ask for the full answer implied by all approved keyword labels. Do not ask for only one keyword or one object if multiple keywords are approved.
+                - Never reveal the approved finalAnswerKeywords directly in early briefing fields: episodeTitle, subtitle, fictionSynopsis, and finalQuestion. Use symbolic descriptions, categories, contradictions, silhouettes, route features, or partial non-answer clues instead.
+                - Mission clues, suspect cards, and evidence cards may reveal individual keyword candidates progressively, but no single pre-clear clue field may state the complete final answer sentence or list every approved keyword together.
+                - finalQuestion must ask by slot labels or mystery roles, not by exact keyword values. Example: ask "범인, 범행도구, 사건장소를 종합하면 어떤 진실인가?" but do not include "용의자 A", "얼린 북어", or "궁전 뒷뜰".
+                - fictionSynopsis may state the type of truth the player must infer, but it must not list the actual final answer keywords.
+                - Extract the required answer slots from the synopsis objective. If the synopsis asks the player to identify an enemy and find a hideout, finalQuestion and finalAnswer must include both the enemy identity and hideout. If it asks for culprit + weapon + motive, include all three. If it asks only for a missing object's location, include only that because that is the stated objective.
+                - Do not let a MacGuffin object become the final answer unless the synopsis explicitly defines finding that object/location as the final objective. Objects such as "설계도", "황실 비밀 자금", "장부", "밀서", and "기록" usually function as clue trails that lead to the real objective.
+                - finalAnswerType should normally be HIDDEN_TRUTH when the answer has multiple required slots. Use EVIDENCE, HIDDEN_DOCUMENT, SECRET_KEYWORD, WEAPON, or CULPRIT only when that type exactly matches every required answer slot from the synopsis.
+                - finalAnswer must be a complete Korean answer containing every required slot from the synopsis objective. Example: if the synopsis says "검은 그림자의 정체를 밝히고 그들이 숨어든 은신처를 찾아야 한다", finalAnswer must contain both the identity of 검은 그림자 and the hideout keyword.
+                - finalQuestion must ask for every required answer slot from the synopsis objective in one sentence. It must not ask only where a blueprint/document/object is hidden when the synopsis objective is identity plus hideout.
+                - finalAnswerAliases must contain only complete alternative answers that cover every required slot. Do not add aliases that contain only one slot, because partial answers should not clear the episode.
+                - Every mission, suspect, evidence, rewardClue, and hint must advance at least one required answer slot from the synopsis objective. Label the clue logic internally through clueRole: ANSWER_HINT narrows the non-location truth slots, DESTINATION_HINT narrows the place/hideout/location slots, and FINAL_PLACE ties all slots together.
+                - Phase 1 Fiction Mode: transform the final location's real history into a symbolic outdoor escape-room mission. Player-facing fiction must feel like an agent operation, not a history lecture.
+                - In Fiction Mode, every major story element must be an allegorical transformation of the real source material: orders, puzzles, clue tokens, suspects, helpers, enemy forces, ciphers, hidden objects, and route logic.
+                - In Fiction Mode, never directly explain which real historical event/person/place inspired the story. The user should experience only the fictional mission until the episode is cleared.
+                - Phase 2 Fact Mode starts only in the clear report fields. actualHistorySummary and finalTruthSummary are post-clear text and may reveal the real final place and real historical motif.
+                - actualHistorySummary must contain two labeled sections: "1. 모티브 공개" and "2. 실제 사건 해설". The first section must include this sentence form: "이 임무는 실제 [최종 목적지]에서 있었던 [역사적 사건/인물]을 모티브로 제작되었습니다."
+                - finalTruthSummary must contain the labeled section "3. 픽션과 역사의 매칭 (디브리핑)" and at least 4 mapping lines in this form: "스토리 속 [특정 장치/지령/용의자/암호] -> 실제 역사 속 [관련 인물/사건/물건]: [차용 및 각색 설명]".
                 - Never show raw Kakao Local category codes such as CE7, FD6, CT1, or AT4 in player-facing text. Translate them to Korean meanings such as 카페/커피 휴식 지점, 음식점/식당 상권, 문화시설/전시 지점, or 관광명소/명소 지점.
                 - Do not invent real signs, plaque text, numbers, stairs, sculptures, murals, access rules, or photo-verifiable objects.
                 - NUMBER_LOCK puzzles may use only numbers listed in place.numbers.
@@ -153,23 +215,23 @@ public class AdminEpisodeGeminiService {
                 - If provided field data is too weak for a real observation puzzle, create a playable STORY_COMBINATION or PATTERN puzzle using keywords/description/adminMemo. Use answer "검수필요" only when there is no usable keyword, description, adminMemo, visibleElement, or number.
                 - Do not mark every mission as placeholder just because on-site inspection is still required. If RAG/site enrichment narrowed the verification scope, create a playable draft puzzle and state the verification basis in groundRule.
                 - Do not make a real historical person the culprit.
-                - Prefer finalAnswerType EVIDENCE, WEAPON, HIDDEN_DOCUMENT, SECRET_KEYWORD, or HIDDEN_TRUTH. Use CULPRIT only when the answer is a fictional title/role, never a real-name-like person.
+                - Prefer finalAnswerType HIDDEN_TRUTH when the synopsis objective has multiple answer slots. Use EVIDENCE, WEAPON, HIDDEN_DOCUMENT, SECRET_KEYWORD, or CULPRIT only when the final answer still satisfies every slot required by the synopsis. Use CULPRIT only when the answer is a fictional title/role, never a real-name-like person.
                 - Never include real historical names such as 고종, 이완용, 을사오적, 안중근, 김구, 이토 히로부미 in finalAnswer, suspect names, culprit labels, or answer aliases.
                 - Do not make finalAnswer a construction like "real historical person + fictional assistant/secretary". That still exposes real history as culprit context.
                 - Do not present a real historical event as a distorted fact.
-                - The final answer must be a clear noun phrase inside the fictional case, not a place name, real person, real event, verb, sentence, or abstract single word.
+                - The final answer must be a clear composite truth inside the fictional case, not a place name alone, real person, real event, verb, sentence, abstract single word, or object-only phrase.
                 - The real final place is an internal role only. Normal user map responses will hide that spot; use publicMarkerType DESTINATION_HINT for generated final-place data.
                 - A final-place mission story must read like a normal investigation candidate. It must not say or imply "this is the final place", "final deduction starts here", or "the answer location".
-                - Do not describe the real final place as the final destination in storyText, rewardClue, destination hints, finalTruthSummary, actualHistorySummary, or deductionSecretFacts.
+                - Do not describe the real final place as the final destination in storyText, rewardClue, destination hints, or deductionSecretFacts. Only post-clear Fact Mode fields may reveal it.
                 - Use exactly 9 missions when possible: 1 START mission that gives the story premise, 4 ANSWER_HINT missions, 3 DESTINATION_HINT missions, and 1 internal FINAL mission.
                 - Create 4 answer clues and 3 destination clues when enough places exist.
                 - Make the draft feel like a real printed detective kit: each mission must reveal a different document, photo, memo, suspect contradiction, route note, or cipher card.
-                - Build one coherent mystery chain. The synopsis, finalQuestion, suspects, evidences, mission rewardClue, and hints must all point to the same final answer and hidden destination logic.
+                - Build one coherent mystery chain. The synopsis, finalQuestion, suspects, evidences, mission rewardClue, and hints must all point to the same final answer slots required by the synopsis objective.
                 - If finalAnswerType is not CULPRIT, suspects are not "the criminal". They are stakeholders, handlers, witnesses, couriers, archivists, brokers, or false leads whose statements reveal contradictions about the hidden document/object/location.
                 - Every suspect card must explain "what this person might have hidden or distorted" and "which clue type can confirm or weaken that suspicion" in natural Korean.
                 - At least one evidence card must support each suspect's suspiciousPoint or alibiSummary. Evidence summaries should name the relevant suspect title/displayName when useful.
-                - Hints must be usable for deduction. Do not write vague mood hints only. Each hint should narrow one of these: final object/document identity, who moved it, why it was moved, route direction, or destination feature.
-                - The player must be able to infer the final answer by combining 3 to 5 unlocked cards without knowing the real final place name.
+                - Hints must be usable for deduction. Do not write vague mood hints only. Each hint should narrow one required answer slot, such as identity, role, motive, object, route, hideout, location feature, or destination feature.
+                - The player must be able to infer the complete final answer by combining 3 to 5 unlocked cards without knowing the real final place name.
                 - Suspects must have concrete fictional names/titles, relationToVictim, suspiciousPoint, and alibiSummary. Do not return generic "AI draft" or "admin review" suspect text.
                 - Evidences must have specific case-file titles and summaries tied to mission rewardClue. Do not return generic "case sketch", "draft card", or "admin review" evidence text.
                 - For every suspect and every evidence card, provide a separate imagePrompt field. Each imagePrompt must be a copy-ready English prompt for an external image generator.
@@ -183,7 +245,7 @@ public class AdminEpisodeGeminiService {
                 - Vary puzzle reasoning patterns across missions. Mix number locks, word composition, color/order logic, memory cues, pattern locks, direction sequences, switch decisions, shadow/shape matching, quick-tap urgency, and small sliding-order puzzles.
                 - The UI will render from fixed minigame components; you should generate story-matched text, answer, clue labels, and reasoning, not arbitrary UI instructions.
                 - Brain-teaser style is encouraged: use shape counts, hidden letter meaning, zodiac/semantic mapping, sequence gaps, grid order, route direction, color-symbol code, and contradiction matching. Do not repeat the same puzzle mechanic more than twice in one episode.
-                - Do not include the real final place name in episodeTitle, subtitle, fictionSynopsis, finalTruthSummary, actualHistorySummary, destination clues, or evidence summaries.
+                - Do not include the real final place name in episodeTitle, subtitle, fictionSynopsis, destination clues, or evidence summaries. actualHistorySummary and finalTruthSummary must reveal it only as post-clear Fact Mode.
                 - Hints must have 3 levels and must not directly reveal the answer.
                 - deductionForbiddenReveals must include the final answer and direct final place reveal.
                 - deductionSecretFacts are for server/admin use and must support yes/no style final deduction.
@@ -195,6 +257,8 @@ public class AdminEpisodeGeminiService {
                   "genre": "string",
                   "era": "string",
                   "fictionSynopsis": "string",
+                  "selectedGenre": "string",
+                  "finalAnswerKeywords": ["actual keyword value"],
                   "finalAnswerType": "CULPRIT|WEAPON|EVIDENCE|HIDDEN_DOCUMENT|SECRET_KEYWORD|HIDDEN_TRUTH",
                   "finalAnswer": "string",
                   "finalAnswerAliases": ["string"],
@@ -230,6 +294,46 @@ public class AdminEpisodeGeminiService {
                   "evidences": [{"title":"string","type":"PHOTO|MEMO|NOTE|DOCUMENT|EVIDENCE|SUSPECT_CLUE|POST_IT|ANSWER_CLUE|DESTINATION_CLUE|STORY_CLUE","imageUrl":"","imagePrompt":"string","textSummary":"string","sourceMissionOrder":1}]
                 }
                 
+                Input:
+                """ + inputJson;
+    }
+
+    private String buildPlanPrompt(AiEpisodeDraftRequest request) {
+        String inputJson;
+        try {
+            inputJson = objectMapper.writeValueAsString(request);
+        } catch (Exception e) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "AI_INPUT_SERIALIZE_FAILED", "Could not serialize AI plan input.");
+        }
+        return """
+                You are the episode planning director for Operation Korea.
+                Return JSON only. Do not wrap it in markdown.
+                Use all selected TourAPI/place data and adminMemo as source material.
+
+                Task:
+                1. Choose exactly one episode genre that best fits the selected places and their historical/cultural facts.
+                2. Create the mandatory final answer keyword list for that genre.
+                3. Each keyword must be an actual answer value, not a slot label. For murder mystery, do not output "범인"; output the fictional culprit keyword. For treasure hunt, do not output "숨겨진 물건"; output the hidden object keyword.
+                4. The keyword list must be sufficient for answer checking. A player answer is correct only if it includes all keyword values.
+                5. Do not use real historical people as culprits. Use fictional roles, aliases, objects, places, or conditions inspired by the source data.
+
+                Genre examples and required slots:
+                - 살인 미스터리: 범인, 범행도구, 사건장소
+                - 보물찾기: 숨겨진 물건, 보관 장소, 해금 조건[비밀번호]
+                - 암호 해독: 최종 문장, 핵심 숫자, 해석 키워드
+                - 실종 사건: 실종 원인, 마지막 장소, 관련 물건
+                You may choose a different genre if the place facts strongly support it, but you must still return 2 to 4 final answer keywords.
+
+                Output schema:
+                {
+                  "selectedGenre": "string",
+                  "finalAnswerKeywords": [
+                    {"label": "범인|범행도구|사건장소|...", "keyword": "actual keyword value"}
+                  ],
+                  "finalQuestionGuide": "string",
+                  "rationale": "string"
+                }
+
                 Input:
                 """ + inputJson;
     }
@@ -300,6 +404,7 @@ public class AdminEpisodeGeminiService {
         if (draft.getFinalAnswerAliases() != null && draft.getFinalAnswerAliases().stream().anyMatch(this::containsBlockedHistoricalName)) {
             addFinding(findings, "ERROR", "REAL_HISTORICAL_PERSON_IN_FINAL_ALIAS", "Final answer aliases must not include real historical person names.", null);
         }
+        validateStoryObjectiveAlignment(draft, findings);
         if (sourceInput != null && sourceInput.getPlaces() != null) {
             for (AiEpisodeDraftRequest.PlaceInput place : sourceInput.getPlaces()) {
                 if (same(place.getName(), draft.getFinalAnswer())) {
@@ -423,7 +528,10 @@ public class AdminEpisodeGeminiService {
                     - If unsafe place-name extraction has already been replaced with generic clue keys such as answer-clue-2, destination-clue-5, or story-clue-3, do not report CLUE_USES_PLACE_NAME_TEXT_EXTRACTION.
                       - NUMBER_LOCK must not use numbers absent from input.
                       - Hints must not directly reveal puzzle answers or the final answer.
+                    - episodeTitle, subtitle, fictionSynopsis, and finalQuestion must not directly reveal admin-approved final answer keywords before clear.
+                    - Mission clues, suspect cards, and evidence cards may reveal individual keyword candidates progressively, but must not list every approved keyword together as the complete final answer.
                       - Story must not distort real history as fact or make real historical people culprits.
+                      - The finalQuestion and finalAnswer must satisfy the fictionSynopsis objective. If the synopsis asks for multiple slots such as identity plus hideout, the finalQuestion and finalAnswer must cover every slot. Report STORY_OBJECTIVE_MISMATCH if the finalQuestion asks about a different object or only one required slot.
                       - Final deduction must have secret facts and forbidden reveal terms.
                     
                       Output schema:
@@ -454,15 +562,35 @@ public class AdminEpisodeGeminiService {
         }
         if (containsBlockedHistoricalName(draft.getFinalAnswer())
                 || ("CULPRIT".equals(normalize(draft.getFinalAnswerType())) && looksLikeRealNameCulprit(draft.getFinalAnswer()))) {
-            draft.setFinalAnswerType("HIDDEN_DOCUMENT");
-            draft.setFinalAnswer("봉인된 사진 봉투");
-            draft.setFinalAnswerAliases(new ArrayList<>(List.of("봉인된사진봉투", "사진 봉투", "봉인 봉투")));
-            draft.setFinalQuestion("What hidden case object do the unlocked evidence cards identify?");
-            draft.setFinalTruthSummary("수집한 단서들은 사라진 기록 문서가 아니라 봉인된 사진 봉투를 가리킨다. 봉투 안에는 사건 당일 이동 경로와 조작된 증언을 뒤집는 자료가 들어 있다.");
+            boolean identityAndHideout = containsAny(draft.getFictionSynopsis(), "정체", "검은 그림자", "검은그림자", "은신처", "숨어든", "거점", "아지트");
+            draft.setFinalAnswerType("HIDDEN_TRUTH");
+            if (identityAndHideout) {
+                draft.setFinalAnswer("검은 그림자는 가상의 내부 전달자이며 은신처는 봉인된 기록고이다");
+                draft.setFinalAnswerAliases(new ArrayList<>(List.of("검은그림자는가상의내부전달자이며은신처는봉인된기록고이다", "가상의 내부 전달자와 봉인된 기록고")));
+                draft.setFinalQuestion("검은 그림자의 정체와 그들이 숨어든 은신처는 무엇인가?");
+            } else {
+                draft.setFinalAnswer("사건을 조작한 가상의 내부 전달자");
+                draft.setFinalAnswerAliases(new ArrayList<>(List.of("사건을조작한가상의내부전달자", "가상의 내부 전달자")));
+                draft.setFinalQuestion("사건파일의 단서가 공통으로 가리키는 최종 진실은 무엇인가?");
+            }
+            draft.setFinalTruthSummary("""
+                    3. 픽션과 역사의 매칭 (디브리핑)
+                    스토리 속 [가상의 내부 전달자] -> 실제 역사 속 [관리자가 확인해야 할 관련 인물/세력]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 은유했습니다.
+                    스토리 속 [조작된 증언] -> 실제 역사 속 [관리자가 확인해야 할 증언/기록]: 서로 맞지 않는 기록을 대조하는 추리 구조로 각색했습니다.
+                    스토리 속 [이동 경로] -> 실제 역사 속 [최종 목적지와 주변 동선]: 현장 이동을 통해 사실의 흔적을 복원하도록 변환했습니다.
+                    스토리 속 [숨겨진 문서] -> 실제 역사 속 [장소에 남은 역사적 기억]: 직접 해설 대신 클리어 후 공개되는 진실로 분리했습니다.
+                    """.trim());
+            draft.setActualHistorySummary("""
+                    1. 모티브 공개
+                    이 임무는 실제 [관리자 검수 필요 최종 목적지]에서 있었던 [관리자 검수 필요 역사적 사건/인물]을 모티브로 제작되었습니다.
+
+                    2. 실제 사건 해설
+                    Gemini 초안 정규화 과정에서 실존 인물 노출 위험이 감지되어 안전한 픽션 증거물로 대체했습니다. 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 최종 목적지의 실제 역사적 배경과 의의를 정확히 보강해야 합니다.
+                    """.trim());
             draft.setDeductionSecretFacts(new ArrayList<>(List.of(
-                    "최종 정답은 실제 인물이나 장소명이 아니라 픽션 사건 안의 숨겨진 문서다.",
-                    "봉인된 사진 봉투는 사진 기록과 목격자 진술을 함께 묶는 핵심 증거다.",
-                    "정답 힌트는 봉인, 사진, 봉투, 조작된 기록이라는 방향으로 조합된다."
+                    "최종 정답은 시놉시스가 요구한 해결 조건을 모두 포함해야 한다.",
+                    "단서 물건이나 문서 위치만 맞히는 답은 최종 정답이 아니다.",
+                    "정답은 실제 장소명이나 실존 인물명이 아니라 픽션 사건 안의 완결된 진실이다."
             )));
             warnings.add("Draft normalization changed a field; review before publishing.");
         }
@@ -472,6 +600,31 @@ public class AdminEpisodeGeminiService {
         }
         if (draft.getMaxDeductionQuestions() == null || draft.getMaxDeductionQuestions() <= 0) {
             draft.setMaxDeductionQuestions(20);
+        }
+        if (!blank(request.getSelectedGenre())) {
+            draft.setSelectedGenre(request.getSelectedGenre().trim());
+            draft.setGenre(request.getSelectedGenre().trim());
+        }
+        if (request.getFinalAnswerKeywords() != null && !request.getFinalAnswerKeywords().isEmpty()) {
+            List<String> keywords = request.getFinalAnswerKeywords().stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
+            draft.setFinalAnswerKeywords(keywords);
+            draft.setFinalAnswerAliases(withKeywordContract(draft.getFinalAnswerAliases(), keywords));
+            String selectedGenre = blank(request.getSelectedGenre()) ? "최종 사건" : request.getSelectedGenre().trim();
+            boolean missingKeywordInAnswer = keywords.stream()
+                    .map(this::compact)
+                    .anyMatch(keyword -> !compact(draft.getFinalAnswer()).contains(keyword));
+            if (missingKeywordInAnswer) {
+                draft.setFinalAnswerType(keywords.size() > 1 ? "HIDDEN_TRUTH" : draft.getFinalAnswerType());
+                draft.setFinalAnswer(selectedGenre + "의 최종 진실은 " + String.join(", ", keywords) + "입니다");
+            }
+            if (blank(draft.getFinalQuestion()) || containsKeywordLeak(draft.getFinalQuestion(), keywords)) {
+                draft.setFinalQuestion(selectedGenre + "의 최종 진실을 이루는 핵심 요소들을 종합하면 어떤 결론인가?");
+            }
+            maskFinalAnswerKeywordLeaks(draft, keywords);
         }
         if (draft.getDeductionForbiddenReveals() == null) {
             draft.setDeductionForbiddenReveals(new ArrayList<>());
@@ -607,6 +760,100 @@ public class AdminEpisodeGeminiService {
         if (mission.getHints() != null) {
             mission.setHints(mission.getHints().stream().map(this::sanitizeCategoryCodes).toList());
         }
+    }
+
+    private void validateStoryObjectiveAlignment(
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            List<AiEpisodeDraftValidationResponse.Finding> findings) {
+        String synopsis = draft.getFictionSynopsis();
+        String question = draft.getFinalQuestion();
+        String answer = draft.getFinalAnswer();
+        if (blank(synopsis) || blank(question) || blank(answer)) {
+            return;
+        }
+        List<String> missingQuestionSlots = new ArrayList<>();
+        List<String> missingAnswerSlots = new ArrayList<>();
+        checkObjectiveSlot(synopsis, question, answer, missingQuestionSlots, missingAnswerSlots,
+                "정체", "정체", "누구", "범인", "배후", "조직", "세력", "용의자", "검은그림자", "검은 그림자");
+        checkObjectiveSlot(synopsis, question, answer, missingQuestionSlots, missingAnswerSlots,
+                "은신처", "은신처", "숨어든", "숨은곳", "숨은 곳", "거점", "아지트");
+        checkObjectiveSlot(synopsis, question, answer, missingQuestionSlots, missingAnswerSlots,
+                "동기", "동기", "이유", "왜");
+        if (!missingQuestionSlots.isEmpty() || !missingAnswerSlots.isEmpty()) {
+            addFinding(findings, "ERROR", "STORY_OBJECTIVE_MISMATCH",
+                    "Final question/answer must cover every objective required by fictionSynopsis. Missing in question: "
+                            + String.join(", ", missingQuestionSlots)
+                            + "; missing in answer: " + String.join(", ", missingAnswerSlots),
+                    null);
+        }
+    }
+
+    private void checkObjectiveSlot(
+            String synopsis,
+            String question,
+            String answer,
+            List<String> missingQuestionSlots,
+            List<String> missingAnswerSlots,
+            String label,
+            String... keywords) {
+        if (!containsAny(synopsis, keywords)) {
+            return;
+        }
+        if (!containsAny(question, keywords)) {
+            missingQuestionSlots.add(label);
+        }
+        if (!containsAny(answer, keywords)) {
+            missingAnswerSlots.add(label);
+        }
+    }
+
+    private void maskFinalAnswerKeywordLeaks(AiEpisodeDraftResponse.EpisodeDraft draft, List<String> keywords) {
+        if (draft == null || keywords == null || keywords.isEmpty()) {
+            return;
+        }
+        draft.setEpisodeTitle(maskKeywords(draft.getEpisodeTitle(), keywords));
+        draft.setSubtitle(maskKeywords(draft.getSubtitle(), keywords));
+        draft.setFictionSynopsis(maskKeywords(draft.getFictionSynopsis(), keywords));
+        draft.setFinalQuestion(maskKeywords(draft.getFinalQuestion(), keywords));
+    }
+
+    private String maskKeywords(String text, List<String> keywords) {
+        if (blank(text)) {
+            return text;
+        }
+        String result = text;
+        for (String keyword : keywords) {
+            if (blank(keyword)) {
+                continue;
+            }
+            result = result.replace(keyword, clueMask(keyword));
+            result = result.replace(keyword.replaceAll("\\s+", ""), clueMask(keyword));
+        }
+        return result;
+    }
+
+    private boolean containsKeywordLeak(String text, List<String> keywords) {
+        if (blank(text) || keywords == null || keywords.isEmpty()) {
+            return false;
+        }
+        String compactText = compact(text);
+        for (String keyword : keywords) {
+            if (blank(keyword)) {
+                continue;
+            }
+            if (text.contains(keyword.trim()) || compactText.contains(compact(keyword))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String clueMask(String keyword) {
+        int length = compact(keyword).length();
+        if (length <= 2) {
+            return "가려진 단서";
+        }
+        return "가려진 " + length + "자 단서";
     }
 
     private String sanitizeCategoryCodes(String value) {
@@ -1344,6 +1591,25 @@ public class AdminEpisodeGeminiService {
         boolean hasHangulNameShape = answer.codePoints().filter(codePoint -> codePoint >= 0xAC00 && codePoint <= 0xD7A3).count() >= 2;
         boolean hasPersonNameShape = hasLatinFullName || hasHangulNameShape;
         return hasCulpritContext && hasPersonNameShape;
+    }
+
+    private List<String> withKeywordContract(List<String> aliases, List<String> keywords) {
+        List<String> values = new ArrayList<>();
+        if (aliases != null) {
+            aliases.stream()
+                    .filter(value -> value != null && !value.isBlank() && !value.startsWith("KW:"))
+                    .map(String::trim)
+                    .forEach(values::add);
+        }
+        List<String> required = keywords == null ? List.of() : keywords.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (!required.isEmpty()) {
+            values.add("KW:" + String.join("|", required));
+        }
+        return values;
     }
 
 

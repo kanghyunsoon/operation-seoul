@@ -251,6 +251,14 @@ public class AdminEpisodeController {
         ));
     }
 
+    @PostMapping("/ai-draft/plan")
+    public ResponseEntity<ApiResponse<AiEpisodePlanResponse>> createGeminiPlan(@RequestBody AiEpisodeDraftRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                "Gemini가 에피소드 장르와 최종 정답 키워드를 제안했습니다.",
+                adminEpisodeGeminiService.createAnswerPlan(request)
+        ));
+    }
+
     @PostMapping("/ai-draft/validate")
     public ResponseEntity<ApiResponse<AiEpisodeDraftValidationResponse>> validateAiDraft(
             @RequestBody AiEpisodeDraftValidationRequest request

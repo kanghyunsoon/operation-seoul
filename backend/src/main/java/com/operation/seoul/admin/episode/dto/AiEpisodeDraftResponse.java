@@ -28,6 +28,8 @@ public class AiEpisodeDraftResponse {
         private String genre;
         private String era;
         private String fictionSynopsis;
+        private String selectedGenre;
+        private List<String> finalAnswerKeywords;
         private String finalAnswerType;
         private String finalAnswer;
         private List<String> finalAnswerAliases;

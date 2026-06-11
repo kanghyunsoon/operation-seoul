@@ -76,6 +76,9 @@ export const adminEpisodeApi = {
   async createGeminiDraft(payload) {
     return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft/gemini', payload, { timeout: AI_DRAFT_TIMEOUT_MS }));
   },
+  async createAnswerPlan(payload) {
+    return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft/plan', payload, { timeout: AI_DRAFT_TIMEOUT_MS }));
+  },
   async validateAiDraft(payload) {
     return unwrap(await apiClient.post('/v1/admin/episodes/ai-draft/validate', payload, { timeout: AI_DRAFT_TIMEOUT_MS }));
   },

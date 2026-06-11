@@ -558,7 +558,7 @@ public class EpisodePlayService {
             throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "최종 정답을 제출하기 전에 조사 장소를 확인해야 합니다.");
         }
         FinalDeductionSession session = request.getSessionId() == null ? null : requireSession(request.getSessionId(), user);
-        boolean correct = acceptedFinalAnswers(episode).contains(normalizeAnswer(request.getFinalAnswer()));
+        boolean correct = isFinalAnswerCorrect(episode, request.getFinalAnswer());
         progress.setFinalGuessCount(value(progress.getFinalGuessCount()) + 1);
         if (!correct) {
             progress.setWrongAnswerCount(value(progress.getWrongAnswerCount()) + 1);
@@ -1012,11 +1012,38 @@ public class EpisodePlayService {
         answers.add(normalizeAnswer(episode.getFinalAnswer()));
         if (episode.getFinalAnswerAliases() != null) {
             Arrays.stream(episode.getFinalAnswerAliases().split(","))
+                    .filter(value -> !value.trim().startsWith("KW:"))
                     .map(this::normalizeAnswer)
                     .filter(value -> !value.isBlank())
                     .forEach(answers::add);
         }
         return new ArrayList<>(answers);
+    }
+
+    private boolean isFinalAnswerCorrect(Episode episode, String submittedAnswer) {
+        String normalizedSubmitted = normalizeAnswer(submittedAnswer);
+        if (acceptedFinalAnswers(episode).contains(normalizedSubmitted)) {
+            return true;
+        }
+        List<String> requiredKeywords = requiredFinalAnswerKeywords(episode);
+        return !requiredKeywords.isEmpty()
+                && requiredKeywords.stream()
+                .map(this::normalizeAnswer)
+                .filter(value -> !value.isBlank())
+                .allMatch(normalizedSubmitted::contains);
+    }
+
+    private List<String> requiredFinalAnswerKeywords(Episode episode) {
+        if (episode.getFinalAnswerAliases() == null) {
+            return List.of();
+        }
+        return Arrays.stream(episode.getFinalAnswerAliases().split(","))
+                .map(String::trim)
+                .filter(value -> value.startsWith("KW:"))
+                .flatMap(value -> Arrays.stream(value.substring(3).split("\\|")))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .toList();
     }
 
     private List<String> allClues(UserEpisodeProgress progress) {

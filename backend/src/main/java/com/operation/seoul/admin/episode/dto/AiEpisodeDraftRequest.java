@@ -11,6 +11,8 @@ public class AiEpisodeDraftRequest {
     private String theme;
     private String targetAudience;
     private String playTime;
+    private String selectedGenre;
+    private List<String> finalAnswerKeywords;
     private List<PlaceInput> places;
 
     @Data
