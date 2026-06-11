@@ -37,7 +37,7 @@ Audit basis: 실제 Controller, Service, Repository, DTO, Vue route, API module,
 | 관리자 수정 허용 필드 제한 | `AdminUserUpdateRequest`, `AdminUserService` | 완료 |
 | 소셜 로그인 | 버튼/API 없음 | 미구현 |
 
-## 3. 사건파일 플레이 요구사항
+## 3. 미션 파일 플레이 요구사항
 
 | 요구사항 | 실제 상태 | 판정 |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ Audit basis: 실제 Controller, Service, Repository, DTO, Vue route, API module,
 | 퍼즐 제출 | `/puzzles/{puzzleId}/submit` | 완료 |
 | reward_payload 해석 | `EpisodePlayService.applyReward` | 완료 |
 | 단서 보드 | `/clue-board`, `ClueBoard.vue` | 완료 |
-| 사건파일 탭 | `/case-file`, `EpisodeCaseFileView.vue` | 완료 |
+| 미션 파일 탭 | `/case-file`, `EpisodeCaseFileView.vue` | 완료 |
 | 최종 추리 | `/deduction/start`, `/deduction/{sessionId}/ask` | MVP 완료 |
 | 최종 정답 제출 | `/final-answer` | 완료 |
 | 클리어 리포트 | `/clear-report` | 완료 |

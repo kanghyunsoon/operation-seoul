@@ -1,7 +1,7 @@
 ﻿<template>
   <main class="detail-page">
     <button class="back" type="button" @click="router.push({ name: 'EpisodeList' })">목록으로 돌아가기</button>
-    <section v-if="loading" class="panel">사건파일을 불러오는 중입니다.</section>
+    <section v-if="loading" class="panel">미션 파일을 불러오는 중입니다.</section>
     <section v-else-if="error" class="panel error">{{ error }}</section>
     <section v-else-if="episode" class="panel">
       <div class="top-row">
@@ -57,7 +57,7 @@ onMounted(async () => {
   try {
     episode.value = await episodeApi.getEpisode(episodeId);
   } catch (err) {
-    error.value = err.userMessage || '사건파일을 불러오지 못했습니다.';
+    error.value = err.userMessage || '미션 파일을 불러오지 못했습니다.';
   } finally {
     loading.value = false;
   }

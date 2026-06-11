@@ -14,16 +14,16 @@
 - 운영 모드에서는 devMode 도착 판정이 403이어야 한다.
 - OAuth를 구현하지 않았으므로 구글/네이버 로그인 버튼을 만들지 않는다.
 - 실제 현장 간판, 숫자, 계단 수, 조형물 존재 여부를 AI가 상상해서 만들면 안 된다.
-- 상용 사건파일 키트의 문구/문제/이미지/디자인을 복제하지 않는다.
+- 상용 미션 파일 키트의 문구/문제/이미지/디자인을 복제하지 않는다.
 - `frontend/package-lock.json`, `.idea` 파일은 임의 변경하지 않는다.
 
 ## 프로젝트 요약
 
-Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring Boot + Spring Security + JWT + MyBatis + MySQL 백엔드 기반의 모바일 야외 방탈출/사건파일 앱이다.
+Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring Boot + Spring Security + JWT + MyBatis + MySQL 백엔드 기반의 모바일 야외 방탈출/미션 파일 앱이다.
 
 서비스 중심은 관광 설명이 아니라 다음 흐름이다.
 
-`로그인 -> 에피소드 선택 -> 사건 브리핑 -> 지도 -> 장소 도착 -> 퍼즐 -> 단서/사건자료 해금 -> 사건파일 확인 -> 최종 장소 추리 -> 최종 추리 채팅 -> 최종 정답 -> CLEARED -> 클리어 리포트 -> 리뷰`
+`로그인 -> 에피소드 선택 -> 사건 브리핑 -> 지도 -> 장소 도착 -> 퍼즐 -> 단서/사건자료 해금 -> 미션 파일 확인 -> 최종 장소 추리 -> 최종 추리 채팅 -> 최종 정답 -> CLEARED -> 클리어 리포트 -> 리뷰`
 
 ## 현재 구현 완료 상태
 
@@ -37,7 +37,7 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 - final_deduction_sessions/questions 구조
 - case_suspects/case_evidences/partner_rewards 구조
 - EP.01 seed
-- 사용자 에피소드 목록/상세/브리핑/지도/사건파일/최종추리/클리어 리포트
+- 사용자 에피소드 목록/상세/브리핑/지도/미션 파일/최종추리/클리어 리포트
 - GPS/devMode 도착 판정
 - 퍼즐 제출
 - reward_payload 해금
@@ -82,7 +82,7 @@ Backend:
 - `auth/*`: 회원가입, 로그인, JWT, current user
 - `user/*`: 내 정보, 관리자 회원 관리
 - `episode/*`: 사용자 플레이 API
-- `casefile/*`: 사건파일 탭 API
+- `casefile/*`: 미션 파일 탭 API
 - `review/*`: 에피소드 리뷰/관리자 리뷰
 - `plan/*`: 내 일정 관리
 - `group/*`: 그룹 생성/가입/멤버

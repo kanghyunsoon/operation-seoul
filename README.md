@@ -1,8 +1,8 @@
 ﻿# Operation KOREA
 
-Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring Boot + Spring Security + JWT + MyBatis + MySQL 백엔드 기반의 모바일 야외 방탈출/사건파일 앱입니다.
+Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring Boot + Spring Security + JWT + MyBatis + MySQL 백엔드 기반의 모바일 야외 방탈출/미션 메모 앱입니다.
 
-현재 방향은 단순 관광 미션 앱이 아니라, TourAPI/Kakao Local로 실제 장소 후보를 모으고 관리자가 검수한 뒤, 사용자가 지도와 사건파일을 오가며 퍼즐, 단서, 최종 추리를 진행하는 사건파일형 야외 방탈출 MVP입니다.
+현재 방향은 단순 관광 미션 앱이 아니라, TourAPI/Kakao Local로 실제 장소 후보를 모으고 관리자가 검수한 뒤, 사용자가 지도와 미션 메모을 오가며 퍼즐, 단서, 최종 추리를 진행하는 미션 메모형 야외 방탈출 MVP입니다.
 
 ## 현재 MVP 결론
 
@@ -21,7 +21,7 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 9. 장소 퍼즐 열기
 10. 퍼즐 정답 제출
 11. `reward_payload` 기반 단서/증거/용의자/메모 해금
-12. 사건파일 탭 갱신
+12. 미션 메모 탭 갱신
 13. 실제 최종 장소 도착 판정
 14. 바다거북 스프식 최종 추리
 15. 최종 정답 제출
@@ -38,9 +38,9 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | ACTIVE 아닌 사용자 보호 API 차단 | 완료 | JWT 필터는 active 사용자만 principal 설정, resolver도 active 검사 |
 | 관리자 회원 관리 | 완료 | `AdminUserController`, `AdminUserService`, `AdminUsersView.vue` |
 | 내 정보/비밀번호/탈퇴 | 완료 | `GET/PUT/DELETE /api/v1/users/me`, `PUT /api/v1/users/me/password` |
-| 사건파일 플레이 DB | 완료 | `episodes`, `mission_spots`, `puzzles`, `puzzle_hints`, `user_episode_progress` migration |
+| 미션 메모 플레이 DB | 완료 | `episodes`, `mission_spots`, `puzzles`, `puzzle_hints`, `user_episode_progress` migration |
 | 최종 추리 DB | 완료 | `final_deduction_sessions`, `final_deduction_questions` migration |
-| 사건 자료 DB | 완료 | `case_suspects`, `case_evidences`, `episode_partner_rewards` migration |
+| 미션 자료 DB | 완료 | `case_suspects`, `case_evidences`, `episode_partner_rewards` migration |
 | EP.01 seed | 완료 | `EpisodeSchemaMigration` seed |
 | 지도 전체 장소 표시 | 완료 | `GET /api/v1/episodes/{episodeId}/map`, `EpisodeMapView.vue` |
 | 최종 장소 은닉 | 완료 | 사용자 map 응답은 `publicMarkerType`만 사용, 내부 `is_final_place` 미노출 |
@@ -49,7 +49,7 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | 퍼즐 정답 제출 | 완료 | `POST /api/v1/puzzles/{puzzleId}/submit`, `PuzzleCard.vue` |
 | reward_payload 해금 | 완료 | `EpisodePlayService.applyReward` |
 | 단서 보드 | 완료 | `GET /api/v1/episodes/{episodeId}/clue-board`, `ClueBoard.vue` |
-| 사건파일 탭 | 완료 | `GET /api/v1/episodes/{episodeId}/case-file`, `EpisodeCaseFileView.vue` |
+| 미션 메모 탭 | 완료 | `GET /api/v1/episodes/{episodeId}/case-file`, `EpisodeCaseFileView.vue` |
 | 최종 추리 | MVP 완료 | 규칙 기반 제한 답변. Gemini 실시간 추리 고도화는 미구현 |
 | 최종 정답/CLEARED | 완료 | `POST /api/v1/episodes/{episodeId}/final-answer` |
 | 클리어 리포트 | 완료 | `GET /api/v1/episodes/{episodeId}/clear-report`, `ClearReportView.vue` |
@@ -86,7 +86,7 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | `GET` | `/api/v1/spots/{spotId}/puzzle` | 도착한 장소의 퍼즐 조회 |
 | `POST` | `/api/v1/puzzles/{puzzleId}/submit` | 퍼즐 정답 제출 및 보상 적용 |
 | `GET` | `/api/v1/episodes/{episodeId}/clue-board` | 단서 보드 조회 |
-| `GET` | `/api/v1/episodes/{episodeId}/case-file` | 사건파일 자료 조회 |
+| `GET` | `/api/v1/episodes/{episodeId}/case-file` | 미션 파일 자료 조회 |
 | `POST` | `/api/v1/episodes/{episodeId}/deduction/start` | 최종 추리 세션 시작 |
 | `POST` | `/api/v1/deduction/{sessionId}/ask` | 제한형 추리 질문 |
 | `GET` | `/api/v1/deduction/{sessionId}/questions` | 추리 질문 기록 |
@@ -115,7 +115,7 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | `GET` | `/api/v1/challenges` | 공개 챌린지 목록과 진행률 |
 | `GET` | `/api/v1/challenges/me` | 내 챌린지 목록 |
 | `POST` | `/api/v1/challenges/{challengeId}/join` | 챌린지 참가 |
-| `GET` | `/api/v1/recommendations/episodes` | 관심/일정/클리어 기록 기반 사건파일 추천 |
+| `GET` | `/api/v1/recommendations/episodes` | 관심/일정/클리어 기록 기반 미션 파일 추천 |
 | `GET` | `/api/v1/coaching/me` | 내 플레이 코칭 요약 |
 | `GET` | `/api/v1/coaching/episodes/{episodeId}` | 에피소드별 코칭 리포트 |
 
@@ -149,17 +149,17 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | 경로 | 화면 | 상태 |
 | --- | --- | --- |
 | `/intro` | 로그인/회원가입 | 완료 |
-| `/episodes` | 사건파일 목록 | 완료 |
+| `/episodes` | 미션 파일 목록 | 완료 |
 | `/episodes/:episodeId` | 에피소드 상세 | 완료 |
 | `/episodes/:episodeId/briefing` | 사건 브리핑 | 완료 |
 | `/episodes/:episodeId/map` | 지도/장소/도착/퍼즐 | 완료 |
-| `/episodes/:episodeId/case-file` | 사건파일/자료/조사 기록 | 완료 |
+| `/episodes/:episodeId/case-file` | 미션 파일/자료/조사 기록 | 완료 |
 | `/episodes/:episodeId/deduction` | 최종 추리 | 완료 |
 | `/episodes/:episodeId/clear-report` | 클리어 리포트/리뷰 | 완료 |
 | `/regions/:regionId/community` | 권역 커뮤니티/리뷰/Q&A | MVP 완료 |
 | `/rankings` | 클리어 랭킹/내 기록 | MVP 완료 |
 | `/challenges` | 클리어 수 기반 챌린지 | MVP 완료 |
-| `/recommendations` | 맞춤 사건파일 추천 | MVP 완료 |
+| `/recommendations` | 맞춤 미션 파일 추천 | MVP 완료 |
 | `/coaching` | 플레이 기록 기반 코칭/분석 | MVP 완료 |
 | `/plans` | 내 플레이 일정 관리 | MVP 완료 |
 | `/groups` | 그룹 생성/가입/멤버 확인 | MVP 완료 |
@@ -245,7 +245,7 @@ jwt.secret=${JWT_SECRET:operation-seoul-local-development-jwt-secret}
 - Tmap 길찾기는 실제 모바일 기기에서 앱/웹 내비 실행 방식을 확인해야 합니다.
 - GPS 실측 도착 판정은 실제 현장/실기기에서 별도 확인해야 합니다.
 - 후보 장소는 운영 공개 전 좌표, 접근 가능 여부, 운영시간, 현장 관찰 요소를 검수해야 합니다.
-- AI 생성 문제와 사건 자료는 관리자 검수 후 DRAFT에서 PUBLISHED로 전환합니다.
+- AI 생성 문제와 미션 자료는 관리자 검수 후 DRAFT에서 PUBLISHED로 전환합니다.
 
 ## 이어받기 문서
 

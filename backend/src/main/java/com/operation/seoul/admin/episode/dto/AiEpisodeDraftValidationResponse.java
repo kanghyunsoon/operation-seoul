@@ -24,9 +24,16 @@ public class AiEpisodeDraftValidationResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Finding {
-        private String severity;
+        private String severity;      // ERROR, WARN, INFO
         private String code;
         private String message;
+
         private Integer missionOrder;
+        private String fieldPath;     // missions[2].answer, fictionSynopsis 등
+        private String currentValue;
+        private String suggestedValue;
+
+        private Boolean autoFixable;
+        private String fixType;       // REGENERATE, MANUAL_EDIT, AUTO_REPLACE, FIELD_CHECK
     }
 }

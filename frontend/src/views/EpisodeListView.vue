@@ -4,7 +4,7 @@
       <div>
         <p>CASE FILES</p>
         <h1>Operation Korea</h1>
-        <span>{{ sessionStore.currentUser?.nickname || '요원' }}님, {{ selectedRegionLabel }} 사건파일을 선택하세요.</span>
+        <span>{{ sessionStore.currentUser?.nickname || '요원' }}님, {{ selectedRegionLabel }} 미션 파일을 선택하세요.</span>
       </div>
       <div class="header-actions">
         <button type="button" class="admin-link primary" @click="router.push({ name: 'RegionMap' })">지역 다시 선택</button>
@@ -16,7 +16,7 @@
         <button type="button" class="admin-link" @click="router.push({ name: 'MyPage' })">내 관심 목록</button>
         <button type="button" class="admin-link danger" @click="logout">로그아웃</button>
         <template v-if="sessionStore.isAdmin">
-          <button type="button" class="admin-link primary" @click="router.push({ name: 'AdminEpisodes' })">사건파일 생성/관리</button>
+          <button type="button" class="admin-link primary" @click="router.push({ name: 'AdminEpisodes' })">미션 파일 생성/관리</button>
           <button type="button" class="admin-link" @click="router.push({ name: 'AdminUsers' })">회원 관리</button>
           <button type="button" class="admin-link" @click="router.push({ name: 'AdminReviews' })">리뷰 관리</button>
         </template>
@@ -26,13 +26,13 @@
     <p v-if="message" class="toast" :class="messageType">{{ message }}</p>
     <section v-if="areaCode" class="region-filter">
       <strong>{{ selectedRegionLabel }}</strong>
-      <span>선택 권역의 공개 사건파일만 표시합니다.</span>
+      <span>선택 권역의 공개 미션 파일만 표시합니다.</span>
       <button type="button" @click="showAllEpisodes">전체 보기</button>
     </section>
-    <section v-if="loading" class="state">사건파일을 불러오는 중입니다.</section>
+    <section v-if="loading" class="state">미션 파일을 불러오는 중입니다.</section>
     <section v-else-if="error" class="state error">{{ error }}</section>
     <section v-else-if="!episodes.length" class="state">
-      이 권역에 공개된 사건파일이 아직 없습니다. 다른 지역을 선택하거나 전체 사건을 확인하세요.
+      이 권역에 공개된 미션 파일이 아직 없습니다. 다른 지역을 선택하거나 전체 사건을 확인하세요.
     </section>
     <section v-else class="episode-list">
       <article v-for="episode in episodes" :key="episode.id" class="case-card" @click="openEpisode(episode.id)">
@@ -54,7 +54,7 @@
           <span>{{ episode.genre }}</span>
           <span>{{ episode.difficulty }}</span>
         </div>
-        <button type="button">사건파일 열기</button>
+        <button type="button">미션 파일 열기</button>
       </article>
     </section>
   </main>

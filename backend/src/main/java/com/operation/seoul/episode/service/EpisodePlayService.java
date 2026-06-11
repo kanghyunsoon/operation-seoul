@@ -266,7 +266,7 @@ public class EpisodePlayService {
         String message = actualFinal
                 ? "조사 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다."
                 : ("DESTINATION_HINT".equals(spot.getPublicMarkerType())
-                    ? "장소 키워드와 대조할 조사 지점입니다. 사건파일과 단서 보드를 다시 확인해 주세요."
+                    ? "장소 키워드와 대조할 조사 지점입니다. 미션 메모과 단서 보드를 다시 확인해 주세요."
                     : "도착이 확인되었습니다. 현장 퍼즐을 열 수 있습니다.");
 
         return ArriveResponse.builder()
@@ -301,7 +301,7 @@ public class EpisodePlayService {
                     .canOpenPuzzle(false)
                     .isActualFinalArrived(false)
                     .canStartDeduction(false)
-                    .message("현재 위치에서는 최종 추리를 시작할 수 없습니다. 단서 보드와 사건파일을 다시 확인해 주세요.")
+                    .message("현재 위치에서는 최종 추리를 시작할 수 없습니다. 단서 보드와 미션 메모을 다시 확인해 주세요.")
                     .build();
         }
         progress.setFinalArrivedSpotId(finalSpot.getId());
@@ -504,7 +504,7 @@ public class EpisodePlayService {
                 .unlockedMemoIds(rewardResult.memoIds())
                 .newlyUnlockedItems(rewardResult.items())
                 .message(rewardResult.caseFileUpdated()
-                        ? "정답입니다. 단서와 사건자료가 사건파일에 추가되었습니다."
+                        ? "정답입니다. 단서와 사건자료가 미션 메모에 추가되었습니다."
                         : "정답입니다. 단서가 단서 보드에 저장되었습니다.")
                 .clueBoard(buildClueBoard(progress))
                 .build();

@@ -2,7 +2,7 @@
   <main class="case-file-page">
     <CaseFileTabMenu :episode-id="episodeId" active="case" />
 
-    <section v-if="loading" class="state">사건파일을 불러오는 중입니다.</section>
+    <section v-if="loading" class="state">미션 파일을 불러오는 중입니다.</section>
     <section v-else-if="error" class="state error">{{ error }}</section>
 
     <template v-else-if="caseFile">
@@ -87,7 +87,7 @@
             <div>
               <span class="tag">{{ evidenceTypeLabel(evidence.type) }}</span>
               <h4>{{ evidence.unlocked ? evidence.title : '잠긴 사건자료' }}</h4>
-              <p>{{ evidence.unlocked ? evidence.textSummary : '현장 퍼즐을 해결하면 이 자료가 사건파일에 추가됩니다.' }}</p>
+              <p>{{ evidence.unlocked ? evidence.textSummary : '현장 퍼즐을 해결하면 이 자료가 미션 파일에 추가됩니다.' }}</p>
               <div class="evidence-meta">
                 <small v-if="evidence.relatedClueType">{{ clueTypeLabel(evidence.relatedClueType) }}</small>
                 <small v-if="evidence.unlocked && evidence.relatedSuspectIds?.length">관련 인물 {{ suspectNames(evidence.relatedSuspectIds) }}</small>
@@ -167,7 +167,7 @@ async function loadCaseFile() {
   try {
     caseFile.value = await caseFileApi.getCaseFile(episodeId);
   } catch (err) {
-    error.value = err.userMessage || '사건파일을 불러올 수 없습니다.';
+    error.value = err.userMessage || '미션 파일을 불러올 수 없습니다.';
   } finally {
     loading.value = false;
   }
