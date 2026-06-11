@@ -141,7 +141,7 @@
               <summary>에피소드 핵심 정보 수정</summary>
               <div class="publish-rules">
                 <strong>공개 전 필수 조건</strong>
-                <p>장소 9개 권장, START 1개, ANSWER_HINT 4개, DESTINATION_HINT 3개, 내부 최종 장소 1개, 모든 퍼즐/힌트/reward_payload가 필요합니다.</p>
+                <p>장소 9개 권장, START 1개, 정답 키워드 미션 4개, 장소 키워드 미션 3개, 내부 최종 장소 1개, 모든 퍼즐/힌트/reward_payload가 필요합니다.</p>
                 <div class="publish-actions">
                   <button type="button" class="ghost-btn" @click="checkPublishReadiness">공개 준비도 점검</button>
                   <button type="button" class="publish-btn" :disabled="!publishReadiness?.ready || selected?.status === 'PUBLISHED'" @click="publishEpisode">
@@ -962,7 +962,7 @@ const draftInput = ref(JSON.stringify({
     { name: '정동제일교회', description: '붉은 벽과 목격 단서', visibleElements: ['붉은 벽', '건물명'], numbers: [], keywords: ['목격', '벽'], adminMemo: '건물명 확인', role: 'ANSWER_HINT' },
     { name: '배재학당 역사박물관', description: '기록 자료 단서', visibleElements: ['건물명', '안내판'], numbers: [], keywords: ['기록', '조수'], adminMemo: '운영시간 확인', role: 'ANSWER_HINT' },
     { name: '정동극장', description: '방향 단서', visibleElements: ['간판', '포스터'], numbers: [], keywords: ['방향', '문'], adminMemo: '포스터 내용은 고정 아님', role: 'DESTINATION_HINT' },
-    { name: '서울시립미술관 앞마당', description: '목적지 혼선을 주는 조사 지점', visibleElements: ['광장', '조형물'], numbers: [], keywords: ['그림자', '동선'], adminMemo: '목적지 힌트와 비교할 조사 지점', role: 'DESTINATION_HINT' },
+    { name: '서울시립미술관 앞마당', description: '목적지 혼선을 주는 조사 지점', visibleElements: ['광장', '조형물'], numbers: [], keywords: ['그림자', '동선'], adminMemo: '장소 키워드와 비교할 조사 지점', role: 'DESTINATION_HINT' },
     { name: '중명전', description: '서버 내부에서만 최종 장소로 판정할 조사 지점', visibleElements: ['붉은 벽', '건물명'], numbers: ['1905'], keywords: ['밀서', '문'], adminMemo: '사용자 화면에는 최종 장소로 직접 노출하지 않음', role: 'FINAL' }
   ]
 }, null, 2));
@@ -1005,7 +1005,7 @@ const selectedCandidateStatus = computed(() => {
   if (count > 9) return '장소가 너무 많습니다. 최대 9개까지만 사용하세요.';
   const missing = selectedCandidates.value.filter((candidate) => !hasCandidateCoordinate(candidate));
   if (missing.length) return `좌표가 없는 장소 ${missing.length}개가 있습니다. 좌표가 있는 후보로 교체하거나 수동 후보를 추가하세요.`;
-  return '시작 1개, 정답 힌트 4개, 목적지 힌트 3개, 내부 최종 목적지 1개 구성입니다.';
+  return '시작 1개, 정답 키워드 미션 4개, 장소 키워드 미션 3개, 내부 최종 목적지 1개 구성입니다.';
 });
 const routeIdentitySummary = computed(() => {
   const count = selectedCandidates.value.length;
@@ -1176,8 +1176,8 @@ function goUserCaseFile() {
 function markerPreviewLabel(type) {
   return {
     START: '시작',
-    ANSWER_HINT: '정답 힌트',
-    DESTINATION_HINT: '목적지 힌트'
+    ANSWER_HINT: '정답 키워드',
+    DESTINATION_HINT: '장소 키워드'
   }[type] || type;
 }
 
@@ -2112,7 +2112,7 @@ function containsAny(value, words) {
 }
 
 function maskDraftKeywordLeaks(draft, keywords) {
-  const values = Array.isArray(keywords) ? keywords.filter(Boolean) : [];
+  const values = Array.isArray(keywords) ? keywords.map(normalizeAnswerKeywordValue).filter(Boolean) : [];
   if (!values.length) return;
   if (containsKeywordLeak(draft.finalQuestion, values)) {
     const genre = draft.selectedGenre || draft.genre || '이 사건';
@@ -2120,7 +2120,9 @@ function maskDraftKeywordLeaks(draft, keywords) {
   }
   draft.episodeTitle = maskKeywords(draft.episodeTitle, values);
   draft.subtitle = maskKeywords(draft.subtitle, values);
-  draft.fictionSynopsis = maskKeywords(draft.fictionSynopsis, values);
+  if (containsKeywordLeak(draft.fictionSynopsis, values) || containsMaskPlaceholder(draft.fictionSynopsis)) {
+    draft.fictionSynopsis = safeFictionSynopsis(draft);
+  }
   draft.finalQuestion = maskKeywords(draft.finalQuestion, values);
 }
 
@@ -2129,11 +2131,67 @@ function maskKeywords(text, keywords) {
   keywords.forEach((keyword) => {
     const clean = String(keyword || '').trim();
     if (!clean) return;
-    const mask = compactText(clean).length <= 2 ? '가려진 단서' : `가려진 ${compactText(clean).length}자 단서`;
+    const mask = '핵심 단서';
     result = result.split(clean).join(mask);
     result = result.split(compactText(clean)).join(mask);
   });
   return result;
+}
+
+function normalizeAnswerKeywordValue(keyword) {
+  let normalized = String(keyword || '')
+    .trim()
+    .replaceAll(/[\[\]"'`]/g, '')
+    .replaceAll(/\s+/g, ' ');
+  const possessiveIndex = normalized.lastIndexOf('의 ');
+  if (possessiveIndex >= 0 && possessiveIndex < normalized.length - 2) {
+    normalized = normalized.slice(possessiveIndex + 2).trim();
+  }
+  normalized = normalized
+    .replaceAll(/^(잊혀진|숨겨진|감춰진|가려진|봉인된|사라진|오래된|비밀스러운)\s+/g, '')
+    .replaceAll(/\s+(진실|비밀|단서)$/g, '')
+    .trim();
+  if (compactText(normalized).length > 8 && normalized.includes(' ')) {
+    const parts = normalized.split(/\s+/);
+    normalized = parts[parts.length - 1].trim();
+  }
+  return normalized;
+}
+
+function containsMaskPlaceholder(text) {
+  const compact = compactText(text);
+  return compact.includes('가려진단서')
+    || /가려진\d+자단서/.test(compact)
+    || /\d+자단서/.test(compact)
+    || compact.includes('정답키워드')
+    || compact.includes('핵심키워드');
+}
+
+function safeFictionSynopsis(draft) {
+  const source = [
+    draft?.episodeTitle,
+    draft?.subtitle,
+    draft?.fictionSynopsis,
+    draft?.selectedGenre,
+    draft?.genre
+  ].join(' ');
+  if (containsAny(source, ['항구', '항해', '개항', '항로', '일지', '목포'])) {
+    return '오래된 항구 기록이 발견되며, 공식 기록에 남지 않은 이동 경로와 그 길을 막아선 세력의 흔적이 드러난다. 요원은 항구 일대에 흩어진 암호와 증언을 대조해 숨겨진 경로의 의미, 방해자의 목적, 마지막 기록이 가리키는 결론을 밝혀야 한다.';
+  }
+  if (containsAny(source, ['검은 그림자', '검은그림자', '은신처', '거점', '아지트', '정체'])) {
+    return '도시 곳곳에 남은 표식이 하나의 비밀 조직을 가리킨다. 요원은 현장 기록과 엇갈린 증언을 대조해 조직의 역할, 숨어든 거점의 단서, 사건을 움직인 목적을 밝혀야 한다.';
+  }
+  if (containsAny(source, ['보물', '상자', '봉인', '열쇠', '해금'])) {
+    return '오래 봉인된 물건의 행방을 둘러싸고 서로 다른 기록이 발견된다. 요원은 현장에 남은 암호와 보관 흔적을 따라가며 물건의 정체, 보관된 장소의 특징, 봉인을 푸는 조건을 밝혀야 한다.';
+  }
+  if (containsAny(source, ['암호', '문장', '숫자', '해독'])) {
+    return '낡은 기록 속 암호문이 여러 조사 지점에서 서로 다른 형태로 반복된다. 요원은 숫자, 문장, 상징의 연결 규칙을 찾아 마지막 암호가 전달하려던 의미를 밝혀야 한다.';
+  }
+  if (containsAny(source, ['실종', '사라진', '마지막'])) {
+    return '한 인물 또는 기록이 사라진 뒤, 마지막 동선을 둘러싼 증언들이 서로 어긋난다. 요원은 현장 단서와 남겨진 물건을 대조해 사라진 이유와 마지막 흔적이 가리키는 결론을 밝혀야 한다.';
+  }
+  const genre = draft?.selectedGenre || draft?.genre || '이 사건';
+  return `선택된 장소 일대에서 오래된 기록과 서로 어긋나는 증언이 발견된다. 요원은 현장 단서, 암호, 사건파일을 차례로 대조해 ${genre}의 핵심 역할과 마지막 단서가 가리키는 결론을 밝혀야 한다.`;
 }
 
 function containsKeywordLeak(text, keywords) {
@@ -2256,7 +2314,7 @@ function storyTextForMission(mission, role, keyword) {
     return `${mission.placeName}에는 ${motif.object}의 정체를 좁히는 물성 단서가 숨어 있다. 현장 메모의 ${keyword}를 사건파일의 증거 카드와 대조하라.`;
   }
   if (String(role).includes('DESTINATION')) {
-    return `${mission.placeName}의 주변 분위기는 마지막으로 향할 장소를 직접 말하지 않고 좁혀 준다. 장소명보다 문, 벽, 길의 느낌을 목적지 힌트와 비교하라.`;
+    return `${mission.placeName}의 주변 분위기는 마지막으로 향할 장소를 직접 말하지 않고 좁혀 준다. 장소명보다 문, 벽, 길의 느낌을 장소 키워드와 비교하라.`;
   }
   return `${mission.placeName}은 용의자의 진술을 흔드는 배경 단서다. 이곳에서 얻은 메모는 누가 거짓말을 했는지 판단하는 보조 자료가 된다.`;
 }
@@ -2265,7 +2323,7 @@ function sanitizeFinalPlaceStory(storyText) {
   const value = String(storyText || '').trim();
   const forbidden = ['최종 장소', '최종장소', '최종 목적지', '최종목적지', '정답 장소', '정답장소', '최종 추리', '마지막 장소'];
   if (!value || forbidden.some((word) => value.includes(word))) {
-    return '이곳에는 여러 동선이 겹친 흔적이 남아 있다. 현장에서는 주변 분위기와 사건 메모만 확인하고, 단서 보드의 목적지 힌트와 조용히 비교하라.';
+    return '이곳에는 여러 동선이 겹친 흔적이 남아 있다. 현장에서는 주변 분위기와 사건 메모만 확인하고, 단서 보드의 장소 키워드와 조용히 비교하라.';
   }
   return value;
 }
@@ -2280,7 +2338,7 @@ function questionForMission(mission, source, keyword) {
     return `사건 메모에 남은 초성 단서가 가리키는 키워드를 입력하라. 장소명 글자 추출이 아니라 관리자 검수 키워드를 기준으로 한다.`;
   }
   if (mission.puzzleType === 'PATTERN') {
-    return `이 장소의 분위기와 목적지 힌트를 비교해 단서 보드에 붙일 키워드를 입력하라.`;
+    return `이 장소의 분위기와 장소 키워드를 비교해 단서 보드에 붙일 키워드를 입력하라.`;
   }
   if (mission.puzzleType === 'STORY_COMBINATION') {
     return `지금까지 모은 단서와 이 장소의 기록을 조합해 사건파일에 붙일 핵심 단어를 입력하라.`;
@@ -2337,8 +2395,8 @@ function missionRoleLabel(mission) {
   if (mission?.finalPlace || mission?.markerType === 'FINAL') return '내부 최종 장소';
   const role = String(mission?.clueRole || mission?.markerType || '');
   if (role.includes('START')) return '시작 장소';
-  if (role.includes('ANSWER')) return '정답 힌트';
-  if (role.includes('DESTINATION')) return '목적지 힌트';
+  if (role.includes('ANSWER')) return '정답 키워드';
+  if (role.includes('DESTINATION')) return '장소 키워드';
   if (role.includes('STORY')) return '스토리 단서';
   return '조사 후보';
 }
@@ -2435,20 +2493,20 @@ function strengthenCaseMaterials(draft) {
       displayName: '붉은 우산의 의뢰인',
       relation: '사건 의뢰를 가장 먼저 전달한 인물',
       suspicion: '현장 사진이 사라진 시간대에 조사 경로 근처에서 반복적으로 목격되었다.',
-      alibi: '비가 오기 전 카페 골목에 있었다고 주장하지만, 목적지 힌트와 동선이 일부 겹친다.'
+      alibi: '비가 오기 전 카페 골목에 있었다고 주장하지만, 장소 키워드와 동선이 일부 겹친다.'
     },
     {
       alias: '용의자 B',
       displayName: '잃어버린 필름의 조수',
       relation: '피해자의 기록 정리를 맡았던 조수',
       suspicion: '사진과 메모의 순서를 알고 있어 단서를 바꿔치기할 수 있는 위치에 있었다.',
-      alibi: '자료실에 있었다고 말하지만, 정답 힌트 단서 중 하나가 그의 진술과 충돌한다.'
+      alibi: '자료실에 있었다고 말하지만, 정답 키워드 단서 중 하나가 그의 진술과 충돌한다.'
     },
     {
       alias: '용의자 C',
       displayName: '회색 봉투의 전달자',
       relation: '마지막 문서를 전달한 익명의 중개인',
-      suspicion: '목적지 힌트 두 개가 모두 이 인물의 이동 방향을 가리킨다.',
+      suspicion: '장소 키워드 두 개가 모두 이 인물의 이동 방향을 가리킨다.',
       alibi: '봉투만 전달했을 뿐이라고 주장하지만, 봉투 안쪽에 사건의 핵심 단어가 남아 있다.'
     }
   ];
@@ -2553,6 +2611,9 @@ async function generateAnswerPlan() {
     }
     draftProgressStep.value = 'request';
     draftPlan.value = await adminEpisodeApi.createAnswerPlan(payload);
+    draftPlan.value.finalAnswerKeywords = (draftPlan.value.finalAnswerKeywords || [])
+      .map((item) => ({ ...item, keyword: normalizeAnswerKeywordValue(item.keyword) }))
+      .filter((item) => item.keyword);
     payload = applyDraftPlanToPayload(payload);
     draftInput.value = JSON.stringify(payload, null, 2);
     draftProgressStep.value = 'hydrate';
@@ -2567,6 +2628,7 @@ async function generateAnswerPlan() {
 function applyDraftPlanToPayload(payload) {
   const keywords = (draftPlan.value?.finalAnswerKeywords || [])
     .map((item) => item.keyword)
+    .map(normalizeAnswerKeywordValue)
     .filter(Boolean);
   return {
     ...payload,
@@ -3117,8 +3179,8 @@ function roleForCandidate(index) {
 function roleLabel(role) {
   return {
     START: '시작 장소',
-    ANSWER_HINT: '정답 힌트',
-    DESTINATION_HINT: '목적지 힌트',
+    ANSWER_HINT: '정답 키워드',
+    DESTINATION_HINT: '장소 키워드',
     FINAL: '내부 최종 장소'
   }[role] || role;
 }

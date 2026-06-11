@@ -75,7 +75,7 @@
           <div>
             <p class="section-label">증거 / 메모 / 사진 카드</p>
             <h3>{{ caseFile.progressSummary.unlockedEvidenceCount }}/{{ caseFile.progressSummary.totalEvidenceCount }}개 해금</h3>
-            <p class="section-help">각 카드는 정답, 목적지, 용의자 진술 중 하나를 좁히는 근거입니다. 해금 순서와 관련 인물을 함께 보면 최종 추리 난도가 내려갑니다.</p>
+            <p class="section-help">각 카드는 정답 키워드, 장소 키워드, 용의자 진술 중 하나를 좁히는 근거입니다. 해금 순서와 관련 인물을 함께 보면 최종 추리 난도가 내려갑니다.</p>
           </div>
         </div>
         <div class="evidence-grid">
@@ -103,12 +103,12 @@
       <section class="dossier board">
         <p class="section-label">단서 요약</p>
         <div class="clue-column">
-          <h4>정답 힌트</h4>
+          <h4>정답 키워드</h4>
           <span v-for="(clue, index) in caseFile.clueSummary.answerClues" :key="`a-${clue}`">{{ humanizeClue(clue, 'answer', index) }}</span>
           <em v-if="!caseFile.clueSummary.answerClues.length">아직 없음</em>
         </div>
         <div class="clue-column purple">
-          <h4>목적지 힌트</h4>
+          <h4>장소 키워드</h4>
           <span v-for="(clue, index) in caseFile.clueSummary.destinationClues" :key="`d-${clue}`">{{ humanizeClue(clue, 'destination', index) }}</span>
           <em v-if="!caseFile.clueSummary.destinationClues.length">아직 없음</em>
         </div>
@@ -174,8 +174,8 @@ async function loadCaseFile() {
 }
 
 const statusLabel = (status) => ({ NOT_STARTED: '시작 전', IN_PROGRESS: '조사 중', FINAL_READY: '최종 추리 가능', CLEARED: '클리어 완료', FAILED: '실패' }[status] || status);
-const clueTypeLabel = (type) => ({ ANSWER_CLUE: '정답 힌트', DESTINATION_CLUE: '목적지 힌트', STORY_CLUE: '스토리 단서', SUSPECT_CLUE: '용의자 단서' }[type] || type);
-const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '용의자 단서', POST_IT: '포스트잇', ANSWER_CLUE: '정답 힌트', DESTINATION_CLUE: '목적지 힌트', STORY_CLUE: '스토리 단서' }[type] || type);
+const clueTypeLabel = (type) => ({ ANSWER_CLUE: '정답 키워드', DESTINATION_CLUE: '장소 키워드', STORY_CLUE: '스토리 단서', SUSPECT_CLUE: '용의자 단서' }[type] || type);
+const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '용의자 단서', POST_IT: '포스트잇', ANSWER_CLUE: '정답 키워드', DESTINATION_CLUE: '장소 키워드', STORY_CLUE: '스토리 단서' }[type] || type);
 
 function suspectPortraitSrc(suspect) { return usableImageUrl(suspect.portraitImageUrl) || generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint); }
 function evidenceImageSrc(evidence) { return usableImageUrl(evidence.imageUrl) || generatedCaseCardDataUrl(evidence.title, evidence.type, evidence.textSummary); }
@@ -186,7 +186,7 @@ function humanizeClue(value, kind, index) {
   if (!/^(answer|destination|story)-clue-\d+$/i.test(text)) return text;
   const fallback = {
     answer: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
-    destination: ['낮은 담장', '조용한 문', '굽은 골목'],
+    destination: ['장소 표식', '닫힌 문', '굽은 골목'],
     story: ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표']
   };
   return fallback[kind]?.[index % fallback[kind].length] || '미분류 단서';

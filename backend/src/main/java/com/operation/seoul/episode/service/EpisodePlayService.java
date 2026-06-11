@@ -133,24 +133,30 @@ public class EpisodePlayService {
         List<Long> completed = readLongList(progress.getCompletedSpotIds());
 
         List<MissionSpot> spots = episodeRepository.findSpotsByEpisodeId(episodeId);
+        boolean finalDestinationUnlocked = isFinalDestinationUnlocked(spots, completed, progress);
+        List<SpotMarkerResponse> visibleSpots = new ArrayList<>();
+        int answerKeywordIndex = 0;
+        for (MissionSpot spot : spots) {
+            boolean finalPlace = Boolean.TRUE.equals(spot.getFinalPlace());
+            if (finalPlace && !finalDestinationUnlocked) {
+                continue;
+            }
+            String displayMarkerType;
+            if (finalPlace) {
+                displayMarkerType = "FINAL_DESTINATION";
+            } else if (isAnswerKeywordSpot(spot)) {
+                displayMarkerType = answerKeywordIndex % 2 == 0 ? "KEYWORD_1" : "KEYWORD_2";
+                answerKeywordIndex++;
+            } else {
+                displayMarkerType = displayMarkerType(spot);
+            }
+            visibleSpots.add(toSpotMarker(spot, displayMarkerType, visited, completed));
+        }
         SpotMarkerResponse adminFinalSpot = user != null && user.isAdmin()
                 ? spots.stream()
                         .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
                         .findFirst()
-                        .map(spot -> SpotMarkerResponse.builder()
-                                .spotId(spot.getId())
-                                .placeName(spot.getPlaceName())
-                                .address(spot.getAddress())
-                                .latitude(spot.getLatitude())
-                                .longitude(spot.getLongitude())
-                                .publicMarkerType("DESTINATION_HINT")
-                                .storyText(sanitizeCategoryCodes(spot.getStoryText()))
-                                .visited(visited.contains(spot.getId()))
-                                .completed(completed.contains(spot.getId()))
-                                .rewardClueCollected(completed.contains(spot.getId()))
-                                .canOpenPuzzle(visited.contains(spot.getId()))
-                                .canNavigate(true)
-                                .build())
+                        .map(spot -> toSpotMarker(spot, "FINAL_DESTINATION", visited, completed))
                         .orElse(null)
                 : null;
 
@@ -161,25 +167,68 @@ public class EpisodePlayService {
                 .hintUsedCount(value(progress.getHintUsedCount()))
                 .wrongAnswerCount(value(progress.getWrongAnswerCount()))
                 .deductionQuestionCount(value(progress.getDeductionQuestionCount()))
-                .spots(spots.stream()
-                        .filter(spot -> !Boolean.TRUE.equals(spot.getFinalPlace()))
-                        .map(spot -> SpotMarkerResponse.builder()
-                                .spotId(spot.getId())
-                                .placeName(spot.getPlaceName())
-                                .address(spot.getAddress())
-                                .latitude(spot.getLatitude())
-                                .longitude(spot.getLongitude())
-                                .publicMarkerType(spot.getPublicMarkerType())
-                                .storyText(sanitizeCategoryCodes(spot.getStoryText()))
-                                .visited(visited.contains(spot.getId()))
-                                .completed(completed.contains(spot.getId()))
-                                .rewardClueCollected(completed.contains(spot.getId()))
-                                .canOpenPuzzle(visited.contains(spot.getId()))
-                                .canNavigate(true)
-                                .build())
-                        .toList())
+                .finalDestinationUnlocked(finalDestinationUnlocked)
+                .spots(visibleSpots)
                 .adminFinalSpot(adminFinalSpot)
                 .build();
+    }
+
+    private SpotMarkerResponse toSpotMarker(MissionSpot spot, String publicMarkerType, List<Long> visited, List<Long> completed) {
+        return SpotMarkerResponse.builder()
+                .spotId(spot.getId())
+                .placeName(spot.getPlaceName())
+                .address(spot.getAddress())
+                .latitude(spot.getLatitude())
+                .longitude(spot.getLongitude())
+                .publicMarkerType(publicMarkerType)
+                .storyText(sanitizeCategoryCodes(spot.getStoryText()))
+                .visited(visited.contains(spot.getId()))
+                .completed(completed.contains(spot.getId()))
+                .rewardClueCollected(completed.contains(spot.getId()))
+                .canOpenPuzzle(visited.contains(spot.getId()))
+                .canNavigate(true)
+                .build();
+    }
+
+    private boolean isFinalDestinationUnlocked(List<MissionSpot> spots, List<Long> completed, UserEpisodeProgress progress) {
+        if (progress.getFinalArrivedSpotId() != null || "FINAL_READY".equals(progress.getStatus()) || "CLEARED".equals(progress.getStatus())) {
+            return true;
+        }
+        List<MissionSpot> locationKeywordSpots = spots.stream()
+                .filter(spot -> !Boolean.TRUE.equals(spot.getFinalPlace()))
+                .filter(this::isLocationKeywordSpot)
+                .toList();
+        if (locationKeywordSpots.isEmpty()) {
+            locationKeywordSpots = spots.stream()
+                    .filter(spot -> !Boolean.TRUE.equals(spot.getFinalPlace()))
+                    .filter(spot -> !"START".equals(normalize(spot.getMarkerType())))
+                    .toList();
+        }
+        return !locationKeywordSpots.isEmpty() && locationKeywordSpots.stream().allMatch(spot -> completed.contains(spot.getId()));
+    }
+
+    private String displayMarkerType(MissionSpot spot) {
+        String markerType = normalize(spot.getMarkerType());
+        String clueRole = normalize(spot.getClueRole());
+        if ("START".equals(markerType) || "START".equals(clueRole)) {
+            return "START";
+        }
+        if (isLocationKeywordSpot(spot)) {
+            return "KEYWORD_3";
+        }
+        return "KEYWORD_1";
+    }
+
+    private boolean isAnswerKeywordSpot(MissionSpot spot) {
+        return "ANSWER_HINT".equals(normalize(spot.getClueRole())) || "ANSWER_HINT".equals(normalize(spot.getMarkerType()));
+    }
+
+    private boolean isLocationKeywordSpot(MissionSpot spot) {
+        return "DESTINATION_HINT".equals(normalize(spot.getClueRole())) || "DESTINATION_HINT".equals(normalize(spot.getMarkerType()));
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     public ArriveResponse arrive(Long episodeId, Long spotId, ArriveRequest request, User user) {
@@ -217,7 +266,7 @@ public class EpisodePlayService {
         String message = actualFinal
                 ? "조사 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다."
                 : ("DESTINATION_HINT".equals(spot.getPublicMarkerType())
-                    ? "단서와 대조할 조사 지점입니다. 사건파일과 단서 보드를 다시 확인해 주세요."
+                    ? "장소 키워드와 대조할 조사 지점입니다. 사건파일과 단서 보드를 다시 확인해 주세요."
                     : "도착이 확인되었습니다. 현장 퍼즐을 열 수 있습니다.");
 
         return ArriveResponse.builder()

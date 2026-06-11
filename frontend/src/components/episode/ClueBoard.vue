@@ -9,15 +9,15 @@
     </header>
 
     <section>
-      <h3>정답 힌트 <span>{{ board?.answerClueCount || 0 }}/4</span></h3>
+      <h3>정답 키워드 <span>{{ board?.answerClueCount || 0 }}/4</span></h3>
       <ul><li v-for="clue in displayClues(board?.answerClues, 'answer')" :key="clue">{{ clue }}</li></ul>
       <p v-if="!(board?.answerClues || []).length" class="empty">최종 정답의 형태를 좁혀 줄 단서가 아직 없습니다.</p>
     </section>
 
     <section>
-      <h3>목적지 힌트 <span>{{ board?.destinationClueCount || 0 }}/2</span></h3>
+      <h3>장소 키워드 <span>{{ board?.destinationClueCount || 0 }}/2</span></h3>
       <ul><li v-for="clue in displayClues(board?.destinationClues, 'destination')" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!(board?.destinationClues || []).length" class="empty">조사해야 할 장소의 분위기와 방향을 좁혀 줄 단서가 아직 없습니다.</p>
+      <p v-if="!(board?.destinationClues || []).length" class="empty">최종 목적지를 열기 위한 장소 키워드 단서가 아직 없습니다.</p>
     </section>
 
     <section>
@@ -46,7 +46,7 @@ function humanizeClue(value, kind, index) {
   if (!/^(answer|destination|story)-clue-\d+$/i.test(text)) return text;
   const fallback = {
     answer: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
-    destination: ['낮은 담장', '조용한 문', '굽은 골목'],
+    destination: ['장소 표식', '닫힌 문', '굽은 골목'],
     story: ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표']
   };
   return fallback[kind]?.[index % fallback[kind].length] || '미분류 단서';

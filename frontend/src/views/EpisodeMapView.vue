@@ -31,7 +31,7 @@
         </div>
 
         <p class="map-caption">
-          모든 조사 장소는 후보로만 표시됩니다. 색상은 단서 역할만 의미하며, 실제 추리 장소 여부는 서버 내부 판정 전까지 공개되지 않습니다.
+          미션은 최종 정답을 이루는 세 가지 키워드 색상으로 표시됩니다. 장소 키워드 미션을 모두 해결하면 검은색 최종 목적지 마커가 공개됩니다.
         </p>
       </section>
 
@@ -65,7 +65,7 @@
     <button v-if="sessionStore.isAdmin && mapData?.adminFinalSpot" class="floating admin-final" type="button" @click="adminMoveToFinalSpot">
       최종 GPS 이동
     </button>
-    <button class="floating final-check" type="button" @click="arriveAtFinalPlace">
+    <button v-if="mapData?.finalDestinationUnlocked" class="floating final-check" type="button" @click="arriveAtFinalPlace">
       추리 장소 확인
     </button>
 
@@ -121,7 +121,7 @@ const currentPosition = ref(null);
 const devArrival = import.meta.env.VITE_DEV_ARRIVAL === 'true';
 const kakaoMapKey = import.meta.env.VITE_KAKAO_MAP_KEY || '';
 const tmapAppKey = import.meta.env.VITE_TMAP_APP_KEY || '';
-const markerTypes = ['START', 'ANSWER_HINT', 'DESTINATION_HINT'];
+const markerTypes = ['START', 'KEYWORD_1', 'KEYWORD_2', 'KEYWORD_3', 'FINAL_DESTINATION'];
 
 let kakaoMap = null;
 let overlays = [];
@@ -268,8 +268,8 @@ async function arriveAtSpot(spot) {
     const position = await getPosition(spot);
     const result = await episodeApi.arrive(episodeId, spot.spotId, { userLat: position.lat, userLng: position.lng, devMode: devArrival });
     arrivalResults.value = { ...arrivalResults.value, [spot.spotId]: result };
-    const wrongFinalCandidate = ['FINAL_CANDIDATE', 'DESTINATION_HINT'].includes(spot.publicMarkerType) && result.arrived && !result.canStartDeduction;
-    setStatus(wrongFinalCandidate ? '이 장소에서는 최종 추리를 시작할 수 없습니다. 목적지 힌트를 다시 확인해 주세요.' : result.message, result.arrived ? 'success' : 'info');
+    const wrongFinalCandidate = ['FINAL_CANDIDATE', 'FINAL_DESTINATION'].includes(spot.publicMarkerType) && result.arrived && !result.canStartDeduction;
+    setStatus(wrongFinalCandidate ? '이 장소에서는 최종 추리를 시작할 수 없습니다. 키워드 미션 진행 상태를 다시 확인해 주세요.' : result.message, result.arrived ? 'success' : 'info');
     const shouldOpenPuzzle = Boolean(result.arrived && result.canOpenPuzzle);
     await loadAll();
     if (shouldOpenPuzzle) {
@@ -518,11 +518,13 @@ function setStatus(text, type = 'info') {
 
 const markerLabel = (type) => ({
   START: '시작 장소',
-  ANSWER_HINT: '정답 힌트',
-  DESTINATION_HINT: '목적지 힌트',
-}[type] || '목적지 힌트');
+  KEYWORD_1: '키워드 1 미션',
+  KEYWORD_2: '키워드 2 미션',
+  KEYWORD_3: '장소 키워드 미션',
+  FINAL_DESTINATION: '최종 목적지',
+}[type] || '키워드 미션');
 
-const shortLabel = (type) => ({ START: 'S', ANSWER_HINT: 'A', DESTINATION_HINT: 'D', STORY: 'D', FINAL_CANDIDATE: 'D' }[type] || 'D');
+const shortLabel = (type) => ({ START: 'S', KEYWORD_1: '1', KEYWORD_2: '2', KEYWORD_3: '3', FINAL_DESTINATION: 'F', ANSWER_HINT: '1', DESTINATION_HINT: '3', STORY: '1', FINAL_CANDIDATE: 'F' }[type] || '•');
 </script>
 
 <style scoped>
@@ -541,8 +543,10 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .legend { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
 .legend span { flex: 0 0 auto; border-radius: 999px; padding: 6px 9px; font-size: .72rem; font-weight: 900; background: rgba(30,41,59,.8); }
 .legend .START { color: #60a5fa; }
-.legend .ANSWER_HINT { color: #fb923c; }
-.legend .DESTINATION_HINT { color: #c084fc; }
+.legend .KEYWORD_1 { color: #fb923c; }
+.legend .KEYWORD_2 { color: #22d3ee; }
+.legend .KEYWORD_3 { color: #a3e635; }
+.legend .FINAL_DESTINATION { color: #e5e7eb; }
 .legend .STORY { color: #4ade80; }
 .legend .FINAL_CANDIDATE { color: #cbd5e1; }
 .kakao-map { position: relative; height: min(62vh, 620px); min-height: 430px; overflow: hidden; border: 1px solid rgba(148,163,184,.2); border-radius: 20px; background: #0f172a; }
@@ -556,8 +560,10 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .spot-list-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spot-list-item small { color: #cbd5e1; font-weight: 900; font-size: .72rem; }
 .spot-list-item.START span { background: #2563eb; }
-.spot-list-item.ANSWER_HINT span { background: #ea580c; }
-.spot-list-item.DESTINATION_HINT span { background: #7e22ce; }
+.spot-list-item.KEYWORD_1 span { background: #ea580c; }
+.spot-list-item.KEYWORD_2 span { background: #0891b2; }
+.spot-list-item.KEYWORD_3 span { background: #65a30d; }
+.spot-list-item.FINAL_DESTINATION span { background: #020617; border: 1px solid rgba(255,255,255,.7); }
 .spot-list-item.STORY span { background: #15803d; }
 .spot-list-item.FINAL_CANDIDATE span { background: #1f2937; }
 .spot-list-item.selected { border-color: rgba(251,146,60,.62); box-shadow: 0 0 0 3px rgba(251,146,60,.14); }
@@ -566,8 +572,10 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .spot-list-item.done strong { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: rgba(134,239,172,.7); }
 :deep(.case-marker) { position: relative; width: 42px; height: 42px; border: 3px solid rgba(255,255,255,.72); border-radius: 999px; color: #fff; font-weight: 1000; box-shadow: 0 10px 18px rgba(0,0,0,.3); cursor: pointer; }
 :deep(.case-marker.START) { background: #2563eb; }
-:deep(.case-marker.ANSWER_HINT) { background: #ea580c; }
-:deep(.case-marker.DESTINATION_HINT) { background: #7e22ce; }
+:deep(.case-marker.KEYWORD_1) { background: #ea580c; }
+:deep(.case-marker.KEYWORD_2) { background: #0891b2; }
+:deep(.case-marker.KEYWORD_3) { background: #65a30d; }
+:deep(.case-marker.FINAL_DESTINATION) { background: #020617; border-color: rgba(255,255,255,.88); box-shadow: 0 0 0 4px rgba(0,0,0,.36), 0 14px 24px rgba(0,0,0,.44); }
 :deep(.case-marker.STORY) { background: #15803d; }
 :deep(.case-marker.FINAL_CANDIDATE) { background: #1f2937; }
 :deep(.case-marker.visited) { outline: 3px solid rgba(125,211,252,.72); }
