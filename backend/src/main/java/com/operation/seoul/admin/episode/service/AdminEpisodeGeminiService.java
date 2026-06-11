@@ -85,8 +85,9 @@ public class AdminEpisodeGeminiService {
             if (keywordsNode.isArray()) {
                 for (JsonNode node : keywordsNode) {
                     String label = node.path("label").asText("");
-                    String keyword = node.path("keyword").asText("");
-                    if (!blank(label) && !blank(keyword)) {
+                    String keyword = normalizeAnswerKeywordValue(node.path("keyword").asText(""));
+                    boolean duplicate = keywords.stream().anyMatch(existing -> same(existing.getKeyword(), keyword));
+                    if (!blank(label) && !blank(keyword) && !duplicate) {
                         keywords.add(AiEpisodePlanResponse.AnswerKeyword.builder()
                                 .label(label.trim())
                                 .keyword(keyword.trim())
@@ -191,6 +192,7 @@ public class AdminEpisodeGeminiService {
                 - Mission clues, suspect cards, and evidence cards may reveal individual keyword candidates progressively, but no single pre-clear clue field may state the complete final answer sentence or list every approved keyword together.
                 - finalQuestion must ask by slot labels or mystery roles, not by exact keyword values. Example: ask "범인, 범행도구, 사건장소를 종합하면 어떤 진실인가?" but do not include "용의자 A", "얼린 북어", or "궁전 뒷뜰".
                 - fictionSynopsis may state the type of truth the player must infer, but it must not list the actual final answer keywords.
+                - fictionSynopsis must still be understandable as a story brief. Never write placeholder wording such as "가려진 단서", "가려진 4자 단서", "N자 단서", "[정답 키워드]", or "핵심 키워드". Describe the missing truth by role instead: "기록되지 않은 항로", "방해자의 정체", "봉인된 물건의 행방", "마지막 암호의 의미", "사라진 인물이 남긴 이유".
                 - Extract the required answer slots from the synopsis objective. If the synopsis asks the player to identify an enemy and find a hideout, finalQuestion and finalAnswer must include both the enemy identity and hideout. If it asks for culprit + weapon + motive, include all three. If it asks only for a missing object's location, include only that because that is the stated objective.
                 - Do not let a MacGuffin object become the final answer unless the synopsis explicitly defines finding that object/location as the final objective. Objects such as "설계도", "황실 비밀 자금", "장부", "밀서", and "기록" usually function as clue trails that lead to the real objective.
                 - finalAnswerType should normally be HIDDEN_TRUTH when the answer has multiple required slots. Use EVIDENCE, HIDDEN_DOCUMENT, SECRET_KEYWORD, WEAPON, or CULPRIT only when that type exactly matches every required answer slot from the synopsis.
@@ -316,6 +318,10 @@ public class AdminEpisodeGeminiService {
                 3. Each keyword must be an actual answer value, not a slot label. For murder mystery, do not output "범인"; output the fictional culprit keyword. For treasure hunt, do not output "숨겨진 물건"; output the hidden object keyword.
                 4. The keyword list must be sufficient for answer checking. A player answer is correct only if it includes all keyword values.
                 5. Do not use real historical people as culprits. Use fictional roles, aliases, objects, places, or conditions inspired by the source data.
+                6. Keep each keyword short, atomic, and clue-verifiable. A keyword must be something a player can recognize from one clue card, such as "항로", "일지", "봉인 표식", "7", "연락책", or "기록고".
+                7. Do not create poetic or fully composed answer phrases as one keyword. Bad: "유달산의 잊혀진 항로", "목포 개항 당시의 비밀 항로", "봉인된 항해 일지의 마지막 문장". Split that idea into smaller keywords instead, such as "항로", "항해 일지", "목포", "마지막 문장".
+                8. Avoid possessive or adjective-heavy keyword forms using "의", "잊혀진", "숨겨진", "가려진", "봉인된", "사라진", or "오래된" unless that exact word is itself the answer value. Prefer concrete nouns, numbers, role names, or short condition words.
+                9. The fiction synopsis and final question will hide these keyword values, so the keyword list must not be the only place where the story objective is understandable.
 
                 Genre examples and required slots:
                 - 살인 미스터리: 범인, 범행도구, 사건장소
@@ -608,23 +614,28 @@ public class AdminEpisodeGeminiService {
         if (request.getFinalAnswerKeywords() != null && !request.getFinalAnswerKeywords().isEmpty()) {
             List<String> keywords = request.getFinalAnswerKeywords().stream()
                     .filter(value -> value != null && !value.isBlank())
-                    .map(String::trim)
+                    .map(this::normalizeAnswerKeywordValue)
+                    .filter(value -> !blank(value))
                     .distinct()
                     .toList();
-            draft.setFinalAnswerKeywords(keywords);
-            draft.setFinalAnswerAliases(withKeywordContract(draft.getFinalAnswerAliases(), keywords));
-            String selectedGenre = blank(request.getSelectedGenre()) ? "최종 사건" : request.getSelectedGenre().trim();
-            boolean missingKeywordInAnswer = keywords.stream()
-                    .map(this::compact)
-                    .anyMatch(keyword -> !compact(draft.getFinalAnswer()).contains(keyword));
-            if (missingKeywordInAnswer) {
-                draft.setFinalAnswerType(keywords.size() > 1 ? "HIDDEN_TRUTH" : draft.getFinalAnswerType());
-                draft.setFinalAnswer(selectedGenre + "의 최종 진실은 " + String.join(", ", keywords) + "입니다");
+            if (keywords.isEmpty()) {
+                warnings.add("Final answer keywords were removed during normalization; review answer plan before publishing.");
+            } else {
+                draft.setFinalAnswerKeywords(keywords);
+                draft.setFinalAnswerAliases(withKeywordContract(draft.getFinalAnswerAliases(), keywords));
+                String selectedGenre = blank(request.getSelectedGenre()) ? "최종 사건" : request.getSelectedGenre().trim();
+                boolean missingKeywordInAnswer = keywords.stream()
+                        .map(this::compact)
+                        .anyMatch(keyword -> !compact(draft.getFinalAnswer()).contains(keyword));
+                if (missingKeywordInAnswer) {
+                    draft.setFinalAnswerType(keywords.size() > 1 ? "HIDDEN_TRUTH" : draft.getFinalAnswerType());
+                    draft.setFinalAnswer(selectedGenre + "의 최종 진실은 " + String.join(", ", keywords) + "입니다");
+                }
+                if (blank(draft.getFinalQuestion()) || containsKeywordLeak(draft.getFinalQuestion(), keywords)) {
+                    draft.setFinalQuestion(selectedGenre + "의 최종 진실을 이루는 핵심 요소들을 종합하면 어떤 결론인가?");
+                }
+                maskFinalAnswerKeywordLeaks(draft, keywords, selectedGenre);
             }
-            if (blank(draft.getFinalQuestion()) || containsKeywordLeak(draft.getFinalQuestion(), keywords)) {
-                draft.setFinalQuestion(selectedGenre + "의 최종 진실을 이루는 핵심 요소들을 종합하면 어떤 결론인가?");
-            }
-            maskFinalAnswerKeywordLeaks(draft, keywords);
         }
         if (draft.getDeductionForbiddenReveals() == null) {
             draft.setDeductionForbiddenReveals(new ArrayList<>());
@@ -807,13 +818,15 @@ public class AdminEpisodeGeminiService {
         }
     }
 
-    private void maskFinalAnswerKeywordLeaks(AiEpisodeDraftResponse.EpisodeDraft draft, List<String> keywords) {
+    private void maskFinalAnswerKeywordLeaks(AiEpisodeDraftResponse.EpisodeDraft draft, List<String> keywords, String selectedGenre) {
         if (draft == null || keywords == null || keywords.isEmpty()) {
             return;
         }
         draft.setEpisodeTitle(maskKeywords(draft.getEpisodeTitle(), keywords));
         draft.setSubtitle(maskKeywords(draft.getSubtitle(), keywords));
-        draft.setFictionSynopsis(maskKeywords(draft.getFictionSynopsis(), keywords));
+        if (containsKeywordLeak(draft.getFictionSynopsis(), keywords) || containsMaskPlaceholder(draft.getFictionSynopsis())) {
+            draft.setFictionSynopsis(safeFictionSynopsis(draft, selectedGenre));
+        }
         draft.setFinalQuestion(maskKeywords(draft.getFinalQuestion(), keywords));
     }
 
@@ -826,10 +839,70 @@ public class AdminEpisodeGeminiService {
             if (blank(keyword)) {
                 continue;
             }
-            result = result.replace(keyword, clueMask(keyword));
-            result = result.replace(keyword.replaceAll("\\s+", ""), clueMask(keyword));
+            result = result.replace(keyword, clueMask());
+            result = result.replace(keyword.replaceAll("\\s+", ""), clueMask());
         }
         return result;
+    }
+
+    private String normalizeAnswerKeywordValue(String keyword) {
+        if (blank(keyword)) {
+            return "";
+        }
+        String normalized = keyword.trim()
+                .replaceAll("[\\[\\]\"'`]", "")
+                .replaceAll("\\s+", " ");
+        int possessiveIndex = normalized.lastIndexOf("의 ");
+        if (possessiveIndex >= 0 && possessiveIndex < normalized.length() - 2) {
+            normalized = normalized.substring(possessiveIndex + 2).trim();
+        }
+        normalized = normalized
+                .replaceAll("^(잊혀진|숨겨진|감춰진|가려진|봉인된|사라진|오래된|비밀스러운)\\s+", "")
+                .replaceAll("\\s+(진실|비밀|단서)$", "")
+                .trim();
+        if (compact(normalized).length() > 8 && normalized.contains(" ")) {
+            String[] parts = normalized.split("\\s+");
+            normalized = parts[parts.length - 1].trim();
+        }
+        return normalized;
+    }
+
+    private boolean containsMaskPlaceholder(String text) {
+        if (blank(text)) {
+            return false;
+        }
+        String compactText = compact(text);
+        return compactText.contains("가려진단서")
+                || compactText.matches(".*가려진\\d+자단서.*")
+                || compactText.matches(".*\\d+자단서.*")
+                || compactText.contains("정답키워드")
+                || compactText.contains("핵심키워드");
+    }
+
+    private String safeFictionSynopsis(AiEpisodeDraftResponse.EpisodeDraft draft, String selectedGenre) {
+        String source = String.join(" ",
+                blank(draft.getEpisodeTitle()) ? "" : draft.getEpisodeTitle(),
+                blank(draft.getSubtitle()) ? "" : draft.getSubtitle(),
+                blank(draft.getFictionSynopsis()) ? "" : draft.getFictionSynopsis(),
+                blank(selectedGenre) ? "" : selectedGenre
+        );
+        if (containsAny(source, "항구", "항해", "개항", "항로", "일지", "목포")) {
+            return "오래된 항구 기록이 발견되며, 공식 기록에 남지 않은 이동 경로와 그 길을 막아선 세력의 흔적이 드러난다. 요원은 항구 일대에 흩어진 암호와 증언을 대조해 숨겨진 경로의 의미, 방해자의 목적, 마지막 기록이 가리키는 결론을 밝혀야 한다.";
+        }
+        if (containsAny(source, "검은 그림자", "검은그림자", "은신처", "거점", "아지트", "정체")) {
+            return "도시 곳곳에 남은 표식이 하나의 비밀 조직을 가리킨다. 요원은 현장 기록과 엇갈린 증언을 대조해 조직의 역할, 숨어든 거점의 단서, 사건을 움직인 목적을 밝혀야 한다.";
+        }
+        if (containsAny(source, "보물", "상자", "봉인", "열쇠", "해금")) {
+            return "오래 봉인된 물건의 행방을 둘러싸고 서로 다른 기록이 발견된다. 요원은 현장에 남은 암호와 보관 흔적을 따라가며 물건의 정체, 보관된 장소의 특징, 봉인을 푸는 조건을 밝혀야 한다.";
+        }
+        if (containsAny(source, "암호", "문장", "숫자", "해독")) {
+            return "낡은 기록 속 암호문이 여러 조사 지점에서 서로 다른 형태로 반복된다. 요원은 숫자, 문장, 상징의 연결 규칙을 찾아 마지막 암호가 전달하려던 의미를 밝혀야 한다.";
+        }
+        if (containsAny(source, "실종", "사라진", "마지막")) {
+            return "한 인물 또는 기록이 사라진 뒤, 마지막 동선을 둘러싼 증언들이 서로 어긋난다. 요원은 현장 단서와 남겨진 물건을 대조해 사라진 이유와 마지막 흔적이 가리키는 결론을 밝혀야 한다.";
+        }
+        String genre = blank(selectedGenre) ? "이 사건" : selectedGenre;
+        return "선택된 장소 일대에서 오래된 기록과 서로 어긋나는 증언이 발견된다. 요원은 현장 단서, 암호, 사건파일을 차례로 대조해 " + genre + "의 핵심 역할과 마지막 단서가 가리키는 결론을 밝혀야 한다.";
     }
 
     private boolean containsKeywordLeak(String text, List<String> keywords) {
@@ -848,12 +921,8 @@ public class AdminEpisodeGeminiService {
         return false;
     }
 
-    private String clueMask(String keyword) {
-        int length = compact(keyword).length();
-        if (length <= 2) {
-            return "가려진 단서";
-        }
-        return "가려진 " + length + "자 단서";
+    private String clueMask() {
+        return "핵심 단서";
     }
 
     private String sanitizeCategoryCodes(String value) {

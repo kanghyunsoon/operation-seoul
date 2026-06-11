@@ -44,8 +44,12 @@ defineEmits(['navigate', 'arrive', 'open-puzzle', 'close-puzzle', 'start-deducti
 
 const roleLabel = (type) => ({
   START: '시작 장소',
-  ANSWER_HINT: '정답 힌트',
-  DESTINATION_HINT: '목적지 힌트',
+  KEYWORD_1: '키워드 1 미션',
+  KEYWORD_2: '키워드 2 미션',
+  KEYWORD_3: '장소 키워드 미션',
+  FINAL_DESTINATION: '최종 목적지',
+  ANSWER_HINT: '키워드 1 미션',
+  DESTINATION_HINT: '장소 키워드 미션',
   STORY: '스토리 단서',
   FINAL_CANDIDATE: '조사 지점'
 }[type] || '조사 지점');
@@ -58,8 +62,10 @@ const roleLabel = (type) => ({
 h2 { margin: 3px 0 0; color: #fff; font-size: 1.15rem; }
 .role { margin: 0; font-size: .74rem; font-weight: 900; }
 .role.START { color: #60a5fa; }
-.role.ANSWER_HINT { color: #fb923c; }
-.role.DESTINATION_HINT { color: #c084fc; }
+.role.KEYWORD_1, .role.ANSWER_HINT { color: #fb923c; }
+.role.KEYWORD_2 { color: #22d3ee; }
+.role.KEYWORD_3, .role.DESTINATION_HINT { color: #a3e635; }
+.role.FINAL_DESTINATION { color: #e5e7eb; }
 .role.STORY { color: #4ade80; }
 .role.FINAL_CANDIDATE { color: #cbd5e1; }
 .state { flex: 0 0 auto; border: 1px solid rgba(148,163,184,.28); border-radius: 999px; padding: 5px 8px; color: #94a3b8; font-size: .74rem; font-weight: 800; }
