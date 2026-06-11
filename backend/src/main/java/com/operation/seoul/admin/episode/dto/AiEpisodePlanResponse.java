@@ -12,18 +12,42 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiEpisodePlanResponse {
-    private String selectedGenre;
+    private String selectedGenreId;
+    private String selectedGenreName;
+
+    private List<AnswerSlotPlan> answerSlots;
     private List<AnswerKeyword> finalAnswerKeywords;
+
     private String finalQuestionGuide;
     private String rationale;
+
+    private List<String> rejectedGenreReasons;
+    private List<String> validationWarnings;
     private List<String> nextSteps;
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class AnswerSlotPlan {
+        private String slotId;
+        private String label;
+        private String description;
+        private Integer minClueCount;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AnswerKeyword {
+        private String slotId;
         private String label;
         private String keyword;
+        private List<String> aliases;
+        private Integer sourcePlaceOrder;
+        private String sourceBasis;
+        private String difficulty;
+        private String risk;
     }
 }

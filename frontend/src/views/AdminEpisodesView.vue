@@ -4,7 +4,7 @@
       <div>
         <p>ADMIN CASE OPS</p>
         <h1>에피소드 관리</h1>
-        <span>사건파일, 장소, 퍼즐, 내부 최종 장소, 예정 리워드를 점검합니다.</span>
+        <span>미션 파일, 장소, 퍼즐, 내부 최종 장소, 예정 리워드를 점검합니다.</span>
       </div>
       <div class="hero-actions">
         <button type="button" class="ghost-btn" @click="router.push({ name: 'EpisodeList' })">전역 미션 선택</button>
@@ -26,7 +26,7 @@
     <section class="layout" :class="{ 'builder-layout': activeAdminTab === 'builder' }">
       <aside v-if="activeAdminTab === 'episodes'" class="episode-list">
         <div class="section-title">
-          <h2>사건파일 목록</h2>
+          <h2>미션 파일 목록</h2>
           <div class="payload-actions compact">
             <button type="button" @click="createEpisode">새 사건 생성</button>
             <button type="button" class="ghost-btn" @click="loadEpisodes">새로고침</button>
@@ -88,13 +88,13 @@
                   사용자 지도 열기
                 </button>
                 <button type="button" class="ghost-btn" :disabled="selected.status !== 'PUBLISHED'" @click="goUserCaseFile">
-                  사용자 사건파일 열기
+                  사용자 미션 파일 열기
                 </button>
               </div>
             </div>
             <p>
               DRAFT는 사용자 API에서 접근할 수 없으므로 이 관리자 미리보기로만 확인합니다.
-              PUBLISHED 이후에는 실제 사용자 지도/사건파일 화면으로 이동할 수 있습니다.
+              PUBLISHED 이후에는 실제 사용자 지도/미션 파일 화면으로 이동할 수 있습니다.
             </p>
             <div v-if="previewOpen" class="preview-grid">
               <article>
@@ -118,7 +118,7 @@
                 </ul>
               </article>
               <article>
-                <strong>용의자 카드</strong>
+                <strong>관계자 카드</strong>
                 <ul>
                   <li v-for="suspect in selected.suspects || []" :key="`preview-suspect-${suspect.suspectId}`">
                     <span>{{ suspect.alias }}</span>
@@ -133,7 +133,7 @@
           <nav class="admin-section-tabs" aria-label="에피소드 편집 섹션 이동">
             <button type="button" @click="scrollToAdminSection('admin-core')">핵심 정보</button>
             <button type="button" @click="scrollToAdminSection('admin-spots')">장소/퍼즐</button>
-            <button type="button" @click="scrollToAdminSection('admin-assets')">용의자/증거</button>
+            <button type="button" @click="scrollToAdminSection('admin-assets')">관계자/해금 자료</button>
             <button type="button" @click="openBuilderTab">AI 초안</button>
           </nav>
 
@@ -162,7 +162,7 @@
                   <span>FINAL {{ publishReadiness.summary?.finalPlaceCount || 0 }}</span>
                   <span>후보 {{ publishReadiness.summary?.finalCandidateCount || 0 }}</span>
                   <span>퍼즐 {{ publishReadiness.summary?.puzzleCount || 0 }}</span>
-                  <span>용의자 {{ publishReadiness.summary?.suspectCount || 0 }}</span>
+                  <span>관계자 {{ publishReadiness.summary?.suspectCount || 0 }}</span>
                   <span>증거 {{ publishReadiness.summary?.evidenceCount || 0 }}</span>
                 </div>
                 <ul v-if="publishReadiness.blockingIssues?.length">
@@ -237,14 +237,18 @@
                     <select v-model="spot.publicMarkerType">
                       <option value="START">START</option>
                       <option value="ANSWER_HINT">ANSWER_HINT</option>
-                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+
+
                     </select>
                   </label>
                   <label>내부 마커
                     <select v-model="spot.markerType">
                       <option value="START">START</option>
                       <option value="ANSWER_HINT">ANSWER_HINT</option>
-                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+
+
                       <option value="FINAL">FINAL</option>
                     </select>
                   </label>
@@ -252,7 +256,8 @@
                     <select v-model="spot.clueRole">
                       <option value="START">START</option>
                       <option value="ANSWER_HINT">ANSWER_HINT</option>
-                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+                      <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+
                       <option value="FINAL_PLACE">FINAL_PLACE</option>
                     </select>
                   </label>
@@ -315,9 +320,9 @@
           </div>
 
           <div id="admin-assets" class="section-title admin-anchor">
-            <h3>용의자/증거 자료</h3>
+            <h3>관계자/해금 자료</h3>
             <div class="payload-actions">
-              <button type="button" class="ghost-btn" @click="addSuspect">용의자 추가</button>
+              <button type="button" class="ghost-btn" @click="addSuspect">관계자 추가</button>
               <button type="button" class="ghost-btn" @click="addEvidence">증거 추가</button>
             </div>
           </div>
@@ -327,7 +332,7 @@
               <p>{{ suspect.suspiciousPoint }}</p>
               <span>{{ suspect.unlockedByDefault ? '기본 해금' : '조건 해금' }}</span>
               <details class="card-editor">
-                <summary>용의자 수정</summary>
+                <summary>관계자 수정</summary>
                 <label>별칭<input v-model.trim="suspect.alias" type="text" /></label>
                 <label>표시 이름<input v-model.trim="suspect.displayName" type="text" /></label>
                 <label>짧은 설명<input v-model.trim="suspect.shortDescription" type="text" /></label>
@@ -340,8 +345,8 @@
                 <button type="button" class="ghost-btn mini" @click="copyImagePrompt(suspect.imagePrompt)">프롬프트 복사</button>
                 <label>표시 순서<input v-model.number="suspect.displayOrder" type="number" /></label>
                 <label class="check"><input v-model="suspect.unlockedByDefault" type="checkbox" /> 기본 해금</label>
-                <button type="button" @click="saveSuspect(suspect)">용의자 저장</button>
-                <button type="button" class="danger-btn" @click="removeSuspect(suspect)">용의자 삭제</button>
+                <button type="button" @click="saveSuspect(suspect)">관계자 저장</button>
+                <button type="button" class="danger-btn" @click="removeSuspect(suspect)">관계자 삭제</button>
               </details>
             </article>
             <article v-for="evidence in selected.evidences || []" :key="`e-${evidence.evidenceId}`">
@@ -370,7 +375,7 @@
                 <button type="button" class="ghost-btn mini" @click="evidence.imagePrompt = buildEvidenceImagePrompt(evidence)">프롬프트 재생성</button>
                 <button type="button" class="ghost-btn mini" @click="copyImagePrompt(evidence.imagePrompt)">프롬프트 복사</button>
                 <label>출처 장소 ID<input v-model.number="evidence.sourceSpotId" type="number" /></label>
-                <label>관련 용의자 ID<input v-model.number="evidence.relatedSuspectId" type="number" /></label>
+                <label>관련 관계자 ID<input v-model.number="evidence.relatedSuspectId" type="number" /></label>
                 <label>관련 단서 타입<input v-model.trim="evidence.relatedClueType" type="text" /></label>
                 <label>표시 순서<input v-model.number="evidence.displayOrder" type="number" /></label>
                 <label>요약<textarea v-model="evidence.textSummary" rows="3"></textarea></label>
@@ -457,7 +462,7 @@
           <div class="section-title">
             <div>
               <p class="eyebrow">CASE BUILDER</p>
-              <h2>AI 사건파일 자동 작성</h2>
+              <h2>AI 미션 파일 자동 작성</h2>
             </div>
             <div class="payload-actions action-bar">
               <button type="button" class="ghost-btn" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'enrich' }" @click="enrichSelectedSiteData">
@@ -494,7 +499,7 @@
           </section>
           <section v-if="draftPlan" class="draft-feedback-panel keyword-plan-panel">
             <strong>AI 장르/최종 정답 키워드 계획</strong>
-            <p>장르: {{ draftPlan.selectedGenre }}</p>
+            <p>장르: {{ draftPlan.selectedGenreName }}</p>
             <div class="chips">
               <span v-for="item in draftPlan.finalAnswerKeywords || []" :key="`${item.label}-${item.keyword}`">{{ item.label }}: {{ item.keyword }}</span>
             </div>
@@ -521,7 +526,7 @@
           <div class="ai-mode-grid">
             <article>
               <strong>Gemini 전체 작성</strong>
-              <span>관리자가 선택한 장소와 메모를 기반으로 스토리, 퍼즐, 단서, 용의자, 증거 카드 초안을 생성합니다. 생성 직후 최종 장소 은닉과 카드 수는 자동 보정됩니다.</span>
+              <span>관리자가 선택한 장소와 메모를 기반으로 스토리, 퍼즐, 단서, 관계자 카드, 해금 자료 카드 초안을 생성합니다. 생성 직후 최종 장소 은닉과 카드 수는 자동 보정됩니다.</span>
             </article>
             <article>
               <strong>예비 초안</strong>
@@ -690,7 +695,7 @@
             </div>
 
             <details open class="draft-edit-block">
-              <summary>사건파일 기본 정보</summary>
+              <summary>미션 파일 기본 정보</summary>
               <div class="edit-grid">
                 <label>제목<input v-model.trim="draftResult.draft.episodeTitle" type="text" /></label>
                 <label>부제<input v-model.trim="draftResult.draft.subtitle" type="text" /></label>
@@ -712,7 +717,7 @@
                 <label class="wide">최종 질문<input v-model.trim="draftResult.draft.finalQuestion" type="text" /></label>
                 <label class="wide">Fiction Mode 임무 브리핑<textarea v-model="draftResult.draft.fictionSynopsis" rows="3"></textarea></label>
                 <label class="wide">Fact Mode 3. 픽션과 역사의 매칭<textarea v-model="draftResult.draft.finalTruthSummary" rows="4"></textarea></label>
-                <label class="wide">Fact Mode 1~2. 모티브 공개/실제 사건 해설<textarea v-model="draftResult.draft.actualHistorySummary" rows="5"></textarea></label>
+                <label class="wide">Fact Mode 1~2. 모티브 공개/실제 배경 해설<textarea v-model="draftResult.draft.actualHistorySummary" rows="5"></textarea></label>
                 <label class="wide">추리 secret facts, 줄바꿈 구분<textarea :value="listToLines(draftResult.draft.deductionSecretFacts)" rows="3" @input="draftResult.draft.deductionSecretFacts = linesToList($event.target.value)"></textarea></label>
                 <label class="wide">정답 노출 금지어, 줄바꿈 구분<textarea :value="listToLines(draftResult.draft.deductionForbiddenReveals)" rows="3" @input="draftResult.draft.deductionForbiddenReveals = linesToList($event.target.value)"></textarea></label>
               </div>
@@ -752,7 +757,9 @@
                       <select v-model="mission.markerType" @change="mission.finalPlace = mission.markerType === 'FINAL'; syncDraftMissionRole(mission)">
                         <option value="START">START</option>
                         <option value="ANSWER_HINT">ANSWER_HINT</option>
-                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+
+
                         <option value="FINAL">FINAL</option>
                       </select>
                     </label>
@@ -760,14 +767,17 @@
                       <select v-model="mission.publicMarkerType">
                         <option value="START">START</option>
                         <option value="ANSWER_HINT">ANSWER_HINT</option>
-                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+
+
                       </select>
                     </label>
                     <label>단서 역할
                       <select v-model="mission.clueRole">
                         <option value="START">START</option>
                         <option value="ANSWER_HINT">ANSWER_HINT</option>
-                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+                        <option value="DESTINATION_HINT">DESTINATION_HINT</option>
+
                         <option value="FINAL_PLACE">FINAL_PLACE</option>
                       </select>
                     </label>
@@ -807,13 +817,13 @@
             </details>
 
             <details class="draft-edit-block">
-              <summary>용의자/증거 카드 초안</summary>
-              <h4>용의자</h4>
+              <summary>관계자/해금 자료 카드 초안</summary>
+              <h4>관계자</h4>
               <div class="mini-grid">
                 <details v-for="(suspect, index) in draftResult.draft.suspects || []" :key="`draft-suspect-${index}`" class="draft-mini-card">
                   <summary class="draft-card-summary">
                     <span>
-                      <strong>{{ suspect.alias || '용의자' }}</strong>
+                      <strong>{{ suspect.alias || '관계자' }}</strong>
                       <small>{{ suspect.displayName || '이름 미정' }}</small>
                     </span>
                     <em>편집</em>
@@ -821,8 +831,8 @@
                   <label>별칭<input v-model.trim="suspect.alias" type="text" /></label>
                   <label>표시 이름<input v-model.trim="suspect.displayName" type="text" /></label>
                   <div class="wide evidence-preview-box">
-                    <img v-if="suspect.portraitImageUrl" class="draft-suspect-image" :src="suspect.portraitImageUrl" alt="용의자 초상 미리보기" />
-                    <textarea v-model="suspect.imagePrompt" rows="5" placeholder="외부 이미지 AI에 넣을 용의자별 프롬프트"></textarea>
+                    <img v-if="suspect.portraitImageUrl" class="draft-suspect-image" :src="suspect.portraitImageUrl" alt="관계자 초상 미리보기" />
+                    <textarea v-model="suspect.imagePrompt" rows="5" placeholder="외부 이미지 AI에 넣을 관계자별 프롬프트"></textarea>
                     <button type="button" class="ghost-btn mini" @click="suspect.imagePrompt = buildSuspectImagePrompt(suspect)">프롬프트 재생성</button>
                     <button type="button" class="ghost-btn mini" @click="copyImagePrompt(suspect.imagePrompt)">프롬프트 복사</button>
                     <button type="button" class="ghost-btn mini" @click="suspect.portraitImageUrl = generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint)">
@@ -832,7 +842,7 @@
                   </div>
                   <details class="wide image-url-edit">
                     <summary>초상 이미지 URL 직접 수정</summary>
-                    <label>초상 이미지 URL<input v-model.trim="suspect.portraitImageUrl" type="text" placeholder="비워두면 자동 용의자 카드 생성" /></label>
+                    <label>초상 이미지 URL<input v-model.trim="suspect.portraitImageUrl" type="text" placeholder="비워두면 자동 관계자 카드 생성" /></label>
                   </details>
                   <label>의심 포인트<textarea v-model="suspect.suspiciousPoint" rows="2"></textarea></label>
                   <label>사건 관계<textarea v-model="suspect.relationToVictim" rows="2"></textarea></label>
@@ -1071,7 +1081,7 @@ const caseBuilderNext = computed(() => {
     }
     return {
       title: '7단계: 확정한 정답 키워드로 Gemini 초안을 생성하세요.',
-      description: '관리자가 확인한 장르와 정답 키워드 전체가 포함되도록 사건 개요, 미션, 용의자, 증거 카드를 생성합니다.',
+      description: '관리자가 확인한 장르와 정답 키워드 계약을 바탕으로 스토리 개요, 미션, 관계자 카드, 해금 자료 카드를 생성합니다.',
       button: '키워드 확정 후 전체 초안 생성',
       action: 'gemini',
       disabled: false
@@ -1159,7 +1169,7 @@ async function selectEpisode(episodeId) {
 
 function goUserMap() {
   if (selected.value?.status !== 'PUBLISHED') {
-    setMessage('DRAFT 사건파일은 사용자 지도 API에서 접근할 수 없습니다. PUBLISHED 전환 후 열어 주세요.', 'error');
+    setMessage('DRAFT 미션 파일은 사용자 지도 API에서 접근할 수 없습니다. PUBLISHED 전환 후 열어 주세요.', 'error');
     return;
   }
   router.push({ name: 'EpisodeMap', params: { episodeId: selectedEpisodeId.value } });
@@ -1167,7 +1177,7 @@ function goUserMap() {
 
 function goUserCaseFile() {
   if (selected.value?.status !== 'PUBLISHED') {
-    setMessage('DRAFT 사건파일은 사용자 사건파일 API에서 접근할 수 없습니다. PUBLISHED 전환 후 열어 주세요.', 'error');
+    setMessage('DRAFT 미션 파일은 사용자 미션 파일 API에서 접근할 수 없습니다. PUBLISHED 전환 후 열어 주세요.', 'error');
     return;
   }
   router.push({ name: 'EpisodeCaseFile', params: { episodeId: selectedEpisodeId.value } });
@@ -1232,9 +1242,9 @@ function auditActionLabel(action) {
     UPDATE_SPOT: '장소 수정',
     DELETE_SPOT: '장소 삭제',
     UPDATE_PUZZLE: '퍼즐 수정',
-    CREATE_SUSPECT: '용의자 추가',
-    UPDATE_SUSPECT: '용의자 수정',
-    DELETE_SUSPECT: '용의자 삭제',
+    CREATE_SUSPECT: '관계자 추가',
+    UPDATE_SUSPECT: '관계자 수정',
+    DELETE_SUSPECT: '관계자 삭제',
     CREATE_EVIDENCE: '증거 추가',
     UPDATE_EVIDENCE: '증거 수정',
     DELETE_EVIDENCE: '증거 삭제',
@@ -1275,7 +1285,7 @@ async function createEpisode() {
   const createdAt = new Date().toLocaleString('ko-KR', { hour12: false });
   try {
     const created = await adminEpisodeApi.createEpisode({
-      title: `새 사건파일 초안 ${createdAt}`
+      title: `새 미션 파일 초안 ${createdAt}`
     });
     selected.value = created;
     selectedEpisodeId.value = created.id;
@@ -1283,19 +1293,19 @@ async function createEpisode() {
     publishReadiness.value = null;
     previewOpen.value = false;
     await refreshEpisodeList();
-    setMessage('새 사건파일 DRAFT가 생성되었습니다. 핵심 정보를 수정한 뒤 장소/퍼즐/사건자료를 추가하세요.', 'success');
+    setMessage('새 미션 파일 DRAFT가 생성되었습니다. 핵심 정보를 수정한 뒤 장소/퍼즐/사건자료를 추가하세요.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || '사건파일을 생성할 수 없습니다.', 'error');
+    setMessage(error.userMessage || '미션 파일을 생성할 수 없습니다.', 'error');
   }
 }
 
 async function deleteEpisode() {
   if (!selected.value || !selectedEpisodeId.value) return;
   if (selected.value.status === 'PUBLISHED') {
-    setMessage('PUBLISHED 사건파일은 먼저 ARCHIVED로 변경한 뒤 삭제하세요.', 'error');
+    setMessage('PUBLISHED 미션 파일은 먼저 ARCHIVED로 변경한 뒤 삭제하세요.', 'error');
     return;
   }
-  const confirmed = window.confirm(`${selected.value.title} 사건파일을 삭제할까요? 장소, 퍼즐, 사건자료, 진행 기록, 리뷰가 함께 삭제됩니다.`);
+  const confirmed = window.confirm(`${selected.value.title} 미션 파일을 삭제할까요? 장소, 퍼즐, 사건자료, 진행 기록, 리뷰가 함께 삭제됩니다.`);
   if (!confirmed) return;
   try {
     await adminEpisodeApi.deleteEpisode(selectedEpisodeId.value);
@@ -1307,9 +1317,9 @@ async function deleteEpisode() {
     if (episodes.value.length) {
       await selectEpisode(episodes.value[0].id);
     }
-    setMessage('사건파일이 삭제되었습니다.', 'success');
+    setMessage('미션 파일이 삭제되었습니다.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || '사건파일을 삭제할 수 없습니다.', 'error');
+    setMessage(error.userMessage || '미션 파일을 삭제할 수 없습니다.', 'error');
   }
 }
 
@@ -1363,9 +1373,9 @@ async function publishEpisode() {
     hydrateEpisodeForm(selected.value);
     await refreshEpisodeList();
     publishReadiness.value = await adminEpisodeApi.getPublishReadiness(selectedEpisodeId.value);
-    setMessage('사건파일이 PUBLISHED로 공개되었습니다.', 'success');
+    setMessage('미션 파일이 PUBLISHED로 공개되었습니다.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || '사건파일을 공개할 수 없습니다.', 'error');
+    setMessage(error.userMessage || '미션 파일을 공개할 수 없습니다.', 'error');
   }
 }
 
@@ -1470,37 +1480,37 @@ async function saveSuspect(suspect) {
     });
     hydrateEpisodeForm(selected.value);
     publishReadiness.value = null;
-    setMessage('용의자 카드가 수정되었습니다.', 'success');
+    setMessage('관계자 카드가 수정되었습니다.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || '용의자 카드를 수정할 수 없습니다.', 'error');
+    setMessage(error.userMessage || '관계자 카드를 수정할 수 없습니다.', 'error');
   }
 }
 
 async function addSuspect() {
   try {
     selected.value = await adminEpisodeApi.createSuspect(selectedEpisodeId.value, {
-      alias: `용의자 ${(selected.value?.suspects || []).length + 1}`,
-      displayName: '새 용의자',
+      alias: `관계자 ${(selected.value?.suspects || []).length + 1}`,
+      displayName: '새 관계자',
       suspiciousPoint: '의심 포인트를 입력하세요.',
       unlockedByDefault: false
     });
     hydrateEpisodeForm(selected.value);
     publishReadiness.value = null;
-    setMessage('용의자 카드가 추가되었습니다.', 'success');
+    setMessage('관계자 카드가 추가되었습니다.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || '용의자 카드를 추가할 수 없습니다.', 'error');
+    setMessage(error.userMessage || '관계자 카드를 추가할 수 없습니다.', 'error');
   }
 }
 
 async function removeSuspect(suspect) {
-  if (!window.confirm(`${suspect.displayName} 용의자 카드를 삭제할까요? 관련 증거 연결은 해제됩니다.`)) return;
+  if (!window.confirm(`${suspect.displayName} 관계자 카드를 삭제할까요? 관련 해금 자료 연결은 해제됩니다.`)) return;
   try {
     selected.value = await adminEpisodeApi.deleteSuspect(selectedEpisodeId.value, suspect.suspectId);
     hydrateEpisodeForm(selected.value);
     publishReadiness.value = null;
-    setMessage('용의자 카드가 삭제되었습니다.', 'success');
+    setMessage('관계자 카드가 삭제되었습니다.', 'success');
   } catch (error) {
-    setMessage(error.userMessage || '용의자 카드를 삭제할 수 없습니다.', 'error');
+    setMessage(error.userMessage || '관계자 카드를 삭제할 수 없습니다.', 'error');
   }
 }
 
@@ -1529,9 +1539,9 @@ async function saveEvidence(evidence) {
 async function addEvidence() {
   try {
     selected.value = await adminEpisodeApi.createEvidence(selectedEpisodeId.value, {
-      title: '새 사건 자료',
+      title: '새 미션 자료',
       type: 'NOTE',
-      textSummary: '관리자 검수용 사건 자료입니다.',
+      textSummary: '관리자 검수용 미션 자료입니다.',
       unlockedByDefault: false
     });
     hydrateEpisodeForm(selected.value);
@@ -1697,7 +1707,7 @@ async function generateDraft() {
     hydrateDraftForEditing();
     draftValidation.value = null;
     finishDraftProgress('예비 초안이 생성되었습니다. Gemini가 아니라 템플릿 기반 결과이므로 문장 품질 검수가 필요합니다.');
-    setMessage('예비 사건파일 초안이 생성되었습니다. 아직 DB에는 저장되지 않았습니다.', 'success');
+    setMessage('예비 미션 파일 초안이 생성되었습니다. 아직 DB에는 저장되지 않았습니다.', 'success');
   } catch (error) {
     failDraftProgress(error.userMessage || error.message || '초안을 생성할 수 없습니다.');
     setMessage(draftError.value, 'error');
@@ -1710,7 +1720,7 @@ async function generateGeminiDraft() {
     setMessage('먼저 AI 장르/최종 정답 키워드를 생성하고 확인하세요.', 'error');
     return;
   }
-  startDraftProgress('gemini', 'Gemini가 사건 개요, 퍼즐, 단서, 용의자, 증거 카드 초안을 작성하고 있습니다. 최대 180초까지 기다립니다.');
+  startDraftProgress('gemini', 'Gemini가 스토리 개요, 퍼즐, 단서, 관계자 카드, 해금 자료 카드 초안을 작성하고 있습니다. 최대 180초까지 기다립니다.');
   try {
     let payload = JSON.parse(draftInput.value);
     if (!siteDataEnriched.value) {
@@ -1729,7 +1739,7 @@ async function generateGeminiDraft() {
     normalizeDraftBeforeSave(draftResult.value.draft, false);
     draftValidation.value = null;
     finishDraftProgress('Gemini 초안이 생성되었고 저장 전 자동 보정까지 적용했습니다. 각 장소의 현장 근거만 최종 확인하세요.');
-    setMessage('Gemini 사건파일 초안이 생성되었습니다. 구조 보정은 적용됐고 아직 DB에는 저장되지 않았습니다.', 'success');
+    setMessage('Gemini 미션 파일 초안이 생성되었습니다. 구조 보정은 적용됐고 아직 DB에는 저장되지 않았습니다.', 'success');
   } catch (error) {
     failDraftProgress(error.userMessage || error.message || 'Gemini 초안을 생성할 수 없습니다. gemini.api.key와 gemini.model 설정을 확인하세요.');
     setMessage(draftError.value, 'error');
@@ -1770,7 +1780,12 @@ async function saveDraft() {
   startDraftProgress('save', '초안과 자동 생성 사건자료 이미지를 DRAFT로 저장하고 있습니다.');
   try {
     draftProgressStep.value = 'request';
-    const saved = await adminEpisodeApi.saveAiDraft({ draft: buildDraftSavePayload(), status: 'DRAFT' });
+    const saved = await adminEpisodeApi.saveAiDraft({
+      draft: buildDraftSavePayload(),
+      sourceInput: JSON.parse(draftInput.value),
+      validationResult: draftValidation.value,
+      status: 'DRAFT'
+    });
     draftProgressStep.value = 'hydrate';
     selected.value = saved;
     selectedEpisodeId.value = saved.id;
@@ -1778,9 +1793,20 @@ async function saveDraft() {
     await refreshEpisodeList();
     publishReadiness.value = await adminEpisodeApi.getPublishReadiness(saved.id);
     finishDraftProgress('DRAFT 저장이 완료되었습니다. 왼쪽 목록과 상세 검수 영역에 반영되었습니다.');
-    setMessage('AI 사건파일 초안이 DRAFT로 저장되었습니다. 공개 준비도 결과를 확인하고 부족한 항목을 수정해 주세요.', 'success');
+    setMessage('AI 미션 파일 초안이 DRAFT로 저장되었습니다. 공개 준비도 결과를 확인하고 부족한 항목을 수정해 주세요.', 'success');
   } catch (error) {
-    failDraftProgress(error.userMessage || 'AI 초안을 저장할 수 없습니다.');
+    const details = [
+      error.response?.status ? `HTTP ${error.response.status}` : '',
+      error.errorCode || '',
+      error.userMessage || error.message || 'AI 초안을 저장할 수 없습니다.'
+    ].filter(Boolean).join(' · ');
+    console.error('AI draft save failed', {
+      status: error.response?.status,
+      code: error.errorCode,
+      message: error.userMessage,
+      requestId: error.requestId
+    });
+    failDraftProgress(details);
     setMessage(draftError.value, 'error');
   }
 }
@@ -1831,6 +1857,7 @@ function buildDraftSavePayload() {
     const imageUrl = String(evidence.imageUrl || '').trim();
     return {
       ...evidence,
+      title: String(evidence.title || '').slice(0, 255),
       type: safeEvidenceType(evidence.type),
       imageUrl: imageUrl.startsWith('data:') || imageUrl.length > 900 ? '' : imageUrl
     };
@@ -1846,12 +1873,13 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
   const motif = inferCaseMotif(draft);
   const objective = inferFinalObjective(draft, motif);
   const objectiveMismatch = hasObjectiveMismatch(draft, objective);
-  if (!draft.finalAnswer || draft.finalAnswer === '검수필요' || draft.finalAnswer === '관리자검수' || objectiveMismatch) {
+  const hasApprovedAnswerPlan = Array.isArray(draft.finalAnswerKeywords) && draft.finalAnswerKeywords.length > 0;
+  if (!draft.finalAnswer || draft.finalAnswer === '검수필요' || draft.finalAnswer === '관리자검수' || (!hasApprovedAnswerPlan && objectiveMismatch)) {
     draft.finalAnswerType = objective.answerType;
     draft.finalAnswer = objective.finalAnswer;
     draft.finalAnswerAliases = Array.from(new Set([...(draft.finalAnswerAliases || []), ...objective.aliases]));
   }
-  if (!draft.finalQuestion || isWeakFinalQuestion(draft.finalQuestion) || objectiveMismatch) {
+  if (!draft.finalQuestion || isWeakFinalQuestion(draft.finalQuestion) || (!hasApprovedAnswerPlan && objectiveMismatch)) {
     draft.finalQuestion = objective.finalQuestion;
   }
   if (!draft.fictionSynopsis || isWeakText(draft.fictionSynopsis) || isRepeatedDefaultSynopsis(draft.fictionSynopsis)) {
@@ -1863,14 +1891,14 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
 스토리 속 [${motif.object}] -> 실제 역사 속 [관리자 검수 필요 역사 자료]: 최종 단서가 하나의 역사적 기억으로 수렴하도록 만든 상징 장치입니다.
 스토리 속 [현장 지령] -> 실제 역사 속 [최종 목적지의 역사적 맥락]: 장소에 남은 사건의 흔적을 동선과 퍼즐로 바꾼 장치입니다.
 스토리 속 [암호 카드] -> 실제 역사 속 [기록과 증언]: 플레이어가 단서를 대조하도록 실제 자료 해석 과정을 은유했습니다.
-스토리 속 [조력자/용의자 진술] -> 실제 역사 속 [관련 인물과 이해관계]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 차용했습니다.`;
+스토리 속 [조력자/관계자 진술] -> 실제 배경 속 [관련 인물과 이해관계]: 실존 인물을 부정적인 역할로 만들지 않고 역할과 갈등만 차용했습니다.`;
   }
   if (!draft.actualHistorySummary || isWeakText(draft.actualHistorySummary)) {
     draft.actualHistorySummary = `1. 모티브 공개
 이 임무는 실제 [관리자 검수 필요 최종 목적지]에서 있었던 [관리자 검수 필요 역사적 사건/인물]을 모티브로 제작되었습니다.
 
-2. 실제 사건 해설
-이 에피소드는 실제 장소의 역사·문화적 분위기와 주변 동선을 상징적인 요원 임무로 각색한 픽션 사건입니다. 운영 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 실제 사건의 배경, 전말, 장소의 역사적 의의를 상세히 보강해야 합니다.`;
+2. 실제 배경 해설
+이 에피소드는 실제 장소의 역사·문화적 분위기와 주변 동선을 상징적인 요원 임무로 각색한 픽션 스토리입니다. 운영 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 실제 배경과 장소의 역사적 의의를 상세히 보강해야 합니다.`;
   }
   draft.deductionSecretFacts = Array.isArray(draft.deductionSecretFacts) && draft.deductionSecretFacts.length
     ? draft.deductionSecretFacts
@@ -2063,16 +2091,16 @@ function inferFinalObjective(draft, motif) {
   if (requiresIdentityAndHideout(source)) {
     const identity = source.includes('황실') || source.includes('대한제국') || source.includes('광영회')
       ? '광영회의 위장 연락책'
-      : '검은 그림자의 내부 전달자';
+      : '비공개 조직의 내부 전달자';
     const hideout = source.includes('기록') || source.includes('문서') || source.includes('설계도')
       ? '봉인된 기록고'
       : '닫힌 골목 은신처';
-    const finalAnswer = `검은 그림자는 ${identity}이며 은신처는 ${hideout}이다`;
+    const finalAnswer = `비공개 조직의 역할은 ${identity}이며 숨은 거점은 ${hideout}이다`;
     return {
       answerType: 'HIDDEN_TRUTH',
       finalAnswer,
       aliases: [finalAnswer.replaceAll(' ', ''), `${identity}와 ${hideout}`],
-      finalQuestion: '검은 그림자의 정체와 그들이 숨어든 은신처를 단서로 종합하면 어떤 진실인가?',
+      finalQuestion: '비공개 조직의 역할과 숨은 거점을 단서로 종합하면 어떤 진실인가?',
       synopsis: synopsisForIdentityAndHideout(draft, motif)
     };
   }
@@ -2087,7 +2115,7 @@ function inferFinalObjective(draft, motif) {
 
 function requiresIdentityAndHideout(text) {
   const compact = String(text || '').replaceAll(/\s+/g, '').toLowerCase();
-  const identity = ['정체', '검은그림자', 'blackshadow', '비밀조직', '조직', '배후'].some((word) => compact.includes(word));
+  const identity = ['정체', '비공개조직', '비밀조직', '조직', '배후'].some((word) => compact.includes(word));
   const hideout = ['은신처', '숨어든', '숨은곳', 'hideout', '거점', '아지트'].some((word) => compact.includes(word));
   const macGuffin = ['황실비밀자금', '비밀자금', '설계도', '장부', '밀서'].some((word) => compact.includes(word));
   return (identity && hideout) || (macGuffin && (identity || hideout));
@@ -2098,9 +2126,9 @@ function hasObjectiveMismatch(draft, objective) {
   const finalQuestion = String(draft?.finalQuestion || '');
   const finalAnswer = String(draft?.finalAnswer || '');
   if (requiresIdentityAndHideout(source)) {
-    return !containsAny(finalQuestion, ['정체', '검은 그림자', '검은그림자'])
+    return !containsAny(finalQuestion, ['정체', '비공개 조직', '비공개조직'])
       || !containsAny(finalQuestion, ['은신처', '숨어든', '숨은 곳', '숨은곳', '거점', '아지트'])
-      || !containsAny(finalAnswer, ['검은 그림자', '검은그림자', '조직', '세력', '연락책', '전달자', '배후'])
+      || !containsAny(finalAnswer, ['비공개 조직', '비공개조직', '조직', '세력', '연락책', '전달자', '배후'])
       || !containsAny(finalAnswer, ['은신처', '거점', '아지트', '기록고', '문서고']);
   }
   return false;
@@ -2115,8 +2143,7 @@ function maskDraftKeywordLeaks(draft, keywords) {
   const values = Array.isArray(keywords) ? keywords.map(normalizeAnswerKeywordValue).filter(Boolean) : [];
   if (!values.length) return;
   if (containsKeywordLeak(draft.finalQuestion, values)) {
-    const genre = draft.selectedGenre || draft.genre || '이 사건';
-    draft.finalQuestion = `${genre}의 최종 진실을 이루는 핵심 요소들을 종합하면 어떤 결론인가?`;
+    draft.finalQuestion = '흩어진 단서들이 가리키는 대상과 감춰진 행방을 밝혀내면, 이번 미션의 전말은 무엇인가?';
   }
   draft.episodeTitle = maskKeywords(draft.episodeTitle, values);
   draft.subtitle = maskKeywords(draft.subtitle, values);
@@ -2124,6 +2151,37 @@ function maskDraftKeywordLeaks(draft, keywords) {
     draft.fictionSynopsis = safeFictionSynopsis(draft);
   }
   draft.finalQuestion = maskKeywords(draft.finalQuestion, values);
+  (draft.missions || []).forEach((mission, index) => {
+    if (containsKeywordLeak(mission.questionText, values)) {
+      mission.questionText = '현장 근거와 미션 메모를 대조해 이 지점에서 확인할 수 있는 간접 단서를 입력하세요.';
+    }
+    if (containsKeywordLeak(mission.answer, values)) {
+      const source = sourceCandidateForMission(mission);
+      const keyword = primaryKeyword(source, mission);
+      mission.answer = answerForSource(source, puzzleTypeForSource(source, mission.clueRole || mission.markerType, index), keyword);
+      mission.answerFormat = 'TEXT';
+      mission.puzzleAnswerRisk = 'FINAL_KEYWORD_RISK';
+      mission.verificationLevel = 'ADMIN_REVIEW';
+    }
+    if (containsKeywordLeak(mission.rewardClue, values) || containsKeywordLeak(mission.rewardClue, [draft.finalAnswer])) {
+      mission.rewardClue = rewardClueForRole(mission.clueRole || mission.markerType, index);
+    }
+    mission.hints = (mission.hints || []).map((hint, hintIndex) => (
+      containsKeywordLeak(hint, values)
+        ? ['현장 근거를 먼저 확인하세요.', '직접적인 정답 값이 아닌 특징과 역할을 비교하세요.', '해금 자료와 이전 단서를 함께 대조하세요.'][Math.min(hintIndex, 2)]
+        : hint
+    ));
+  });
+  (draft.suspects || []).forEach((card) => {
+    if (containsKeywordLeak(card.displayName, values)) card.displayName = '기록 전달 관계자';
+    if (containsKeywordLeak(card.shortDescription, values)) card.shortDescription = '핵심 내용을 직접 밝히지 않고 간접적인 특징만 전달하는 관계자입니다.';
+    if (containsKeywordLeak(card.suspiciousPoint, values)) card.suspiciousPoint = '진술과 이동 기록 사이에 확인이 필요한 차이가 있습니다.';
+    if (containsKeywordLeak(card.alibiSummary, values)) card.alibiSummary = '현장 동선과 해금 자료를 함께 대조해야 진술을 판단할 수 있습니다.';
+  });
+  (draft.evidences || []).forEach((card) => {
+    if (containsKeywordLeak(card.title, values)) card.title = '간접 기록 자료';
+    if (containsKeywordLeak(card.textSummary, values)) card.textSummary = '정답 값을 직접 밝히지 않고 형태, 재질, 용도 중 일부 특징만 남긴 해금 자료입니다.';
+  });
 }
 
 function maskKeywords(text, keywords) {
@@ -2132,30 +2190,23 @@ function maskKeywords(text, keywords) {
     const clean = String(keyword || '').trim();
     if (!clean) return;
     const mask = '핵심 단서';
-    result = result.split(clean).join(mask);
-    result = result.split(compactText(clean)).join(mask);
+    if (compactText(clean).length <= 2) {
+      const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      result = result.replace(new RegExp(`(^|[\\s.,!?;:()[\\]{}"'·|/])${escaped}(?=$|[\\s.,!?;:()[\\]{}"'·|/])`, 'g'), `$1${mask}`);
+    } else {
+      result = result.split(clean).join(mask);
+      result = result.split(compactText(clean)).join(mask);
+    }
   });
   return result;
 }
 
 function normalizeAnswerKeywordValue(keyword) {
-  let normalized = String(keyword || '')
+  return String(keyword || '')
     .trim()
     .replaceAll(/[\[\]"'`]/g, '')
-    .replaceAll(/\s+/g, ' ');
-  const possessiveIndex = normalized.lastIndexOf('의 ');
-  if (possessiveIndex >= 0 && possessiveIndex < normalized.length - 2) {
-    normalized = normalized.slice(possessiveIndex + 2).trim();
-  }
-  normalized = normalized
-    .replaceAll(/^(잊혀진|숨겨진|감춰진|가려진|봉인된|사라진|오래된|비밀스러운)\s+/g, '')
-    .replaceAll(/\s+(진실|비밀|단서)$/g, '')
+    .replaceAll(/\s+/g, ' ')
     .trim();
-  if (compactText(normalized).length > 8 && normalized.includes(' ')) {
-    const parts = normalized.split(/\s+/);
-    normalized = parts[parts.length - 1].trim();
-  }
-  return normalized;
 }
 
 function containsMaskPlaceholder(text) {
@@ -2172,13 +2223,12 @@ function safeFictionSynopsis(draft) {
     draft?.episodeTitle,
     draft?.subtitle,
     draft?.fictionSynopsis,
-    draft?.selectedGenre,
     draft?.genre
   ].join(' ');
   if (containsAny(source, ['항구', '항해', '개항', '항로', '일지', '목포'])) {
     return '오래된 항구 기록이 발견되며, 공식 기록에 남지 않은 이동 경로와 그 길을 막아선 세력의 흔적이 드러난다. 요원은 항구 일대에 흩어진 암호와 증언을 대조해 숨겨진 경로의 의미, 방해자의 목적, 마지막 기록이 가리키는 결론을 밝혀야 한다.';
   }
-  if (containsAny(source, ['검은 그림자', '검은그림자', '은신처', '거점', '아지트', '정체'])) {
+  if (containsAny(source, ['비공개 조직', '비공개조직', '은신처', '거점', '아지트', '정체'])) {
     return '도시 곳곳에 남은 표식이 하나의 비밀 조직을 가리킨다. 요원은 현장 기록과 엇갈린 증언을 대조해 조직의 역할, 숨어든 거점의 단서, 사건을 움직인 목적을 밝혀야 한다.';
   }
   if (containsAny(source, ['보물', '상자', '봉인', '열쇠', '해금'])) {
@@ -2190,16 +2240,20 @@ function safeFictionSynopsis(draft) {
   if (containsAny(source, ['실종', '사라진', '마지막'])) {
     return '한 인물 또는 기록이 사라진 뒤, 마지막 동선을 둘러싼 증언들이 서로 어긋난다. 요원은 현장 단서와 남겨진 물건을 대조해 사라진 이유와 마지막 흔적이 가리키는 결론을 밝혀야 한다.';
   }
-  const genre = draft?.selectedGenre || draft?.genre || '이 사건';
-  return `선택된 장소 일대에서 오래된 기록과 서로 어긋나는 증언이 발견된다. 요원은 현장 단서, 암호, 사건파일을 차례로 대조해 ${genre}의 핵심 역할과 마지막 단서가 가리키는 결론을 밝혀야 한다.`;
+  const genre = draft?.genre || '이 스토리 미션';
+  return `선택된 장소 일대에서 오래된 기록과 서로 어긋나는 증언이 발견된다. 요원은 현장 단서, 암호, 미션 파일을 차례로 대조해 ${genre}의 핵심 역할과 마지막 단서가 가리키는 결론을 밝혀야 한다.`;
 }
 
 function containsKeywordLeak(text, keywords) {
   const rawText = String(text || '');
-  const compact = compactText(rawText);
   return keywords.some((keyword) => {
     const clean = String(keyword || '').trim();
-    return clean && (rawText.includes(clean) || compact.includes(compactText(clean)));
+    if (!clean) return false;
+    if (compactText(clean).length <= 2) {
+      const tokens = rawText.toLowerCase().split(/[\s.,!?;:()[\]{}"'`·|/]+/).filter(Boolean);
+      return tokens.includes(clean.toLowerCase());
+    }
+    return rawText.includes(clean) || compactText(rawText).includes(compactText(clean));
   });
 }
 
@@ -2211,7 +2265,7 @@ function synopsisForIdentityAndHideout(draft, motif) {
   const missions = Array.isArray(draft?.missions) ? draft.missions : [];
   const first = missions[0]?.placeName || motif.setting;
   const last = missions[missions.length - 1]?.placeName || '마지막 조사 지점';
-  return `${first}에서 도난 기록이 발견된다. 설계도와 장부는 단서일 뿐이며, 사건자료의 표식은 ${last}까지 이어진다. 플레이어는 현장 단서와 사건파일을 대조해 검은 그림자의 역할과 숨어든 장소의 특징을 유추해야 한다.`;
+  return `${first}에서 사라진 기록이 발견된다. 설계도와 장부는 단서일 뿐이며, 해금 자료의 표식은 ${last}까지 이어진다. 플레이어는 현장 단서와 미션 파일을 대조해 비공개 조직의 역할과 숨어든 장소의 특징을 유추해야 한다.`;
 }
 
 function synopsisForMotif(draft, motif) {
@@ -2264,12 +2318,15 @@ function sourceCandidateForMission(mission) {
 
 function primaryKeyword(source, mission) {
   const keywords = [
+    ...(Array.isArray(source.visibleElements) ? source.visibleElements : []),
     ...(Array.isArray(source.keywords) ? source.keywords : []),
-    source.title,
-    mission?.rewardClue,
-    mission?.placeName
   ].map((value) => String(value || '').trim()).filter(Boolean);
-  return keywords.find((value) => value.length >= 2 && value.length <= 12) || '기록';
+  const blocked = new Set(['동선확인', '증거확인', '최종검토', '기록확인', '단서확인', '자료확인', '현장확인', '미션확인', '검수필요', '확인필요']);
+  return keywords.find((value) => value.length >= 2
+    && value.length <= 12
+    && !blocked.has(value.replace(/\s+/g, ''))
+    && !String(source.title || '').includes(value)
+    && value !== mission?.placeName) || '검수필요';
 }
 
 function puzzleTypeForSource(source, role, index) {
@@ -2311,19 +2368,19 @@ function storyTextForMission(mission, role, keyword) {
     return `기록수사관은 ${mission.placeName}에서 ${motif.caseType}의 첫 봉투를 연다. ${motif.victim}가 남긴 동선표에는 ${keyword}라는 표시만 짧게 남아 있다.`;
   }
   if (String(role).includes('ANSWER')) {
-    return `${mission.placeName}에는 ${motif.object}의 정체를 좁히는 물성 단서가 숨어 있다. 현장 메모의 ${keyword}를 사건파일의 증거 카드와 대조하라.`;
+    return `${mission.placeName}에는 ${motif.object}의 정체를 좁히는 물성 단서가 숨어 있다. 현장 메모의 ${keyword}를 미션 파일의 증거 카드와 대조하라.`;
   }
   if (String(role).includes('DESTINATION')) {
     return `${mission.placeName}의 주변 분위기는 마지막으로 향할 장소를 직접 말하지 않고 좁혀 준다. 장소명보다 문, 벽, 길의 느낌을 장소 키워드와 비교하라.`;
   }
-  return `${mission.placeName}은 용의자의 진술을 흔드는 배경 단서다. 이곳에서 얻은 메모는 누가 거짓말을 했는지 판단하는 보조 자료가 된다.`;
+  return `${mission.placeName}은 관계자의 진술을 다시 확인하게 하는 배경 단서다. 이곳에서 얻은 메모는 어떤 진술이 현장 기록과 어긋나는지 판단하는 보조 자료가 된다.`;
 }
 
 function sanitizeFinalPlaceStory(storyText) {
   const value = String(storyText || '').trim();
   const forbidden = ['최종 장소', '최종장소', '최종 목적지', '최종목적지', '정답 장소', '정답장소', '최종 추리', '마지막 장소'];
   if (!value || forbidden.some((word) => value.includes(word))) {
-    return '이곳에는 여러 동선이 겹친 흔적이 남아 있다. 현장에서는 주변 분위기와 사건 메모만 확인하고, 단서 보드의 장소 키워드와 조용히 비교하라.';
+    return '이곳에는 여러 동선이 겹친 흔적이 남아 있다. 현장에서는 주변 분위기와 미션 메모만 확인하고, 단서 보드의 장소 키워드와 조용히 비교하라.';
   }
   return value;
 }
@@ -2335,15 +2392,15 @@ function questionForMission(mission, source, keyword) {
     return `관리자 메모에 기록된 숫자 중 사건 기록과 연결된 숫자를 입력하라. 이 숫자는 '${clue}' 단서를 해금한다.`;
   }
   if (mission.puzzleType === 'INITIAL_SOUND') {
-    return `사건 메모에 남은 초성 단서가 가리키는 키워드를 입력하라. 장소명 글자 추출이 아니라 관리자 검수 키워드를 기준으로 한다.`;
+    return `미션 메모에 남은 초성 단서가 가리키는 키워드를 입력하라. 장소명 글자 추출이 아니라 관리자 검수 키워드를 기준으로 한다.`;
   }
   if (mission.puzzleType === 'PATTERN') {
     return `이 장소의 분위기와 장소 키워드를 비교해 단서 보드에 붙일 키워드를 입력하라.`;
   }
   if (mission.puzzleType === 'STORY_COMBINATION') {
-    return `지금까지 모은 단서와 이 장소의 기록을 조합해 사건파일에 붙일 핵심 단어를 입력하라.`;
+    return `지금까지 모은 단서와 이 장소의 기록을 조합해 미션 파일에 붙일 핵심 단어를 입력하라.`;
   }
-  return `현장에서 확인 가능한 요소 중 사건 메모의 핵심 키워드와 연결되는 단어를 입력하라.`;
+  return `현장에서 확인 가능한 요소 중 미션 메모의 핵심 키워드와 연결되는 단어를 입력하라.`;
 }
 
 function groundRuleForMission(source) {
@@ -2374,12 +2431,13 @@ function evidenceTypeForRole(role) {
 function evidenceSummaryForMission(mission) {
   const clue = mission.rewardClue || '미확인 단서';
   const place = mission.placeName || '조사 지점';
-  if (mission.finalPlace) return '여러 목적지 단서가 겹치는 장소의 분위기 카드입니다. 실제 최종 장소 여부는 플레이 중 직접 판단해야 합니다.';
+  const answer = mission.answer || '현장 표식';
+  if (mission.finalPlace) return `${answer} 주변의 마모 방향과 '${clue}'에 남은 흔적이 같은 축을 가리킨다. 플레이어는 장소명이 아니라 두 흔적의 위치 관계를 대조해야 한다.`;
   const role = mission.clueRole || mission.markerType || '';
-  if (String(role).includes('ANSWER')) return `${place}에서 얻는 '${clue}' 단서는 최종 정답의 형태를 좁히는 증거입니다. 장소명 글자 추출이 아니라 현장 메모와 연결해 해석하세요.`;
-  if (String(role).includes('DESTINATION')) return `${place}에서 얻는 '${clue}' 단서는 마지막으로 향해야 할 장소의 분위기와 방향을 좁히는 자료입니다.`;
-  if (String(role).includes('START')) return `${place}에서 사건파일을 개봉하며 첫 조사 목표와 단서 분류 기준을 확인합니다.`;
-  return `${place}에서 확인한 배경 단서입니다. 범행 동기와 용의자 관계를 해석하는 보조 자료로 사용하세요.`;
+  if (String(role).includes('ANSWER')) return `${answer}의 표면에는 '${clue}'와 같은 방향으로 반복된 눌림 자국이 남아 있다. 누군가 이 특징을 미리 알고 있었다는 진술과 대조할 수 있다.`;
+  if (String(role).includes('DESTINATION')) return `${answer} 옆의 흔적은 '${clue}'가 가리키는 방향과 일치하지만, 지도 가장자리의 다른 표시는 반대쪽을 가리킨다. 둘 중 반복되는 방향만 따라가야 한다.`;
+  if (String(role).includes('START')) return `${place}에서 발견된 ${answer}에는 물에 젖은 자국과 같은 방향으로 이어진 작은 마모 흔적이 남아 있다. 이후 카드에서 같은 흔적을 찾아야 한다.`;
+  return `${answer} 주변의 흔적과 '${clue}'의 배열이 일치한다. 관계자의 이동 시각과 비교하면 진술 하나가 실제 동선과 어긋난다.`;
 }
 
 function evidenceTitleForMission(mission, type) {
@@ -2472,15 +2530,27 @@ function ensureDraftImagePrompts(draft) {
 function strengthenKoreanPersonPrompt(prompt) {
   const text = String(prompt || '').trim();
   const normalized = text.toLowerCase();
-  if (!text || normalized.includes('fictional korean person') || normalized.includes('korean identity')) return text;
-  return `${text} Mandatory casting: every visible person must be a fictional Korean person from Seoul, South Korea. Preserve the story-specific age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character’s Korean identity.`;
+  if (!text) return text;
+  const casting = normalized.includes('fictional korean person') || normalized.includes('korean identity')
+    ? ''
+    : ' Mandatory casting: every visible person must be a fictional Korean person from Seoul, South Korea. Preserve the story-specific age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character’s Korean identity.';
+  const noText = normalized.includes('no korean letters') && normalized.includes('no handwriting')
+    ? ''
+    : ' No readable text, no Korean letters, no labels, no handwriting, no symbols resembling text, no UI frame, no watermark.';
+  return `${text}${casting}${noText}`;
 }
 
 function strengthenKoreanEvidencePrompt(prompt) {
   const text = String(prompt || '').trim();
   const normalized = text.toLowerCase();
-  if (!text || normalized.includes('if any person') || normalized.includes('every visible person')) return text;
-  return `${text} If any person, hand, portrait, reflection, or silhouette appears, it must depict a fictional Korean person from Seoul and match the story-specific age and era. Do not cast a Western or European-looking model.`;
+  if (!text) return text;
+  const casting = normalized.includes('if any person') || normalized.includes('every visible person')
+    ? ''
+    : ' If any person, hand, portrait, reflection, or silhouette appears, it must depict a fictional Korean person from Seoul and match the story-specific age and era. Do not cast a Western or European-looking model.';
+  const noText = normalized.includes('no korean letters') && normalized.includes('no handwriting')
+    ? ''
+    : ' Use only abstract route lines, stains, folds, torn edges, and non-text shapes. No readable text, no Korean letters, no labels, no handwriting, no symbols resembling text, no UI frame, no watermark.';
+  return `${text}${casting}${noText}`;
 }
 
 function strengthenCaseMaterials(draft) {
@@ -2489,21 +2559,21 @@ function strengthenCaseMaterials(draft) {
   const finalAnswerType = draft.finalAnswerType || 'EVIDENCE';
   const suspectSeeds = [
     {
-      alias: '용의자 A',
+      alias: '관계자 A',
       displayName: '붉은 우산의 의뢰인',
       relation: '사건 의뢰를 가장 먼저 전달한 인물',
       suspicion: '현장 사진이 사라진 시간대에 조사 경로 근처에서 반복적으로 목격되었다.',
       alibi: '비가 오기 전 카페 골목에 있었다고 주장하지만, 장소 키워드와 동선이 일부 겹친다.'
     },
     {
-      alias: '용의자 B',
+      alias: '관계자 B',
       displayName: '잃어버린 필름의 조수',
       relation: '피해자의 기록 정리를 맡았던 조수',
       suspicion: '사진과 메모의 순서를 알고 있어 단서를 바꿔치기할 수 있는 위치에 있었다.',
       alibi: '자료실에 있었다고 말하지만, 정답 키워드 단서 중 하나가 그의 진술과 충돌한다.'
     },
     {
-      alias: '용의자 C',
+      alias: '관계자 C',
       displayName: '회색 봉투의 전달자',
       relation: '마지막 문서를 전달한 익명의 중개인',
       suspicion: '장소 키워드 두 개가 모두 이 인물의 이동 방향을 가리킨다.',
@@ -2517,7 +2587,9 @@ function strengthenCaseMaterials(draft) {
       ...current,
       alias: isWeakText(current.alias) ? seed.alias : current.alias,
       displayName,
-      shortDescription: `${displayName}은 ${finalAnswerTypeLabel(finalAnswerType)}와 연결될 가능성이 있는 가상 용의자입니다.`,
+      shortDescription: isWeakText(current.shortDescription)
+        ? `${displayName}은 다른 이들이 알기 전부터 ${seed.suspicion} 그러나 그 정보의 출처는 끝까지 숨겼습니다.`
+        : current.shortDescription,
       relationToVictim: seed.relation,
       suspiciousPoint: isWeakText(current.suspiciousPoint) ? seed.suspicion : current.suspiciousPoint,
       alibiSummary: isWeakText(current.alibiSummary) ? seed.alibi : current.alibiSummary,
@@ -2530,7 +2602,7 @@ function strengthenCaseMaterials(draft) {
     const order = Number(mission.order || index + 1);
     const type = safeEvidenceType(evidenceTypeForRole(mission.clueRole || mission.markerType));
     const current = evidenceByOrder.get(order) || {};
-    const title = isWeakText(current.title) ? evidenceTitleForMission(mission, type) : current.title;
+    const title = String(isWeakText(current.title) ? evidenceTitleForMission(mission, type) : current.title).slice(0, 255);
     const textSummary = isWeakText(current.textSummary) ? evidenceSummaryForMission(mission) : current.textSummary;
     return {
       ...current,
@@ -2556,30 +2628,31 @@ function isWeakImageUrl(value) {
 }
 
 function buildSuspectImagePrompt(suspect = {}) {
-  const name = suspect.displayName || suspect.alias || 'case-file suspect';
+  const name = suspect.displayName || suspect.alias || 'mission character';
   const suspicion = suspect.suspiciousPoint || suspect.shortDescription || 'a hidden contradiction in the route timeline';
   return [
-    `Create a high-quality fictional detective case-file portrait of ${name}.`,
+    `Create a fictional Korean character archive card illustration of ${name}.`,
     'Mandatory casting: depict a fictional Korean person from Seoul, South Korea. The subject must look unmistakably Korean while preserving the story-specific age, gender, occupation, and historical era.',
     'Do not cast a Western or European-looking model, and do not change the character’s Korean identity.',
-    'Visual style: Seoul outdoor mystery, cinematic noir, realistic digital painting, subtle paper grain, evidence-board lighting.',
+    'Visual style: flat 2D Korean webtoon and printed storybook illustration, muted earth-tone palette, matte paper grain, archival texture, clean dark ink outlines, gentle cel shading, calm documentary adventure mood.',
     `Character clue: ${suspicion}`,
-    'Composition: bust portrait, 3/4 view, natural Korean styling and grooming appropriate to the character, sharp silhouette, restrained expression, neutral archival background.',
-    'Negative constraints: no foreign tourist styling, no Western fashion editorial look, no text, no watermark, no logo, not a real celebrity, not a real historical person.'
+    'Composition: character archive card, bust portrait, 3/4 view, natural Korean styling appropriate to the character and era, restrained expression, simple archival background.',
+    'Negative constraints: no photorealism, no 3D render, no glossy game art, no Western comic style, no foreign tourist styling, no readable text, no Korean letters, no labels, no handwriting, no symbols resembling text, no UI frame, no watermark, no logo, not a real celebrity, not a real historical person.'
   ].join(' ');
 }
 
 function buildEvidenceImagePrompt(evidence = {}) {
-  const title = evidence.title || 'case evidence card';
+  const title = evidence.title || 'mission archive item';
   const summary = evidence.textSummary || 'a clue object connected to the route and final deduction';
   const type = evidence.type || 'EVIDENCE';
   return [
-    'Create a high-quality detective evidence image for a Korean outdoor escape-room case file.',
+    'Create a Korean outdoor story-mission archive card illustration.',
     `Subject: ${title}. Evidence type: ${type}.`,
     `Story detail: ${summary}`,
-    'Visual style: cinematic close-up, realistic prop photography, aged paper, archival texture, soft shadows, moody natural light.',
+    'Visual style: flat 2D Korean webtoon and printed storybook illustration, muted earth-tone palette, matte paper grain, archival texture, simplified shapes, clean dark ink outlines, gentle cel shading.',
+    'Composition: mission archive card, one clearly recognizable illustrated object or document silhouette, abstract route lines, stains, folds, and torn edges only, balanced margins, calm documentary adventure mood.',
     'Human casting rule: if any person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story-specific age and era.',
-    'Negative constraints: no Western or European-looking models, no readable text, no watermark, no logo, no UI frame.'
+    'Negative constraints: no photorealism, no 3D render, no glossy game art, no Western comic style, no Western or European-looking models, no readable text, no Korean letters, no labels, no handwriting, no symbols resembling text, no UI frame, no watermark, no logo.'
   ].join(' ');
 }
 
@@ -2626,13 +2699,22 @@ async function generateAnswerPlan() {
 }
 
 function applyDraftPlanToPayload(payload) {
-  const keywords = (draftPlan.value?.finalAnswerKeywords || [])
-    .map((item) => item.keyword)
-    .map(normalizeAnswerKeywordValue)
-    .filter(Boolean);
+  const finalAnswerKeywordItems = (draftPlan.value?.finalAnswerKeywords || [])
+    .map((item) => ({
+      slotId: String(item?.slotId || '').trim(),
+      label: String(item?.label || '').trim(),
+      keyword: normalizeAnswerKeywordValue(item?.keyword),
+      aliases: Array.isArray(item?.aliases)
+        ? item.aliases.map((alias) => String(alias || '').trim()).filter(Boolean)
+        : []
+    }))
+    .filter((item) => item.slotId && item.label && item.keyword);
+  const keywords = finalAnswerKeywordItems.map((item) => item.keyword);
   return {
     ...payload,
-    selectedGenre: draftPlan.value?.selectedGenre || payload.selectedGenre,
+    selectedGenreId: draftPlan.value?.selectedGenreId || payload.selectedGenreId,
+    selectedGenreName: draftPlan.value?.selectedGenreName || payload.selectedGenreName,
+    finalAnswerKeywordItems,
     finalAnswerKeywords: keywords
   };
 }
@@ -2664,18 +2746,18 @@ function safePublicMarkerType(type, mission) {
     : String(mission?.markerType || 'ANSWER_HINT').replace('FINAL', 'DESTINATION_HINT');
 }
 
-function generatedSuspectPortraitDataUrl(name = '용의자', alias = 'SUSPECT', seedText = '') {
+function generatedSuspectPortraitDataUrl(name = '관계자', alias = 'SUSPECT', seedText = '') {
   const hash = hashString(`${name}-${alias}-${seedText}`);
   const skin = ['#f2c6a0', '#d9a77e', '#c68b6b', '#e4b98f'][hash % 4];
   const shirt = ['#93c5fd', '#86efac', '#fca5a5', '#c4b5fd', '#fde68a'][hash % 5];
   const hair = ['#111827', '#292524', '#3f3f46'][hash % 3];
-  const safeName = escapeXml(name || '용의자');
+  const safeName = escapeXml(name || '관계자');
   const safeAlias = escapeXml(alias || 'SUSPECT');
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="520" height="680" viewBox="0 0 520 680">
       <rect width="520" height="680" fill="#f8ead0"/>
       <rect x="36" y="36" width="448" height="608" fill="#fff7ed" stroke="#94a3b8" stroke-width="3"/>
-      <text x="66" y="86" fill="#111827" font-family="Arial" font-size="34" font-weight="900">용의자 정보</text>
+      <text x="66" y="86" fill="#111827" font-family="Arial" font-size="34" font-weight="900">관계자 정보</text>
       <text x="66" y="120" fill="#7c2d12" font-family="Arial" font-size="20" font-weight="900">${safeAlias}</text>
       <rect x="86" y="144" width="348" height="330" fill="#e2e8f0" stroke="#475569" stroke-width="4"/>
       <circle cx="260" cy="268" r="78" fill="${skin}"/>
@@ -2757,7 +2839,7 @@ function evidenceVisualCaption(type) {
   if (normalized === 'MEMO' || normalized === 'POST_IT') return '접힌 메모와 손상된 기록 조각';
   if (normalized === 'DESTINATION_CLUE') return '장소 분위기를 좁히는 동선 메모';
   if (normalized === 'ANSWER_CLUE') return '정답의 형태를 좁히는 증거 조각';
-  return '사건파일에 보관된 조사 자료';
+  return '미션 파일에 보관된 조사 자료';
 }
 
 function hashString(value) {
@@ -2969,7 +3051,7 @@ function isLocalBusinessCandidate(candidate) {
   const value = [candidate.title, candidate.address, candidate.source, candidate.description]
     .map((item) => String(item || '').toLowerCase())
     .join(' ');
-  return ['\uCE74\uD398', 'cafe', '\uCEE4\uD53C', '\uC2DC\uC7A5', '\uC0C1\uAC00', '\uACE8\uBAA9', '\uB9DB\uC9D1', '\uC2DD\uB2F9', '\uBD84\uC2DD', '\uACF5\uBC29', '\uC11C\uC810', '\uBE75', '\uBCA0\uC774\uCEE4\uB9AC', '\uD3B8\uC9D1\uC20D']
+  return ['카페', 'cafe', '커피', '시장', '상가', '골목', '맛집', '식당', '분식', '공방', '서점', '빵', '베이커리', '편집숍']
     .some((keyword) => value.includes(keyword));
 }
 
@@ -2980,7 +3062,7 @@ function candidateRouteScore(candidate, anchor) {
   const value = [normalized.title, normalized.address, normalized.source, normalized.description]
     .map((item) => String(item || '').toLowerCase())
     .join(' ');
-  if (['\uBB38\uD654', '\uBC15\uBB3C\uAD00', '\uBBF8\uC220\uAD00', '\uC804\uC2DC', '\uCC45', '\uC5ED\uC0AC', '\uACF5\uC6D0', '\uAC70\uB9AC'].some((keyword) => value.includes(keyword))) score += 24;
+  if (['문화', '박물관', '미술관', '전시', '책', '역사', '공원', '거리'].some((keyword) => value.includes(keyword))) score += 24;
   const distance = candidateDistanceMeters(anchor, normalized);
   if (Number.isFinite(distance)) {
     if (distance >= 120 && distance <= nearbyRadius.value) score += 20;
@@ -3060,12 +3142,12 @@ function rerollRecommendedRoute() {
   selectedCandidates.value = [...pickSpacedRouteCandidates(pool, anchor, 8), anchor].slice(0, 9);
   siteDataEnriched.value = false;
   applyCandidatesToDraft(false);
-  setMessage('\uCD94\uCC9C \uB8E8\uD2B8\uB97C \uB2E4\uC2DC \uAD6C\uC131\uD588\uC2B5\uB2C8\uB2E4. \uD544\uC694\uD558\uBA74 \uD6C4\uBCF4\uBCC4 \uAD50\uCCB4 \uBC84\uD2BC\uC73C\uB85C \uB354 \uC870\uC815\uD558\uC138\uC694.', 'success');
+  setMessage('추천 루트를 다시 구성했습니다. 필요하면 후보별 교체 버튼으로 더 조정하세요.', 'success');
 }
 
 function replaceSelectedCandidate(candidate) {
   if (isAnchorCandidate(candidate)) {
-    setMessage('TourAPI \uAE30\uC900 \uC7A5\uC18C\uB294 \uB0B4\uBD80 \uCD5C\uC885 \uC7A5\uC18C\uB77C \uC774 \uB2E8\uACC4\uC5D0\uC11C \uAD50\uCCB4\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.', 'error');
+    setMessage('TourAPI 기준 장소는 내부 최종 장소라 이 단계에서 교체할 수 없습니다.', 'error');
     return;
   }
   const oldKey = candidateKey(candidate);
@@ -3077,13 +3159,13 @@ function replaceSelectedCandidate(candidate) {
     .filter((item) => isFarEnoughFromRoute(item, selectedCandidates.value.filter((selected) => candidateKey(selected) !== oldKey)))
     .sort((a, b) => candidateRouteScore(b, anchor) - candidateRouteScore(a, anchor))[0];
   if (!replacement) {
-    setMessage('\uAD50\uCCB4\uD560 \uC218 \uC788\uB294 \uD6C4\uBCF4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uBC18\uACBD\uC744 \uB113\uD788\uAC70\uB098 \uC218\uB3D9 \uD6C4\uBCF4\uB97C \uCD94\uAC00\uD558\uC138\uC694.', 'error');
+    setMessage('교체할 수 있는 후보가 없습니다. 반경을 넓히거나 수동 후보를 추가하세요.', 'error');
     return;
   }
   selectedCandidates.value = selectedCandidates.value.map((item) => candidateKey(item) === oldKey ? replacement : item);
   siteDataEnriched.value = false;
   applyCandidatesToDraft(false);
-  setMessage('\uD6C4\uBCF4\uB97C ' + replacement.title + '\uB85C \uAD50\uCCB4\uD588\uC2B5\uB2C8\uB2E4.', 'success');
+  setMessage('후보를 ' + replacement.title + '로 교체했습니다.', 'success');
 }
 
 function isAnchorCandidate(candidate) {
@@ -3128,7 +3210,7 @@ function applyCandidatesToDraft(showMessage = true) {
   const payload = {
     area: areaLabel(candidateAreaCode.value),
     era: inferEraFromCandidates(orderedCandidates),
-    theme: '역사 미스터리',
+    theme: '장소 기반 스토리 미션',
     targetAudience: '야외 방탈출 플레이어',
     playTime: '90~120분',
     places: orderedCandidates.map((candidate, index) => ({
@@ -3288,7 +3370,9 @@ h2, h3 { margin: 0 0 10px; }
 .preview-grid span { width: fit-content; border-radius: 999px; padding: 3px 7px; background: rgba(148,163,184,.14); color: #cbd5e1; font-size: .72rem; font-weight: 900; }
 .preview-grid span.START { color: #93c5fd; background: rgba(37,99,235,.16); }
 .preview-grid span.ANSWER_HINT { color: #fdba74; background: rgba(234,88,12,.16); }
-.preview-grid span.DESTINATION_HINT { color: #d8b4fe; background: rgba(126,34,206,.16); }
+.preview-grid span.DESTINATION_HINT { color: #d8b4fe; background: rgba(126,34,206,.16); }
+
+
 .preview-grid em { color: #94a3b8; font-size: .72rem; font-style: normal; }
 .stat-grid, .mini-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 12px 0 18px; }
 .stat-grid article, .mini-grid article, .spot-card { border: 1px solid rgba(148,163,184,.16); border-radius: 14px; background: rgba(2,6,23,.32); padding: 12px; }
@@ -3447,7 +3531,8 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .selected-route li > span { border-radius: 999px; padding: 4px 7px; font-size: .72rem; font-weight: 900; }
 .selected-route .START { color: #93c5fd; background: rgba(37,99,235,.16); }
 .selected-route .ANSWER_HINT { color: #fdba74; background: rgba(234,88,12,.16); }
-.selected-route .DESTINATION_HINT { color: #d8b4fe; background: rgba(126,34,206,.16); }
+.selected-route .DESTINATION_HINT { color: #d8b4fe; background: rgba(126,34,206,.16); }
+
 .selected-route .FINAL { color: #fecaca; background: rgba(127,29,29,.22); }
 .selected-route em { grid-column: 2 / -1; color: #fecaca; font-size: .75rem; font-style: normal; font-weight: 900; }
 .selected-route p { margin: 10px 0 0; color: #cbd5e1; font-size: .82rem; }

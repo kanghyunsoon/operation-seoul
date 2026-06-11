@@ -59,6 +59,9 @@ public class AdminEpisodeService {
     private static final Set<String> PARTNER_REWARD_STATUSES = Set.of("DISABLED", "PLANNED", "ACTIVE", "ENDED");
     private static final int CANDIDATE_RADIUS_METERS = 18_000;
     private static final int MAX_CANDIDATES = 60;
+    private static final int MIN_EPISODE_SPOTS = 3;
+    private static final int MAX_EPISODE_SPOTS = 30;
+
     private static final Map<String, List<AreaSeed>> CANDIDATE_SEEDS = Map.of(
             "seoul", List.of(new AreaSeed(37.5665, 126.9780), new AreaSeed(37.5796, 126.9770), new AreaSeed(37.5512, 126.9882)),
             "capital_area", List.of(new AreaSeed(37.4563, 126.7052), new AreaSeed(37.2636, 127.0286), new AreaSeed(37.3943, 127.1112)),
@@ -118,7 +121,7 @@ public class AdminEpisodeService {
                 if (lat == null || lng == null || !operationAreaResolver.isInsideAreaCode(normalizedAreaCode, lat, lng)) {
                     continue;
                 }
-                String title = blank(place.get("title"), "Review required.");
+                String title = blank(place.get("title"), "이름 미정 장소");
                 String address = place.get("address");
                 String key = (title + "|" + address + "|" + lat + "|" + lng).toLowerCase(Locale.ROOT);
                 unique.putIfAbsent(key, AdminPlaceCandidateResponse.builder()
@@ -128,7 +131,7 @@ public class AdminEpisodeService {
                         .longitude(lng)
                         .areaCode(normalizedAreaCode)
                         .source(place.getOrDefault("source", "TourAPI"))
-                        .description(place.getOrDefault("overview", "Review required."))
+                        .description(place.getOrDefault("overview", "공식 설명이 없어 관리자 확인이 필요한 장소입니다."))
                         .contentId(place.get("contentId"))
                         .build());
             }
@@ -141,27 +144,89 @@ public class AdminEpisodeService {
 
     public AiEpisodeDraftRequest enrichSiteData(AiEpisodeDraftRequest request) {
         if (request == null || request.getPlaces() == null || request.getPlaces().isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SITE_ENRICHMENT_INPUT", "Review required.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_SITE_ENRICHMENT_INPUT",
+                    "사이트 보강을 위해서는 최소 1개 이상의 장소 입력이 필요합니다."
+            );
         }
+
         AiEpisodeDraftRequest enriched = new AiEpisodeDraftRequest();
+
         enriched.setArea(request.getArea());
         enriched.setEra(request.getEra());
         enriched.setTheme(request.getTheme());
         enriched.setTargetAudience(request.getTargetAudience());
         enriched.setPlayTime(request.getPlayTime());
+
+        enriched.setSelectedGenreId(request.getSelectedGenreId());
+        enriched.setSelectedGenreName(request.getSelectedGenreName());
+
+        enriched.setFinalAnswerKeywords(request.getFinalAnswerKeywords());
+        enriched.setFinalAnswerKeywordItems(request.getFinalAnswerKeywordItems());
+
+        enriched.setGenreCatalog(request.getGenreCatalog());
+        enriched.setMissionPolicy(request.getMissionPolicy());
+        enriched.setPuzzlePolicy(request.getPuzzlePolicy());
+
         List<AiEpisodeDraftRequest.PlaceInput> places = new ArrayList<>();
         for (AiEpisodeDraftRequest.PlaceInput place : request.getPlaces()) {
             places.add(enrichPlace(place));
         }
+
         enriched.setPlaces(places);
+
         return enriched;
     }
 
-    public AdminEpisodeDetailResponse getEpisode(Long episodeId) {
-        Episode episode = adminEpisodeRepository.findEpisode(episodeId);
-        if (episode == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "Review required.");
+    private String selectedGenreName(AiEpisodeDraftRequest request) {
+        if (request == null) {
+            return "야외 스토리 미션";
         }
+
+        if (!missing(request.getSelectedGenreName())) {
+            return request.getSelectedGenreName().trim();
+        }
+
+        if (!missing(request.getSelectedGenreId())) {
+            return request.getSelectedGenreId().trim();
+        }
+
+        if (!missing(request.getTheme())) {
+            return request.getTheme().trim();
+        }
+
+        return "야외 스토리 미션";
+    }
+
+    private List<String> approvedFinalKeywords(AiEpisodeDraftRequest request) {
+        if (request == null) {
+            return List.of();
+        }
+
+        if (request.getFinalAnswerKeywordItems() != null && !request.getFinalAnswerKeywordItems().isEmpty()) {
+            return request.getFinalAnswerKeywordItems().stream()
+                    .map(AiEpisodeDraftRequest.AnswerKeywordInput::getKeyword)
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
+        }
+
+        if (request.getFinalAnswerKeywords() != null && !request.getFinalAnswerKeywords().isEmpty()) {
+            return request.getFinalAnswerKeywords().stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
+        }
+
+        return List.of();
+    }
+
+    public AdminEpisodeDetailResponse getEpisode(Long episodeId) {
+        Episode episode = requireEpisode(episodeId);
+
         AdminEpisodeProgressStats stats = safeStats(episodeId);
         return AdminEpisodeDetailResponse.builder()
                 .id(episode.getId())
@@ -217,7 +282,7 @@ public class AdminEpisodeService {
             return AdminEpisodePublishReadinessResponse.builder()
                     .ready(true)
                     .status(episode.getStatus())
-                    .message("Ready to publish. AI/site-data verification gates passed.")
+                    .message("공개 가능한 상태입니다. AI 초안, 현장 데이터, 정답 노출 검사를 통과했습니다.")
                     .summary(summary)
                     .blockingIssues(List.of())
                     .checklist(publishChecklist())
@@ -229,7 +294,7 @@ public class AdminEpisodeService {
             return AdminEpisodePublishReadinessResponse.builder()
                     .ready(false)
                     .status(episode.getStatus())
-                    .message("Fix blocking issues before publishing.")
+                    .message("공개 전 차단 이슈를 먼저 수정해야 합니다.")
                     .summary(summary)
                     .blockingIssues(extractBlockingIssues(e.getMessage()))
                     .checklist(publishChecklist())
@@ -258,7 +323,12 @@ public class AdminEpisodeService {
         episode.setRecommendedPlayers(text(request.getRecommendedPlayers(), episode.getRecommendedPlayers()));
         episode.setTeamRoleGuide(text(request.getTeamRoleGuide(), episode.getTeamRoleGuide()));
         episode.setNoticeText(text(request.getNoticeText(), episode.getNoticeText()));
-        episode.setStatus(validateValue(text(request.getStatus(), episode.getStatus()), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "Review required."));
+        episode.setStatus(validateValue(
+                text(request.getStatus(), episode.getStatus()),
+                EPISODE_STATUSES,
+                "INVALID_EPISODE_STATUS",
+                "status는 DRAFT, PUBLISHED, ARCHIVED 중 하나여야 합니다."
+        ));
         if ("PUBLISHED".equals(episode.getStatus())) {
             validatePublishReadiness(episode);
         }
@@ -267,28 +337,59 @@ public class AdminEpisodeService {
     }
 
     public AdminEpisodeDetailResponse updateSpot(Long episodeId, Long spotId, AdminSpotUpdateRequest request) {
-        requireEpisode(episodeId);
+        requireEditableEpisode(episodeId);
+
+        AdminSpotUpdateRequest safeRequest = request == null ? new AdminSpotUpdateRequest() : request;
+
         MissionSpot spot = adminEpisodeRepository.findSpots(episodeId).stream()
                 .filter(item -> spotId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "Review required."));
-        spot.setPlaceName(text(request.getPlaceName(), spot.getPlaceName()));
-        spot.setAddress(text(request.getAddress(), spot.getAddress()));
-        spot.setLatitude(request.getLatitude() == null ? spot.getLatitude() : request.getLatitude());
-        spot.setLongitude(request.getLongitude() == null ? spot.getLongitude() : request.getLongitude());
-        spot.setMarkerType(validateValue(text(request.getMarkerType(), spot.getMarkerType()), MARKER_TYPES, "INVALID_MARKER_TYPE", "Unsupported markerType."));
-        spot.setClueRole(validateValue(text(request.getClueRole(), spot.getClueRole()), CLUE_ROLES, "INVALID_CLUE_ROLE", "Unsupported clueRole."));
-        spot.setPublicMarkerType(validateValue(text(request.getPublicMarkerType(), spot.getPublicMarkerType()), PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType must not expose FINAL."));
-        spot.setStoryText(text(request.getStoryText(), spot.getStoryText()));
-        spot.setArrivalRadius(request.getArrivalRadius() == null ? spot.getArrivalRadius() : Math.max(10.0, request.getArrivalRadius()));
-        spot.setFieldVerified(request.getFieldVerified() == null ? spot.getFieldVerified() : request.getFieldVerified());
-        spot.setFieldVerificationNote(text(request.getFieldVerificationNote(), spot.getFieldVerificationNote()));
-        spot.setFinalPlace(request.getFinalPlace() == null ? spot.getFinalPlace() : request.getFinalPlace());
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "SPOT_NOT_FOUND",
+                        "조사 지점을 찾을 수 없습니다."
+                ));
+
+        spot.setPlaceName(text(safeRequest.getPlaceName(), spot.getPlaceName()));
+        spot.setAddress(text(safeRequest.getAddress(), spot.getAddress()));
+        spot.setLatitude(safeRequest.getLatitude() == null ? spot.getLatitude() : safeRequest.getLatitude());
+        spot.setLongitude(safeRequest.getLongitude() == null ? spot.getLongitude() : safeRequest.getLongitude());
+
+        spot.setMarkerType(validateValue(
+                text(safeRequest.getMarkerType(), spot.getMarkerType()),
+                MARKER_TYPES,
+                "INVALID_MARKER_TYPE",
+                "지원하지 않는 markerType입니다."
+        ));
+
+        spot.setClueRole(validateValue(
+                text(safeRequest.getClueRole(), spot.getClueRole()),
+                CLUE_ROLES,
+                "INVALID_CLUE_ROLE",
+                "지원하지 않는 clueRole입니다."
+        ));
+
+        spot.setPublicMarkerType(validateValue(
+                text(safeRequest.getPublicMarkerType(), spot.getPublicMarkerType()),
+                PUBLIC_MARKER_TYPES,
+                "INVALID_PUBLIC_MARKER_TYPE",
+                "publicMarkerType으로 FINAL을 노출할 수 없습니다."
+        ));
+
+        spot.setStoryText(text(safeRequest.getStoryText(), spot.getStoryText()));
+        spot.setArrivalRadius(safeRequest.getArrivalRadius() == null
+                ? spot.getArrivalRadius()
+                : Math.max(10.0, safeRequest.getArrivalRadius()));
+        spot.setFieldVerified(safeRequest.getFieldVerified() == null ? spot.getFieldVerified() : safeRequest.getFieldVerified());
+        spot.setFieldVerificationNote(text(safeRequest.getFieldVerificationNote(), spot.getFieldVerificationNote()));
+        spot.setFinalPlace(safeRequest.getFinalPlace() == null ? spot.getFinalPlace() : safeRequest.getFinalPlace());
+
         if (Boolean.TRUE.equals(spot.getFinalPlace())) {
             spot.setMarkerType("FINAL");
             spot.setClueRole("FINAL_PLACE");
             spot.setPublicMarkerType("DESTINATION_HINT");
         }
+
         adminEpisodeRepository.updateSpot(spot);
         return getEpisode(episodeId);
     }
@@ -296,96 +397,185 @@ public class AdminEpisodeService {
     @Transactional
     public AdminEpisodeDetailResponse createSpot(Long episodeId, AdminSpotUpdateRequest request) {
         requireEditableEpisode(episodeId);
+
+        AdminSpotUpdateRequest safeRequest = request == null ? new AdminSpotUpdateRequest() : request;
+
         List<MissionSpot> spots = adminEpisodeRepository.findSpots(episodeId);
-        if (spots.size() >= 9) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "TOO_MANY_SPOTS", "Review required.");
+
+        if (spots.size() >= MAX_EPISODE_SPOTS) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "TOO_MANY_SPOTS",
+                    "장소는 최대 " + MAX_EPISODE_SPOTS + "개까지 추가할 수 있습니다."
+            );
         }
+
         MissionSpot spot = new MissionSpot();
         spot.setEpisodeId(episodeId);
-        spot.setPlaceName(text(request.getPlaceName(), "Review required."));
-        spot.setAddress(text(request.getAddress(), ""));
-        spot.setLatitude(request.getLatitude() == null ? 37.5665 : request.getLatitude());
-        spot.setLongitude(request.getLongitude() == null ? 126.9780 : request.getLongitude());
-        spot.setMarkerType(validateValue(text(request.getMarkerType(), "ANSWER_HINT"), MARKER_TYPES, "INVALID_MARKER_TYPE", "Unsupported markerType."));
-        spot.setClueRole(validateValue(text(request.getClueRole(), toClueRole(spot.getMarkerType())), CLUE_ROLES, "INVALID_CLUE_ROLE", "Unsupported clueRole."));
-        spot.setPublicMarkerType(validateValue(text(request.getPublicMarkerType(), spot.getMarkerType()), PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType must not expose FINAL."));
-        spot.setStoryText(text(request.getStoryText(), "Review required."));
-        spot.setArrivalRadius(request.getArrivalRadius() == null ? 50.0 : Math.max(10.0, request.getArrivalRadius()));
-        spot.setFieldVerified(Boolean.TRUE.equals(request.getFieldVerified()));
-        spot.setFieldVerificationNote(text(request.getFieldVerificationNote(), null));
-        spot.setFinalPlace(Boolean.TRUE.equals(request.getFinalPlace()));
+        spot.setPlaceName(text(safeRequest.getPlaceName(), "추가 조사 지점 " + (spots.size() + 1)));
+        spot.setAddress(text(safeRequest.getAddress(), ""));
+        spot.setLatitude(safeRequest.getLatitude() == null ? 37.5665 : safeRequest.getLatitude());
+        spot.setLongitude(safeRequest.getLongitude() == null ? 126.9780 : safeRequest.getLongitude());
+
+        spot.setMarkerType(validateValue(
+                text(safeRequest.getMarkerType(), "ANSWER_HINT"),
+                MARKER_TYPES,
+                "INVALID_MARKER_TYPE",
+                "지원하지 않는 markerType입니다."
+        ));
+
+        spot.setClueRole(validateValue(
+                text(safeRequest.getClueRole(), toClueRole(spot.getMarkerType())),
+                CLUE_ROLES,
+                "INVALID_CLUE_ROLE",
+                "지원하지 않는 clueRole입니다."
+        ));
+
+        spot.setPublicMarkerType(validateValue(
+                text(safeRequest.getPublicMarkerType(), spot.getMarkerType()),
+                PUBLIC_MARKER_TYPES,
+                "INVALID_PUBLIC_MARKER_TYPE",
+                "publicMarkerType으로 FINAL을 노출할 수 없습니다."
+        ));
+
+        spot.setStoryText(text(
+                safeRequest.getStoryText(),
+                "관리자 검수 후 이 지점의 현장 근거와 미션 파일을 연결하는 스토리 문구를 작성하세요."
+        ));
+
+        spot.setArrivalRadius(safeRequest.getArrivalRadius() == null
+                ? 50.0
+                : Math.max(10.0, safeRequest.getArrivalRadius()));
+
+        spot.setFieldVerified(Boolean.TRUE.equals(safeRequest.getFieldVerified()));
+        spot.setFieldVerificationNote(text(safeRequest.getFieldVerificationNote(), null));
+        spot.setFinalPlace(Boolean.TRUE.equals(safeRequest.getFinalPlace()));
+
         if (Boolean.TRUE.equals(spot.getFinalPlace())) {
             spot.setMarkerType("FINAL");
             spot.setClueRole("FINAL_PLACE");
             spot.setPublicMarkerType("DESTINATION_HINT");
         }
+
         adminEpisodeRepository.insertSpot(spot);
 
         Puzzle puzzle = new Puzzle();
         puzzle.setMissionSpotId(spot.getId());
         puzzle.setPuzzleType("OBSERVATION");
-        puzzle.setQuestionText("Review required.");
-        puzzle.setAnswer("관리자검수");
+        puzzle.setQuestionText("관리자 검수 후 이 지점의 실제 현장 근거를 기준으로 퍼즐 질문을 작성하세요.");
+        puzzle.setAnswer("검수필요");
         puzzle.setAnswerFormat("TEXT");
-        puzzle.setRewardClue("Review required.");
-        puzzle.setRewardPayload("Reward payload requires admin review.");
+        puzzle.setRewardClue("story-clue-" + (spots.size() + 1));
+        puzzle.setRewardPayload(null);
         puzzle.setDifficulty("NORMAL");
+
         adminEpisodeRepository.insertPuzzle(puzzle);
-        adminEpisodeRepository.insertHint(puzzle.getId(), 1, "Review required.");
-        adminEpisodeRepository.insertHint(puzzle.getId(), 2, "Review required.");
-        adminEpisodeRepository.insertHint(puzzle.getId(), 3, "Review required.");
+
+        adminEpisodeRepository.insertHint(puzzle.getId(), 1, "현장에서 실제 확인 가능한 표지, 숫자, 조형물, 문구를 먼저 기록하세요.");
+        adminEpisodeRepository.insertHint(puzzle.getId(), 2, "장소명 자체를 정답으로 쓰지 말고, 확인 가능한 짧은 근거어를 사용하세요.");
+        adminEpisodeRepository.insertHint(puzzle.getId(), 3, "공개 전 reward_payload와 해금 단서가 최종 정답을 노출하지 않는지 확인하세요.");
+
         return getEpisode(episodeId);
     }
 
     @Transactional
     public AdminEpisodeDetailResponse deleteSpot(Long episodeId, Long spotId) {
         requireEditableEpisode(episodeId);
-        boolean exists = adminEpisodeRepository.findSpots(episodeId).stream().anyMatch(spot -> spotId.equals(spot.getId()));
+
+        boolean exists = adminEpisodeRepository.findSpots(episodeId).stream()
+                .anyMatch(spot -> spotId.equals(spot.getId()));
+
         if (!exists) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "Review required.");
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "SPOT_NOT_FOUND",
+                    "삭제하려는 조사 지점을 찾을 수 없습니다."
+            );
         }
+
         adminEpisodeRepository.detachEvidencesBySpotId(spotId);
         adminEpisodeRepository.deleteHintsBySpotId(spotId);
         adminEpisodeRepository.deletePuzzlesBySpotId(spotId);
         adminEpisodeRepository.deleteSpot(spotId);
+
         return getEpisode(episodeId);
     }
 
     public AdminEpisodeDetailResponse updatePuzzle(Long episodeId, Long puzzleId, AdminPuzzleUpdateRequest request) {
-        requireEpisode(episodeId);
+        requireEditableEpisode(episodeId);
+
+        AdminPuzzleUpdateRequest safeRequest = request == null ? new AdminPuzzleUpdateRequest() : request;
+
         Puzzle puzzle = adminEpisodeRepository.findPuzzle(puzzleId);
+
         if (puzzle == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "Puzzle not found.");
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "PUZZLE_NOT_FOUND",
+                    "퍼즐을 찾을 수 없습니다."
+            );
         }
+
         boolean belongsToEpisode = adminEpisodeRepository.findSpots(episodeId).stream()
                 .anyMatch(spot -> spot.getId().equals(puzzle.getMissionSpotId()));
+
         if (!belongsToEpisode) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "Review required.");
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "PUZZLE_NOT_FOUND",
+                    "해당 에피소드에 속한 퍼즐이 아닙니다."
+            );
         }
-        puzzle.setPuzzleType(validateValue(text(request.getPuzzleType(), puzzle.getPuzzleType()), PUZZLE_TYPES, "INVALID_PUZZLE_TYPE", "Unsupported puzzleType."));
-        puzzle.setQuestionText(text(request.getQuestionText(), puzzle.getQuestionText()));
-        puzzle.setAnswer(text(request.getAnswer(), puzzle.getAnswer()));
-        puzzle.setAnswerFormat(validateValue(text(request.getAnswerFormat(), puzzle.getAnswerFormat()), ANSWER_FORMATS, "INVALID_ANSWER_FORMAT", "Unsupported answerFormat."));
-        puzzle.setRewardClue(text(request.getRewardClue(), puzzle.getRewardClue()));
-        puzzle.setRewardPayload(text(request.getRewardPayload(), puzzle.getRewardPayload()));
-        AdminRewardPayloadValidationResponse validation = validateRewardPayload(episodeId, AdminRewardPayloadValidationRequestWrapper.of(puzzle.getRewardPayload()));
+
+        puzzle.setPuzzleType(validateValue(
+                text(safeRequest.getPuzzleType(), puzzle.getPuzzleType()),
+                PUZZLE_TYPES,
+                "INVALID_PUZZLE_TYPE",
+                "지원하지 않는 puzzleType입니다."
+        ));
+
+        puzzle.setQuestionText(text(safeRequest.getQuestionText(), puzzle.getQuestionText()));
+        puzzle.setAnswer(text(safeRequest.getAnswer(), puzzle.getAnswer()));
+
+        puzzle.setAnswerFormat(validateValue(
+                text(safeRequest.getAnswerFormat(), puzzle.getAnswerFormat()),
+                ANSWER_FORMATS,
+                "INVALID_ANSWER_FORMAT",
+                "지원하지 않는 answerFormat입니다."
+        ));
+
+        puzzle.setRewardClue(text(safeRequest.getRewardClue(), puzzle.getRewardClue()));
+        puzzle.setRewardPayload(text(safeRequest.getRewardPayload(), puzzle.getRewardPayload()));
+
+        AdminRewardPayloadValidationResponse validation =
+                validateRewardPayload(episodeId, AdminRewardPayloadValidationRequestWrapper.of(puzzle.getRewardPayload()));
+
         if (!validation.isValid()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REWARD_PAYLOAD", String.join(" / ", validation.getErrors()));
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REWARD_PAYLOAD",
+                    String.join(" / ", validation.getErrors())
+            );
         }
-        puzzle.setDifficulty(text(request.getDifficulty(), puzzle.getDifficulty()));
+
+        puzzle.setDifficulty(text(safeRequest.getDifficulty(), puzzle.getDifficulty()));
         adminEpisodeRepository.updatePuzzle(puzzle);
-        if (request.getHints() != null) {
+
+        if (safeRequest.getHints() != null) {
             adminEpisodeRepository.deleteHints(puzzleId);
+
             int level = 1;
-            for (String hint : request.getHints()) {
+            for (String hint : safeRequest.getHints()) {
                 if (hint != null && !hint.isBlank()) {
                     adminEpisodeRepository.insertHint(puzzleId, level++, hint.trim());
                 }
+
                 if (level > 3) {
                     break;
                 }
             }
         }
+
         return getEpisode(episodeId);
     }
 
@@ -395,118 +585,265 @@ public class AdminEpisodeService {
     }
 
     public AdminEpisodeDetailResponse updateSuspect(Long episodeId, Long suspectId, AdminSuspectUpdateRequest request) {
-        requireEpisode(episodeId);
+        requireEditableEpisode(episodeId);
+
+        AdminSuspectUpdateRequest safeRequest = request == null ? new AdminSuspectUpdateRequest() : request;
+
         CaseSuspect suspect = adminEpisodeRepository.findSuspects(episodeId).stream()
                 .filter(item -> suspectId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "Review required."));
-        suspect.setDisplayName(text(request.getDisplayName(), suspect.getDisplayName()));
-        suspect.setAlias(text(request.getAlias(), suspect.getAlias()));
-        suspect.setShortDescription(text(request.getShortDescription(), suspect.getShortDescription()));
-        suspect.setPortraitImageUrl(text(request.getPortraitImageUrl(), suspect.getPortraitImageUrl()));
-        suspect.setImagePrompt(ensureKoreanPersonPrompt(text(request.getImagePrompt(), suspect.getImagePrompt())));
-        suspect.setRelationToVictim(text(request.getRelationToVictim(), suspect.getRelationToVictim()));
-        suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), suspect.getSuspiciousPoint()));
-        suspect.setAlibiSummary(text(request.getAlibiSummary(), suspect.getAlibiSummary()));
-        suspect.setUnlockedByDefault(request.getUnlockedByDefault() == null ? suspect.getUnlockedByDefault() : request.getUnlockedByDefault());
-        suspect.setDisplayOrder(request.getDisplayOrder() == null ? suspect.getDisplayOrder() : request.getDisplayOrder());
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "SUSPECT_NOT_FOUND",
+                        "관계자 카드를 찾을 수 없습니다."
+                ));
+
+        suspect.setDisplayName(text(safeRequest.getDisplayName(), suspect.getDisplayName()));
+        suspect.setAlias(text(safeRequest.getAlias(), suspect.getAlias()));
+        suspect.setShortDescription(text(safeRequest.getShortDescription(), suspect.getShortDescription()));
+        suspect.setPortraitImageUrl(text(safeRequest.getPortraitImageUrl(), suspect.getPortraitImageUrl()));
+        suspect.setImagePrompt(ensureKoreanPersonPrompt(text(safeRequest.getImagePrompt(), suspect.getImagePrompt())));
+        suspect.setRelationToVictim(text(safeRequest.getRelationToVictim(), suspect.getRelationToVictim()));
+        suspect.setSuspiciousPoint(text(safeRequest.getSuspiciousPoint(), suspect.getSuspiciousPoint()));
+        suspect.setAlibiSummary(text(safeRequest.getAlibiSummary(), suspect.getAlibiSummary()));
+        suspect.setUnlockedByDefault(safeRequest.getUnlockedByDefault() == null ? suspect.getUnlockedByDefault() : safeRequest.getUnlockedByDefault());
+        suspect.setDisplayOrder(safeRequest.getDisplayOrder() == null ? suspect.getDisplayOrder() : safeRequest.getDisplayOrder());
+
         adminEpisodeRepository.updateSuspect(suspect);
         return getEpisode(episodeId);
     }
 
     public AdminEpisodeDetailResponse createSuspect(Long episodeId, AdminSuspectUpdateRequest request) {
         requireEditableEpisode(episodeId);
+
+        AdminSuspectUpdateRequest safeRequest = request == null ? new AdminSuspectUpdateRequest() : request;
+
         int nextOrder = adminEpisodeRepository.countSuspects(episodeId) + 1;
+        String alias = blank(safeRequest.getAlias(), "관계자 " + relationLabel(nextOrder));
+        String displayName = blank(safeRequest.getDisplayName(), "추가 확인이 필요한 관계자");
+        String shortDescription = blank(
+                safeRequest.getShortDescription(),
+                "관리자가 수동으로 추가한 관계자 카드입니다. 공개 전 역할과 단서 연결 방식을 보강하세요."
+        );
+        String relation = blank(
+                safeRequest.getRelationToVictim(),
+                "미션 파일 관계자"
+        );
+        String suspiciousPoint = blank(
+                safeRequest.getSuspiciousPoint(),
+                "동선, 기록, 단서 흐름 중 추가 확인이 필요한 지점이 있습니다."
+        );
+        String alibiSummary = blank(
+                safeRequest.getAlibiSummary(),
+                "해금된 미션 파일과 대조해 확인해야 합니다."
+        );
+
         CaseSuspect suspect = new CaseSuspect();
         suspect.setEpisodeId(episodeId);
-        suspect.setAlias(text(request.getAlias(), "Review required." + nextOrder));
-        suspect.setDisplayName(text(request.getDisplayName(), "임시 용의자"));
-        suspect.setShortDescription(text(request.getShortDescription(), "Review required."));
-        suspect.setPortraitImageUrl(text(request.getPortraitImageUrl(), null));
-        suspect.setImagePrompt(ensureKoreanPersonPrompt(text(request.getImagePrompt(), null)));
-        suspect.setRelationToVictim(text(request.getRelationToVictim(), "Review required."));
-        suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), "Review required."));
-        suspect.setAlibiSummary(text(request.getAlibiSummary(), "Review required."));
-        suspect.setUnlockedByDefault(request.getUnlockedByDefault() != null && request.getUnlockedByDefault());
-        suspect.setDisplayOrder(request.getDisplayOrder() == null ? nextOrder : request.getDisplayOrder());
+        suspect.setAlias(alias);
+        suspect.setDisplayName(displayName);
+        suspect.setShortDescription(shortDescription);
+        suspect.setPortraitImageUrl(text(safeRequest.getPortraitImageUrl(), null));
+        suspect.setImagePrompt(ensureKoreanPersonPrompt(blank(
+                safeRequest.getImagePrompt(),
+                buildManualCharacterImagePrompt(displayName, relation, suspiciousPoint)
+        )));
+        suspect.setRelationToVictim(relation);
+        suspect.setSuspiciousPoint(suspiciousPoint);
+        suspect.setAlibiSummary(alibiSummary);
+        suspect.setUnlockedByDefault(safeRequest.getUnlockedByDefault() != null && safeRequest.getUnlockedByDefault());
+        suspect.setDisplayOrder(safeRequest.getDisplayOrder() == null ? nextOrder : safeRequest.getDisplayOrder());
+
         adminEpisodeRepository.insertSuspect(suspect);
         return getEpisode(episodeId);
     }
 
     public AdminEpisodeDetailResponse deleteSuspect(Long episodeId, Long suspectId) {
         requireEditableEpisode(episodeId);
-        boolean exists = adminEpisodeRepository.findSuspects(episodeId).stream().anyMatch(suspect -> suspectId.equals(suspect.getId()));
+
+        boolean exists = adminEpisodeRepository.findSuspects(episodeId).stream()
+                .anyMatch(suspect -> suspectId.equals(suspect.getId()));
+
         if (!exists) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "Review required.");
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "SUSPECT_NOT_FOUND",
+                    "삭제하려는 관계자 카드를 찾을 수 없습니다."
+            );
         }
+
         adminEpisodeRepository.detachEvidencesBySuspectId(suspectId);
         adminEpisodeRepository.deleteSuspect(suspectId);
+
         return getEpisode(episodeId);
     }
 
     public AdminEpisodeDetailResponse updateEvidence(Long episodeId, Long evidenceId, AdminEvidenceUpdateRequest request) {
-        requireEpisode(episodeId);
+        requireEditableEpisode(episodeId);
+
+        AdminEvidenceUpdateRequest safeRequest = request == null ? new AdminEvidenceUpdateRequest() : request;
+
         CaseEvidence evidence = adminEpisodeRepository.findEvidences(episodeId).stream()
                 .filter(item -> evidenceId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "Review required."));
-        evidence.setTitle(text(request.getTitle(), evidence.getTitle()));
-        evidence.setType(validateValue(text(request.getType(), evidence.getType()), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Review required."));
-        evidence.setImageUrl(text(request.getImageUrl(), evidence.getImageUrl()));
-        evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(request.getImagePrompt(), evidence.getImagePrompt())));
-        evidence.setTextSummary(text(request.getTextSummary(), evidence.getTextSummary()));
-        evidence.setSourceSpotId(validateOptionalSpot(episodeId, request.getSourceSpotId(), evidence.getSourceSpotId()));
-        evidence.setRelatedSuspectId(validateOptionalSuspect(episodeId, request.getRelatedSuspectId(), evidence.getRelatedSuspectId()));
-        evidence.setRelatedClueType(text(request.getRelatedClueType(), evidence.getRelatedClueType()));
-        evidence.setUnlockedByDefault(request.getUnlockedByDefault() == null ? evidence.getUnlockedByDefault() : request.getUnlockedByDefault());
-        evidence.setDisplayOrder(request.getDisplayOrder() == null ? evidence.getDisplayOrder() : request.getDisplayOrder());
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "EVIDENCE_NOT_FOUND",
+                        "해금 자료 카드를 찾을 수 없습니다."
+                ));
+
+        evidence.setTitle(text(safeRequest.getTitle(), evidence.getTitle()));
+
+        evidence.setType(validateValue(
+                text(safeRequest.getType(), evidence.getType()),
+                EVIDENCE_TYPES,
+                "INVALID_EVIDENCE_TYPE",
+                "지원하지 않는 evidence type입니다."
+        ));
+
+        evidence.setImageUrl(text(safeRequest.getImageUrl(), evidence.getImageUrl()));
+        evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(safeRequest.getImagePrompt(), evidence.getImagePrompt())));
+        evidence.setTextSummary(text(safeRequest.getTextSummary(), evidence.getTextSummary()));
+        evidence.setSourceSpotId(validateOptionalSpot(episodeId, safeRequest.getSourceSpotId(), evidence.getSourceSpotId()));
+        evidence.setRelatedSuspectId(validateOptionalSuspect(episodeId, safeRequest.getRelatedSuspectId(), evidence.getRelatedSuspectId()));
+        evidence.setRelatedClueType(text(safeRequest.getRelatedClueType(), evidence.getRelatedClueType()));
+        evidence.setUnlockedByDefault(safeRequest.getUnlockedByDefault() == null ? evidence.getUnlockedByDefault() : safeRequest.getUnlockedByDefault());
+        evidence.setDisplayOrder(safeRequest.getDisplayOrder() == null ? evidence.getDisplayOrder() : safeRequest.getDisplayOrder());
+
         adminEpisodeRepository.updateEvidence(evidence);
         return getEpisode(episodeId);
     }
 
     public AdminEpisodeDetailResponse createEvidence(Long episodeId, AdminEvidenceUpdateRequest request) {
         requireEditableEpisode(episodeId);
+
+        AdminEvidenceUpdateRequest safeRequest = request == null ? new AdminEvidenceUpdateRequest() : request;
+
         int nextOrder = adminEpisodeRepository.countEvidences(episodeId) + 1;
+
+        String type = validateValue(
+                text(safeRequest.getType(), "NOTE"),
+                EVIDENCE_TYPES,
+                "INVALID_EVIDENCE_TYPE",
+                "지원하지 않는 evidence type입니다."
+        );
+
+        String title = blank(safeRequest.getTitle(), "추가 해금 자료 " + nextOrder);
+        String summary = blank(
+                safeRequest.getTextSummary(),
+                "관리자가 수동으로 추가한 해금 자료입니다. 공개 전 현장 근거, 연결 미션, 정답 노출 여부를 검수하세요."
+        );
+
         CaseEvidence evidence = new CaseEvidence();
         evidence.setEpisodeId(episodeId);
-        evidence.setTitle(text(request.getTitle(), "Review required."));
-        evidence.setType(validateValue(text(request.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Review required."));
-        evidence.setImageUrl(text(request.getImageUrl(), null));
-        evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(request.getImagePrompt(), null)));
-        evidence.setTextSummary(text(request.getTextSummary(), "Review required."));
-        evidence.setSourceSpotId(validateOptionalSpot(episodeId, request.getSourceSpotId(), null));
-        evidence.setRelatedSuspectId(validateOptionalSuspect(episodeId, request.getRelatedSuspectId(), null));
-        evidence.setRelatedClueType(text(request.getRelatedClueType(), evidence.getType()));
-        evidence.setUnlockedByDefault(request.getUnlockedByDefault() != null && request.getUnlockedByDefault());
-        evidence.setDisplayOrder(request.getDisplayOrder() == null ? nextOrder : request.getDisplayOrder());
+        evidence.setTitle(title);
+        evidence.setType(type);
+        evidence.setImageUrl(text(safeRequest.getImageUrl(), null));
+        evidence.setImagePrompt(ensureKoreanEvidencePrompt(blank(
+                safeRequest.getImagePrompt(),
+                buildManualEvidenceImagePrompt(title, summary)
+        )));
+        evidence.setTextSummary(summary);
+        evidence.setSourceSpotId(validateOptionalSpot(episodeId, safeRequest.getSourceSpotId(), null));
+        evidence.setRelatedSuspectId(validateOptionalSuspect(episodeId, safeRequest.getRelatedSuspectId(), null));
+        evidence.setRelatedClueType(text(safeRequest.getRelatedClueType(), type));
+        evidence.setUnlockedByDefault(safeRequest.getUnlockedByDefault() != null && safeRequest.getUnlockedByDefault());
+        evidence.setDisplayOrder(safeRequest.getDisplayOrder() == null ? nextOrder : safeRequest.getDisplayOrder());
+
         adminEpisodeRepository.insertEvidence(evidence);
         return getEpisode(episodeId);
     }
 
+    private String relationLabel(int order) {
+        int index = Math.max(0, order - 1);
+        char label = (char) ('A' + Math.floorMod(index, 26));
+
+        if (index < 26) {
+            return String.valueOf(label);
+        }
+
+        return label + String.valueOf((index / 26) + 1);
+    }
+
+    private String buildManualCharacterImagePrompt(String displayName, String relation, String note) {
+        return "Create a high-quality character archive card illustration for a Korean outdoor story mission. "
+                + "Subject: " + blank(displayName, "추가 확인이 필요한 관계자") + ". "
+                + "Role in story: " + blank(relation, "미션 파일 관계자") + ". "
+                + "Character note: " + blank(note, "동선과 기록 흐름에서 추가 확인이 필요한 지점이 있습니다.") + ". "
+                + "Casting is mandatory: depict a fictional Korean person from Seoul, South Korea. "
+                + "The subject must look unmistakably Korean; preserve the story's specified age, gender, occupation, and historical era. "
+                + "Do not cast a Western or European-looking model, and do not change the character's Korean identity. "
+                + "Composition: bust portrait or half-body portrait, 3/4 view, natural Korean styling and grooming appropriate to the story era, calm restrained expression, clean silhouette. "
+                + missionArchiveIllustrationStylePrompt()
+                + missionArchiveNegativeImagePrompt()
+                + " No celebrity likeness.";
+    }
+
+    private String buildManualEvidenceImagePrompt(String title, String summary) {
+        return "Create a high-quality mission archive card illustration for a Korean outdoor story mission. "
+                + "Subject: " + blank(title, "추가 해금 자료") + ". "
+                + "Story detail: " + blank(summary, "현장 근거와 미션 파일을 연결해 다음 판단을 돕는 자료입니다.") + ". "
+                + missionArchiveIllustrationStylePrompt()
+                + "If any person, hand, portrait, reflection, or human silhouette appears, it must belong to a fictional Korean person in Seoul and match the story era. "
+                + missionArchiveNegativeImagePrompt();
+    }
+
     public AdminEpisodeDetailResponse deleteEvidence(Long episodeId, Long evidenceId) {
         requireEditableEpisode(episodeId);
-        boolean exists = adminEpisodeRepository.findEvidences(episodeId).stream().anyMatch(evidence -> evidenceId.equals(evidence.getId()));
+
+        boolean exists = adminEpisodeRepository.findEvidences(episodeId).stream()
+                .anyMatch(evidence -> evidenceId.equals(evidence.getId()));
+
         if (!exists) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "Review required.");
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "EVIDENCE_NOT_FOUND",
+                    "삭제하려는 해금 자료 카드를 찾을 수 없습니다."
+            );
         }
+
         adminEpisodeRepository.deleteEvidence(evidenceId);
         return getEpisode(episodeId);
     }
 
     public AdminEpisodeDetailResponse updatePartnerReward(Long episodeId, Long rewardId, AdminPartnerRewardUpdateRequest request) {
-        requireEpisode(episodeId);
+        requireEditableEpisode(episodeId);
+
+        AdminPartnerRewardUpdateRequest safeRequest = request == null
+                ? new AdminPartnerRewardUpdateRequest()
+                : request;
+
         EpisodePartnerReward reward = adminEpisodeRepository.findPartnerRewards(episodeId).stream()
                 .filter(item -> rewardId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PARTNER_REWARD_NOT_FOUND", "Review required."));
-        reward.setTitle(text(request.getTitle(), reward.getTitle()));
-        reward.setDescription(text(request.getDescription(), reward.getDescription()));
-        reward.setRewardType(validateValue(text(request.getRewardType(), reward.getRewardType()), PARTNER_REWARD_TYPES, "INVALID_REWARD_TYPE", "Review required."));
-        reward.setPartnerName(text(request.getPartnerName(), reward.getPartnerName()));
-        reward.setLocationName(text(request.getLocationName(), reward.getLocationName()));
-        reward.setLatitude(request.getLatitude() == null ? reward.getLatitude() : request.getLatitude());
-        reward.setLongitude(request.getLongitude() == null ? reward.getLongitude() : request.getLongitude());
-        reward.setStatus(validateValue(text(request.getStatus(), reward.getStatus()), PARTNER_REWARD_STATUSES, "INVALID_REWARD_STATUS", "Review required."));
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "PARTNER_REWARD_NOT_FOUND",
+                        "제휴 리워드를 찾을 수 없습니다."
+                ));
+
+        reward.setTitle(text(safeRequest.getTitle(), reward.getTitle()));
+        reward.setDescription(text(safeRequest.getDescription(), reward.getDescription()));
+
+        reward.setRewardType(validateValue(
+                text(safeRequest.getRewardType(), reward.getRewardType()),
+                PARTNER_REWARD_TYPES,
+                "INVALID_REWARD_TYPE",
+                "지원하지 않는 제휴 리워드 유형입니다."
+        ));
+
+        reward.setPartnerName(text(safeRequest.getPartnerName(), reward.getPartnerName()));
+        reward.setLocationName(text(safeRequest.getLocationName(), reward.getLocationName()));
+        reward.setLatitude(safeRequest.getLatitude() == null ? reward.getLatitude() : safeRequest.getLatitude());
+        reward.setLongitude(safeRequest.getLongitude() == null ? reward.getLongitude() : safeRequest.getLongitude());
+
+        reward.setStatus(validateValue(
+                text(safeRequest.getStatus(), reward.getStatus()),
+                PARTNER_REWARD_STATUSES,
+                "INVALID_REWARD_STATUS",
+                "제휴 리워드 status는 DISABLED, PLANNED, ACTIVE, ENDED 중 하나여야 합니다."
+        ));
+
         adminEpisodeRepository.updatePartnerReward(reward);
         return getEpisode(episodeId);
     }
@@ -515,44 +852,125 @@ public class AdminEpisodeService {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         List<AdminRewardPayloadValidationResponse.RewardItem> rewardItems = new ArrayList<>();
-        String payload = request.rewardPayload();
+
+        String payload = request == null ? null : request.rewardPayload();
+
         if (payload == null || payload.isBlank()) {
-            warnings.add("reward_payload is empty; only reward_clue will be used.");
-            return AdminRewardPayloadValidationResponse.builder().valid(true).errors(errors).warnings(warnings).rewards(rewardItems).build();
+            warnings.add("reward_payload가 비어 있습니다. 이 경우 reward_clue만 사용됩니다.");
+            return AdminRewardPayloadValidationResponse.builder()
+                    .valid(true)
+                    .errors(errors)
+                    .warnings(warnings)
+                    .rewards(rewardItems)
+                    .build();
         }
+
         try {
             JsonNode root = objectMapper.readTree(payload);
             JsonNode rewards = root.path("rewards");
+
             if (!rewards.isArray()) {
-                errors.add("reward_payload.rewards must be an array.");
+                errors.add("reward_payload.rewards는 배열이어야 합니다.");
             } else if (rewards.isEmpty()) {
-                warnings.add("rewards array is empty.");
+                warnings.add("reward_payload.rewards 배열이 비어 있습니다.");
             } else {
                 for (int i = 0; i < rewards.size(); i++) {
                     JsonNode reward = rewards.get(i);
+
                     String type = reward.path("type").asText("");
                     String value = reward.path("value").asText("");
-                    Long targetId = reward.hasNonNull("targetId") ? reward.path("targetId").asLong() : null;
-                    if (!REWARD_TYPES.contains(type)) errors.add("rewards[" + i + "].type is unsupported: " + type);
+                    Long targetId = reward.hasNonNull("targetId")
+                            ? reward.path("targetId").asLong()
+                            : null;
+
+                    if (!REWARD_TYPES.contains(type)) {
+                        errors.add("rewards[" + i + "].type이 지원되지 않는 보상 유형입니다: " + type);
+                    }
+
                     String targetLabel = null;
-                    if (Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE").contains(type) && value.isBlank()) errors.add("rewards[" + i + "] " + type + " requires value.");
-                    if ("MEMO_UNLOCK".equals(type) && targetId == null && value.isBlank()) errors.add("rewards[" + i + "] MEMO_UNLOCK requires targetId or value.");
-                    if (Set.of("EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "MEMO_UNLOCK").contains(type) && targetId != null) targetLabel = validateEvidenceTarget(episodeId, targetId, i, errors);
-                    if (Set.of("SUSPECT_UNLOCK", "SUSPECT_UPDATE").contains(type)) targetLabel = validateSuspectTarget(episodeId, targetId, i, errors);
-                    rewardItems.add(AdminRewardPayloadValidationResponse.RewardItem.builder().type(type).value(value).targetId(targetId).targetLabel(targetLabel).build());
+
+                    if (Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE").contains(type)
+                            && value.isBlank()) {
+                        errors.add("rewards[" + i + "] " + type + " 유형은 value가 필요합니다.");
+                    }
+
+                    if ("MEMO_UNLOCK".equals(type) && targetId == null && value.isBlank()) {
+                        errors.add("rewards[" + i + "] MEMO_UNLOCK 유형은 targetId 또는 value가 필요합니다.");
+                    }
+
+                    if (Set.of("EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "MEMO_UNLOCK").contains(type)
+                            && targetId != null) {
+                        targetLabel = validateEvidenceTarget(episodeId, targetId, i, errors);
+                    }
+
+                    if (Set.of("SUSPECT_UNLOCK", "SUSPECT_UPDATE").contains(type)) {
+                        targetLabel = validateSuspectTarget(episodeId, targetId, i, errors);
+                    }
+
+                    rewardItems.add(AdminRewardPayloadValidationResponse.RewardItem.builder()
+                            .type(type)
+                            .value(value)
+                            .targetId(targetId)
+                            .targetLabel(targetLabel)
+                            .build());
                 }
             }
         } catch (Exception e) {
-            errors.add("reward_payload must be valid JSON.");
+            errors.add("reward_payload는 올바른 JSON 형식이어야 합니다.");
         }
-        return AdminRewardPayloadValidationResponse.builder().valid(errors.isEmpty()).errors(errors).warnings(warnings).rewards(rewardItems).build();
+
+        return AdminRewardPayloadValidationResponse.builder()
+                .valid(errors.isEmpty())
+                .errors(errors)
+                .warnings(warnings)
+                .rewards(rewardItems)
+                .build();
     }
 
 
     public AiEpisodeDraftResponse createAiDraft(AiEpisodeDraftRequest request) {
-        List<AiEpisodeDraftRequest.PlaceInput> places = request.getPlaces() == null ? List.of() : request.getPlaces();
-        if (places.size() < 6) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "NOT_ENOUGH_PLACES", "At least 6 places are required for a case-file episode.");
+        if (request == null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_AI_DRAFT_REQUEST",
+                    "AI 초안 생성을 위해 요청 본문이 필요합니다."
+            );
+        }
+
+        List<AiEpisodeDraftRequest.PlaceInput> places = request.getPlaces() == null
+                ? List.of()
+                : request.getPlaces();
+
+        int minMissionCount = request.getMissionPolicy() != null && request.getMissionPolicy().getMinMissionCount() != null
+                ? request.getMissionPolicy().getMinMissionCount()
+                : MIN_EPISODE_SPOTS;
+
+        int maxMissionCount = request.getMissionPolicy() != null && request.getMissionPolicy().getMaxMissionCount() != null
+                ? request.getMissionPolicy().getMaxMissionCount()
+                : MAX_EPISODE_SPOTS;
+
+        if (minMissionCount < 1 || maxMissionCount < minMissionCount) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_MISSION_POLICY",
+                    "미션 개수 정책이 올바르지 않습니다. 최소 개수는 1 이상이고, 최대 개수는 최소 개수보다 크거나 같아야 합니다."
+            );
+        }
+
+        if (places.size() < minMissionCount) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "NOT_ENOUGH_PLACES",
+                    "현재 정책에서는 최소 " + minMissionCount + "개 이상의 장소가 필요합니다."
+            );
+        }
+
+        if (places.size() > maxMissionCount) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "TOO_MANY_PLACES",
+                    "현재 정책에서는 최대 " + maxMissionCount + "개 장소까지만 사용할 수 있습니다."
+            );
         }
         List<String> warnings = new ArrayList<>();
         List<AiEpisodeDraftResponse.MissionDraft> missions = new ArrayList<>();
@@ -560,11 +978,12 @@ public class AdminEpisodeService {
             AiEpisodeDraftRequest.PlaceInput place = places.get(i);
             String role = normalizeRole(place.getRole(), i, places.size());
             if (place.getVisibleElements() == null || place.getVisibleElements().isEmpty()) {
-                warnings.add(blank(place.getName(), "spot " + (i + 1)) + ": visibleElements are missing; review observation puzzles.");
+                warnings.add(blank(place.getName(), "조사 지점 " + (i + 1))
+                        + ": 현장 관찰 요소(visibleElements)가 비어 있습니다. 관찰형 퍼즐은 공개 전 현장 확인 후 보강하세요.");
             }
             missions.add(AiEpisodeDraftResponse.MissionDraft.builder()
                     .order(i + 1)
-                    .placeName(blank(place.getName(), "\uC870\uC0AC \uC9C0\uC810 " + (i + 1)))
+                    .placeName(blank(place.getName(), "조사 지점 " + (i + 1)))
                     .address(place.getAddress())
                     .latitude(place.getLatitude())
                     .longitude(place.getLongitude())
@@ -572,22 +991,30 @@ public class AdminEpisodeService {
                     .publicMarkerType(publicMarkerType(place.getPublicMarkerType(), "FINAL".equals(role), role))
                     .clueRole("FINAL".equals(role) ? "FINAL_PLACE" : toClueRole(role))
                     .finalPlace("FINAL".equals(role))
-                    .storyText(blank(place.getDescription(), i == 0 ? "\uC0AC\uAC74\uD30C\uC77C\uC744 \uC5F4\uACE0 \uB2E8\uC11C \uBD84\uB958\uB97C \uD655\uC778\uD558\uC138\uC694." : "\uD604\uC7A5 \uC790\uB8CC\uC640 \uC0AC\uAC74 \uBA54\uBAA8\uB97C \uBE44\uAD50\uD558\uC138\uC694."))
+                    .storyText(blank(place.getDescription(), i == 0
+                            ? "미션 파일을 열고 단서 분류를 확인하세요."
+                            : "현장 자료와 미션 메모를 비교하세요."))
                     .arrivalRadius(place.getArrivalRadius() == null ? 50.0 : place.getArrivalRadius())
                     .puzzleType(recommendPuzzleType(place))
                     .questionText(buildQuestion(place))
                     .answer(buildAnswer(place))
                     .answerFormat(answerFormat(place))
                     .rewardClue(buildRewardClue(role, i))
-                    .hints(List.of("\uAD00\uB9AC\uC790\uAC00 \uC81C\uACF5\uD55C \uD604\uC7A5 \uB370\uC774\uD130\uB9CC \uAE30\uC900\uC73C\uB85C \uBCF4\uC138\uC694.", "\uC774 \uB2E8\uC11C\uAC00 \uC815\uB2F5 \uD78C\uD2B8\uC778\uC9C0 \uBAA9\uC801\uC9C0 \uD78C\uD2B8\uC778\uC9C0 \uBD84\uB958\uD558\uC138\uC694.", "\uACF5\uAC1C \uC804 \uD604\uC7A5\uC5D0\uC11C \uB2E8\uC11C \uADFC\uAC70\uB97C \uD655\uC778\uD558\uC138\uC694."))
-                    .groundRule("\uADDC\uCE59 \uAE30\uBC18 \uAD00\uB9AC\uC790 \uCD08\uC548\uC785\uB2C8\uB2E4. \uACF5\uAC1C \uC804 \uD604\uC7A5 \uC8FC\uC7A5\uC744 \uD655\uC778\uD558\uC138\uC694.")
+                    .hints(List.of(
+                            "관리자가 제공한 현장 데이터만 기준으로 보세요.",
+                            "이 단서가 정답 힌트인지 목적지 힌트인지 분류하세요.",
+                            "공개 전 현장에서 단서 근거를 확인하세요."
+                    ))
+                    .groundRule("규칙 기반 관리자 초안입니다. 공개 전 현장 주장을 확인하세요.")
                     .build());
         }
         DraftObjective objective = draftObjective(request, places);
+        String genreName = selectedGenreName(request);
+
         AiEpisodeDraftResponse.EpisodeDraft draft = AiEpisodeDraftResponse.EpisodeDraft.builder()
-                .episodeTitle("EP.NEW " + blank(request.getTheme(), "\uC228\uACA8\uC9C4 \uAE30\uB85D") + " \uC0AC\uAC74")
+                .episodeTitle("EP.NEW " + blank(request.getTheme(), "숨겨진 기록 미션"))
                 .subtitle(draftSubtitle(request, places))
-                .genre(blank(request.getTheme(), "\uC57C\uC678 \uC0AC\uAC74\uD30C\uC77C \uBBF8\uC2A4\uD130\uB9AC"))
+                .genre(genreName)
                 .era(draftEra(request, places))
                 .fictionSynopsis(objective.synopsis())
                 .selectedGenre(objective.genre())
@@ -597,111 +1024,152 @@ public class AdminEpisodeService {
                 .finalAnswerAliases(withKeywordContract(objective.aliases(), objective.keywords()))
                 .finalQuestion(objective.finalQuestion())
                 .finalTruthSummary(String.join("\n",
-                        "3. 픽션과 역사의 매칭 (디브리핑)",
-                        "스토리 속 [" + objective.finalAnswer() + "] -> 실제 역사 속 [관리자 검수 필요 역사 자료]: 시놉시스가 요구한 해결 조건 전체를 하나의 최종 진실로 묶은 장치입니다.",
-                        "스토리 속 [현장 지령] -> 실제 역사 속 [최종 목적지의 역사적 맥락]: 장소에 남은 사건의 흔적을 동선과 퍼즐로 바꾼 장치입니다.",
-                        "스토리 속 [암호 카드] -> 실제 역사 속 [기록과 증언]: 플레이어가 단서를 대조하도록 실제 자료 해석 과정을 은유했습니다.",
-                        "스토리 속 [조력자/용의자 진술] -> 실제 역사 속 [관련 인물과 이해관계]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 차용했습니다."
+                        "3. 픽션과 실제 배경의 연결 (디브리핑)",
+                        "스토리 속 [" + objective.finalAnswer() + "] -> 실제 배경 속 [관리자 검수 필요 자료]: 선택한 장르의 해결 조건을 하나의 최종 결론으로 묶은 장치입니다.",
+                        "스토리 속 [현장 지령] -> 실제 배경 속 [최종 목적지의 장소 맥락]: 장소에 남은 정보와 이동 흐름을 미션 구조로 바꾼 장치입니다.",
+                        "스토리 속 [암호 카드] -> 실제 배경 속 [기록, 표지, 안내, 증언 자료]: 플레이어가 현장 정보를 대조하도록 만든 장치입니다.",
+                        "스토리 속 [관계자 진술] -> 실제 배경 속 [관련 인물, 장소, 이해관계]: 실존 인물을 실제 책임자로 만들지 않고 역할과 갈등 구조만 차용했습니다."
                 ))
                 .actualHistorySummary("""
                         1. 모티브 공개
-                        이 임무는 실제 [관리자 검수 필요 최종 목적지]에서 있었던 [관리자 검수 필요 역사적 사건/인물]을 모티브로 제작되었습니다.
+                        이 임무는 실제 [관리자 검수 필요 최종 목적지]의 역사·문화·장소적 배경을 모티브로 제작되었습니다.
 
-                        2. 실제 사건 해설
-                        이 초안은 규칙 기반 안전 fallback입니다. 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 최종 목적지의 실제 역사적 배경, 사건의 전말, 장소의 역사적 의의를 상세히 보강해야 합니다.
+                        2. 실제 배경 해설
+                        이 초안은 규칙 기반 안전 fallback입니다. 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 최종 목적지의 실제 배경, 장소의 의미, 픽션으로 재구성한 부분을 상세히 보강해야 합니다.
                         """.trim())
                 .deductionSecretFacts(List.of(
                         "최종 정답은 시놉시스가 요구한 해결 조건을 모두 포함해야 한다.",
                         "일부 단서 물건이나 문서 위치만 맞히는 답은 최종 정답이 아니다.",
-                        "정답은 실제 장소명이나 실존 인물명이 아니라 픽션 사건 안의 완결된 진실이다."))
-                .deductionForbiddenReveals(List.of(objective.finalAnswer(), "actualFinalPlace", "realPersonAsCulprit"))
+                        "정답은 실제 장소명이나 실존 인물명이 아니라 픽션 미션 안의 완결된 결론이다."))
+                .deductionForbiddenReveals(List.of(objective.finalAnswer(), "actualFinalPlace", "realPersonAsFinalAnswer"))
                 .maxDeductionQuestions(20)
                 .missions(missions)
                 .suspects(defaultDraftSuspects())
                 .evidences(defaultDraftEvidences(missions))
                 .build();
-        warnings.add("\uADDC\uCE59 \uAE30\uBC18 \uCD08\uC548\uC744 \uC0DD\uC131\uD588\uC2B5\uB2C8\uB2E4. \uC800\uC7A5 \uC804 \uD37C\uC990 \uC815\uB2F5, reward_payload, finalPlace\uB97C \uD655\uC778\uD558\uC138\uC694.");
+        warnings.add("규칙 기반 초안을 생성했습니다. 저장 전 퍼즐 정답, reward_payload, finalPlace를 확인하세요.");
         return AiEpisodeDraftResponse.builder()
                 .generatorType("MVP_RULE_BASED_DRAFT")
-                .message("\uADDC\uCE59 \uAE30\uBC18 \uC0AC\uAC74\uD30C\uC77C \uCD08\uC548\uC744 \uC0DD\uC131\uD588\uC2B5\uB2C8\uB2E4. \uC544\uC9C1 DB\uC5D0 \uC800\uC7A5\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.")
+                .message("규칙 기반 스토리 미션 초안을 생성했습니다. 아직 DB에 저장되지 않았습니다.")
                 .draft(draft)
                 .validationWarnings(warnings)
-                .nextSteps(List.of("\uD604\uC7A5 \uAD00\uCC30 \uADFC\uAC70 \uD655\uC778", "\uCD5C\uC885 \uC815\uB2F5\uC774 \uC7A5\uC18C\uB098 \uC2E4\uC874 \uC778\uBB3C\uC774 \uC544\uB2CC\uC9C0 \uD655\uC778", "\uBCF4\uC0C1\uC744 \uC6A9\uC758\uC790/\uC99D\uAC70\uC640 \uC5F0\uACB0", "\uAC80\uC99D \uD6C4 DRAFT\uB85C \uC800\uC7A5"))
+                .nextSteps(List.of(
+                        "현장 관찰 근거 확인",
+                        "최종 정답이 장소명이나 실존 인물명이 아닌지 확인",
+                        "보상을 관계자 카드와 해금 자료 카드에 연결",
+                        "검증 후 DRAFT로 저장"
+                ))
                 .build();
     }
 
 
 
 
-    @Transactional
     private String draftSubtitle(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
-        String area = blank(request.getArea(), "selected area");
+        String area = blank(request.getArea(), "선택 지역");
+
         String anchor = places.stream()
                 .filter(place -> "FINAL".equals(normalizeRole(place.getRole(), places.indexOf(place), places.size())))
                 .map(AiEpisodeDraftRequest.PlaceInput::getName)
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst()
-                .orElseGet(() -> places.isEmpty() ? "\uD604\uC7A5 \uC9C0\uC810" : blank(places.get(places.size() - 1).getName(), "\uD604\uC7A5 \uC9C0\uC810"));
-        return area + "\uC758 \uB2E8\uC11C\uAC00 " + anchor + "\uB85C \uC218\uB834\uB429\uB2C8\uB2E4";
+                .orElseGet(() -> places.isEmpty()
+                        ? "마지막 조사 지점"
+                        : blank(places.get(places.size() - 1).getName(), "마지막 조사 지점"));
+
+        return area + "의 단서가 " + anchor + "로 수렴됩니다";
     }
 
     private String draftEra(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
-        if (!missing(request.getEra()) && !containsCompact(request.getEra(), "review") && !containsCompact(request.getEra(), "unknown")) return request.getEra().trim();
+        if (!missing(request.getEra())
+                && !containsCompact(request.getEra(), "review")
+                && !containsCompact(request.getEra(), "unknown")) {
+            return request.getEra().trim();
+        }
+
         String joined = routeText(request, places);
-        if (containsCompact(joined, "1905") || containsCompact(joined, "1897") || containsCompact(joined, "empire")) return "\uB300\uD55C\uC81C\uAD6D \uD6C4\uAE30";
-        if (containsCompact(joined, "palace") || containsCompact(joined, "royal")) return "\uC655\uC2E4 \uAE30\uB85D\uACE0 \uC0AC\uAC74";
-        if (containsCompact(joined, "independence") || containsCompact(joined, "colonial")) return "\uB3C5\uB9BD\uC6B4\uB3D9\uAE30 \uBBF8\uC2A4\uD130\uB9AC";
-        return "\uACFC\uAC70\uC640 \uD604\uC7AC\uAC00 \uACB9\uCE58\uB294 \uC2DC\uB300";
+
+        if (containsCompact(joined, "1905")
+                || containsCompact(joined, "1897")
+                || containsCompact(joined, "empire")
+                || containsCompact(joined, "대한제국")) {
+            return "대한제국 후기";
+        }
+
+        if (containsCompact(joined, "palace")
+                || containsCompact(joined, "royal")
+                || containsCompact(joined, "궁")
+                || containsCompact(joined, "왕실")) {
+            return "왕실 기록의 시대";
+        }
+
+        if (containsCompact(joined, "independence")
+                || containsCompact(joined, "colonial")
+                || containsCompact(joined, "독립")
+                || containsCompact(joined, "일제")) {
+            return "독립운동기";
+        }
+
+        return "과거와 현재가 겹치는 시대";
     }
 
 
 
 
     private DraftObjective draftObjective(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
-        if (request.getFinalAnswerKeywords() != null && !request.getFinalAnswerKeywords().isEmpty()) {
-            List<String> keywords = request.getFinalAnswerKeywords().stream()
-                    .filter(value -> value != null && !value.isBlank())
-                    .map(String::trim)
-                    .distinct()
-                    .toList();
-            String genre = blank(request.getSelectedGenre(), "역사 미스터리");
-            String finalAnswer = genre + "의 최종 진실은 " + String.join(", ", keywords) + "입니다";
+        List<String> approvedKeywords = approvedFinalKeywords(request);
+        String genre = selectedGenreName(request);
+
+        if (!approvedKeywords.isEmpty()) {
+            String finalAnswer = genre + "의 최종 결론은 " + String.join(", ", approvedKeywords) + "입니다";
+
             return new DraftObjective(
                     genre,
-                    keywords.size() > 1 ? "HIDDEN_TRUTH" : "EVIDENCE",
+                    approvedKeywords.size() > 1 ? "HIDDEN_TRUTH" : "EVIDENCE",
                     finalAnswer,
-                    keywords,
+                    approvedKeywords,
                     List.of(finalAnswer.replace(" ", "")),
-                    genre + "의 최종 진실을 이루는 핵심 요소들을 종합하면 어떤 결론인가?",
-                    "선택한 장소의 역사·문화 단서는 " + genre + " 구조로 재배열됩니다. 플레이어는 사건파일과 현장 단서를 대조해 가려진 핵심 요소들을 모두 추론해야 합니다."
+                    genre + "의 최종 결론을 이루는 핵심 요소들을 종합하면 무엇인가?",
+                    "선택한 장소의 역사·문화 단서는 " + genre + " 구조로 재배열됩니다. 플레이어는 미션 파일과 현장 단서를 대조해 가려진 핵심 요소들을 모두 추론해야 합니다."
             );
         }
+
         String joined = routeText(request, places);
-        String area = blank(request.getArea(), "selected area");
-        String first = places.isEmpty() ? "\uCCAB \uC870\uC0AC \uC9C0\uC810" : blank(places.get(0).getName(), "\uCCAB \uC870\uC0AC \uC9C0\uC810");
-        String anchor = places.isEmpty() ? "\uB9C8\uC9C0\uB9C9 \uC870\uC0AC \uC9C0\uC810" : blank(places.get(places.size() - 1).getName(), "\uB9C8\uC9C0\uB9C9 \uC870\uC0AC \uC9C0\uC810");
+        String area = blank(request.getArea(), "선택 지역");
+        String first = places.isEmpty() ? "첫 조사 지점" : blank(places.get(0).getName(), "첫 조사 지점");
+        String anchor = places.isEmpty() ? "마지막 조사 지점" : blank(places.get(places.size() - 1).getName(), "마지막 조사 지점");
         String routeSignal = routeSignal(places);
+
         if (requiresIdentityAndHideout(joined)) {
-            String identity = containsCompact(joined, "royal") || containsCompact(joined, "황실") || containsCompact(joined, "대한제국")
-                    ? "광영회의 위장 연락책"
-                    : "검은 그림자의 내부 전달자";
-            String hideout = containsCompact(joined, "archive") || containsCompact(joined, "기록") || containsCompact(joined, "문서")
+            String identity = containsCompact(joined, "royal")
+                    || containsCompact(joined, "황실")
+                    || containsCompact(joined, "대한제국")
+                    ? "기록을 숨긴 연락책"
+                    : "정체가 감춰진 내부 전달자";
+
+            String hideout = containsCompact(joined, "archive")
+                    || containsCompact(joined, "기록")
+                    || containsCompact(joined, "문서")
                     ? "봉인된 기록고"
-                    : "닫힌 골목 은신처";
-            String finalAnswer = "검은 그림자는 " + identity + "이며 은신처는 " + hideout + "이다";
+                    : "닫힌 골목 거점";
+
+            String finalAnswer = "숨은 전달자는 " + identity + "이며 마지막 거점은 " + hideout + "이다";
+
             return new DraftObjective(
-                    "역사 음모 추적",
+                    genre,
                     "HIDDEN_TRUTH",
                     finalAnswer,
                     List.of(identity, hideout),
                     List.of(finalAnswer.replace(" ", ""), identity + "와 " + hideout),
-                    "검은 그림자의 정체와 그들이 숨어든 은신처는 무엇인가?",
-                    area + "의 " + first + "에서 도난 기록이 발견됩니다. 설계도와 장부는 단서일 뿐이며, " + routeSignal + " 표식은 " + anchor + "로 이어집니다. 플레이어는 사건자료를 대조해 검은 그림자의 정체를 밝히고 그들이 숨어든 은신처를 찾아야 합니다."
+                    "숨은 전달자의 정체와 마지막 거점은 무엇인가?",
+                    area + "의 " + first + "에서 미완성 기록이 발견됩니다. 설계도와 장부는 단서일 뿐이며, " + routeSignal + " 표식은 " + anchor + "로 이어집니다. 플레이어는 미션 자료를 대조해 숨은 전달자의 정체와 마지막 거점을 찾아야 합니다."
             );
         }
+
         String object = draftFinalObject(request, places);
+
         return new DraftObjective(
-                "역사 미스터리",
+                genre,
                 "EVIDENCE",
                 object,
                 List.of(object),
@@ -713,7 +1181,7 @@ public class AdminEpisodeService {
 
     private boolean requiresIdentityAndHideout(String text) {
         boolean identity = containsCompact(text, "정체")
-                || containsCompact(text, "검은그림자")
+                || containsCompact(text, "숨겨진역할")
                 || containsCompact(text, "blackshadow")
                 || containsCompact(text, "비밀조직")
                 || containsCompact(text, "조직");
@@ -729,19 +1197,22 @@ public class AdminEpisodeService {
     }
 
     private String draftFictionSynopsis(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
-        String area = blank(request.getArea(), "selected area");
-        String first = places.isEmpty() ? "\uCCAB \uC870\uC0AC \uC9C0\uC810" : blank(places.get(0).getName(), "\uCCAB \uC870\uC0AC \uC9C0\uC810");
-        String anchor = places.isEmpty() ? "\uB9C8\uC9C0\uB9C9 \uC870\uC0AC \uC9C0\uC810" : blank(places.get(places.size() - 1).getName(), "\uB9C8\uC9C0\uB9C9 \uC870\uC0AC \uC9C0\uC810");
+        String area = blank(request.getArea(), "선택 지역");
+        String first = places.isEmpty() ? "첫 조사 지점" : blank(places.get(0).getName(), "첫 조사 지점");
+        String anchor = places.isEmpty() ? "마지막 조사 지점" : blank(places.get(places.size() - 1).getName(), "마지막 조사 지점");
         String object = draftFinalObject(request, places);
         String routeSignal = routeSignal(places);
-        return area + "\uC758 " + first + "\uC5D0\uC11C \uC0AC\uAC74\uC774 \uC2DC\uC791\uB429\uB2C8\uB2E4. \uB2E8\uC11C\uB294 " + anchor + "\uB97C \uD5A5\uD558\uC9C0\uB9CC, " + routeSignal + " \uAE30\uB85D\uC774 \uC11C\uB85C \uC5C7\uAC08\uB9BD\uB2C8\uB2E4. \uD50C\uB808\uC774\uC5B4\uB294 \uD604\uC7A5 \uC790\uB8CC\uB97C \uBE44\uAD50\uD574 [" + object + "]\uC758 \uC815\uCCB4\uB97C \uBC1D\uD600\uC57C \uD569\uB2C8\uB2E4.";
+
+        return area + "의 " + first + "에서 조사가 시작됩니다. "
+                + "단서는 " + anchor + "를 향하지만, " + routeSignal + " 기록이 서로 엇갈립니다. "
+                + "플레이어는 현장 자료를 비교해 [" + object + "]의 의미를 밝혀야 합니다.";
     }
 
 
 
 
     private String draftFinalQuestion(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
-        return "\uBAA8\uC740 \uB2E8\uC11C\uAC00 \uAC00\uB9AC\uD0A4\uB294 [" + draftFinalObject(request, places) + "]\uC758 \uC815\uCCB4\uB294 \uBB34\uC5C7\uC785\uB2C8\uAE4C?";
+        return "모은 단서가 가리키는 [" + draftFinalObject(request, places) + "]의 의미는 무엇입니까?";
     }
 
 
@@ -749,12 +1220,28 @@ public class AdminEpisodeService {
 
     private String draftFinalObject(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
         String joined = routeText(request, places);
-        if (containsCompact(joined, "coffee") || containsCompact(joined, "cafe") || containsCompact(joined, "tea")) return "\uCC28\uAC00\uC6B4 \uCC28 \uAE30\uB85D";
-        if (containsCompact(joined, "document") || containsCompact(joined, "seal") || containsCompact(joined, "signature")) return "\uBD89\uC740 \uBD09\uC778 \uBB38\uC11C";
-        if (containsCompact(joined, "photo") || containsCompact(joined, "film") || containsCompact(joined, "lens")) return "\uBD09\uC778\uB41C \uD544\uB984 \uBD09\uD22C";
-        if (containsCompact(joined, "market") || containsCompact(joined, "restaurant") || containsCompact(joined, "receipt")) return "\uCC22\uAE34 \uC601\uC218\uC99D \uC870\uAC01";
-        if (containsCompact(joined, "palace") || containsCompact(joined, "archive")) return "\uC811\uD78C \uAE30\uB85D\uACE0 \uC0AC\uBCF8";
-        return "\uBD09\uC778\uB41C \uAE30\uB85D \uC870\uAC01";
+
+        if (containsCompact(joined, "coffee") || containsCompact(joined, "cafe") || containsCompact(joined, "tea")) {
+            return "차가운 차 기록";
+        }
+
+        if (containsCompact(joined, "document") || containsCompact(joined, "seal") || containsCompact(joined, "signature")) {
+            return "붉은 봉인 문서";
+        }
+
+        if (containsCompact(joined, "photo") || containsCompact(joined, "film") || containsCompact(joined, "lens")) {
+            return "봉인된 필름 봉투";
+        }
+
+        if (containsCompact(joined, "market") || containsCompact(joined, "restaurant") || containsCompact(joined, "receipt")) {
+            return "찢긴 영수증 조각";
+        }
+
+        if (containsCompact(joined, "palace") || containsCompact(joined, "archive")) {
+            return "접힌 기록고 사본";
+        }
+
+        return "봉인된 기록 조각";
     }
 
 
@@ -777,7 +1264,7 @@ public class AdminEpisodeService {
     }
 
     private String routeSignal(List<AiEpisodeDraftRequest.PlaceInput> places) {
-        return places.stream().flatMap(place -> place.getKeywords() == null ? java.util.stream.Stream.empty() : place.getKeywords().stream()).filter(value -> value != null && !value.isBlank()).findFirst().orElse("\uB3D9\uC120");
+        return places.stream().flatMap(place -> place.getKeywords() == null ? java.util.stream.Stream.empty() : place.getKeywords().stream()).filter(value -> value != null && !value.isBlank()).findFirst().orElse("동선");
     }
 
 
@@ -786,26 +1273,129 @@ public class AdminEpisodeService {
 
     private List<AiEpisodeDraftResponse.SuspectDraft> defaultDraftSuspects() {
         return List.of(
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("\uC6A9\uC758\uC790 A").displayName("\uBD89\uC740 \uBD09\uD22C\uB97C \uBCF8 \uBAA9\uACA9\uC790").shortDescription("\uD604\uC7A5 \uB3D9\uC120 \uADFC\uCC98\uC5D0\uC11C \uB9C8\uC9C0\uB9C9 \uBD09\uD22C\uB97C \uBCF8 \uC778\uBB3C\uC785\uB2C8\uB2E4.").relationToVictim("\uB9C8\uC9C0\uB9C9 \uC758\uB8B0 \uC5F0\uB77D\uCC45").suspiciousPoint("\uB3D9\uC120 \uC2DC\uAC04\uD45C \uC77C\uBD80\uAC00 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4.").alibiSummary("\uBE44\uAC00 \uADF8\uCE60 \uB54C\uAE4C\uC9C0 \uCE74\uD398 \uADFC\uCC98\uC5D0 \uC788\uC5C8\uB2E4\uACE0 \uC8FC\uC7A5\uD569\uB2C8\uB2E4.").build(),
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("\uC6A9\uC758\uC790 B").displayName("\uC0AC\uB77C\uC9C4 \uAE30\uB85D \uAD00\uB9AC\uC778").shortDescription("\uD544\uB984\uACFC \uC99D\uAC70 \uD30C\uC77C\uC744 \uAD00\uB9AC\uD558\uB358 \uBCF4\uC870\uC778\uC785\uB2C8\uB2E4.").relationToVictim("\uAE30\uB85D\uACE0 \uCDE8\uAE09\uC790").suspiciousPoint("\uC0AC\uB77C\uC9C4 \uD544\uB984\uC758 \uBCF4\uAD00 \uC704\uCE58\uB97C \uC54C\uACE0 \uC788\uC5C8\uC2B5\uB2C8\uB2E4.").alibiSummary("\uAE30\uB85D\uC2E4\uC5D0 \uC788\uC5C8\uB2E4\uACE0 \uC8FC\uC7A5\uD558\uC9C0\uB9CC \uD655\uC778\uD55C \uBAA9\uACA9\uC790\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.").build(),
-                AiEpisodeDraftResponse.SuspectDraft.builder().alias("\uC6A9\uC758\uC790 C").displayName("\uAC80\uC740 \uBD09\uD22C\uB97C \uC62E\uAE34 \uBC30\uB2EC\uC778").shortDescription("\uBAA9\uC801\uC9C0 \uB2E8\uC11C\uC640 \uB3D9\uC120\uC774 \uACB9\uCE58\uB294 \uBC30\uB2EC\uC778\uC785\uB2C8\uB2E4.").relationToVictim("\uCD5C\uC885 \uB2E8\uC11C \uC6B4\uBC18\uC790").suspiciousPoint("\uC815\uB2F5\uC744 \uD6D4\uCE5C \uAC83\uC774 \uC544\uB2C8\uB77C \uB2E8\uC11C \uD750\uB984\uC744 \uC228\uACBC\uC744 \uAC00\uB2A5\uC131\uC774 \uC788\uC2B5\uB2C8\uB2E4.").alibiSummary("\uBC30\uB2EC \uB3D9\uC120\uACFC \uBAA9\uACA9 \uC2DC\uAC04\uC774 \uB9DE\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.").build()
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("관계자 A")
+                        .displayName("첫 기록을 확인한 인물")
+                        .shortDescription("첫 조사 지점의 기록과 현장 단서를 확인한 인물입니다.")
+                        .relationToVictim("초기 단서 확인자")
+                        .suspiciousPoint("첫 기록과 이후 동선 사이에 설명이 필요한 빈칸이 있습니다.")
+                        .alibiSummary("초기 지점에 머물렀다고 주장하지만, 이후 단서 흐름과 대조가 필요합니다.")
+                        .build(),
+
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("관계자 B")
+                        .displayName("동선 기록을 보관한 인물")
+                        .shortDescription("중간 조사 지점의 동선 자료와 미션 파일을 관리한 인물입니다.")
+                        .relationToVictim("동선 자료 보관자")
+                        .suspiciousPoint("일부 동선 기록이 누락되었거나 순서가 맞지 않습니다.")
+                        .alibiSummary("기록 보관 위치에 있었다고 말하지만, 해금된 자료와 비교해야 합니다.")
+                        .build(),
+
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .alias("관계자 C")
+                        .displayName("마지막 단서를 전달한 인물")
+                        .shortDescription("최종 지점으로 이어지는 단서 흐름을 알고 있는 인물입니다.")
+                        .relationToVictim("최종 단서 전달자")
+                        .suspiciousPoint("최종 단서의 의미를 알고도 일부 정보를 늦게 공개했습니다.")
+                        .alibiSummary("마지막 동선과 자신의 역할을 설명했지만, 미션 파일과 대조가 필요합니다.")
+                        .build()
         );
     }
 
 
     private List<AiEpisodeDraftResponse.EvidenceDraft> defaultDraftEvidences(List<AiEpisodeDraftResponse.MissionDraft> missions) {
-        return missions.stream().limit(8).map(mission -> AiEpisodeDraftResponse.EvidenceDraft.builder()
-                .title(mission.getRewardClue() + " \uB2E8\uC11C \uCE74\uB4DC")
-                .type("ANSWER_HINT".equals(mission.getClueRole()) ? "ANSWER_CLUE" : "DESTINATION_HINT".equals(mission.getClueRole()) ? "DESTINATION_CLUE" : "NOTE")
-                .imageUrl("")
-                .imagePrompt("Create a high-quality detective evidence image for a Korean outdoor escape-room case file. Subject: "
-                        + mission.getRewardClue() + " clue card. Story detail: Case material unlocked after solving this mission. "
-                        + caseFileIllustrationStylePrompt()
-                        + "If any person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story era. "
-                        + caseFileNegativeImagePrompt())
-                .textSummary("\uC774 \uBBF8\uC158\uC744 \uD480\uBA74 \uD574\uAE08\uB418\uB294 \uC0AC\uAC74 \uC790\uB8CC\uC785\uB2C8\uB2E4.")
-                .sourceMissionOrder(mission.getOrder())
-                .build()).toList();
+        if (missions == null || missions.isEmpty()) {
+            return List.of();
+        }
+
+        List<AiEpisodeDraftResponse.EvidenceDraft> evidences = new ArrayList<>();
+        int limit = Math.min(8, missions.size());
+
+        for (int i = 0; i < limit; i++) {
+            AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);
+            int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
+            String type = defaultEvidenceType(mission);
+            String title = defaultEvidenceTitle(mission, order);
+            String summary = defaultEvidenceSummary(mission, order);
+
+            evidences.add(AiEpisodeDraftResponse.EvidenceDraft.builder()
+                    .title(title)
+                    .type(type)
+                    .imageUrl("")
+                    .imagePrompt(buildGenericEvidenceImagePrompt(title, summary))
+                    .textSummary(summary)
+                    .sourceMissionOrder(order)
+                    .build());
+        }
+
+        return evidences;
+    }
+
+    private String defaultEvidenceType(AiEpisodeDraftResponse.MissionDraft mission) {
+        String role = normalizeType(mission == null ? null : mission.getClueRole());
+
+        if ("ANSWER_HINT".equals(role)) {
+            return "ANSWER_CLUE";
+        }
+
+        if ("DESTINATION_HINT".equals(role) || "FINAL_PLACE".equals(role)) {
+            return "DESTINATION_CLUE";
+        }
+
+        return "STORY_CLUE";
+    }
+
+    private String defaultEvidenceTitle(AiEpisodeDraftResponse.MissionDraft mission, int order) {
+        String role = normalizeType(mission == null ? null : mission.getClueRole());
+
+        if ("START".equals(role)) {
+            return "미션 " + order + " 시작 기록";
+        }
+
+        if ("ANSWER_HINT".equals(role)) {
+            return "미션 " + order + " 정답 후보 단서";
+        }
+
+        if ("DESTINATION_HINT".equals(role)) {
+            return "미션 " + order + " 동선 단서";
+        }
+
+        if ("FINAL_PLACE".equals(role)) {
+            return "미션 " + order + " 최종 대조 자료";
+        }
+
+        return "미션 " + order + " 해금 자료";
+    }
+
+    private String defaultEvidenceSummary(AiEpisodeDraftResponse.MissionDraft mission, int order) {
+        String role = normalizeType(mission == null ? null : mission.getClueRole());
+
+        if ("START".equals(role)) {
+            return "작전 시작 시점에 해금되는 기본 미션 파일입니다. 이후 미션의 단서 흐름을 이해하는 데 사용됩니다.";
+        }
+
+        if ("ANSWER_HINT".equals(role)) {
+            return "최종 정답의 일부 역할을 좁히는 보조 단서입니다. 정답 자체가 아니라 추론 근거로 사용됩니다.";
+        }
+
+        if ("DESTINATION_HINT".equals(role)) {
+            return "다음 동선이나 위치 조건을 좁히는 단서입니다. 장소명을 직접 노출하지 않고 이동 판단에 사용됩니다.";
+        }
+
+        if ("FINAL_PLACE".equals(role)) {
+            return "지금까지 해금한 단서들을 최종적으로 대조하기 위한 자료입니다. 최종 정답을 직접 노출하지 않습니다.";
+        }
+
+        return "미션 " + order + " 완료 후 해금되는 미션 파일 자료입니다.";
+    }
+
+    private String buildGenericEvidenceImagePrompt(String title, String summary) {
+        return "Create a high-quality mission archive card illustration for a Korean outdoor story mission. "
+                + "Subject: " + title + ". "
+                + "Story detail: " + summary + ". "
+                + missionArchiveIllustrationStylePrompt()
+                + "If any person, hand, portrait, reflection, or human silhouette appears, it must belong to a fictional Korean person in Seoul and match the story era. "
+                + missionArchiveNegativeImagePrompt();
     }
 
 
@@ -824,44 +1414,135 @@ public class AdminEpisodeService {
 
     public AdminEpisodeDetailResponse saveAiDraft(AiEpisodeDraftSaveRequest request) {
         AiEpisodeDraftResponse.EpisodeDraft draft = request == null ? null : request.getDraft();
+
         if (draft == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DRAFT", "Review required.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_DRAFT",
+                    "저장할 AI 초안 데이터가 없습니다."
+            );
         }
-        List<AiEpisodeDraftResponse.MissionDraft> missions = draft.getMissions() == null ? List.of() : draft.getMissions();
-        if (missions.size() < 6) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "NOT_ENOUGH_MISSIONS", "Review required.");
+
+        normalizeDraftBeforeSave(draft, request == null ? null : request.getSourceInput());
+
+        List<AiEpisodeDraftResponse.MissionDraft> missions = draft.getMissions() == null
+                ? List.of()
+                : draft.getMissions();
+
+        if (missions.size() < MIN_EPISODE_SPOTS) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "NOT_ENOUGH_MISSIONS",
+                    "AI 초안 저장에는 최소 " + MIN_EPISODE_SPOTS + "개 이상의 미션이 필요합니다."
+            );
         }
-        long finalCount = missions.stream().filter(mission -> Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equals(mission.getMarkerType())).count();
+
+        if (missions.size() > MAX_EPISODE_SPOTS) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "TOO_MANY_MISSIONS",
+                    "AI 초안은 최대 " + MAX_EPISODE_SPOTS + "개 미션까지만 저장할 수 있습니다."
+            );
+        }
+
+        long finalCount = missions.stream()
+                .filter(mission -> Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equals(mission.getMarkerType()))
+                .count();
+
         if (finalCount < 1) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "FINAL_PLACE_REQUIRED", "Review required.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "FINAL_PLACE_REQUIRED",
+                    "AI 초안에는 내부 최종 장소가 최소 1개 필요합니다."
+            );
+        }
+
+        if (finalCount > 1) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "TOO_MANY_FINAL_PLACES",
+                    "AI 초안에는 내부 최종 장소가 정확히 1개만 있어야 합니다."
+            );
         }
         String title = resolveDraftTitle(draft, missions);
 
         Episode episode = new Episode();
         episode.setTitle(title);
-        episode.setSubtitle(blank(draft.getSubtitle(), "AI draft case file"));
-        episode.setEra(blank(draft.getEra(), "Review required"));
-        episode.setGenre(draft.getGenre());
+        episode.setSubtitle(blank(draft.getSubtitle(), "AI 생성 스토리 미션 초안"));
+        episode.setEra(blank(draft.getEra(), "시대 검수 필요"));
+        episode.setGenre(blank(draft.getGenre(), "야외 스토리 미션"));
         episode.setDifficulty("NORMAL");
         episode.setEstimatedTime("90~120분");
         episode.setEstimatedDistance(estimateDraftDistance(missions));
-        episode.setFictionSynopsis(draft.getFictionSynopsis());
-        episode.setFinalAnswerType(blank(draft.getFinalAnswerType(), "EVIDENCE"));
+
+        episode.setFictionSynopsis(blank(
+                draft.getFictionSynopsis(),
+                "AI 초안 저장 시 시놉시스가 누락되었습니다. 공개 전 스토리 흐름, 장소 동선, 최종 목표를 보강하세요."
+        ));
+
+        episode.setFinalAnswerType(blank(draft.getFinalAnswerType(), "HIDDEN_TRUTH"));
         episode.setFinalAnswer(blank(draft.getFinalAnswer(), "검수필요"));
         episode.setFinalAnswerAliases(join(withKeywordContract(draft.getFinalAnswerAliases(), draft.getFinalAnswerKeywords())));
-        episode.setFinalQuestion(blank(draft.getFinalQuestion(), "Review required."));
-        episode.setFinalTruthSummary(draft.getFinalTruthSummary());
-        episode.setActualHistorySummary(draft.getActualHistorySummary());
-        episode.setDeductionSecretFacts(joinLines(draft.getDeductionSecretFacts()));
-        episode.setDeductionForbiddenReveals(joinLines(draft.getDeductionForbiddenReveals()));
-        episode.setMaxDeductionQuestions(draft.getMaxDeductionQuestions() == null ? 20 : draft.getMaxDeductionQuestions());
+
+        episode.setFinalQuestion(blank(
+                draft.getFinalQuestion(),
+                "모든 단서를 종합했을 때 이 미션의 최종 결론은 무엇인가?"
+        ));
+
+        episode.setFinalTruthSummary(blank(
+                draft.getFinalTruthSummary(),
+                "관리자만 확인하는 최종 진실 요약입니다. 공개 전 정답 키워드, 단서 연결 방식, 최종 장소의 역할을 구체적으로 작성하세요."
+        ));
+
+        episode.setActualHistorySummary(blank(
+                draft.getActualHistorySummary(),
+                """
+                1. 모티브 공개
+                이 임무는 실제 장소의 역사·문화적 배경을 모티브로 제작된 스토리 미션입니다.
+        
+                2. 실제 배경 해설
+                공개 전 관리자는 공식 해설 자료, 현장 표지, TourAPI 설명을 확인해 실제 배경과 픽션 요소의 차이를 보강해야 합니다.
+                """.trim()
+        ));
+
+        episode.setDeductionSecretFacts(blank(
+                joinLines(draft.getDeductionSecretFacts()),
+                """
+                최종 정답은 관리자가 확정한 핵심 키워드를 모두 포함해야 한다.
+                일부 장소명이나 단서명만 맞히는 답은 최종 정답이 아니다.
+                정답은 실제 장소명이나 실존 인물명이 아니라 픽션 미션 안의 결론이어야 한다.
+                """.trim()
+        ));
+
+        episode.setDeductionForbiddenReveals(blank(
+                joinLines(draft.getDeductionForbiddenReveals()),
+                """
+                검수필요
+                실제 최종 장소명
+                실존 인물 정답화
+                """.trim()
+        ));
+
+        episode.setMaxDeductionQuestions(draft.getMaxDeductionQuestions() == null ? 20 : Math.max(1, draft.getMaxDeductionQuestions()));
         episode.setRecommendedPlayers("2~4명");
-        episode.setTeamRoleGuide("Review required.");
-        episode.setNoticeText("Review required.");
-        episode.setStatus(validateValue(text(request.getStatus(), "DRAFT"), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "Review required."));
+        episode.setTeamRoleGuide("지도 담당, 미션 파일 담당, 퍼즐 담당, 기록 담당으로 역할을 나누어 진행하세요.");
+        episode.setNoticeText("공개 전 현장 좌표, 도착 반경, 퍼즐 정답, 힌트, reward_payload를 반드시 검수하세요.");
+
+        episode.setStatus(validateValue(
+                text(request.getStatus(), "DRAFT"),
+                EPISODE_STATUSES,
+                "INVALID_EPISODE_STATUS",
+                "status는 DRAFT, PUBLISHED, ARCHIVED 중 하나여야 합니다."
+        ));
+
         if ("PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "DRAFT_REVIEW_REQUIRED", "Review required.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "DRAFT_REVIEW_REQUIRED",
+                    "AI 초안은 먼저 DRAFT로 저장한 뒤 관리자 검수 후 공개하세요."
+            );
         }
+
         adminEpisodeRepository.insertEpisode(episode);
 
         Map<Integer, MissionSpot> spotByOrder = new HashMap<>();
@@ -870,34 +1551,64 @@ public class AdminEpisodeService {
             AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);
             MissionSpot spot = new MissionSpot();
             spot.setEpisodeId(episode.getId());
-            spot.setPlaceName(blank(mission.getPlaceName(), "Review required." + (i + 1)));
+            spot.setPlaceName(blank(mission.getPlaceName(), "조사 지점 " + (i + 1)));
             spot.setAddress(mission.getAddress());
             spot.setLatitude(mission.getLatitude() == null ? 37.5665 + (i * 0.001) : mission.getLatitude());
             spot.setLongitude(mission.getLongitude() == null ? 126.9780 + (i * 0.001) : mission.getLongitude());
             boolean finalPlace = Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equals(mission.getMarkerType());
-            String markerType = finalPlace ? "FINAL" : validateValue(blank(mission.getMarkerType(), normalizeRole(null, i, missions.size())), MARKER_TYPES, "INVALID_MARKER_TYPE", "Unsupported markerType.");
+            String markerType = finalPlace
+                    ? "FINAL"
+                    : validateValue(
+                    blank(mission.getMarkerType(), normalizeRole(null, i, missions.size())),
+                    MARKER_TYPES,
+                    "INVALID_MARKER_TYPE",
+                    "지원하지 않는 markerType입니다."
+            );
             spot.setMarkerType(markerType);
             spot.setFinalPlace(finalPlace);
-            spot.setClueRole(finalPlace ? "FINAL_PLACE" : validateValue(blank(mission.getClueRole(), toClueRole(markerType)), CLUE_ROLES, "INVALID_CLUE_ROLE", "Unsupported clueRole."));
+            spot.setClueRole(finalPlace
+                    ? "FINAL_PLACE"
+                    : validateValue(
+                    blank(mission.getClueRole(), toClueRole(markerType)),
+                    CLUE_ROLES,
+                    "INVALID_CLUE_ROLE",
+                    "지원하지 않는 clueRole입니다."
+            ));
             spot.setPublicMarkerType(publicMarkerType(mission.getPublicMarkerType(), finalPlace, markerType));
-            spot.setStoryText(sanitizeCategoryCodes(mission.getStoryText()));
+            spot.setStoryText(blank(
+                    sanitizeCategoryCodes(mission.getStoryText()),
+                    "이 지점의 현장 근거와 미션 파일을 연결하는 스토리 문구를 공개 전 보강하세요."
+            ));
             spot.setArrivalRadius(mission.getArrivalRadius() == null ? 50.0 : Math.max(10.0, mission.getArrivalRadius()));
             spot.setFieldVerified(true);
-            spot.setFieldVerificationNote("AI/\uC0AC\uC774\uD2B8 \uB370\uC774\uD130 \uAE30\uBC18 \uAC80\uC218 \uC644\uB8CC \uCD08\uC548\uC785\uB2C8\uB2E4. \uC88C\uD45C, \uB3C4\uCC29 \uBC18\uACBD, \uD37C\uC990 \uADFC\uAC70\uB294 \uC81C\uACF5\uB41C \uD6C4\uBCF4 \uB370\uC774\uD130\uB85C \uD655\uC778\uD588\uC73C\uBA70 \uC2E4\uC81C GPS QA\uB294 \uC120\uD0DD \uC0AC\uD56D\uC785\uB2C8\uB2E4.");
+            spot.setFieldVerificationNote("AI/사이트 데이터 기반 검수 완료 초안입니다. 좌표, 도착 반경, 퍼즐 근거는 제공된 후보 데이터로 확인했으며 실제 GPS QA는 선택 사항입니다.");
             adminEpisodeRepository.insertSpot(spot);
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
             spotByOrder.put(order, spot);
-            if (isMissionAnswerDisconnected(mission, missions)) {
-                normalizeMissionForReview(mission);
+            if (isMissionAnswerDisconnected(mission, draft, missions)) {
+                normalizeMissionForReview(mission, draft, missions, i);
             }
 
             Puzzle puzzle = new Puzzle();
             puzzle.setMissionSpotId(spot.getId());
-            puzzle.setPuzzleType(validateValue(blank(mission.getPuzzleType(), "OBSERVATION"), PUZZLE_TYPES, "INVALID_PUZZLE_TYPE", "Unsupported puzzleType."));
-            puzzle.setQuestionText(blank(sanitizeCategoryCodes(mission.getQuestionText()), "Review required."));
-            puzzle.setAnswer(blank(sanitizeCategoryCodes(mission.getAnswer()), "현장단서"));
-            puzzle.setAnswerFormat(validateValue(blank(mission.getAnswerFormat(), "TEXT"), ANSWER_FORMATS, "INVALID_ANSWER_FORMAT", "Unsupported answerFormat."));
-            puzzle.setRewardClue(blank(sanitizeCategoryCodes(mission.getRewardClue()), "보정 단서"));
+            puzzle.setPuzzleType(validateValue(
+                    blank(mission.getPuzzleType(), "OBSERVATION"),
+                    PUZZLE_TYPES,
+                    "INVALID_PUZZLE_TYPE",
+                    "지원하지 않는 puzzleType입니다."
+            ));
+            puzzle.setQuestionText(blank(
+                    sanitizeCategoryCodes(mission.getQuestionText()),
+                    "관리자 검수 후 이 지점의 실제 현장 근거를 기준으로 퍼즐 질문을 작성하세요."
+            ));
+            puzzle.setAnswer(blank(sanitizeCategoryCodes(mission.getAnswer()), "검수필요"));
+            puzzle.setRewardClue(blank(sanitizeCategoryCodes(mission.getRewardClue()), saveSafeRewardClue(mission, i)));
+            puzzle.setAnswerFormat(validateValue(
+                    blank(mission.getAnswerFormat(), "TEXT"),
+                    ANSWER_FORMATS,
+                    "INVALID_ANSWER_FORMAT",
+                    "지원하지 않는 answerFormat입니다."
+            ));
             puzzle.setRewardPayload(null);
             puzzle.setDifficulty("NORMAL");
             adminEpisodeRepository.insertPuzzle(puzzle);
@@ -910,9 +1621,104 @@ public class AdminEpisodeService {
 
         List<CaseSuspect> suspects = saveDraftSuspects(episode.getId(), draft.getSuspects());
         Map<Integer, CaseEvidence> evidenceByMissionOrder = saveDraftEvidences(episode.getId(), draft.getEvidences(), spotByOrder, suspects);
-        applyDraftRewardPayloads(episode.getId(), missions, puzzleByOrder, evidenceByMissionOrder);
+        applyDraftRewardPayloads(episode.getId(), draft, missions, puzzleByOrder, evidenceByMissionOrder);
         saveDraftPartnerReward(episode.getId());
         return getEpisode(episode.getId());
+    }
+
+    private void normalizeDraftBeforeSave(
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            AiEpisodeDraftRequest sourceInput
+    ) {
+        if (draft == null) {
+            return;
+        }
+
+        List<String> keywords = approvedFinalKeywords(sourceInput);
+
+        if (keywords.isEmpty() && draft.getFinalAnswerKeywords() != null) {
+            keywords = draft.getFinalAnswerKeywords().stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
+        }
+
+        if (!keywords.isEmpty()) {
+            draft.setFinalAnswerKeywords(keywords);
+            draft.setFinalAnswerAliases(withKeywordContract(draft.getFinalAnswerAliases(), keywords));
+
+            String genre = missing(draft.getSelectedGenre())
+                    ? selectedGenreName(sourceInput)
+                    : draft.getSelectedGenre();
+
+            boolean missingKeyword = keywords.stream()
+                    .map(this::compact)
+                    .anyMatch(keyword -> !compact(draft.getFinalAnswer()).contains(keyword));
+
+            if (missingKeyword) {
+                draft.setFinalAnswerType(keywords.size() > 1 ? "HIDDEN_TRUTH" : blank(draft.getFinalAnswerType(), "EVIDENCE"));
+                draft.setFinalAnswer(naturalFinalAnswer(keywords));
+            }
+
+            if (missing(draft.getFinalQuestion()) || containsFinalKeywordText(draft.getFinalQuestion(), draft)) {
+                draft.setFinalQuestion("흩어진 단서들이 가리키는 대상과 감춰진 행방을 밝혀내면, 이번 미션의 전말은 무엇인가?");
+            }
+
+            if (draft.getDeductionForbiddenReveals() == null) {
+                draft.setDeductionForbiddenReveals(new ArrayList<>());
+            }
+
+            if (draft.getDeductionForbiddenReveals().stream().noneMatch(value -> same(value, draft.getFinalAnswer()))) {
+                draft.getDeductionForbiddenReveals().add(draft.getFinalAnswer());
+            }
+
+            for (String keyword : keywords) {
+                if (draft.getDeductionForbiddenReveals().stream().noneMatch(value -> same(value, keyword))) {
+                    draft.getDeductionForbiddenReveals().add(keyword);
+                }
+            }
+        }
+
+        if (draft.getMissions() == null) {
+            return;
+        }
+
+        for (int i = 0; i < draft.getMissions().size(); i++) {
+            AiEpisodeDraftResponse.MissionDraft mission = draft.getMissions().get(i);
+
+            if (containsFinalKeywordText(mission.getQuestionText(), draft)) {
+                mission.setQuestionText(saveSafeQuestionText(mission));
+            }
+
+            if (containsFinalKeywordText(mission.getAnswer(), draft)
+                    || isGenericPuzzleAnswer(compact(mission.getAnswer()))
+                    || isPlaceNameAnswer(compact(mission.getAnswer()), mission.getPlaceName())) {
+                normalizeMissionForReview(mission, draft, draft.getMissions(), i);
+            }
+
+            if (containsFinalKeywordText(mission.getRewardClue(), draft)) {
+                mission.setRewardClue(saveSafeRewardClue(mission, i));
+            }
+
+            List<String> sourceHints = mission.getHints() == null ? List.of() : mission.getHints();
+            List<String> hints = new ArrayList<>();
+
+            for (int hintIndex = 0; hintIndex < Math.min(3, sourceHints.size()); hintIndex++) {
+                String hint = sourceHints.get(hintIndex);
+                if (containsFinalKeywordText(hint, draft) || textContains(hint, mission.getAnswer())) {
+                    hints.add(saveSafeHint(hintIndex, mission));
+                } else {
+                    hints.add(hint);
+                }
+            }
+
+            while (hints.size() < 3) {
+                hints.add(saveSafeHint(hints.size(), mission));
+            }
+
+            mission.setHints(hints);
+        }
     }
 
     private AdminEpisodeDetailResponse.Spot toSpot(MissionSpot spot) {
@@ -1007,12 +1813,12 @@ public class AdminEpisodeService {
         for (AiEpisodeDraftResponse.SuspectDraft draft : source) {
             CaseSuspect suspect = new CaseSuspect();
             suspect.setEpisodeId(episodeId);
-            suspect.setAlias(blank(draft.getAlias(), "Suspect " + (char) ('A' + index)));
-            suspect.setDisplayName(blank(draft.getDisplayName(), "Unnamed stakeholder"));
-            suspect.setShortDescription(blank(draft.getShortDescription(), "A stakeholder who may have distorted the clue chain."));
-            suspect.setRelationToVictim(blank(draft.getRelationToVictim(), "Case stakeholder"));
-            suspect.setSuspiciousPoint(blank(draft.getSuspiciousPoint(), "There is an unexplained gap in the timeline."));
-            suspect.setAlibiSummary(blank(draft.getAlibiSummary(), "The alibi requires comparison with evidence cards."));
+            suspect.setAlias(blank(draft.getAlias(), "관계자 " + (char) ('A' + index)));
+            suspect.setDisplayName(blank(draft.getDisplayName(), "이름 미정 관계자"));
+            suspect.setShortDescription(blank(draft.getShortDescription(), "단서 흐름과 관련된 기본 관계자 카드입니다."));
+            suspect.setRelationToVictim(blank(draft.getRelationToVictim(), "미션 파일 관계자"));
+            suspect.setSuspiciousPoint(blank(draft.getSuspiciousPoint(), "동선 또는 기록 흐름에서 추가 확인이 필요한 지점이 있습니다."));
+            suspect.setAlibiSummary(blank(draft.getAlibiSummary(), "해금된 미션 파일과 대조해 확인해야 합니다."));
             suspect.setPortraitImageUrl(draft.getPortraitImageUrl());
             suspect.setImagePrompt(ensureKoreanPersonPrompt(blank(draft.getImagePrompt(), buildSuspectImagePrompt(draft))));
             suspect.setUnlockedByDefault(index == 0);
@@ -1034,11 +1840,19 @@ public class AdminEpisodeService {
         for (AiEpisodeDraftResponse.EvidenceDraft draft : source) {
             CaseEvidence evidence = new CaseEvidence();
             evidence.setEpisodeId(episodeId);
-            evidence.setTitle(blank(draft.getTitle(), "\uC0AC\uAC74 \uC790\uB8CC " + (index + 1)));
-            evidence.setType(validateValue(blank(draft.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Unsupported evidence type."));
+            evidence.setTitle(limitText(blank(draft.getTitle(), "미션 자료 " + (index + 1)), 255));
+            evidence.setType(validateValue(
+                    blank(draft.getType(), "NOTE"),
+                    EVIDENCE_TYPES,
+                    "INVALID_EVIDENCE_TYPE",
+                    "지원하지 않는 evidence type입니다."
+            ));
             evidence.setImageUrl(draft.getImageUrl());
             evidence.setImagePrompt(ensureKoreanEvidencePrompt(blank(draft.getImagePrompt(), buildEvidenceImagePrompt(draft))));
-            evidence.setTextSummary(blank(draft.getTextSummary(), "\uD604\uC7A5 \uB2E8\uC11C\uB97C \uC870\uD569\uD574 \uCD5C\uC885 \uCD94\uB9AC\uB97C \uB3D5\uB294 \uC0AC\uAC74 \uC790\uB8CC\uC785\uB2C8\uB2E4."));
+            evidence.setTextSummary(blank(
+                    draft.getTextSummary(),
+                    "현장 근거와 미션 파일을 연결해 다음 판단을 돕는 해금 자료입니다."
+            ));
             evidence.setSourceSpotId(resolveSourceSpotId(draft, spotByOrder));
             evidence.setRelatedSuspectId(resolveLinkedSuspectId(draft, suspects, index));
             evidence.setRelatedClueType(blank(draft.getType(), "NOTE"));
@@ -1061,14 +1875,21 @@ public class AdminEpisodeService {
     }
 
     private String buildSuspectImagePrompt(AiEpisodeDraftResponse.SuspectDraft draft) {
-        String name = blank(draft.getDisplayName(), blank(draft.getAlias(), "case-file suspect"));
-        String suspicion = blank(draft.getSuspiciousPoint(), "ambiguous motive and hidden route contradiction");
-        return "Create a high-quality fictional detective case-file portrait of " + name
-                + ". Casting is mandatory: depict a fictional Korean person from Seoul, South Korea. The subject must look unmistakably Korean; preserve the story's specified age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character's Korean identity. "
-                + caseFileIllustrationStylePrompt()
-                + "Character clue: " + suspicion
-                + ". Composition: bust portrait, 3/4 view, natural Korean styling and grooming appropriate to the character, restrained expression, sharp facial silhouette. "
-                + caseFileNegativeImagePrompt() + " No celebrity likeness.";
+        String name = blank(draft.getDisplayName(), blank(draft.getAlias(), "관계자 카드"));
+        String role = blank(draft.getRelationToVictim(), "단서 흐름과 관련된 인물");
+        String note = blank(draft.getSuspiciousPoint(), "동선과 기록 흐름에서 추가 확인이 필요한 지점이 있습니다.");
+
+        return "Create a high-quality character archive card illustration for a Korean outdoor story mission. "
+                + "Subject: " + name + ". "
+                + "Role in story: " + role + ". "
+                + "Character note: " + note + ". "
+                + "Casting is mandatory: depict a fictional Korean person from Seoul, South Korea. "
+                + "The subject must look unmistakably Korean; preserve the story's specified age, gender, occupation, and historical era. "
+                + "Do not cast a Western or European-looking model, and do not change the character's Korean identity. "
+                + "Composition: bust portrait or half-body portrait, 3/4 view, natural Korean styling and grooming appropriate to the story era, calm restrained expression, clean silhouette. "
+                + missionArchiveIllustrationStylePrompt()
+                + missionArchiveNegativeImagePrompt()
+                + " No celebrity likeness.";
     }
 
     private String ensureKoreanPersonPrompt(String prompt) {
@@ -1082,7 +1903,8 @@ public class AdminEpisodeService {
         }
         return styled.trim()
                 + " Casting is mandatory: every visible person must be a fictional Korean person from Seoul, South Korea. "
-                + "Preserve the story's age, gender, occupation, and era. Do not cast a Western or European-looking model or change the character's Korean identity.";
+                + "Preserve the story's age, gender, occupation, and era. Do not cast a Western or European-looking model or change the character's Korean identity. "
+                + "Keep the result consistent with a calm printed character archive card.";
     }
 
     private String ensureKoreanEvidencePrompt(String prompt) {
@@ -1096,36 +1918,59 @@ public class AdminEpisodeService {
         }
         return styled.trim()
                 + " If any person, hand, portrait, reflection, or silhouette appears, depict a fictional Korean person from Seoul and match the story's age and era. "
-                + "Do not cast a Western or European-looking model.";
+                + "Do not cast a Western or European-looking model. "
+                + "Keep the result consistent with a calm printed mission archive card.";
     }
 
     private String buildEvidenceImagePrompt(AiEpisodeDraftResponse.EvidenceDraft draft) {
-        String title = blank(draft.getTitle(), "case evidence card");
-        String summary = blank(draft.getTextSummary(), "a clue object connected to the route and final deduction");
-        return "Create a high-quality detective evidence image for a Korean outdoor escape-room case file. "
-                + "Subject: " + title + ". Story detail: " + summary
-                + ". " + caseFileIllustrationStylePrompt()
-                + "If any person, hand, portrait, reflection, or human silhouette appears, it must belong to a fictional Korean person in Seoul and match the story's era. "
-                + caseFileNegativeImagePrompt();
+        String title = blank(draft.getTitle(), "해금 자료 카드");
+        String summary = blank(draft.getTextSummary(), "현장 근거와 미션 파일을 연결해 다음 판단을 돕는 자료입니다.");
+
+        return "Create a high-quality mission archive card illustration for a Korean outdoor story mission. "
+                + "Subject: " + title + ". "
+                + "Story detail: " + summary + ". "
+                + missionArchiveIllustrationStylePrompt()
+                + "If any person, hand, portrait, reflection, or human silhouette appears, it must belong to a fictional Korean person in Seoul and match the story era. "
+                + missionArchiveNegativeImagePrompt();
     }
 
     private String ensureCaseFileIllustrationStyle(String prompt) {
         if (missing(prompt)) {
             return prompt;
         }
+
         String normalized = prompt.toLowerCase(Locale.ROOT);
-        if (normalized.contains("flat 2d korean webtoon") || normalized.contains("matte paper grain")) {
-            return prompt;
+        String styled = prompt;
+
+        if (!(normalized.contains("flat 2d korean webtoon")
+                || normalized.contains("matte paper grain")
+                || normalized.contains("mission archive card"))) {
+            styled = prompt.trim() + " " + missionArchiveIllustrationStylePrompt();
         }
-        return prompt.trim() + " " + caseFileIllustrationStylePrompt() + caseFileNegativeImagePrompt();
+
+        String styledNormalized = styled.toLowerCase(Locale.ROOT);
+        if (!styledNormalized.contains("no korean letters") || !styledNormalized.contains("no handwriting")) {
+            styled += missionArchiveNegativeImagePrompt();
+        }
+        return styled;
     }
 
     private String caseFileIllustrationStylePrompt() {
-        return "Visual style reference: flat 2D Korean webtoon / printed storybook illustration like the attached references, muted earth-tone palette, soft matte paper grain, subtle archival texture, simplified shapes, clean dark ink outlines, gentle cel shading, restrained noir mood, poster-like composition, not photorealistic. Match the case era exactly: Joseon, Daehan Empire, colonial modern, or contemporary Korean styling as specified by the story; use era-appropriate clothing, hair, props, architecture, paper, seals, and handwriting-like marks. ";
+        return missionArchiveIllustrationStylePrompt();
     }
 
     private String caseFileNegativeImagePrompt() {
-        return "Negative constraints: no photorealism, no 3D render, no glossy game art, no Western comic style, no European-looking models, no foreign tourist styling, no modern objects unless the story era is contemporary, no readable real text, no watermark, no logo, no UI frame. ";
+        return missionArchiveNegativeImagePrompt();
+    }
+
+    private String missionArchiveIllustrationStylePrompt() {
+        return "Visual style reference: flat 2D Korean webtoon / printed storybook illustration, muted earth-tone palette, soft matte paper grain, subtle archival texture, simplified shapes, clean dark ink outlines, gentle cel shading, calm documentary mood, poster-like composition, not photorealistic. "
+                + "Match the story era exactly: Joseon, Daehan Empire, colonial modern, or contemporary Korean styling as specified by the story. "
+                + "Use era-appropriate clothing, hair, props, architecture, paper materials, stamps, maps, route marks, archive labels, and handwritten-style marks. ";
+    }
+
+    private String missionArchiveNegativeImagePrompt() {
+        return "Negative constraints: no photorealism, no 3D render, no glossy game art, no Western comic style, no European-looking models, no foreign tourist styling, no graphic violence, no threatening object emphasis, no modern objects unless the story era is contemporary, no readable text, no Korean letters, no labels, no handwriting, no symbols resembling text, no UI frame, no watermark, no logo. ";
     }
 
     private Long resolveLinkedSuspectId(AiEpisodeDraftResponse.EvidenceDraft draft, List<CaseSuspect> suspects, int index) {
@@ -1138,57 +1983,106 @@ public class AdminEpisodeService {
 
 
 
-    private void applyDraftRewardPayloads(Long episodeId, List<AiEpisodeDraftResponse.MissionDraft> missions, Map<Integer, Puzzle> puzzleByOrder, Map<Integer, CaseEvidence> evidenceByMissionOrder) {
+    private void applyDraftRewardPayloads(
+            Long episodeId,
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            List<AiEpisodeDraftResponse.MissionDraft> missions,
+            Map<Integer, Puzzle> puzzleByOrder,
+            Map<Integer, CaseEvidence> evidenceByMissionOrder
+    ) {
         for (int i = 0; i < missions.size(); i++) {
             AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
+
             Puzzle puzzle = puzzleByOrder.get(order);
             if (puzzle == null) {
                 continue;
             }
+
             String clueType = switch (blank(mission.getClueRole(), "")) {
                 case "ANSWER_HINT" -> "ANSWER_CLUE";
                 case "DESTINATION_HINT", "FINAL_PLACE" -> "DESTINATION_CLUE";
                 default -> "STORY_CLUE";
             };
+
+            String rewardValue = sanitizeCategoryCodes(blank(
+                    mission.getRewardClue(),
+                    buildConcreteRewardClue(mission, draft, i)
+            ));
+
+            if (containsFinalKeywordText(rewardValue, draft)
+                    || isGenericPuzzleAnswer(compact(rewardValue))
+                    || isGenericRewardKey(rewardValue)
+                    || containsCompact(rewardValue, "검수필요")) {
+                rewardValue = buildConcreteRewardClue(mission, draft, i);
+                mission.setRewardClue(rewardValue);
+            }
+
             CaseEvidence evidence = evidenceByMissionOrder.get(order);
+
             List<Map<String, Object>> rewards = new ArrayList<>();
+
             Map<String, Object> clueReward = new LinkedHashMap<>();
             clueReward.put("type", clueType);
-            clueReward.put("value", sanitizeCategoryCodes(blank(mission.getRewardClue(), "검수단서")));
+            clueReward.put("value", rewardValue);
             rewards.add(clueReward);
+
             if (evidence != null) {
                 Map<String, Object> evidenceReward = new LinkedHashMap<>();
                 evidenceReward.put("type", "EVIDENCE_UNLOCK");
                 evidenceReward.put("targetId", evidence.getId());
                 rewards.add(evidenceReward);
             }
+
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("rewards", rewards);
-            payload.put("interaction", buildPuzzleInteraction(mission, i, clueType));
+            payload.put("interaction", buildPuzzleInteraction(draft, mission, i, clueType));
+
             puzzle.setRewardPayload(writeObjectJson(payload));
-            AdminRewardPayloadValidationResponse validation = validateRewardPayload(episodeId, AdminRewardPayloadValidationRequestWrapper.of(puzzle.getRewardPayload()));
+
+            AdminRewardPayloadValidationResponse validation =
+                    validateRewardPayload(episodeId, AdminRewardPayloadValidationRequestWrapper.of(puzzle.getRewardPayload()));
+
             if (!validation.isValid()) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DRAFT_REWARD_PAYLOAD", String.join(" / ", validation.getErrors()));
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "INVALID_DRAFT_REWARD_PAYLOAD",
+                        String.join(" / ", validation.getErrors())
+                );
             }
+
             adminEpisodeRepository.updatePuzzle(puzzle);
         }
     }
 
-    private Map<String, Object> buildPuzzleInteraction(AiEpisodeDraftResponse.MissionDraft mission, int index, String clueType) {
+    private Map<String, Object> buildPuzzleInteraction(
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            AiEpisodeDraftResponse.MissionDraft mission,
+            int index,
+            String clueType
+    ) {
         String basis = sanitizeCategoryCodes(firstGroundingText(mission));
-        String localSolution = localGameSolution(mission, basis, index);
+
+        if (containsFinalKeywordText(basis, draft)
+                || isGenericPuzzleAnswer(compact(basis))
+                || isPlaceNameAnswer(compact(basis), mission.getPlaceName())) {
+            basis = "검수필요";
+        }
+
+        String localSolution = localGameSolution(draft, mission, basis, index);
         String type = chooseInteractionType(mission, index, localSolution);
+
         Map<String, Object> interaction = new LinkedHashMap<>();
         interaction.put("version", 1);
         interaction.put("type", type);
         interaction.put("title", interactionTitle(type, clueType));
         interaction.put("prompt", sanitizeCategoryCodes(blank(mission.getQuestionText(), "단서 장치를 풀고 제출 버튼을 누르세요.")));
-        interaction.put("storyHook", "해금 단서: " + sanitizeCategoryCodes(blank(mission.getRewardClue(), "사건 단서")));
+        interaction.put("storyHook", "해금 단서: " + sanitizeCategoryCodes(blank(mission.getRewardClue(), saveSafeRewardClue(mission, index))));
         interaction.put("basis", sanitizeCategoryCodes(basis));
         interaction.put("localSolution", localSolution);
         interaction.put("timeLimitSeconds", type.equals("RAPID_TAP") ? 12 : 0);
         interaction.put("config", interactionConfig(type, localSolution, basis, index));
+
         return interaction;
     }
 
@@ -1227,7 +2121,7 @@ public class AdminEpisodeService {
                 List<String> palette = List.of("#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#111827");
                 config.put("palette", palette);
                 config.put("solution", colorSolution(answer, index, palette));
-                config.put("labels", List.of("붉은 봉인", "노란 메모", "녹색 경로", "푸른 사진", "검은 봉투"));
+                config.put("labels", colorCodeLabels(answer, basis));
             }
             case "MEMORY_CARD" -> config.put("cards", memoryCards(answer, basis));
             case "PATTERN_LOCK" -> config.put("nodes", patternNodes(answer, index));
@@ -1262,7 +2156,7 @@ public class AdminEpisodeService {
         String prefix = switch (clueType) {
             case "ANSWER_CLUE" -> "증거 해독";
             case "DESTINATION_CLUE" -> "동선 복원";
-            default -> "사건 장치";
+            default -> "미션 장치";
         };
         return prefix + " · " + switch (type) {
             case "NUMBER_LOCK" -> "숫자 락";
@@ -1287,30 +2181,51 @@ public class AdminEpisodeService {
         return answer;
     }
 
-    private String localGameSolution(AiEpisodeDraftResponse.MissionDraft mission, String basis, int index) {
+    private String localGameSolution(
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            AiEpisodeDraftResponse.MissionDraft mission,
+            String basis,
+            int index
+    ) {
         String source = blank(basis, "");
-        if (containsCompact(source, "검수필요") || containsCompact(source, "review-required") || source.isBlank()) {
-            source = blank(mission.getRewardClue(), "단서" + (index + 1));
+
+        if (missing(source)
+                || containsCompact(source, "검수필요")
+                || containsCompact(source, "review-required")
+                || containsFinalKeywordText(source, draft)
+                || isGenericPuzzleAnswer(compact(source))
+                || isPlaceNameAnswer(compact(source), mission.getPlaceName())) {
+            source = saveSafeLocalSolution(mission, index);
         }
-        return source.length() > 8 ? source.substring(0, 8) : source;
+
+        source = source.trim();
+
+        if (source.length() > 8) {
+            source = source.substring(0, 8);
+        }
+
+        return source;
     }
 
     private List<String> shuffledCharacters(String answer) {
-        List<String> chars = new ArrayList<>(answer.codePoints()
+        String source = safeUiSource(answer, "확인어");
+
+        List<String> chars = new ArrayList<>(source.codePoints()
                 .mapToObj(codePoint -> new String(Character.toChars(codePoint)))
                 .filter(value -> !value.isBlank())
                 .toList());
-        if (chars.size() < 2) {
-            chars.add("단");
-            chars.add("서");
+
+        while (chars.size() < 2) {
+            chars.add("확인");
+            chars.add("기록");
         }
+
         java.util.Collections.rotate(chars, Math.max(1, chars.size() / 2));
         return chars;
     }
 
     private List<String> memoryCards(String answer, String basis) {
-        List<String> seeds = new ArrayList<>(List.of(answer, basis, "봉인", "사진", "문서", "그림자"));
-        return seeds.stream().filter(value -> value != null && !value.isBlank()).distinct().limit(4).toList();
+        return uiOptionLabels(answer, basis, 4, "기억카드");
     }
 
     private List<Integer> patternNodes(String answer, int index) {
@@ -1329,8 +2244,7 @@ public class AdminEpisodeService {
     }
 
     private List<String> switchLabels(String answer, String basis) {
-        List<String> labels = new ArrayList<>(List.of(basis, answer, "위장 단서", "동선 단서"));
-        return labels.stream().filter(value -> value != null && !value.isBlank()).distinct().limit(4).toList();
+        return uiOptionLabels(answer, basis, 4, "스위치");
     }
 
     private List<String> colorSolution(String answer, int index, List<String> palette) {
@@ -1352,9 +2266,11 @@ public class AdminEpisodeService {
     }
 
     private List<String> shadowLabels(String answer, String basis, int targetIndex) {
-        List<String> labels = new ArrayList<>(List.of("봉투", "렌즈", "문서", "그림자"));
-        String target = basis == null || basis.isBlank() ? answer : basis;
-        labels.set(targetIndex, target == null || target.isBlank() ? "단서" : target);
+        List<String> labels = uiOptionLabels(answer, basis, 4, "그림자후보");
+
+        String target = safeUiSource(basis, safeUiSource(answer, "확인어"));
+        labels.set(targetIndex, target);
+
         return labels;
     }
 
@@ -1370,15 +2286,20 @@ public class AdminEpisodeService {
     }
 
     private List<String> slideTiles(String answer, String basis) {
-        String source = answer == null || answer.isBlank() ? basis : answer;
+        String source = safeUiSource(answer, safeUiSource(basis, "확인어"));
+
         List<String> tiles = new ArrayList<>(source.codePoints()
                 .mapToObj(codePoint -> new String(Character.toChars(codePoint)))
                 .filter(value -> !value.isBlank())
                 .limit(4)
                 .toList());
+
+        List<String> fallbackTiles = List.of("확", "인", "기", "록");
+
         while (tiles.size() < 4) {
-            tiles.add(List.of("단", "서", "봉", "인").get(tiles.size()));
+            tiles.add(fallbackTiles.get(tiles.size()));
         }
+
         return tiles;
     }
 
@@ -1402,26 +2323,27 @@ public class AdminEpisodeService {
     private void saveDraftPartnerReward(Long episodeId) {
         EpisodePartnerReward reward = new EpisodePartnerReward();
         reward.setEpisodeId(episodeId);
-        reward.setTitle("지역 리워드 준비 중");
-        reward.setDescription("Review required.");
+        reward.setTitle("지역 리워드 검수 필요");
+        reward.setDescription("공개 전 실제 제휴처, 제공 조건, 사용 가능 기간, 위치 정보를 확인해야 하는 임시 리워드입니다.");
         reward.setRewardType("STAMP");
-        reward.setPartnerName("Operation Korea");
-        reward.setLocationName("검수 예정 지점");
+        reward.setPartnerName("제휴처 검수 필요");
+        reward.setLocationName("리워드 제공 지점 검수 필요");
         reward.setStatus("PLANNED");
+
         adminEpisodeRepository.insertPartnerReward(reward);
     }
-
     private String validateEvidenceTarget(Long episodeId, Long targetId, int index, List<String> errors) {
         if (targetId == null) {
-            errors.add("rewards[" + index + "] targetId is required.");
+            errors.add("rewards[" + index + "] targetId가 필요합니다.");
             return null;
         }
+
         return adminEpisodeRepository.findEvidences(episodeId).stream()
                 .filter(evidence -> targetId.equals(evidence.getId()))
                 .findFirst()
                 .map(CaseEvidence::getTitle)
                 .orElseGet(() -> {
-                    errors.add("rewards[" + index + "] targetId=" + targetId + " evidence card not found.");
+                    errors.add("rewards[" + index + "] targetId=" + targetId + "에 해당하는 해금 자료 카드를 찾을 수 없습니다.");
                     return null;
                 });
     }
@@ -1429,15 +2351,16 @@ public class AdminEpisodeService {
 
     private String validateSuspectTarget(Long episodeId, Long targetId, int index, List<String> errors) {
         if (targetId == null) {
-            errors.add("rewards[" + index + "] targetId is required.");
+            errors.add("rewards[" + index + "] targetId가 필요합니다.");
             return null;
         }
+
         return adminEpisodeRepository.findSuspects(episodeId).stream()
                 .filter(suspect -> targetId.equals(suspect.getId()))
                 .findFirst()
                 .map(CaseSuspect::getDisplayName)
                 .orElseGet(() -> {
-                    errors.add("rewards[" + index + "] targetId=" + targetId + " suspect card not found.");
+                    errors.add("rewards[" + index + "] targetId=" + targetId + "에 해당하는 관계자 카드를 찾을 수 없습니다.");
                     return null;
                 });
     }
@@ -1445,77 +2368,516 @@ public class AdminEpisodeService {
 
     private Long validateOptionalSpot(Long episodeId, Long requestedId, Long fallbackId) {
         Long id = requestedId == null ? fallbackId : requestedId;
+
         if (id == null) {
             return null;
         }
-        boolean exists = adminEpisodeRepository.findSpots(episodeId).stream().anyMatch(spot -> id.equals(spot.getId()));
+
+        boolean exists = adminEpisodeRepository.findSpots(episodeId).stream()
+                .anyMatch(spot -> id.equals(spot.getId()));
+
         if (!exists) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SOURCE_SPOT", "Review required.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_SOURCE_SPOT",
+                    "연결하려는 조사 지점을 찾을 수 없습니다."
+            );
         }
+
         return id;
     }
 
     private Long validateOptionalSuspect(Long episodeId, Long requestedId, Long fallbackId) {
         Long id = requestedId == null ? fallbackId : requestedId;
+
         if (id == null) {
             return null;
         }
-        boolean exists = adminEpisodeRepository.findSuspects(episodeId).stream().anyMatch(suspect -> id.equals(suspect.getId()));
+
+        boolean exists = adminEpisodeRepository.findSuspects(episodeId).stream()
+                .anyMatch(suspect -> id.equals(suspect.getId()));
+
         if (!exists) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RELATED_SUSPECT", "Review required.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_RELATED_SUSPECT",
+                    "연결하려는 관계자 카드를 찾을 수 없습니다."
+            );
         }
+
         return id;
     }
 
     private void validatePublishReadiness(Episode episode) {
         List<String> errors = new ArrayList<>();
-        if (missing(episode.getFictionSynopsis())) errors.add("Fiction synopsis is required.");
-        if (missing(episode.getFinalAnswerType())) errors.add("Final answer type is required.");
-        if (missing(episode.getFinalAnswer())) errors.add("Final answer is required.");
-        if (missing(episode.getFinalQuestion())) errors.add("Final question is required.");
-        if (missing(episode.getFinalTruthSummary())) errors.add("Private truth summary is required.");
-        if (missing(episode.getDeductionSecretFacts())) errors.add("Deduction secret facts are required.");
-        if (missing(episode.getDeductionForbiddenReveals())) errors.add("Forbidden reveal terms are required.");
-        else if (!containsCompact(episode.getDeductionForbiddenReveals(), episode.getFinalAnswer())) errors.add("Forbidden reveals must include the final answer.");
-        if (episode.getMaxDeductionQuestions() == null || episode.getMaxDeductionQuestions() < 1) errors.add("Max deduction questions must be at least 1.");
-        List<MissionSpot> spots = adminEpisodeRepository.findSpots(episode.getId());
-        if (spots.size() < 7 || spots.size() > 9) errors.add("Published episodes require 7 to 9 spots.");
-        long startCount = spots.stream().filter(spot -> "START".equals(spot.getMarkerType())).count();
-        long answerHintCount = spots.stream().filter(spot -> "ANSWER_HINT".equals(spot.getMarkerType())).count();
-        long destinationHintCount = spots.stream().filter(spot -> "DESTINATION_HINT".equals(spot.getMarkerType())).count();
-        long finalPlaceCount = spots.stream().filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace())).count();
-        if (startCount != 1) errors.add("Exactly one START spot is required.");
-        if (answerHintCount < 4) errors.add("At least four ANSWER_HINT spots are required.");
-        if (destinationHintCount < 3) errors.add("At least three DESTINATION_HINT spots are required.");
-        if (finalPlaceCount != 1) errors.add("Exactly one internal final place is required.");
-        for (MissionSpot spot : spots) {
-            if (missing(spot.getPlaceName()) || spot.getLatitude() == null || spot.getLongitude() == null) errors.add("Every spot needs a name and coordinates.");
-            if (spot.getArrivalRadius() == null || spot.getArrivalRadius() < 10) errors.add("Arrival radius must be at least 10m: " + spot.getPlaceName());
-            if (same(episode.getFinalAnswer(), spot.getPlaceName())) errors.add("Final answer must not equal a real place name: " + spot.getPlaceName());
-            Puzzle puzzle = adminEpisodeRepository.findPuzzleBySpotId(spot.getId());
-            if (puzzle == null) { errors.add("Puzzle is missing: " + spot.getPlaceName()); continue; }
-            if (missing(puzzle.getQuestionText())) errors.add("Puzzle question is missing: " + spot.getPlaceName());
-            if (missing(puzzle.getAnswer())) errors.add("Puzzle answer is missing: " + spot.getPlaceName());
-            if (missing(puzzle.getRewardClue())) errors.add("Reward clue is missing: " + spot.getPlaceName());
-            if (same(puzzle.getAnswer(), puzzle.getRewardClue())) errors.add("Puzzle answer and reward clue must differ: " + spot.getPlaceName());
-            if (adminEpisodeRepository.findHints(puzzle.getId()).size() < 3) errors.add("Three puzzle hints are required: " + spot.getPlaceName());
-            if (containsCompact(puzzle.getQuestionText(), episode.getFinalAnswer())) errors.add("Puzzle question exposes final answer: " + spot.getPlaceName());
+
+        if (missing(episode.getFictionSynopsis())) {
+            errors.add("스토리 시놉시스가 필요합니다.");
         }
+
+        if (missing(episode.getFinalAnswerType())) {
+            errors.add("최종 정답 유형이 필요합니다.");
+        }
+
+        if (missing(episode.getFinalAnswer()) || containsCompact(episode.getFinalAnswer(), "검수필요")) {
+            errors.add("최종 정답을 확정해야 합니다.");
+        }
+
+        if (missing(episode.getFinalQuestion())) {
+            errors.add("최종 질문이 필요합니다.");
+        }
+
+        if (missing(episode.getFinalTruthSummary())) {
+            errors.add("관리자용 최종 진실 요약이 필요합니다.");
+        }
+
+        if (missing(episode.getActualHistorySummary())) {
+            errors.add("실제 배경 해설이 필요합니다.");
+        }
+
+        if (missing(episode.getDeductionSecretFacts())) {
+            errors.add("최종 추론용 비공개 사실이 필요합니다.");
+        }
+
+        if (missing(episode.getDeductionForbiddenReveals())) {
+            errors.add("최종 추론 중 노출 금지어가 필요합니다.");
+        } else if (!containsCompact(episode.getDeductionForbiddenReveals(), episode.getFinalAnswer())) {
+            errors.add("노출 금지어에 최종 정답이 포함되어야 합니다.");
+        }
+
+        if (episode.getMaxDeductionQuestions() == null || episode.getMaxDeductionQuestions() < 1) {
+            errors.add("최대 추리 질문 수는 1 이상이어야 합니다.");
+        }
+
+        List<String> finalKeywords = finalKeywordsFromEpisode(episode);
+
+        if (finalKeywords.isEmpty()) {
+            errors.add("finalAnswerAliases에 KW:키워드1|키워드2 형식의 최종 정답 키워드 계약이 필요합니다.");
+        }
+
+        for (String keyword : finalKeywords) {
+            if (!textContains(episode.getFinalAnswer(), keyword)) {
+                errors.add("최종 정답에 필수 키워드가 포함되어야 합니다: " + keyword);
+            }
+
+            if (!containsCompact(episode.getDeductionForbiddenReveals(), keyword)) {
+                errors.add("노출 금지어에 최종 정답 키워드가 포함되어야 합니다: " + keyword);
+            }
+        }
+
+        validatePublicTextAnswerLeak("제목", episode.getTitle(), episode, finalKeywords, errors);
+        validatePublicTextAnswerLeak("부제", episode.getSubtitle(), episode, finalKeywords, errors);
+        validatePublicTextAnswerLeak("스토리 시놉시스", episode.getFictionSynopsis(), episode, finalKeywords, errors);
+        validatePublicTextAnswerLeak("최종 질문", episode.getFinalQuestion(), episode, finalKeywords, errors);
+
+        List<MissionSpot> spots = adminEpisodeRepository.findSpots(episode.getId());
+
+        if (spots.size() < MIN_EPISODE_SPOTS) {
+            errors.add("공개 에피소드는 최소 " + MIN_EPISODE_SPOTS + "개 이상의 장소가 필요합니다.");
+        }
+
+        if (spots.size() > MAX_EPISODE_SPOTS) {
+            errors.add("공개 에피소드는 최대 " + MAX_EPISODE_SPOTS + "개 장소를 초과할 수 없습니다.");
+        }
+
+        long startCount = spots.stream()
+                .filter(spot -> "START".equals(spot.getMarkerType()))
+                .count();
+
+        long finalPlaceCount = spots.stream()
+                .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()) || "FINAL".equals(spot.getMarkerType()))
+                .count();
+
+        long answerHintCount = spots.stream()
+                .filter(spot -> "ANSWER_HINT".equals(spot.getMarkerType()))
+                .count();
+
+        long destinationHintCount = spots.stream()
+                .filter(spot -> "DESTINATION_HINT".equals(spot.getMarkerType()))
+                .count();
+
+        if (startCount != 1) {
+            errors.add("START 장소는 정확히 1개여야 합니다.");
+        }
+
+        if (finalPlaceCount != 1) {
+            errors.add("내부 최종 장소는 정확히 1개여야 합니다.");
+        }
+
+        if (spots.size() >= 5 && answerHintCount < 1) {
+            errors.add("장소가 5개 이상이면 ANSWER_HINT 장소가 최소 1개 필요합니다.");
+        }
+
+        if (spots.size() >= 5 && destinationHintCount < 1) {
+            errors.add("장소가 5개 이상이면 DESTINATION_HINT 장소가 최소 1개 필요합니다.");
+        }
+
+        for (MissionSpot spot : spots) {
+            String spotName = blank(spot.getPlaceName(), "이름 없는 장소");
+
+            if (missing(spot.getPlaceName()) || spot.getLatitude() == null || spot.getLongitude() == null) {
+                errors.add("모든 장소에는 장소명과 좌표가 필요합니다: " + spotName);
+            }
+
+            if (spot.getArrivalRadius() == null || spot.getArrivalRadius() < 10) {
+                errors.add("도착 반경은 최소 10m 이상이어야 합니다: " + spotName);
+            }
+
+            if ("FINAL".equals(spot.getPublicMarkerType())) {
+                errors.add("publicMarkerType으로 FINAL을 노출하면 안 됩니다: " + spotName);
+            }
+
+            if (Boolean.TRUE.equals(spot.getFinalPlace()) || "FINAL".equals(spot.getMarkerType())) {
+                if (!"DESTINATION_HINT".equals(spot.getPublicMarkerType())) {
+                    errors.add("내부 최종 장소의 publicMarkerType은 DESTINATION_HINT여야 합니다: " + spotName);
+                }
+
+                if (!"FINAL_PLACE".equals(spot.getClueRole())) {
+                    errors.add("내부 최종 장소의 clueRole은 FINAL_PLACE여야 합니다: " + spotName);
+                }
+            }
+
+            if (same(episode.getFinalAnswer(), spot.getPlaceName())) {
+                errors.add("최종 정답이 실제 장소명과 같으면 안 됩니다: " + spotName);
+            }
+
+            validatePublicTextAnswerLeak("장소 스토리", spot.getStoryText(), episode, finalKeywords, errors);
+
+            for (String keyword : finalKeywords) {
+                if (same(keyword, spot.getPlaceName())) {
+                    errors.add("최종 정답 키워드가 실제 장소명과 같으면 안 됩니다: " + spotName);
+                }
+            }
+
+            Puzzle puzzle = adminEpisodeRepository.findPuzzleBySpotId(spot.getId());
+
+            if (puzzle == null) {
+                errors.add("퍼즐이 누락되었습니다: " + spotName);
+                continue;
+            }
+
+            if (missing(puzzle.getQuestionText())) {
+                errors.add("퍼즐 질문이 누락되었습니다: " + spotName);
+            }
+
+            if (missing(puzzle.getAnswer())) {
+                errors.add("퍼즐 정답이 누락되었습니다: " + spotName);
+            }
+
+            if (missing(puzzle.getRewardClue())) {
+                errors.add("해금 단서가 누락되었습니다: " + spotName);
+            }
+
+            if (containsCompact(puzzle.getAnswer(), "검수필요")
+                    || containsCompact(puzzle.getAnswer(), "review-required")
+                    || isGenericPuzzleAnswer(compact(puzzle.getAnswer()))) {
+                errors.add("퍼즐 정답을 관리자 검수 후 확정해야 합니다: " + spotName);
+            }
+            if (isLowQualityGenericValue(puzzle.getRewardClue()) || isTooShortRewardClue(puzzle.getRewardClue())) {
+                errors.add("해금 단서가 실제 추론에 사용하기에는 너무 일반적입니다: " + spotName);
+            }
+
+            if (same(puzzle.getAnswer(), puzzle.getRewardClue())) {
+                errors.add("퍼즐 정답과 해금 단서는 달라야 합니다: " + spotName);
+            }
+
+            if (isPlaceNameAnswer(compact(puzzle.getAnswer()), spot.getPlaceName())) {
+                errors.add("퍼즐 정답이 장소명과 같으면 안 됩니다: " + spotName);
+            }
+
+            if (textContainsAny(puzzle.getAnswer(), finalKeywords)) {
+                errors.add("퍼즐 정답에 최종 정답 키워드가 노출되었습니다: " + spotName);
+            }
+
+            if (textContainsAny(puzzle.getQuestionText(), finalKeywords)) {
+                errors.add("퍼즐 질문에 최종 정답 키워드가 노출되었습니다: " + spotName);
+            }
+
+            if (textContainsAny(puzzle.getRewardClue(), finalKeywords)) {
+                errors.add("해금 단서에 최종 정답 키워드가 노출되었습니다: " + spotName);
+            }
+
+            if (textContains(puzzle.getAnswer(), episode.getFinalAnswer())) {
+                errors.add("퍼즐 정답에 최종 정답이 노출되었습니다: " + spotName);
+            }
+
+            if (textContains(puzzle.getQuestionText(), episode.getFinalAnswer())) {
+                errors.add("퍼즐 질문에 최종 정답이 노출되었습니다: " + spotName);
+            }
+
+            if (textContains(puzzle.getRewardClue(), episode.getFinalAnswer())) {
+                errors.add("해금 단서에 최종 정답이 노출되었습니다: " + spotName);
+            }
+
+            List<PuzzleHint> hints = adminEpisodeRepository.findHints(puzzle.getId());
+
+            if (hints.size() < 3) {
+                errors.add("퍼즐 힌트는 3개가 필요합니다: " + spotName);
+            }
+
+            for (PuzzleHint hint : hints) {
+                if (textContainsAny(hint.getHintText(), finalKeywords)) {
+                    errors.add("퍼즐 힌트에 최종 정답 키워드가 노출되었습니다: " + spotName);
+                }
+
+                if (textContains(hint.getHintText(), episode.getFinalAnswer())) {
+                    errors.add("퍼즐 힌트에 최종 정답이 노출되었습니다: " + spotName);
+                }
+
+                if (textContains(hint.getHintText(), puzzle.getAnswer())) {
+                    errors.add("퍼즐 힌트가 퍼즐 정답을 직접 노출합니다: " + spotName);
+                }
+            }
+
+            validateRewardPayloadForPublish(episode, puzzle, spotName, finalKeywords, errors);
+        }
+
         List<CaseSuspect> suspects = adminEpisodeRepository.findSuspects(episode.getId());
         List<CaseEvidence> evidences = adminEpisodeRepository.findEvidences(episode.getId());
-        if (suspects.size() < 3) errors.add("At least three suspect cards are required.");
+
+        if (suspects.size() < 3) {
+            errors.add("관계자 카드는 최소 3개가 필요합니다.");
+        }
+
         for (CaseSuspect suspect : suspects) {
+            String suspectName = blank(suspect.getDisplayName(), "이름 없는 관계자");
+
             if (missing(suspect.getImagePrompt()) && !validExternalImageUrl(suspect.getPortraitImageUrl())) {
-                errors.add("Suspect image prompt or external portrait URL is required: " + suspect.getDisplayName());
+                errors.add("관계자 카드에는 이미지 프롬프트 또는 외부 이미지 URL이 필요합니다: " + suspectName);
+            }
+
+            if (textContainsAny(suspect.getDisplayName(), finalKeywords)
+                    || textContainsAny(suspect.getShortDescription(), finalKeywords)
+                    || textContainsAny(suspect.getSuspiciousPoint(), finalKeywords)
+                    || textContainsAny(suspect.getAlibiSummary(), finalKeywords)) {
+                errors.add("관계자 카드에 최종 정답 키워드가 노출되었습니다: " + suspectName);
+            }
+
+            if (textContains(suspect.getDisplayName(), episode.getFinalAnswer())
+                    || textContains(suspect.getShortDescription(), episode.getFinalAnswer())
+                    || textContains(suspect.getSuspiciousPoint(), episode.getFinalAnswer())
+                    || textContains(suspect.getAlibiSummary(), episode.getFinalAnswer())) {
+                errors.add("관계자 카드에 최종 정답이 노출되었습니다: " + suspectName);
+            }
+            if (isLowQualityCardText(suspect.getShortDescription())) {
+                errors.add("관계자 카드 설명에 구체적인 행동이나 모순이 필요합니다: " + suspectName);
             }
         }
-        if (evidences.size() < Math.max(1, spots.size() - 1)) errors.add("Evidence cards should cover the route.");
+
+        if (evidences.size() < Math.max(1, spots.size() - 1)) {
+            errors.add("해금 자료 카드는 전체 동선을 설명할 수 있을 만큼 필요합니다.");
+        }
+
         for (CaseEvidence evidence : evidences) {
+            String evidenceTitle = blank(evidence.getTitle(), "이름 없는 해금 자료");
+
             if (missing(evidence.getImagePrompt()) && !validExternalImageUrl(evidence.getImageUrl())) {
-                errors.add("Evidence image prompt or external image URL is required: " + evidence.getTitle());
+                errors.add("해금 자료 카드에는 이미지 프롬프트 또는 외부 이미지 URL이 필요합니다: " + evidenceTitle);
+            }
+            if (isLowQualityCardText(evidence.getTextSummary())) {
+                errors.add("해금 자료 카드 설명에 구체적인 흔적이나 관계가 필요합니다: " + evidenceTitle);
+            }
+
+            if (textContainsAny(evidence.getTitle(), finalKeywords)
+                    || textContainsAny(evidence.getTextSummary(), finalKeywords)) {
+                errors.add("해금 자료 카드에 최종 정답 키워드가 노출되었습니다: " + evidenceTitle);
+            }
+
+            if (textContains(evidence.getTitle(), episode.getFinalAnswer())
+                    || textContains(evidence.getTextSummary(), episode.getFinalAnswer())) {
+                errors.add("해금 자료 카드에 최종 정답이 노출되었습니다: " + evidenceTitle);
             }
         }
-        if (!errors.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "EPISODE_PUBLISH_NOT_READY", "Cannot publish: " + String.join(" / ", errors));
+
+        if (!errors.isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "EPISODE_PUBLISH_NOT_READY",
+                    "공개 불가: " + String.join(" / ", errors)
+            );
+        }
+    }
+    private List<String> finalKeywordsFromEpisode(Episode episode) {
+        if (episode == null || missing(episode.getFinalAnswerAliases())) {
+            return List.of();
+        }
+
+        List<String> keywords = new ArrayList<>();
+
+        String[] aliases = episode.getFinalAnswerAliases().split("[,\\n]");
+
+        for (String alias : aliases) {
+            if (alias == null) {
+                continue;
+            }
+
+            String trimmed = alias.trim();
+
+            if (!trimmed.startsWith("KW:")) {
+                continue;
+            }
+
+            String raw = trimmed.substring(3);
+            String[] parts = raw.split("\\|");
+
+            for (String part : parts) {
+                if (part != null && !part.isBlank()) {
+                    keywords.add(part.trim());
+                }
+            }
+        }
+
+        return keywords.stream()
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private boolean textContainsAny(String text, List<String> targets) {
+        if (missing(text) || targets == null || targets.isEmpty()) {
+            return false;
+        }
+
+        return targets.stream()
+                .filter(value -> !missing(value))
+                .anyMatch(target -> containsExactAnswerValue(text, target));
+    }
+
+    private void validatePublicTextAnswerLeak(
+            String fieldLabel,
+            String text,
+            Episode episode,
+            List<String> finalKeywords,
+            List<String> errors
+    ) {
+        if (missing(text)) {
+            return;
+        }
+        if (textContains(text, episode.getFinalAnswer())) {
+            errors.add(fieldLabel + "에 최종 정답이 노출되었습니다.");
+            return;
+        }
+        if (textContainsAny(text, finalKeywords)) {
+            errors.add(fieldLabel + "에 최종 정답 키워드가 노출되었습니다.");
+        }
+    }
+
+    private boolean containsExactAnswerValue(String text, String value) {
+        if (missing(text) || missing(value)) {
+            return false;
+        }
+
+        String normalizedText = text.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+        String normalizedValue = value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+        String compactValue = compact(normalizedValue);
+
+        if (compactValue.length() <= 2) {
+            if (same(normalizedText, normalizedValue)) {
+                return true;
+            }
+            for (String token : normalizedText.split("[\\s\\p{Punct}·|/]+")) {
+                if (same(token, normalizedValue)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        return normalizedText.contains(normalizedValue)
+                || compact(normalizedText).contains(compactValue);
+    }
+
+    private void validateRewardPayloadForPublish(
+            Episode episode,
+            Puzzle puzzle,
+            String spotName,
+            List<String> finalKeywords,
+            List<String> errors
+    ) {
+        String payload = puzzle.getRewardPayload();
+
+        if (missing(payload)) {
+            errors.add("reward_payload가 누락되었습니다: " + spotName);
+            return;
+        }
+
+        AdminRewardPayloadValidationResponse validation =
+                validateRewardPayload(episode.getId(), AdminRewardPayloadValidationRequestWrapper.of(payload));
+
+        if (!validation.isValid()) {
+            errors.add("reward_payload 형식이 올바르지 않습니다: " + spotName + " / " + String.join(", ", validation.getErrors()));
+            return;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(payload);
+
+            JsonNode rewards = root.path("rewards");
+            if (!rewards.isArray() || rewards.isEmpty()) {
+                errors.add("reward_payload에는 rewards 배열이 필요합니다: " + spotName);
+            }
+
+            for (JsonNode reward : rewards) {
+                String type = reward.path("type").asText("");
+                String value = reward.path("value").asText("");
+                boolean valueBasedClue = List.of("STORY_CLUE", "ANSWER_CLUE", "DESTINATION_CLUE").contains(type);
+
+                if (!valueBasedClue) {
+                    continue;
+                }
+
+                if (textContainsAny(value, finalKeywords)) {
+                    errors.add("reward_payload에 최종 정답 키워드가 노출되었습니다: " + spotName);
+                }
+
+                if (textContains(value, episode.getFinalAnswer())) {
+                    errors.add("reward_payload에 최종 정답이 노출되었습니다: " + spotName);
+                }
+
+                if (isGenericPuzzleAnswer(compact(value))) {
+                    errors.add("reward_payload의 value가 너무 일반적인 값입니다: " + spotName);
+                }
+            }
+
+            JsonNode interaction = root.path("interaction");
+
+            if (interaction.isMissingNode() || !interaction.isObject()) {
+                errors.add("reward_payload에 미니게임 interaction 정보가 누락되었습니다: " + spotName);
+                return;
+            }
+
+            String localSolution = interaction.path("localSolution").asText("");
+            String basis = interaction.path("basis").asText("");
+            String prompt = interaction.path("prompt").asText("");
+            String storyHook = interaction.path("storyHook").asText("");
+
+            if (missing(localSolution)) {
+                errors.add("미니게임 localSolution이 누락되었습니다: " + spotName);
+            }
+
+            if (containsCompact(localSolution, "검수필요")
+                    || containsCompact(localSolution, "review-required")
+                    || isGenericPuzzleAnswer(compact(localSolution))) {
+                errors.add("미니게임 localSolution을 관리자 검수 후 확정해야 합니다: " + spotName);
+            }
+
+            if (textContainsAny(localSolution, finalKeywords)
+                    || textContainsAny(basis, finalKeywords)
+                    || textContainsAny(prompt, finalKeywords)
+                    || textContainsAny(storyHook, finalKeywords)) {
+                errors.add("미니게임 interaction에 최종 정답 키워드가 노출되었습니다: " + spotName);
+            }
+
+            if (textContains(localSolution, episode.getFinalAnswer())
+                    || textContains(basis, episode.getFinalAnswer())
+                    || textContains(prompt, episode.getFinalAnswer())
+                    || textContains(storyHook, episode.getFinalAnswer())) {
+                errors.add("미니게임 interaction에 최종 정답이 노출되었습니다: " + spotName);
+            }
+
+        } catch (Exception e) {
+            errors.add("reward_payload는 올바른 JSON 형식이어야 합니다: " + spotName);
+        }
     }
 
     private boolean validExternalImageUrl(String value) {
@@ -1530,15 +2892,16 @@ public class AdminEpisodeService {
         if (value == null) {
             return null;
         }
+
         return value
-                .replace("KakaoLocal:CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
-                .replace("KakaoLocal:FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
-                .replace("KakaoLocal:CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
-                .replace("KakaoLocal:AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810")
-                .replace("CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
-                .replace("FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
-                .replace("CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
-                .replace("AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810");
+                .replace("KakaoLocal:CE7", "카페/커피 휴식 지점")
+                .replace("KakaoLocal:FD6", "음식점/식당 상권")
+                .replace("KakaoLocal:CT1", "문화시설/전시 지점")
+                .replace("KakaoLocal:AT4", "관광명소/명소 지점")
+                .replace("CE7", "카페/커피 휴식 지점")
+                .replace("FD6", "음식점/식당 상권")
+                .replace("CT1", "문화시설/전시 지점")
+                .replace("AT4", "관광명소/명소 지점");
     }
 
 
@@ -1547,31 +2910,96 @@ public class AdminEpisodeService {
     @Transactional
     public AdminEpisodeDetailResponse createEpisode(AdminEpisodeUpdateRequest request) {
         AdminEpisodeUpdateRequest safeRequest = request == null ? new AdminEpisodeUpdateRequest() : request;
+
+        String requestedStatus = text(safeRequest.getStatus(), "DRAFT");
+        if ("PUBLISHED".equals(normalizeType(requestedStatus))) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "DRAFT_REVIEW_REQUIRED",
+                    "새 에피소드는 먼저 DRAFT로 생성한 뒤 장소, 퍼즐, 정답, 보상 payload를 검수하고 공개하세요."
+            );
+        }
+
         String uniqueSuffix = String.valueOf(System.currentTimeMillis()).substring(7);
-        String title = blank(safeRequest.getTitle(), "New case-file draft " + uniqueSuffix);
+        String title = blank(safeRequest.getTitle(), "신규 스토리 미션 초안 " + uniqueSuffix);
+
         Episode episode = new Episode();
         episode.setTitle(title);
-        episode.setSubtitle(blank(safeRequest.getSubtitle(), "Admin draft"));
-        episode.setEra(blank(safeRequest.getEra(), "Review required"));
-        episode.setGenre(blank(safeRequest.getGenre(), "Outdoor case-file mystery"));
+        episode.setSubtitle(blank(safeRequest.getSubtitle(), "관리자 수동 생성 초안"));
+        episode.setEra(blank(safeRequest.getEra(), "시대 검수 필요"));
+        episode.setGenre(blank(safeRequest.getGenre(), "야외 스토리 미션"));
         episode.setDifficulty(blank(safeRequest.getDifficulty(), "NORMAL"));
-        episode.setEstimatedTime(blank(safeRequest.getEstimatedTime(), "90~120\uBD84"));
-        episode.setEstimatedDistance(blank(safeRequest.getEstimatedDistance(), "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694"));
-        episode.setFictionSynopsis(blank(safeRequest.getFictionSynopsis(), "Admin draft. Write the case synopsis before publishing."));
-        episode.setFinalAnswerType(blank(safeRequest.getFinalAnswerType(), "EVIDENCE"));
-        episode.setFinalAnswer(blank(safeRequest.getFinalAnswer(), "review-required"));
+        episode.setEstimatedTime(blank(safeRequest.getEstimatedTime(), "90~120분"));
+        episode.setEstimatedDistance(blank(safeRequest.getEstimatedDistance(), "도보 동선 확인 필요"));
+
+        episode.setFictionSynopsis(blank(
+                safeRequest.getFictionSynopsis(),
+                "관리자가 직접 작성해야 하는 스토리 미션 시놉시스입니다. 공개 전 실제 장소 동선, 픽션 설정, 최종 목표를 연결해 보강하세요."
+        ));
+
+        episode.setFinalAnswerType(blank(safeRequest.getFinalAnswerType(), "HIDDEN_TRUTH"));
+        episode.setFinalAnswer(blank(safeRequest.getFinalAnswer(), "검수필요"));
         episode.setFinalAnswerAliases(safeRequest.getFinalAnswerAliases());
-        episode.setFinalQuestion(blank(safeRequest.getFinalQuestion(), "Enter the final question."));
-        episode.setFinalTruthSummary(blank(safeRequest.getFinalTruthSummary(), "Enter the private truth summary."));
-        episode.setActualHistorySummary(safeRequest.getActualHistorySummary());
-        episode.setDeductionSecretFacts(blank(safeRequest.getDeductionSecretFacts(), "Enter internal facts for deduction."));
-        episode.setDeductionForbiddenReveals(blank(safeRequest.getDeductionForbiddenReveals(), "Do not reveal the final answer or actual final place."));
-        episode.setMaxDeductionQuestions(safeRequest.getMaxDeductionQuestions() == null ? 20 : safeRequest.getMaxDeductionQuestions());
-        episode.setRecommendedPlayers(blank(safeRequest.getRecommendedPlayers(), "2~4\uBA85"));
-        episode.setTeamRoleGuide(blank(safeRequest.getTeamRoleGuide(), "\uC9C0\uB3C4, \uC0AC\uAC74\uD30C\uC77C, \uD37C\uC990, \uAE30\uB85D \uC5ED\uD560\uB85C \uB098\uB204\uC5B4 \uC9C4\uD589\uD558\uC138\uC694."));
-        episode.setNoticeText(blank(safeRequest.getNoticeText(), "\uACF5\uAC1C \uC804 \uD604\uC7A5 \uAC80\uC218\uB97C \uC644\uB8CC\uD558\uC138\uC694."));
-        episode.setStatus(validateValue(text(safeRequest.getStatus(), "DRAFT"), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "Status must be DRAFT, PUBLISHED, or ARCHIVED."));
-        if ("PUBLISHED".equals(episode.getStatus())) validatePublishReadiness(episode);
+
+        episode.setFinalQuestion(blank(
+                safeRequest.getFinalQuestion(),
+                "모든 단서를 종합했을 때 이 미션의 최종 결론은 무엇인가?"
+        ));
+
+        episode.setFinalTruthSummary(blank(
+                safeRequest.getFinalTruthSummary(),
+                "관리자만 확인하는 최종 진실 요약입니다. 공개 전 정답 키워드, 단서 연결 방식, 최종 장소의 역할을 구체적으로 작성하세요."
+        ));
+
+        episode.setActualHistorySummary(blank(
+                safeRequest.getActualHistorySummary(),
+                """
+                1. 모티브 공개
+                이 임무는 실제 장소의 역사·문화적 배경을 모티브로 제작된 스토리 미션입니다.
+    
+                2. 실제 배경 해설
+                공개 전 관리자는 공식 해설 자료, 현장 표지, TourAPI 설명을 확인해 실제 역사 배경과 픽션 요소의 차이를 보강해야 합니다.
+                """.trim()
+        ));
+
+        episode.setDeductionSecretFacts(blank(
+                safeRequest.getDeductionSecretFacts(),
+                """
+                최종 정답은 관리자가 확정한 핵심 키워드를 모두 포함해야 한다.
+                일부 장소명이나 단서명만 맞히는 답은 최종 정답이 아니다.
+                정답은 실제 장소명이나 실존 인물명이 아니라 픽션 미션 안의 결론이어야 한다.
+                """.trim()
+        ));
+
+        episode.setDeductionForbiddenReveals(blank(
+                safeRequest.getDeductionForbiddenReveals(),
+                """
+                검수필요
+                실제 최종 장소명
+                실존 인물의 부정적 역할화
+                """.trim()
+        ));
+
+        episode.setMaxDeductionQuestions(safeRequest.getMaxDeductionQuestions() == null
+                ? 20
+                : Math.max(1, safeRequest.getMaxDeductionQuestions()));
+
+        episode.setRecommendedPlayers(blank(safeRequest.getRecommendedPlayers(), "2~4명"));
+        episode.setTeamRoleGuide(blank(
+                safeRequest.getTeamRoleGuide(),
+                "지도 담당, 미션 파일 담당, 퍼즐 담당, 기록 담당으로 역할을 나누어 진행하세요."
+        ));
+        episode.setNoticeText(blank(
+                safeRequest.getNoticeText(),
+                "공개 전 현장 좌표, 도착 반경, 퍼즐 정답, 힌트, reward_payload를 반드시 검수하세요."
+        ));
+
+        episode.setStatus(validateValue(
+                text(safeRequest.getStatus(), "DRAFT"),
+                EPISODE_STATUSES,
+                "INVALID_EPISODE_STATUS",
+                "status는 DRAFT, PUBLISHED, ARCHIVED 중 하나여야 합니다."
+        ));
         adminEpisodeRepository.insertEpisode(episode);
         return getEpisode(episode.getId());
     }
@@ -1582,24 +3010,41 @@ public class AdminEpisodeService {
     @Transactional
     public void deleteEpisode(Long episodeId) {
         Episode episode = requireEpisode(episodeId);
+
         if ("PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PUBLISHED_EPISODE_DELETE_BLOCKED", "Review required.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PUBLISHED_EPISODE_DELETE_BLOCKED",
+                    "공개된 에피소드는 삭제할 수 없습니다. 먼저 DRAFT 또는 ARCHIVED 상태로 변경한 뒤 삭제하세요."
+            );
         }
+
         adminEpisodeRepository.deleteEpisode(episodeId);
     }
 
     private Episode requireEpisode(Long episodeId) {
         Episode episode = adminEpisodeRepository.findEpisode(episodeId);
+
         if (episode == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "Review required.");
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "EPISODE_NOT_FOUND",
+                    "에피소드를 찾을 수 없습니다."
+            );
         }
+
         return episode;
     }
 
     private void requireEditableEpisode(Long episodeId) {
         Episode episode = requireEpisode(episodeId);
+
         if ("PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PUBLISHED_EPISODE_LOCKED", "Review required.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PUBLISHED_EPISODE_LOCKED",
+                    "공개된 에피소드는 직접 수정할 수 없습니다. 수정이 필요하면 먼저 DRAFT 상태로 되돌린 뒤 작업하세요."
+            );
         }
     }
     private String text(String value, String fallback) {
@@ -1629,6 +3074,10 @@ public class AdminEpisodeService {
         target.setRole(source.getRole());
         target.setPublicMarkerType(source.getPublicMarkerType());
         target.setArrivalRadius(source.getArrivalRadius());
+        target.setPlaceId(source.getPlaceId());
+        target.setDataQuality(source.getDataQuality());
+        target.setUsablePuzzleSources(source.getUsablePuzzleSources());
+        target.setVerificationNotes(source.getVerificationNotes());
         return target;
     }
 
@@ -1656,8 +3105,8 @@ public class AdminEpisodeService {
         if (containsCompact(value, "culture") || containsCompact(value, "museum") || containsCompact(value, "gallery") || containsCompact(value, "exhibition") || containsCompact(value, "history")) score += 45;
         if (containsCompact(value, "palace") || containsCompact(value, "gate") || containsCompact(value, "heritage")) score += 34;
         if (containsCompact(value, "park") || containsCompact(value, "square") || containsCompact(value, "street") || containsCompact(value, "market") || containsCompact(value, "bookstore")) score += 28;
-        if (containsCompact(value, "KakaoLocal:CT1") || containsCompact(value, "KakaoLocal:AT4") || containsCompact(value, "\uBB38\uD654\uC2DC\uC124") || containsCompact(value, "\uAD00\uAD11\uBA85\uC18C")) score += 30;
-        if (containsCompact(value, "KakaoLocal:CE7") || containsCompact(value, "KakaoLocal:FD6") || containsCompact(value, "\uCE74\uD398") || containsCompact(value, "\uC74C\uC2DD\uC810")) score += 20;
+        if (containsCompact(value, "KakaoLocal:CT1") || containsCompact(value, "KakaoLocal:AT4") || containsCompact(value, "문화시설") || containsCompact(value, "관광명소")) score += 30;
+        if (containsCompact(value, "KakaoLocal:CE7") || containsCompact(value, "KakaoLocal:FD6") || containsCompact(value, "카페") || containsCompact(value, "음식점")) score += 20;
         double distance = distanceMeters(anchor.getLatitude(), anchor.getLongitude(), candidate.getLatitude(), candidate.getLongitude());
         if (Double.isFinite(distance)) {
             if (distance >= 80 && distance <= 700) score += 25;
@@ -1670,7 +3119,7 @@ public class AdminEpisodeService {
 
 
     private String enrichedDescription(AiEpisodeDraftRequest.PlaceInput source, List<AdminPlaceCandidateResponse> rankedNearby) {
-        String base = blank(source.getDescription(), "\uC120\uD0DD\uB41C \uC870\uC0AC \uC9C0\uC810\uC785\uB2C8\uB2E4.");
+        String base = blank(source.getDescription(), "선택된 조사 지점입니다.");
         String topSignals = rankedNearby.stream()
                 .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
                 .limit(3)
@@ -1679,34 +3128,16 @@ public class AdminEpisodeService {
         if (topSignals.isBlank()) {
             return base;
         }
-        return base + " \uC8FC\uBCC0 \uD655\uC778 \uD6C4\uBCF4: " + topSignals + ".";
+        return base + " 주변 확인 후보: " + topSignals + ".";
     }
 
     private List<String> focusedKeywords(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
-        List<String> values = new ArrayList<>();
-        rankedNearby.stream()
-                .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
-                .limit(5)
-                .forEach(candidate -> {
-                    values.add(categoryKeyword(candidate));
-                });
-        values.add("\ud604\uc7a5\ub2e8\uc11c");
-        values.add("\ub3d9\uc120\ud754\uc801");
-        return values;
+        return List.of();
     }
 
 
     private List<String> inferredVisibleElements(List<AdminPlaceCandidateResponse> rankedNearby) {
-        List<String> values = new ArrayList<>();
-        values.add("\uD604\uC7A5\uC5D0\uC11C \uD655\uC778\uD560 \uC7A5\uC18C\uBA85 \uAC04\uD310");
-        values.add("\uD604\uC7A5\uC5D0\uC11C \uD655\uC778\uD560 \uC8FC\uC18C\uC640 \uC785\uAD6C \uC601\uC5ED");
-        rankedNearby.stream()
-                .filter(candidate -> !"RAG_ERROR".equals(candidate.getSource()))
-                .limit(4)
-                .map(this::categoryVisibleElement)
-                .forEach(values::add);
-        values.add("\uD604\uC7A5\uC5D0\uC11C \uD655\uC778\uD560 \uC8FC\uBCC0 \uB3D9\uC120 \uB2E8\uC11C");
-        return values;
+        return List.of();
     }
 
     private String enrichedAdminMemo(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
@@ -1714,14 +3145,14 @@ public class AdminEpisodeService {
         if (!missing(place.getAdminMemo())) {
             memo.add(place.getAdminMemo());
         }
-        memo.add("RAG/\uC0AC\uC774\uD2B8 \uBCF4\uAC15\uC73C\uB85C \uC8FC\uBCC0 Kakao Local \uC2E0\uD638\uB97C \uC0AC\uC6A9\uD574 \uAD00\uB9AC\uC790 \uD655\uC778 \uBC94\uC704\uB97C \uC881\uD614\uC2B5\uB2C8\uB2E4.");
-        memo.add("\uC774 \uC2E0\uD638\uB294 \uD655\uC778 \uD6C4\uBCF4\uB85C\uB9CC \uC0AC\uC6A9\uD558\uC138\uC694. \uAC04\uD310, \uC22B\uC790, \uC870\uD615\uBB3C, \uC601\uC5C5\uC2DC\uAC04\uC740 \uD604\uC7A5 \uD655\uC778 \uC804\uAE4C\uC9C0 \uD655\uC815 \uC815\uBCF4\uB85C \uCDE8\uAE09\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.");
+        memo.add("RAG/사이트 보강으로 주변 Kakao Local 신호를 사용해 관리자 확인 범위를 좁혔습니다.");
+        memo.add("이 신호는 확인 후보로만 사용하세요. 간판, 숫자, 조형물, 영업시간은 현장 확인 전까지 확정 정보로 취급하지 않습니다.");
         if (place.getLatitude() == null || place.getLongitude() == null) {
-            memo.add("\uC88C\uD45C\uAC00 \uC5C6\uC5B4 \uC678\uBD80 \uAC80\uC0C9\uC744 \uC2E4\uD589\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uACF5\uAC1C \uC804 \uC704\uB3C4/\uACBD\uB3C4\uB97C \uCD94\uAC00\uD558\uC138\uC694.");
+            memo.add("좌표가 없어 외부 검색을 실행하지 못했습니다. 공개 전 위도/경도를 추가하세요.");
             return String.join("\n", memo);
         }
         if (rankedNearby.isEmpty()) {
-            memo.add("900m \uC774\uB0B4\uC5D0\uC11C \uC8FC\uBCC0 \uC2E0\uD638\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uAD00\uB9AC\uC790\uAC00 \uC218\uB3D9 \uD604\uC7A5 \uBA54\uBAA8\uB97C \uCD94\uAC00\uD558\uC138\uC694.");
+            memo.add("900m 이내에서 주변 신호를 찾지 못했습니다. 관리자가 수동 현장 메모를 추가하세요.");
             return String.join("\n", memo);
         }
         List<AdminPlaceCandidateResponse> usable = rankedNearby.stream()
@@ -1729,29 +3160,73 @@ public class AdminEpisodeService {
                 .limit(5)
                 .toList();
         if (usable.isEmpty()) {
-            rankedNearby.stream().findFirst().ifPresent(candidate -> memo.add(candidate.getTitle() + " - " + blank(candidate.getDescription(), "\uC678\uBD80 \uAC80\uC0C9 \uC2E4\uD328")));
+            rankedNearby.stream().findFirst().ifPresent(candidate -> memo.add(candidate.getTitle() + " - " + blank(candidate.getDescription(), "외부 검색 실패")));
             return String.join("\n", memo);
         }
-        memo.add("\uC8FC\uC694 \uD655\uC778 \uD6C4\uBCF4:");
+        memo.add("주요 확인 후보:");
         for (int i = 0; i < usable.size(); i++) {
             AdminPlaceCandidateResponse candidate = usable.get(i);
             memo.add((i + 1) + ". " + candidate.getTitle()
                     + " / " + categoryKeyword(candidate)
-                    + " / \uC57D " + Math.round(distanceMeters(place.getLatitude(), place.getLongitude(), candidate.getLatitude(), candidate.getLongitude())) + "m"
-                    + " / \uD655\uC778 \uB300\uC0C1: " + categoryVisibleElement(candidate));
+                    + " / 약 " + Math.round(distanceMeters(place.getLatitude(), place.getLongitude(), candidate.getLatitude(), candidate.getLongitude())) + "m"
+                    + " / 확인 대상: " + categoryVisibleElement(candidate));
         }
-        memo.add("\uAD8C\uC7A5 \uD37C\uC990 \uADFC\uAC70: \uD604\uC7A5 \uD655\uC778 \uD6C4 \uAD00\uB9AC\uC790\uAC00 \uD655\uC815\uD55C visibleElements/numbers\uB9CC \uC0AC\uC6A9\uD558\uC138\uC694. \uADF8 \uC804\uC5D0\uB294 AI\uAC00 \uC2E4\uC81C \uAD00\uCC30 \uC0AC\uC2E4\uC774 \uC544\uB2CC \uC2A4\uD1A0\uB9AC \uB2E8\uC11C\uC640 \uD655\uC778\uC6A9 \uC784\uC2DC \uB2E8\uC11C\uB9CC \uB9CC\uB4ED\uB2C8\uB2E4.");
+        memo.add("권장 퍼즐 근거: 현장 확인 후 관리자가 확정한 visibleElements/numbers만 사용하세요. 그 전에는 AI가 실제 관찰 사실이 아닌 스토리 단서와 확인용 임시 단서만 만듭니다.");
         return String.join("\n", memo);
     }
 
     private String categoryKeyword(AdminPlaceCandidateResponse candidate) {
         String source = blank(candidate.getSource(), "");
-        String value = String.join(" ", blank(candidate.getTitle(), ""), blank(candidate.getSource(), ""), blank(candidate.getDescription(), ""), blank(candidate.getAddress(), ""));
-        if (source.contains("CT1") || containsCompact(value, "\ubb38\ud654\uc2dc\uc124") || containsCompact(value, "culture") || containsCompact(value, "museum") || containsCompact(value, "gallery") || containsCompact(value, "exhibition")) return "\ubb38\ud654\uc804\uc2dc";
-        if (source.contains("CE7") || containsCompact(value, "\uce74\ud398") || containsCompact(value, "cafe") || containsCompact(value, "coffee")) return "\uce74\ud398\uc270\ud130";
-        if (source.contains("FD6") || containsCompact(value, "\uc74c\uc2dd\uc810") || containsCompact(value, "\uc2dd\ub2f9") || containsCompact(value, "restaurant") || containsCompact(value, "food")) return "\uc2dd\ub2f9\uc0c1\uad8c";
-        if (containsCompact(value, "park") || containsCompact(value, "square") || containsCompact(value, "street")) return "\uacf5\uac1c\uad11\uc7a5";
-        return "\ud604\uc7a5\ub2e8\uc11c";
+        String value = String.join(" ",
+                blank(candidate.getTitle(), ""),
+                blank(candidate.getSource(), ""),
+                blank(candidate.getDescription(), ""),
+                blank(candidate.getAddress(), "")
+        );
+
+        if (source.contains("CT1")
+                || containsCompact(value, "문화시설")
+                || containsCompact(value, "culture")
+                || containsCompact(value, "museum")
+                || containsCompact(value, "gallery")
+                || containsCompact(value, "exhibition")) {
+            return "문화전시 후보";
+        }
+
+        if (source.contains("AT4")
+                || containsCompact(value, "관광")
+                || containsCompact(value, "명소")
+                || containsCompact(value, "heritage")
+                || containsCompact(value, "palace")
+                || containsCompact(value, "gate")) {
+            return "관광명소 후보";
+        }
+
+        if (source.contains("CE7")
+                || containsCompact(value, "카페")
+                || containsCompact(value, "cafe")
+                || containsCompact(value, "coffee")) {
+            return "카페쉼터 후보";
+        }
+
+        if (source.contains("FD6")
+                || containsCompact(value, "음식점")
+                || containsCompact(value, "식당")
+                || containsCompact(value, "restaurant")
+                || containsCompact(value, "food")) {
+            return "식당상권 후보";
+        }
+
+        if (containsCompact(value, "park")
+                || containsCompact(value, "square")
+                || containsCompact(value, "street")
+                || containsCompact(value, "공원")
+                || containsCompact(value, "광장")
+                || containsCompact(value, "거리")) {
+            return "공개동선 후보";
+        }
+
+        return "주변확인 후보";
     }
 
 
@@ -1759,12 +3234,14 @@ public class AdminEpisodeService {
 
     private String categoryVisibleElement(AdminPlaceCandidateResponse candidate) {
         String keyword = categoryKeyword(candidate);
+
         return switch (keyword) {
-            case "\ubb38\ud654\uc804\uc2dc" -> "\uc804\uc2dc \uc548\ub0b4\ubb38 \ub610\ub294 \uac74\ubb3c \ud45c\uc9c0";
-            case "\uce74\ud398\uc270\ud130" -> "\uba54\ub274\ud310 \ub610\ub294 \uc785\uad6c \ud45c\uc9c0";
-            case "\uc2dd\ub2f9\uc0c1\uad8c" -> "\uac00\uac8c \uac04\ud310 \ub610\ub294 \uc0c1\uad8c \ub3d9\uc120 \ud45c\uc9c0";
-            case "\uacf5\uac1c\uad11\uc7a5" -> "\uacf5\uacf5 \ud45c\uc9c0\uc11d \ub610\ub294 \ub3d9\uc120 \uc548\ub0b4\ud45c";
-            default -> "\ud604\uc7a5 \ud45c\uc9c0\ubb3c \ub610\ub294 \uc8fc\ubcc0 \uad6c\uc870\ubb3c";
+            case "문화전시 후보" -> "전시 안내문, 운영 안내, 건물 표지 중 실제 확인 가능한 요소";
+            case "관광명소 후보" -> "공식 안내판, 문화재 표지, 입구 안내 중 실제 확인 가능한 요소";
+            case "카페쉼터 후보" -> "입구 표지, 메뉴판, 영업 안내 중 실제 확인 가능한 요소";
+            case "식당상권 후보" -> "가게 간판, 상권 안내, 입구 표지 중 실제 확인 가능한 요소";
+            case "공개동선 후보" -> "공공 표지석, 동선 안내표, 방향 안내 중 실제 확인 가능한 요소";
+            default -> "관리자가 현장에서 직접 확인해야 하는 요소";
         };
     }
 
@@ -1822,7 +3299,12 @@ public class AdminEpisodeService {
         }
         String fallback = "FINAL".equals(markerType) ? "DESTINATION_HINT" : markerType;
         String value = blank(requested, fallback);
-        return validateValue(value, PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType must not expose FINAL.");
+        return validateValue(
+                value,
+                PUBLIC_MARKER_TYPES,
+                "INVALID_PUBLIC_MARKER_TYPE",
+                "publicMarkerType으로 FINAL을 노출할 수 없습니다."
+        );
     }
 
     private String toClueRole(String markerType) {
@@ -1842,28 +3324,57 @@ public class AdminEpisodeService {
     }
 
     private String buildQuestion(AiEpisodeDraftRequest.PlaceInput place) {
-        if (place.getNumbers() != null && !place.getNumbers().isEmpty()) return "Check which provided field number connects to the case record.";
-        if (place.getVisibleElements() != null && !place.getVisibleElements().isEmpty()) return "Check the field element '" + place.getVisibleElements().get(0) + "' and compare it with the case memo.";
-        return "Check the admin memo and enter the field clue keyword.";
+        if (place.getNumbers() != null && !place.getNumbers().isEmpty()) {
+            return "제공된 현장 숫자 중 미션 파일 기록과 연결되는 값을 입력하세요.";
+        }
+
+        if (place.getVisibleElements() != null && !place.getVisibleElements().isEmpty()) {
+            String element = place.getVisibleElements().get(0);
+            return "현장에서 확인 가능한 요소 [" + element + "]를 미션 메모와 대조해 확인어를 입력하세요.";
+        }
+
+        if (!missing(place.getAdminMemo())) {
+            return "관리자 메모에 기록된 현장 근거를 확인하고 짧은 확인어를 입력하세요.";
+        }
+
+        return "관리자 검수 후 이 지점의 실제 현장 근거를 기준으로 퍼즐 정답을 확정하세요.";
     }
 
 
 
 
-    private boolean isMissionAnswerDisconnected(AiEpisodeDraftResponse.MissionDraft mission, List<AiEpisodeDraftResponse.MissionDraft> missions) {
+    private boolean isMissionAnswerDisconnected(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            List<AiEpisodeDraftResponse.MissionDraft> missions
+    ) {
         if (mission == null || missing(mission.getAnswer())) {
             return false;
         }
+
         String answer = compact(mission.getAnswer());
-        if (answer.isBlank() || answer.contains("\uac80\uc218\ud544\uc694") || "review-required".equals(answer)) {
+
+        if (answer.isBlank() || answer.contains("검수필요") || "review-required".equals(answer)) {
             return false;
         }
-        if ("NUMBER".equals(normalizeType(mission.getAnswerFormat()))) {
+
+        if ("NUMBER".equals(normalizeType(mission.getAnswerFormat()))
+                && mission.getAnswer().replaceAll("\\D", "").length() >= 1) {
             return false;
         }
-        if (isGenericPuzzleAnswer(answer) || isPlaceNameAnswer(answer, mission.getPlaceName())) {
+
+        if (containsFinalKeywordText(mission.getAnswer(), draft)) {
             return true;
         }
+
+        if (isGenericPuzzleAnswer(answer)) {
+            return true;
+        }
+
+        if (isPlaceNameAnswer(answer, mission.getPlaceName())) {
+            return true;
+        }
+
         return missions != null && missions.stream()
                 .map(AiEpisodeDraftResponse.MissionDraft::getPlaceName)
                 .anyMatch(placeName -> isPlaceNameAnswer(answer, placeName));
@@ -1880,40 +3391,151 @@ public class AdminEpisodeService {
     }
 
     private boolean isGenericPuzzleAnswer(String compactAnswer) {
+        if (compactAnswer == null || compactAnswer.isBlank()) {
+            return true;
+        }
+
         return Set.of(
-                "placedescription", "adminmemo", "casememo", "selectedoperationspot",
-                "selected", "operation", "spot", "nearby", "verification", "focus",
-                "place", "address", "entrance", "area", "siteverificationfocus", "nearbyfamousplacesignal"
-        ).contains(compactAnswer);
+                "placedescription",
+                "adminmemo",
+                "casememo",
+                "selectedoperationspot",
+                "selected",
+                "operation",
+                "spot",
+                "nearby",
+                "verification",
+                "focus",
+                "place",
+                "address",
+                "entrance",
+                "area",
+                "siteverificationfocus",
+                "nearbyfamousplacesignal",
+
+                "memo",
+                "record",
+                "document",
+                "clue",
+                "info",
+                "truth",
+                "secret",
+                "object",
+                "event",
+
+                "메모",
+                "기록",
+                "문서",
+                "단서",
+                "정보",
+                "진실",
+                "비밀",
+                "물건",
+                "사건",
+                "흔적",
+                "표식",
+                "사진",
+                "봉인",
+                "그림자",
+                "현장",
+                "현장단서",
+                "관리자검수",
+                "검수필요",
+                "확인필요",
+                "보정단서",
+                "검수단서",
+                "서울",
+                "seoul",
+                "kakao",
+                "kakaolocal",
+                "tourapi",
+                "tourapibased",
+                "placecandidate",
+                "장소후보",
+                "후보지",
+                "관광지",
+
+                "문화전시후보",
+                "관광명소후보",
+                "카페쉼터후보",
+                "식당상권후보",
+                "공개동선후보",
+                "주변확인후보",
+                "관리자가현장에서직접확인해야하는요소",
+                "전시안내문운영안내건물표지중실제확인가능한요소",
+                "공식안내판문화재표지입구안내중실제확인가능한요소",
+                "입구표지메뉴판영업안내중실제확인가능한요소",
+                "가게간판상권안내입구표지중실제확인가능한요소",
+                "공공표지석동선안내표방향안내중실제확인가능한요소",
+                "현장에서확인할장소명간판",
+                "현장에서확인할주소와입구영역",
+                "현장에서확인할주변동선단서",
+                "현장표지물또는주변구조물"
+        ).contains(compactAnswer) || isLowQualityGenericValue(compactAnswer);
     }
 
-    private void normalizeMissionForReview(AiEpisodeDraftResponse.MissionDraft mission) {
+    private void normalizeMissionForReview(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            List<AiEpisodeDraftResponse.MissionDraft> missions,
+            int index
+    ) {
         String basis = firstGroundingText(mission);
-        if (containsCompact(basis, "검수필요") || containsCompact(basis, "review-required")) {
-            basis = "현장단서";
+
+        if (missing(basis)
+                || containsCompact(basis, "검수필요")
+                || containsCompact(basis, "review-required")
+                || isGenericPuzzleAnswer(compact(basis))
+                || isPlaceNameAnswer(compact(basis), mission.getPlaceName())
+                || containsFinalKeywordText(basis, draft)) {
+            basis = "검수필요";
         }
+
         mission.setPuzzleType("STORY_COMBINATION");
-        mission.setQuestionText("제공된 현장 근거 [" + basis + "]를 사건파일 카드와 연결한 핵심 단어를 입력하세요.");
-        mission.setAnswer(basis);
         mission.setAnswerFormat("TEXT");
-        if (missing(mission.getRewardClue()) || containsCompact(mission.getRewardClue(), "검수필요")) {
-            mission.setRewardClue("보정 단서");
+
+        if ("검수필요".equals(basis)) {
+            mission.setQuestionText("관리자 검수 후 이 지점의 실제 현장 근거를 기준으로 퍼즐 정답을 확정하세요.");
+            mission.setAnswer("검수필요");
+            mission.setRewardClue(saveSafeRewardClue(mission, index));
+            mission.setHints(List.of(
+                    "이 미션은 자동 생성만으로 정답을 확정하기 어렵습니다.",
+                    "현장에서 실제 확인 가능한 표지, 숫자, 조형물, 문구를 먼저 기록하세요.",
+                    "관리자 화면에서 정답과 근거를 직접 보강한 뒤 공개하세요."
+            ));
+            return;
         }
+
+        mission.setQuestionText("제공된 현장 근거 [" + basis + "]를 미션 파일 카드와 연결한 확인어를 입력하세요.");
+        mission.setAnswer(basis);
+
+        if (missing(mission.getRewardClue())
+                || containsCompact(mission.getRewardClue(), "검수필요")
+                || containsFinalKeywordText(mission.getRewardClue(), draft)) {
+            mission.setRewardClue(saveSafeRewardClue(mission, index));
+        }
+
         mission.setHints(List.of(
-                "문제에 제시된 [" + basis + "] 단서를 먼저 확인하세요.",
-                "장소명 글자 추출이 아니라 현장 근거와 사건파일의 의미 연결을 보세요.",
-                "현재 장소에서 얻은 단서만으로 풀 수 있어야 합니다."
+                "문제에 제시된 [" + basis + "] 근거를 먼저 확인하세요.",
+                "장소명 글자 추출이 아니라 현장 근거와 미션 파일의 의미 연결을 보세요.",
+                "정답은 최종 정답 키워드가 아니라 이 미션에서 확인 가능한 짧은 근거어입니다."
         ));
     }
 
     private String sanitizeHintText(String hint, AiEpisodeDraftResponse.MissionDraft mission) {
         String text = hint == null ? "" : hint.trim();
         String compactText = compact(text);
-        if (text.isBlank() || isEnglishOnlyHint(text) || compactText.contains("\uac00\uc7a5\ucd5c\uadfc") || compactText.contains("\ucd5c\uadfc\ubcf4\uc0c1")
-                || compactText.contains("\uc774\uc804\uc99d\uac70") || compactText.contains("\uc774\uc804\uc0ac\uac74\uc790\ub8cc")) {
-            String basis = firstGroundingText(mission);
-            return "\ubb38\uc81c\uc5d0 \uc81c\uc2dc\ub41c [" + basis + "] \ub2e8\uc11c\ub97c \uae30\uc900\uc73c\ub85c \ub2f5\uc744 \uc881\ud788\uc138\uc694.";
+
+        if (text.isBlank()
+                || isEnglishOnlyHint(text)
+                || compactText.contains("가장최근")
+                || compactText.contains("최근보상")
+                || compactText.contains("이전증거")
+                || compactText.contains("이전사건자료")
+                || textContains(text, mission.getAnswer())) {
+            return saveSafeHint(0, mission);
         }
+
         return text;
     }
 
@@ -1926,15 +3548,34 @@ public class AdminEpisodeService {
 
     private String firstGroundingText(AiEpisodeDraftResponse.MissionDraft mission) {
         if (mission == null) {
-            return "\ud604\uc7a5 \uadfc\uac70";
+            return "검수필요";
         }
-        if (!missing(mission.getAnswer()) && !compact(mission.getAnswer()).contains("\uac80\uc218\ud544\uc694")) {
+
+        if (!missing(mission.getAnswer())
+                && !containsCompact(mission.getAnswer(), "검수필요")
+                && !isGenericPuzzleAnswer(compact(mission.getAnswer()))
+                && !isPlaceNameAnswer(compact(mission.getAnswer()), mission.getPlaceName())) {
             return mission.getAnswer().trim();
         }
-        if (!missing(mission.getRewardClue()) && !compact(mission.getRewardClue()).contains("\uac80\uc218\ud544\uc694")) {
+
+        if (!missing(mission.getGroundRule())
+                && !containsCompact(mission.getGroundRule(), "검수필요")) {
+            String extracted = extractShortKoreanBasis(mission.getGroundRule());
+            if (!missing(extracted)
+                    && !isGenericPuzzleAnswer(compact(extracted))
+                    && !isPlaceNameAnswer(compact(extracted), mission.getPlaceName())) {
+                return extracted;
+            }
+        }
+
+        if (!missing(mission.getRewardClue())
+                && !containsCompact(mission.getRewardClue(), "검수필요")
+                && !isGenericPuzzleAnswer(compact(mission.getRewardClue()))
+                && !isPlaceNameAnswer(compact(mission.getRewardClue()), mission.getPlaceName())) {
             return mission.getRewardClue().trim();
         }
-        return "\ud604\uc7a5 \uadfc\uac70";
+
+        return "검수필요";
     }
 
     private String buildAnswer(AiEpisodeDraftRequest.PlaceInput place) {
@@ -1953,7 +3594,7 @@ public class AdminEpisodeService {
                     .orElse(null);
             if (!missing(visible)) return visible;
         }
-        return "\ud604\uc7a5\ub2e8\uc11c";
+        return "검수필요";
     }
 
     private boolean isUsableAnswerBasis(String value, String placeName) {
@@ -1970,18 +3611,15 @@ public class AdminEpisodeService {
 
     private String buildRewardClue(String role, int index) {
         return switch (role) {
-            case "ANSWER_HINT" -> List.of("\uBC00\uB78D \uC778\uC7A5", "\uD750\uB9B0 \uC0AC\uC9C4", "\uC811\uD78C \uBB38\uC11C", "\uAE34 \uADF8\uB9BC\uC790").get(Math.min(Math.max(index - 1, 0), 3));
-            case "DESTINATION_HINT", "FINAL" -> index % 2 == 0 ? "\uBD89\uC740 \uB2F4\uC7A5" : "\uB9C8\uC9C0\uB9C9 \uBB38";
-            case "START" -> "\uC0AC\uAC74 \uC2DC\uC791 \uB2E8\uC11C";
-            default -> "\uC0AC\uAC74 \uB2E8\uC11C";
+            case "ANSWER_HINT" -> "answer-clue-" + (index + 1);
+            case "DESTINATION_HINT", "FINAL" -> "destination-clue-" + (index + 1);
+            case "START" -> "story-clue-" + (index + 1);
+            default -> "story-clue-" + (index + 1);
         };
     }
 
-
-
-
     private String estimateDraftDistance(List<AiEpisodeDraftResponse.MissionDraft> missions) {
-        if (missions == null || missions.size() < 2) return "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694";
+        if (missions == null || missions.size() < 2) return "도보 동선 확인 필요";
         double meters = 0;
         for (int i = 1; i < missions.size(); i++) {
             AiEpisodeDraftResponse.MissionDraft prev = missions.get(i - 1);
@@ -1989,9 +3627,9 @@ public class AdminEpisodeService {
             double segment = distanceMeters(prev.getLatitude(), prev.getLongitude(), current.getLatitude(), current.getLongitude());
             if (Double.isFinite(segment)) meters += segment;
         }
-        if (meters <= 0) return "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694";
+        if (meters <= 0) return "도보 동선 확인 필요";
         double km = Math.round((meters / 1000.0) * 10.0) / 10.0;
-        return "\uC57D " + km + "km";
+        return "약 " + km + "km";
     }
 
 
@@ -1999,9 +3637,11 @@ public class AdminEpisodeService {
 
     private String resolveDraftTitle(AiEpisodeDraftResponse.EpisodeDraft draft, List<AiEpisodeDraftResponse.MissionDraft> missions) {
         String candidate = blank(draft.getEpisodeTitle(), "");
+
         if (!isGenericDraftTitle(candidate)) {
             return uniqueDraftTitle(candidate);
         }
+
         String anchor = missions.stream()
                 .filter(mission -> Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equals(mission.getMarkerType()))
                 .map(AiEpisodeDraftResponse.MissionDraft::getPlaceName)
@@ -2012,26 +3652,41 @@ public class AdminEpisodeService {
                         .filter(value -> value != null && !value.isBlank())
                         .findFirst()
                         .orElse("Operation KOREA"));
-        return uniqueDraftTitle("EP.NEW " + anchor + " Case");
+
+        return uniqueDraftTitle("EP.NEW " + anchor + " 스토리 미션");
     }
 
     private boolean isGenericDraftTitle(String title) {
         if (title == null || title.isBlank()) {
             return true;
         }
+
         String normalized = title.toLowerCase(Locale.ROOT).replace(" ", "");
-        return normalized.contains("ep.new") || normalized.contains("draft") || normalized.contains("episode");
+
+        return normalized.equals("ep.new")
+                || normalized.equals("episode")
+                || normalized.equals("draft")
+                || normalized.equals("case")
+                || normalized.equals("ep.newepisode")
+                || normalized.equals("ep.newdraft")
+                || normalized.equals("ep.newcase")
+                || normalized.contains("operationkoreacase")
+                || normalized.contains("operationkoreaepisode")
+                || normalized.contains("operationkoreadraft");
     }
 
     private String uniqueDraftTitle(String title) {
-        String base = blank(title, "EP.NEW Operation KOREA Case");
-        boolean duplicate = adminEpisodeRepository.findAllEpisodes().stream().anyMatch(episode -> base.equals(episode.getTitle()));
+        String base = blank(title, "EP.NEW Operation KOREA 스토리 미션");
+
+        boolean duplicate = adminEpisodeRepository.findAllEpisodes().stream()
+                .anyMatch(episode -> base.equals(episode.getTitle()));
+
         if (!duplicate) {
             return base;
         }
+
         return base + " " + (System.currentTimeMillis() % 100000);
     }
-
 
     private String generatedEvidenceImage(String type) {
         return switch (normalizeType(type)) {
@@ -2112,12 +3767,14 @@ public class AdminEpisodeService {
 
     private List<String> publishChecklist() {
         return List.of(
-                "Confirm coordinates and arrival radius from selected place data or admin GPS QA.",
-                "Confirm every puzzle uses provided candidate data, admin memo, AI/site enrichment, or generated fiction-safe clues.",
-                "Confirm the final place is not exposed by publicMarkerType.",
-                "Confirm the final answer is not a real place, real person, or real event.",
-                "Confirm hidden history notes are not overexposed during gameplay.",
-                "Keep reward coupons PLANNED or DISABLED unless they are real benefits."
+                "모든 장소의 좌표와 도착 반경이 실제 이동 가능한 범위인지 확인하세요.",
+                "각 퍼즐 정답이 장소명, 최종 정답, 일반 단어가 아닌지 확인하세요.",
+                "최종 장소는 내부 markerType만 FINAL이고, publicMarkerType으로는 FINAL이 노출되지 않아야 합니다.",
+                "최종 정답은 실제 장소명, 실존 인물명, 실제 사건명을 그대로 사용하지 않아야 합니다.",
+                "finalAnswerAliases에 KW:키워드1|키워드2 형식의 최종 정답 키워드 계약이 포함되어야 합니다.",
+                "힌트, reward_clue, reward_payload, 미니게임 localSolution에 최종 정답 키워드가 노출되지 않는지 확인하세요.",
+                "관계자 카드와 해금 자료 카드가 최종 정답을 직접 말하지 않는지 확인하세요.",
+                "제휴 리워드는 실제 제공 조건이 확정되기 전까지 PLANNED 또는 DISABLED 상태로 유지하세요."
         );
     }
 
@@ -2158,5 +3815,299 @@ public class AdminEpisodeService {
     }
 
     private record AreaSeed(double lat, double lng) {
+    }
+
+    private boolean containsFinalKeywordText(String text, AiEpisodeDraftResponse.EpisodeDraft draft) {
+        if (missing(text) || draft == null) {
+            return false;
+        }
+
+        if (!missing(draft.getFinalAnswer()) && containsExactAnswerValue(text, draft.getFinalAnswer())) {
+            return true;
+        }
+
+        if (draft.getFinalAnswerKeywords() != null) {
+            for (String keyword : draft.getFinalAnswerKeywords()) {
+                if (!missing(keyword) && containsExactAnswerValue(text, keyword)) {
+                    return true;
+                }
+            }
+        }
+
+        if (draft.getFinalAnswerAliases() != null) {
+            for (String alias : draft.getFinalAnswerAliases()) {
+                if (missing(alias)) {
+                    continue;
+                }
+
+                if (!alias.trim().startsWith("KW:") && containsExactAnswerValue(text, alias)) {
+                    return true;
+                }
+
+                if (alias.trim().startsWith("KW:")) {
+                    String[] parts = alias.trim().substring(3).split("\\|");
+                    for (String part : parts) {
+                        if (!missing(part) && containsExactAnswerValue(text, part)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private String saveSafeQuestionText(AiEpisodeDraftResponse.MissionDraft mission) {
+        String role = normalizeType(mission.getClueRole());
+
+        if ("ANSWER_HINT".equals(role)) {
+            return "이 지점의 현장 근거와 미션 파일을 대조해 정답 후보를 좁히는 보조 단서를 확인하세요.";
+        }
+
+        if ("DESTINATION_HINT".equals(role) || "FINAL_PLACE".equals(role)) {
+            return "이 지점의 동선 근거와 미션 파일을 대조해 다음 위치 조건을 확인하세요.";
+        }
+
+        if ("START".equals(role)) {
+            return "첫 미션 파일을 열고 작전의 시작 단서를 확인하세요.";
+        }
+
+        return "현장 근거와 미션 파일을 대조해 이 지점의 확인 단어를 입력하세요.";
+    }
+
+    private String saveSafeRewardClue(AiEpisodeDraftResponse.MissionDraft mission, int index) {
+        String role = normalizeType(mission == null ? null : mission.getClueRole());
+
+        if ("ANSWER_HINT".equals(role)) {
+            return "answer-clue-" + (index + 1);
+        }
+
+        if ("DESTINATION_HINT".equals(role) || "FINAL_PLACE".equals(role)) {
+            return "destination-clue-" + (index + 1);
+        }
+
+        return "story-clue-" + (index + 1);
+    }
+
+    private String buildConcreteRewardClue(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            int index) {
+        String basis = mission == null ? null : mission.getAnswer();
+        if (missing(basis)
+                || isGenericPuzzleAnswer(compact(basis))
+                || isPlaceNameAnswer(compact(basis), mission.getPlaceName())
+                || containsFinalKeywordText(basis, draft)) {
+            basis = extractShortKoreanBasis(mission == null ? null : mission.getGroundRule());
+        }
+        if (missing(basis)
+                || isGenericPuzzleAnswer(compact(basis))
+                || isPlaceNameAnswer(compact(basis), mission == null ? null : mission.getPlaceName())
+                || containsFinalKeywordText(basis, draft)) {
+            basis = "겹쳐 표시된 방향";
+        }
+
+        String role = normalizeType(mission == null ? null : mission.getClueRole());
+        return switch (role) {
+            case "ANSWER_HINT" -> basis + "이 가리키는 역할의 흔적";
+            case "DESTINATION_HINT", "FINAL_PLACE" -> basis + "을 따라 이어지는 방향의 흔적";
+            default -> basis + " 주변에 반복된 배열의 흔적";
+        };
+    }
+
+    private boolean isGenericRewardKey(String value) {
+        String compactValue = compact(value);
+        return compactValue.startsWith("answer-clue-")
+                || compactValue.startsWith("destination-clue-")
+                || compactValue.startsWith("story-clue-");
+    }
+
+    private boolean isLowQualityGenericValue(String value) {
+        String compactValue = compact(value).replaceAll("\\d+$", "");
+        return Set.of(
+                "동선확인", "증거확인", "최종검토", "기록확인", "단서확인", "자료확인",
+                "현장확인", "미션확인", "흐름확인", "연결단서", "보조자료", "핵심자료",
+                "관계단서", "작전개시"
+        ).contains(compactValue);
+    }
+
+    private boolean isTooShortRewardClue(String value) {
+        String compactValue = compact(value);
+        return !compactValue.matches("\\d+")
+                && compactValue.codePointCount(0, compactValue.length()) < 8;
+    }
+
+    private boolean isLowQualityCardText(String value) {
+        if (missing(value)) {
+            return true;
+        }
+        if (value.contains("서로 맞지 않는 기록을 비교")
+                || value.contains("목격 자료입니다")
+                || value.contains("정답 값을 직접 밝히지 않고")) {
+            return true;
+        }
+        return List.of(
+                "관계자의 행동 이유와 미션 흐름을 연결하는 단서입니다",
+                "핵심 자료의 정체를 좁혀주는 보조 자료입니다",
+                "다음 판단을 돕는 자료입니다",
+                "기본 관계자 카드입니다",
+                "연결 가능성이 있는 가상 관계자입니다"
+        ).stream().anyMatch(text -> containsCompact(value, text));
+    }
+
+    private String naturalFinalAnswer(List<String> keywords) {
+        if (keywords.size() == 1) {
+            return "모든 흔적이 가리킨 진실은 " + keywords.get(0) + "이었다.";
+        }
+        if (keywords.size() == 2) {
+            return withSubject(keywords.get(0)) + " 마지막 흔적이 가리킨 " + keywords.get(1) + "에 숨겨져 있었다.";
+        }
+        return withSubject(keywords.get(0)) + " " + withObject(keywords.get(1)) + " 옮겼고, "
+                + withSubject(String.join(", ", keywords.subList(2, keywords.size())))
+                + " 성립하는 순간 기록을 확인하려 했다.";
+    }
+
+    private String withSubject(String value) {
+        return value + (hasFinalConsonant(value) ? "이" : "가");
+    }
+
+    private String withObject(String value) {
+        return value + (hasFinalConsonant(value) ? "을" : "를");
+    }
+
+    private boolean hasFinalConsonant(String value) {
+        if (missing(value)) {
+            return false;
+        }
+        String trimmed = value.trim();
+        char last = trimmed.charAt(trimmed.length() - 1);
+        return last >= 0xAC00 && last <= 0xD7A3 && (last - 0xAC00) % 28 != 0;
+    }
+
+    private String limitText(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
+    }
+
+    private String saveSafeHint(int index, AiEpisodeDraftResponse.MissionDraft mission) {
+        return switch (index) {
+            case 0 -> "문제에 제시된 현장 근거를 먼저 확인하세요.";
+            case 1 -> "장소명이나 최종 정답이 아니라 이 지점에서 확인 가능한 단서 역할을 보세요.";
+            default -> "해금 단서와 미션 파일을 함께 대조해 다음 판단 근거를 좁히세요.";
+        };
+    }
+
+    private String saveSafeLocalSolution(AiEpisodeDraftResponse.MissionDraft mission, int index) {
+        String role = normalizeType(mission == null ? null : mission.getClueRole());
+
+        if ("ANSWER_HINT".equals(role)) {
+            return "증거" + (index + 1);
+        }
+
+        if ("DESTINATION_HINT".equals(role) || "FINAL_PLACE".equals(role)) {
+            return "동선" + (index + 1);
+        }
+
+        if ("START".equals(role)) {
+            return "시작" + (index + 1);
+        }
+
+        return "단서" + (index + 1);
+    }
+
+    private String extractShortKoreanBasis(String text) {
+        if (missing(text)) {
+            return null;
+        }
+
+        String cleaned = text
+                .replaceAll("[\\[\\]{}()\"'`.,:;!?/\\\\|<>]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        for (String token : cleaned.split(" ")) {
+            String candidate = token.trim();
+
+            if (candidate.length() < 2 || candidate.length() > 8) {
+                continue;
+            }
+
+            if (isGenericPuzzleAnswer(compact(candidate))) {
+                continue;
+            }
+
+            if (candidate.chars().noneMatch(ch -> ch >= 0xAC00 && ch <= 0xD7A3)
+                    && !candidate.matches("\\d+")) {
+                continue;
+            }
+
+            return candidate;
+        }
+
+        return null;
+    }
+
+    private boolean textContains(String text, String target) {
+        if (missing(text) || missing(target)) {
+            return false;
+        }
+
+        String compactText = compact(text);
+        String compactTarget = compact(target);
+
+        return !compactTarget.isBlank() && compactText.contains(compactTarget);
+    }
+
+    private List<String> colorCodeLabels(String answer, String basis) {
+        return uiOptionLabels(answer, basis, 5, "색상카드");
+    }
+
+    private List<String> uiOptionLabels(String answer, String basis, int count, String prefix) {
+        List<String> values = new ArrayList<>();
+
+        String safeAnswer = safeUiSource(answer, null);
+        String safeBasis = safeUiSource(basis, null);
+
+        if (!missing(safeAnswer)) {
+            values.add(safeAnswer);
+        }
+
+        if (!missing(safeBasis) && values.stream().noneMatch(value -> same(value, safeBasis))) {
+            values.add(safeBasis);
+        }
+
+        int index = 1;
+        while (values.size() < count) {
+            values.add(prefix + "-" + index++);
+        }
+
+        return values.stream()
+                .filter(value -> !missing(value))
+                .distinct()
+                .limit(count)
+                .toList();
+    }
+
+    private String safeUiSource(String value, String fallback) {
+        if (missing(value)) {
+            return fallback;
+        }
+
+        String trimmed = value.trim();
+
+        if (containsCompact(trimmed, "검수필요")
+                || containsCompact(trimmed, "review-required")
+                || isGenericPuzzleAnswer(compact(trimmed))) {
+            return fallback;
+        }
+
+        if (trimmed.length() > 8) {
+            return trimmed.substring(0, 8);
+        }
+
+        return trimmed;
     }
 }

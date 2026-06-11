@@ -217,9 +217,9 @@ public class CommunitySchemaMigration implements ApplicationRunner {
         jdbcTemplate.update("""
                 insert ignore into challenges (title, description, target_type, target_count, status)
                 values
-                ('첫 사건 클리어', '아무 사건파일이나 1개 클리어하면 완료됩니다.', 'CLEAR_COUNT', 1, 'ACTIVE'),
-                ('현장 요원 루키', '서로 다른 사건파일 3개를 클리어하면 완료됩니다.', 'CLEAR_COUNT', 3, 'ACTIVE'),
-                ('작전 베테랑', '사건파일 5개 클리어를 목표로 하는 장기 챌린지입니다.', 'CLEAR_COUNT', 5, 'ACTIVE')
+                ('첫 사건 클리어', '아무 미션 메모이나 1개 클리어하면 완료됩니다.', 'CLEAR_COUNT', 1, 'ACTIVE'),
+                ('현장 요원 루키', '서로 다른 미션 메모 3개를 클리어하면 완료됩니다.', 'CLEAR_COUNT', 3, 'ACTIVE'),
+                ('작전 베테랑', '미션 메모 5개 클리어를 목표로 하는 장기 챌린지입니다.', 'CLEAR_COUNT', 5, 'ACTIVE')
                 """);
     }
 

@@ -88,7 +88,7 @@
 
       <div class="actions">
         <button type="button" @click="router.push({ name: 'Coaching' })">코칭 보기</button>
-        <button type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 보기</button>
+        <button type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">미션 파일 보기</button>
         <button type="button" class="ghost" @click="router.push({ name: 'EpisodeList' })">사건 목록으로</button>
       </div>
     </section>

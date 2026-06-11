@@ -6,7 +6,7 @@
       <p class="synopsis">{{ episode.fictionSynopsis }}</p>
       <div class="mission-rule">
         <strong>조사 방식</strong>
-        <span>먼저 사건 개요와 사건파일을 확인한 뒤 현장 지도로 이동합니다. 지도는 단서 수집 단계이며, 정답과 최종 장소는 사건파일의 자료를 대조해 추리해야 합니다.</span>
+        <span>먼저 사건 개요와 미션 파일을 확인한 뒤 현장 지도로 이동합니다. 지도는 단서 수집 단계이며, 정답과 최종 장소는 미션 파일의 자료를 대조해 추리해야 합니다.</span>
       </div>
       <div class="mission-rule">
         <strong>최종 질문</strong>
@@ -14,7 +14,7 @@
       </div>
       <div class="actions">
         <button type="button" class="ghost" @click="router.push({ name: 'EpisodeList' })">사건 목록</button>
-        <button type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 먼저 열기</button>
+        <button type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">미션 파일 먼저 열기</button>
       </div>
     </section>
     <section v-else class="briefing-card">브리핑을 불러오는 중입니다.</section>
