@@ -41,14 +41,20 @@
         <article><strong>{{ report.unlockedEvidenceIds?.length || 0 }}</strong><span>해금 자료</span></article>
       </div>
 
-      <article class="paper-block">
-        <h2>진실 파일</h2>
-        <p>{{ report.finalTruthSummary || '진실 요약이 아직 등록되지 않았습니다.' }}</p>
+      <article class="paper-block fact-block">
+        <p class="mode-label">FACT MODE</p>
+        <h2>1. 모티브 공개</h2>
+        <p>{{ motifDisclosure }}</p>
       </article>
 
-      <article class="paper-block">
-        <h2>실제 역사 해설</h2>
-        <p>{{ report.actualHistorySummary || '역사 해설이 아직 등록되지 않았습니다.' }}</p>
+      <article class="paper-block fact-block">
+        <h2>2. 실제 사건 해설</h2>
+        <p v-for="paragraph in historyExplanationParagraphs" :key="paragraph">{{ paragraph }}</p>
+      </article>
+
+      <article class="paper-block fact-block">
+        <h2>3. 픽션과 역사의 매칭 (디브리핑)</h2>
+        <p v-for="line in fictionHistoryMappingLines" :key="line">{{ line }}</p>
       </article>
 
       <article class="paper-block">
@@ -90,7 +96,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { episodeApi } from '@/api/episodeApi';
 import EpisodeReviewPanel from '@/components/episode/EpisodeReviewPanel.vue';
@@ -101,6 +107,27 @@ const episodeId = route.params.episodeId;
 const report = ref(null);
 const loading = ref(true);
 const errorMessage = ref('');
+
+const motifSection = computed(() => sectionText(report.value?.actualHistorySummary, '1. 모티브 공개', '2. 실제 사건 해설'));
+const historySection = computed(() => sectionText(report.value?.actualHistorySummary, '2. 실제 사건 해설'));
+const mappingSection = computed(() => sectionText(report.value?.finalTruthSummary, '3. 픽션과 역사의 매칭 (디브리핑)'));
+const motifDisclosure = computed(() => {
+  if (motifSection.value) return motifSection.value;
+  const finalPlace = report.value?.finalArrivedSpotName || '최종 목적지';
+  return `이 임무는 실제 [${finalPlace}]에서 있었던 [역사적 사건/인물]을 모티브로 제작되었습니다.`;
+});
+const historyExplanationParagraphs = computed(() => {
+  const paragraphs = splitBlocks(historySection.value || report.value?.actualHistorySummary)
+    .filter((paragraph) => !paragraph.includes('이 임무는 실제'));
+  return paragraphs.length ? paragraphs : ['역사 해설이 아직 등록되지 않았습니다.'];
+});
+const fictionHistoryMappingLines = computed(() => {
+  const lines = splitBlocks(mappingSection.value || report.value?.finalTruthSummary)
+    .flatMap((paragraph) => paragraph.split('\n'))
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length ? lines : ['픽션과 실제 역사의 매칭 해설이 아직 등록되지 않았습니다.'];
+});
 
 onMounted(loadReport);
 
@@ -129,6 +156,22 @@ function formatDate(value) {
   if (!value) return '기록 없음';
   return new Date(value).toLocaleString('ko-KR', { hour12: false });
 }
+
+function splitBlocks(value) {
+  return String(value || '')
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+}
+
+function sectionText(value, startTitle, nextTitle) {
+  const text = String(value || '');
+  const start = text.indexOf(startTitle);
+  if (start < 0) return '';
+  const bodyStart = start + startTitle.length;
+  const bodyEnd = nextTitle ? text.indexOf(nextTitle, bodyStart) : -1;
+  return text.slice(bodyStart, bodyEnd >= 0 ? bodyEnd : undefined).trim();
+}
 </script>
 
 <style scoped>
@@ -151,6 +194,8 @@ h1 { margin: 8px 0; font-size: clamp(1.8rem, 8vw, 3.4rem); line-height: 1.05; }
 .paper-block h2 { margin: 0 0 10px; }
 .paper-block p { margin: 6px 0; line-height: 1.75; }
 .paper-block.subdued { background: rgba(250, 247, 239, .72); }
+.fact-block { border-color: rgba(146, 64, 14, .26); background: rgba(255, 251, 235, .76); }
+.mode-label { margin: 0 0 6px; color: #9a3412; font-size: .72rem; font-weight: 1000; letter-spacing: .14em; }
 .clue-section { margin-top: 12px; }
 .clue-section h3 { margin: 0 0 7px; font-size: .92rem; color: #78350f; }
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }

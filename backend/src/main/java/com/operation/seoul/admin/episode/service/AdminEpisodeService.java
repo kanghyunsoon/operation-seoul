@@ -583,21 +583,38 @@ public class AdminEpisodeService {
                     .groundRule("\uADDC\uCE59 \uAE30\uBC18 \uAD00\uB9AC\uC790 \uCD08\uC548\uC785\uB2C8\uB2E4. \uACF5\uAC1C \uC804 \uD604\uC7A5 \uC8FC\uC7A5\uC744 \uD655\uC778\uD558\uC138\uC694.")
                     .build());
         }
-        String finalObject = draftFinalObject(request, places);
+        DraftObjective objective = draftObjective(request, places);
         AiEpisodeDraftResponse.EpisodeDraft draft = AiEpisodeDraftResponse.EpisodeDraft.builder()
                 .episodeTitle("EP.NEW " + blank(request.getTheme(), "\uC228\uACA8\uC9C4 \uAE30\uB85D") + " \uC0AC\uAC74")
                 .subtitle(draftSubtitle(request, places))
                 .genre(blank(request.getTheme(), "\uC57C\uC678 \uC0AC\uAC74\uD30C\uC77C \uBBF8\uC2A4\uD130\uB9AC"))
                 .era(draftEra(request, places))
-                .fictionSynopsis(draftFictionSynopsis(request, places))
-                .finalAnswerType("EVIDENCE")
-                .finalAnswer(finalObject)
-                .finalAnswerAliases(List.of(finalObject.replace(" ", ""), draftFinalAlias(request, places)))
-                .finalQuestion(draftFinalQuestion(request, places))
-                .finalTruthSummary("\uBAA8\uC740 \uB2E8\uC11C\uB294 \uC0AC\uAC74 \uC18D \uAC00\uC0C1 \uC99D\uAC70\uBB3C\uC778 [" + finalObject + "]\uB97C \uAC00\uB9AC\uD0B5\uB2C8\uB2E4.")
-                .actualHistorySummary("\uC2E4\uC81C \uC5ED\uC0AC \uBA54\uBAA8\uB294 \uACF5\uAC1C \uC804 \uAD00\uB9AC\uC790\uAC00 \uAC80\uD1A0\uD574\uC57C \uD558\uBA70, \uC2E4\uC874 \uC778\uBB3C\uC744 \uBC94\uC778\uC73C\uB85C \uB178\uCD9C\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.")
-                .deductionSecretFacts(List.of("\uCD5C\uC885 \uC815\uB2F5\uC740 \uC2E4\uC81C \uC7A5\uC18C\uB098 \uC2E4\uC874 \uC778\uBB3C\uC774 \uC544\uB2D9\uB2C8\uB2E4.", "\uC815\uB2F5\uC740 \uCD5C\uC18C \uB124 \uAC1C\uC758 \uB2E8\uC11C \uCE74\uB4DC\uB97C \uC870\uD569\uD574\uC57C \uD655\uC815\uB429\uB2C8\uB2E4."))
-                .deductionForbiddenReveals(List.of(finalObject, "actualFinalPlace", "realPersonAsCulprit"))
+                .fictionSynopsis(objective.synopsis())
+                .selectedGenre(objective.genre())
+                .finalAnswerKeywords(objective.keywords())
+                .finalAnswerType(objective.answerType())
+                .finalAnswer(objective.finalAnswer())
+                .finalAnswerAliases(withKeywordContract(objective.aliases(), objective.keywords()))
+                .finalQuestion(objective.finalQuestion())
+                .finalTruthSummary(String.join("\n",
+                        "3. 픽션과 역사의 매칭 (디브리핑)",
+                        "스토리 속 [" + objective.finalAnswer() + "] -> 실제 역사 속 [관리자 검수 필요 역사 자료]: 시놉시스가 요구한 해결 조건 전체를 하나의 최종 진실로 묶은 장치입니다.",
+                        "스토리 속 [현장 지령] -> 실제 역사 속 [최종 목적지의 역사적 맥락]: 장소에 남은 사건의 흔적을 동선과 퍼즐로 바꾼 장치입니다.",
+                        "스토리 속 [암호 카드] -> 실제 역사 속 [기록과 증언]: 플레이어가 단서를 대조하도록 실제 자료 해석 과정을 은유했습니다.",
+                        "스토리 속 [조력자/용의자 진술] -> 실제 역사 속 [관련 인물과 이해관계]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 차용했습니다."
+                ))
+                .actualHistorySummary("""
+                        1. 모티브 공개
+                        이 임무는 실제 [관리자 검수 필요 최종 목적지]에서 있었던 [관리자 검수 필요 역사적 사건/인물]을 모티브로 제작되었습니다.
+
+                        2. 실제 사건 해설
+                        이 초안은 규칙 기반 안전 fallback입니다. 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 최종 목적지의 실제 역사적 배경, 사건의 전말, 장소의 역사적 의의를 상세히 보강해야 합니다.
+                        """.trim())
+                .deductionSecretFacts(List.of(
+                        "최종 정답은 시놉시스가 요구한 해결 조건을 모두 포함해야 한다.",
+                        "일부 단서 물건이나 문서 위치만 맞히는 답은 최종 정답이 아니다.",
+                        "정답은 실제 장소명이나 실존 인물명이 아니라 픽션 사건 안의 완결된 진실이다."))
+                .deductionForbiddenReveals(List.of(objective.finalAnswer(), "actualFinalPlace", "realPersonAsCulprit"))
                 .maxDeductionQuestions(20)
                 .missions(missions)
                 .suspects(defaultDraftSuspects())
@@ -640,6 +657,77 @@ public class AdminEpisodeService {
 
 
 
+    private DraftObjective draftObjective(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        if (request.getFinalAnswerKeywords() != null && !request.getFinalAnswerKeywords().isEmpty()) {
+            List<String> keywords = request.getFinalAnswerKeywords().stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
+            String genre = blank(request.getSelectedGenre(), "역사 미스터리");
+            String finalAnswer = genre + "의 최종 진실은 " + String.join(", ", keywords) + "입니다";
+            return new DraftObjective(
+                    genre,
+                    keywords.size() > 1 ? "HIDDEN_TRUTH" : "EVIDENCE",
+                    finalAnswer,
+                    keywords,
+                    List.of(finalAnswer.replace(" ", "")),
+                    genre + "의 최종 진실을 이루는 핵심 요소들을 종합하면 어떤 결론인가?",
+                    "선택한 장소의 역사·문화 단서는 " + genre + " 구조로 재배열됩니다. 플레이어는 사건파일과 현장 단서를 대조해 가려진 핵심 요소들을 모두 추론해야 합니다."
+            );
+        }
+        String joined = routeText(request, places);
+        String area = blank(request.getArea(), "selected area");
+        String first = places.isEmpty() ? "\uCCAB \uC870\uC0AC \uC9C0\uC810" : blank(places.get(0).getName(), "\uCCAB \uC870\uC0AC \uC9C0\uC810");
+        String anchor = places.isEmpty() ? "\uB9C8\uC9C0\uB9C9 \uC870\uC0AC \uC9C0\uC810" : blank(places.get(places.size() - 1).getName(), "\uB9C8\uC9C0\uB9C9 \uC870\uC0AC \uC9C0\uC810");
+        String routeSignal = routeSignal(places);
+        if (requiresIdentityAndHideout(joined)) {
+            String identity = containsCompact(joined, "royal") || containsCompact(joined, "황실") || containsCompact(joined, "대한제국")
+                    ? "광영회의 위장 연락책"
+                    : "검은 그림자의 내부 전달자";
+            String hideout = containsCompact(joined, "archive") || containsCompact(joined, "기록") || containsCompact(joined, "문서")
+                    ? "봉인된 기록고"
+                    : "닫힌 골목 은신처";
+            String finalAnswer = "검은 그림자는 " + identity + "이며 은신처는 " + hideout + "이다";
+            return new DraftObjective(
+                    "역사 음모 추적",
+                    "HIDDEN_TRUTH",
+                    finalAnswer,
+                    List.of(identity, hideout),
+                    List.of(finalAnswer.replace(" ", ""), identity + "와 " + hideout),
+                    "검은 그림자의 정체와 그들이 숨어든 은신처는 무엇인가?",
+                    area + "의 " + first + "에서 도난 기록이 발견됩니다. 설계도와 장부는 단서일 뿐이며, " + routeSignal + " 표식은 " + anchor + "로 이어집니다. 플레이어는 사건자료를 대조해 검은 그림자의 정체를 밝히고 그들이 숨어든 은신처를 찾아야 합니다."
+            );
+        }
+        String object = draftFinalObject(request, places);
+        return new DraftObjective(
+                "역사 미스터리",
+                "EVIDENCE",
+                object,
+                List.of(object),
+                List.of(object.replace(" ", ""), draftFinalAlias(request, places)),
+                draftFinalQuestion(request, places),
+                draftFictionSynopsis(request, places)
+        );
+    }
+
+    private boolean requiresIdentityAndHideout(String text) {
+        boolean identity = containsCompact(text, "정체")
+                || containsCompact(text, "검은그림자")
+                || containsCompact(text, "blackshadow")
+                || containsCompact(text, "비밀조직")
+                || containsCompact(text, "조직");
+        boolean hideout = containsCompact(text, "은신처")
+                || containsCompact(text, "숨어든")
+                || containsCompact(text, "hideout")
+                || containsCompact(text, "거점")
+                || containsCompact(text, "아지트");
+        boolean royalMacGuffin = containsCompact(text, "황실비밀자금")
+                || containsCompact(text, "비밀자금")
+                || containsCompact(text, "설계도");
+        return (identity && hideout) || (royalMacGuffin && (identity || hideout));
+    }
+
     private String draftFictionSynopsis(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
         String area = blank(request.getArea(), "selected area");
         String first = places.isEmpty() ? "\uCCAB \uC870\uC0AC \uC9C0\uC810" : blank(places.get(0).getName(), "\uCCAB \uC870\uC0AC \uC9C0\uC810");
@@ -676,6 +764,16 @@ public class AdminEpisodeService {
         String object = draftFinalObject(request, places);
         String[] tokens = object.split("\\s+");
         return tokens.length == 0 ? object : tokens[tokens.length - 1];
+    }
+
+    private record DraftObjective(
+            String genre,
+            String answerType,
+            String finalAnswer,
+            List<String> keywords,
+            List<String> aliases,
+            String finalQuestion,
+            String synopsis) {
     }
 
     private String routeSignal(List<AiEpisodeDraftRequest.PlaceInput> places) {
@@ -750,7 +848,7 @@ public class AdminEpisodeService {
         episode.setFictionSynopsis(draft.getFictionSynopsis());
         episode.setFinalAnswerType(blank(draft.getFinalAnswerType(), "EVIDENCE"));
         episode.setFinalAnswer(blank(draft.getFinalAnswer(), "검수필요"));
-        episode.setFinalAnswerAliases(join(draft.getFinalAnswerAliases()));
+        episode.setFinalAnswerAliases(join(withKeywordContract(draft.getFinalAnswerAliases(), draft.getFinalAnswerKeywords())));
         episode.setFinalQuestion(blank(draft.getFinalQuestion(), "Review required."));
         episode.setFinalTruthSummary(draft.getFinalTruthSummary());
         episode.setActualHistorySummary(draft.getActualHistorySummary());
@@ -1958,6 +2056,25 @@ public class AdminEpisodeService {
             return null;
         }
         return values.stream().filter(value -> value != null && !value.isBlank()).map(String::trim).collect(Collectors.joining(","));
+    }
+
+    private List<String> withKeywordContract(List<String> aliases, List<String> keywords) {
+        List<String> values = new ArrayList<>();
+        if (aliases != null) {
+            aliases.stream()
+                    .filter(value -> value != null && !value.isBlank() && !value.startsWith("KW:"))
+                    .map(String::trim)
+                    .forEach(values::add);
+        }
+        List<String> required = keywords == null ? List.of() : keywords.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (!required.isEmpty()) {
+            values.add("KW:" + String.join("|", required));
+        }
+        return values;
     }
 
     private String joinLines(List<String> values) {

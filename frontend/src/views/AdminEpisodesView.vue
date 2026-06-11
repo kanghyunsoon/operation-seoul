@@ -492,6 +492,15 @@
               {{ caseBuilderNext.button }}
             </button>
           </section>
+          <section v-if="draftPlan" class="draft-feedback-panel keyword-plan-panel">
+            <strong>AI 장르/최종 정답 키워드 계획</strong>
+            <p>장르: {{ draftPlan.selectedGenre }}</p>
+            <div class="chips">
+              <span v-for="item in draftPlan.finalAnswerKeywords || []" :key="`${item.label}-${item.keyword}`">{{ item.label }}: {{ item.keyword }}</span>
+            </div>
+            <p v-if="draftPlan.finalQuestionGuide">최종 질문 방향: {{ draftPlan.finalQuestionGuide }}</p>
+            <p v-if="draftPlan.rationale">{{ draftPlan.rationale }}</p>
+          </section>
           <div v-if="draftValidation || draftResult?.validationWarnings?.length || draftResult?.draft" class="draft-feedback-panel" :class="{ invalid: draftValidation && !draftValidation.valid }">
             <strong>{{ draftValidation ? (draftValidation.valid ? '검증 통과' : '검증 이슈 있음') : '초안 준비 완료' }}</strong>
             <p v-if="draftValidation">{{ draftValidationSummary }}</p>
@@ -701,9 +710,9 @@
                 <label>질문 제한<input v-model.number="draftResult.draft.maxDeductionQuestions" type="number" min="1" /></label>
                 <label class="wide">정답 alias, 쉼표 구분<input :value="listToCsv(draftResult.draft.finalAnswerAliases)" type="text" @input="draftResult.draft.finalAnswerAliases = csvToList($event.target.value)" /></label>
                 <label class="wide">최종 질문<input v-model.trim="draftResult.draft.finalQuestion" type="text" /></label>
-                <label class="wide">픽션 시놉시스<textarea v-model="draftResult.draft.fictionSynopsis" rows="3"></textarea></label>
-                <label class="wide">진실 파일<textarea v-model="draftResult.draft.finalTruthSummary" rows="3"></textarea></label>
-                <label class="wide">실제 역사 해설<textarea v-model="draftResult.draft.actualHistorySummary" rows="3"></textarea></label>
+                <label class="wide">Fiction Mode 임무 브리핑<textarea v-model="draftResult.draft.fictionSynopsis" rows="3"></textarea></label>
+                <label class="wide">Fact Mode 3. 픽션과 역사의 매칭<textarea v-model="draftResult.draft.finalTruthSummary" rows="4"></textarea></label>
+                <label class="wide">Fact Mode 1~2. 모티브 공개/실제 사건 해설<textarea v-model="draftResult.draft.actualHistorySummary" rows="5"></textarea></label>
                 <label class="wide">추리 secret facts, 줄바꿈 구분<textarea :value="listToLines(draftResult.draft.deductionSecretFacts)" rows="3" @input="draftResult.draft.deductionSecretFacts = linesToList($event.target.value)"></textarea></label>
                 <label class="wide">정답 노출 금지어, 줄바꿈 구분<textarea :value="listToLines(draftResult.draft.deductionForbiddenReveals)" rows="3" @input="draftResult.draft.deductionForbiddenReveals = linesToList($event.target.value)"></textarea></label>
               </div>
@@ -933,6 +942,7 @@ const nearbyLoaded = ref(false);
 const nearbyRadius = ref(1500);
 const selectedCandidates = ref([]);
 const siteDataEnriched = ref(false);
+const draftPlan = ref(null);
 const manualCandidate = ref({
   title: '',
   address: '',
@@ -1050,17 +1060,26 @@ const caseBuilderNext = computed(() => {
         disabled: false
       };
     }
+    if (!draftPlan.value) {
+      return {
+        title: '6단계: AI 장르와 최종 정답 키워드를 먼저 확정하세요.',
+        description: '선택한 TourAPI 장소와 역사·문화 근거에 맞춰 장르와 정답 필수 키워드를 먼저 제안받습니다.',
+        button: '장르/정답 키워드 생성',
+        action: 'plan',
+        disabled: false
+      };
+    }
     return {
-      title: '6단계: Gemini 초안을 생성하세요.',
-      description: '보강된 현장근거를 바탕으로 사건 개요, 미션, 용의자, 증거 카드를 생성합니다. 실패하면 안전 초안으로 대체할 수 있습니다.',
-      button: 'Gemini 전체 초안 생성',
+      title: '7단계: 확정한 정답 키워드로 Gemini 초안을 생성하세요.',
+      description: '관리자가 확인한 장르와 정답 키워드 전체가 포함되도록 사건 개요, 미션, 용의자, 증거 카드를 생성합니다.',
+      button: '키워드 확정 후 전체 초안 생성',
       action: 'gemini',
       disabled: false
     };
   }
   if (!draftValidation.value) {
     return {
-      title: '7단계: 초안을 검증하세요.',
+      title: '8단계: 초안을 검증하세요.',
       description: '검증 이슈가 있어도 DRAFT 저장은 가능하지만, PUBLISHED 전환 전에는 공개 준비도 점검을 통과해야 합니다.',
       button: '기본 검증 실행',
       action: 'validate',
@@ -1068,7 +1087,7 @@ const caseBuilderNext = computed(() => {
     };
   }
   return {
-    title: '8단계: DRAFT로 저장하세요.',
+    title: '9단계: DRAFT로 저장하세요.',
     description: '저장 후 상단 상세 패널에서 공개 준비도 점검, 부족 항목 수정, PUBLISHED 전환을 진행합니다.',
     button: 'DRAFT 저장',
     action: 'save',
@@ -1654,6 +1673,10 @@ async function runNextCaseBuilderAction() {
     await generateGeminiDraft();
     return;
   }
+  if (action === 'plan') {
+    await generateAnswerPlan();
+    return;
+  }
   if (action === 'validate') {
     await validateDraft(false);
     return;
@@ -1683,6 +1706,10 @@ async function generateDraft() {
 
 async function generateGeminiDraft() {
   if (!prepareDraftInputFromSelection()) return;
+  if (!draftPlan.value) {
+    setMessage('먼저 AI 장르/최종 정답 키워드를 생성하고 확인하세요.', 'error');
+    return;
+  }
   startDraftProgress('gemini', 'Gemini가 사건 개요, 퍼즐, 단서, 용의자, 증거 카드 초안을 작성하고 있습니다. 최대 180초까지 기다립니다.');
   try {
     let payload = JSON.parse(draftInput.value);
@@ -1693,6 +1720,8 @@ async function generateGeminiDraft() {
       draftInput.value = JSON.stringify(payload, null, 2);
       siteDataEnriched.value = true;
     }
+    payload = applyDraftPlanToPayload(payload);
+    draftInput.value = JSON.stringify(payload, null, 2);
     draftProgressStep.value = 'request';
     draftResult.value = await adminEpisodeApi.createGeminiDraft(payload);
     draftProgressStep.value = 'hydrate';
@@ -1815,26 +1844,37 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
   draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
   draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
   const motif = inferCaseMotif(draft);
-  if (!draft.finalAnswer || draft.finalAnswer === '검수필요' || draft.finalAnswer === '관리자검수') {
-    draft.finalAnswerType = draft.finalAnswerType || 'EVIDENCE';
-    draft.finalAnswer = motif.object;
-    draft.finalAnswerAliases = Array.from(new Set([...(draft.finalAnswerAliases || []), motif.object.replaceAll(' ', '')]));
+  const objective = inferFinalObjective(draft, motif);
+  const objectiveMismatch = hasObjectiveMismatch(draft, objective);
+  if (!draft.finalAnswer || draft.finalAnswer === '검수필요' || draft.finalAnswer === '관리자검수' || objectiveMismatch) {
+    draft.finalAnswerType = objective.answerType;
+    draft.finalAnswer = objective.finalAnswer;
+    draft.finalAnswerAliases = Array.from(new Set([...(draft.finalAnswerAliases || []), ...objective.aliases]));
   }
-  if (!draft.finalQuestion || isWeakFinalQuestion(draft.finalQuestion)) {
-    draft.finalQuestion = finalQuestionForMotif(motif);
+  if (!draft.finalQuestion || isWeakFinalQuestion(draft.finalQuestion) || objectiveMismatch) {
+    draft.finalQuestion = objective.finalQuestion;
   }
   if (!draft.fictionSynopsis || isWeakText(draft.fictionSynopsis) || isRepeatedDefaultSynopsis(draft.fictionSynopsis)) {
-    draft.fictionSynopsis = synopsisForMotif(draft, motif);
+    draft.fictionSynopsis = objective.synopsis || synopsisForMotif(draft, motif);
   }
+  maskDraftKeywordLeaks(draft, draft.finalAnswerKeywords || []);
   if (!draft.finalTruthSummary || isWeakText(draft.finalTruthSummary)) {
-    draft.finalTruthSummary = `${motif.object}은 사건의 결말을 뒤집는 핵심 증거다. 수집한 정답 힌트는 물건의 형태를, 목적지 힌트는 마지막으로 확인해야 할 장소를 좁히도록 설계되어 있다.`;
+    draft.finalTruthSummary = `3. 픽션과 역사의 매칭 (디브리핑)
+스토리 속 [${motif.object}] -> 실제 역사 속 [관리자 검수 필요 역사 자료]: 최종 단서가 하나의 역사적 기억으로 수렴하도록 만든 상징 장치입니다.
+스토리 속 [현장 지령] -> 실제 역사 속 [최종 목적지의 역사적 맥락]: 장소에 남은 사건의 흔적을 동선과 퍼즐로 바꾼 장치입니다.
+스토리 속 [암호 카드] -> 실제 역사 속 [기록과 증언]: 플레이어가 단서를 대조하도록 실제 자료 해석 과정을 은유했습니다.
+스토리 속 [조력자/용의자 진술] -> 실제 역사 속 [관련 인물과 이해관계]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 차용했습니다.`;
   }
   if (!draft.actualHistorySummary || isWeakText(draft.actualHistorySummary)) {
-    draft.actualHistorySummary = '이 에피소드는 실제 장소의 역사·문화적 분위기와 주변 상권 동선을 바탕으로 만든 픽션 사건입니다. 운영 공개 전 각 장소의 현장 요소와 역사 설명은 관리자가 직접 검수해야 합니다.';
+    draft.actualHistorySummary = `1. 모티브 공개
+이 임무는 실제 [관리자 검수 필요 최종 목적지]에서 있었던 [관리자 검수 필요 역사적 사건/인물]을 모티브로 제작되었습니다.
+
+2. 실제 사건 해설
+이 에피소드는 실제 장소의 역사·문화적 분위기와 주변 동선을 상징적인 요원 임무로 각색한 픽션 사건입니다. 운영 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 실제 사건의 배경, 전말, 장소의 역사적 의의를 상세히 보강해야 합니다.`;
   }
   draft.deductionSecretFacts = Array.isArray(draft.deductionSecretFacts) && draft.deductionSecretFacts.length
     ? draft.deductionSecretFacts
-    : [`최종 정답은 ${motif.object}이다.`, `${motif.object}은 장소명이 아니라 픽션 사건 안의 증거물이다.`, '목적지 힌트는 실제 최종 장소명을 직접 말하지 않고 분위기와 동선만 좁힌다.'];
+    : [`최종 정답은 ${objective.finalAnswer}이다.`, '최종 정답은 시놉시스가 요구한 해결 조건을 모두 포함해야 한다.', '일부 단서 물건이나 문서 위치만 맞히는 답은 최종 정답이 아니다.'];
   draft.deductionForbiddenReveals = Array.from(new Set([...(draft.deductionForbiddenReveals || []), draft.finalAnswer, ...(draft.finalAnswerAliases || [])].filter(Boolean)));
   const finalIndex = draft.missions.findIndex((mission) => mission.finalPlace || mission.markerType === 'FINAL');
   draft.missions.forEach((mission, index) => {
@@ -2010,6 +2050,110 @@ function inferCaseMotif(draft) {
 
 function finalQuestionForMotif(motif) {
   return `${motif.setting}에서 모은 단서가 공통으로 가리키는 ${motif.object}의 의미는 무엇인가?`;
+}
+
+function inferFinalObjective(draft, motif) {
+  const source = [
+    draft?.fictionSynopsis,
+    draft?.finalQuestion,
+    draft?.episodeTitle,
+    draft?.subtitle,
+    ...(Array.isArray(draft?.missions) ? draft.missions.flatMap((mission) => [mission.storyText, mission.rewardClue, mission.groundRule]) : [])
+  ].join(' ');
+  if (requiresIdentityAndHideout(source)) {
+    const identity = source.includes('황실') || source.includes('대한제국') || source.includes('광영회')
+      ? '광영회의 위장 연락책'
+      : '검은 그림자의 내부 전달자';
+    const hideout = source.includes('기록') || source.includes('문서') || source.includes('설계도')
+      ? '봉인된 기록고'
+      : '닫힌 골목 은신처';
+    const finalAnswer = `검은 그림자는 ${identity}이며 은신처는 ${hideout}이다`;
+    return {
+      answerType: 'HIDDEN_TRUTH',
+      finalAnswer,
+      aliases: [finalAnswer.replaceAll(' ', ''), `${identity}와 ${hideout}`],
+      finalQuestion: '검은 그림자의 정체와 그들이 숨어든 은신처를 단서로 종합하면 어떤 진실인가?',
+      synopsis: synopsisForIdentityAndHideout(draft, motif)
+    };
+  }
+  return {
+    answerType: draft?.finalAnswerType || 'EVIDENCE',
+    finalAnswer: motif.object,
+    aliases: [motif.object.replaceAll(' ', '')],
+    finalQuestion: finalQuestionForMotif(motif),
+    synopsis: synopsisForMotif(draft, motif)
+  };
+}
+
+function requiresIdentityAndHideout(text) {
+  const compact = String(text || '').replaceAll(/\s+/g, '').toLowerCase();
+  const identity = ['정체', '검은그림자', 'blackshadow', '비밀조직', '조직', '배후'].some((word) => compact.includes(word));
+  const hideout = ['은신처', '숨어든', '숨은곳', 'hideout', '거점', '아지트'].some((word) => compact.includes(word));
+  const macGuffin = ['황실비밀자금', '비밀자금', '설계도', '장부', '밀서'].some((word) => compact.includes(word));
+  return (identity && hideout) || (macGuffin && (identity || hideout));
+}
+
+function hasObjectiveMismatch(draft, objective) {
+  const source = String(draft?.fictionSynopsis || '');
+  const finalQuestion = String(draft?.finalQuestion || '');
+  const finalAnswer = String(draft?.finalAnswer || '');
+  if (requiresIdentityAndHideout(source)) {
+    return !containsAny(finalQuestion, ['정체', '검은 그림자', '검은그림자'])
+      || !containsAny(finalQuestion, ['은신처', '숨어든', '숨은 곳', '숨은곳', '거점', '아지트'])
+      || !containsAny(finalAnswer, ['검은 그림자', '검은그림자', '조직', '세력', '연락책', '전달자', '배후'])
+      || !containsAny(finalAnswer, ['은신처', '거점', '아지트', '기록고', '문서고']);
+  }
+  return false;
+}
+
+function containsAny(value, words) {
+  const text = String(value || '').replaceAll(/\s+/g, '').toLowerCase();
+  return words.some((word) => text.includes(String(word).replaceAll(/\s+/g, '').toLowerCase()));
+}
+
+function maskDraftKeywordLeaks(draft, keywords) {
+  const values = Array.isArray(keywords) ? keywords.filter(Boolean) : [];
+  if (!values.length) return;
+  if (containsKeywordLeak(draft.finalQuestion, values)) {
+    const genre = draft.selectedGenre || draft.genre || '이 사건';
+    draft.finalQuestion = `${genre}의 최종 진실을 이루는 핵심 요소들을 종합하면 어떤 결론인가?`;
+  }
+  draft.episodeTitle = maskKeywords(draft.episodeTitle, values);
+  draft.subtitle = maskKeywords(draft.subtitle, values);
+  draft.fictionSynopsis = maskKeywords(draft.fictionSynopsis, values);
+  draft.finalQuestion = maskKeywords(draft.finalQuestion, values);
+}
+
+function maskKeywords(text, keywords) {
+  let result = String(text || '');
+  keywords.forEach((keyword) => {
+    const clean = String(keyword || '').trim();
+    if (!clean) return;
+    const mask = compactText(clean).length <= 2 ? '가려진 단서' : `가려진 ${compactText(clean).length}자 단서`;
+    result = result.split(clean).join(mask);
+    result = result.split(compactText(clean)).join(mask);
+  });
+  return result;
+}
+
+function containsKeywordLeak(text, keywords) {
+  const rawText = String(text || '');
+  const compact = compactText(rawText);
+  return keywords.some((keyword) => {
+    const clean = String(keyword || '').trim();
+    return clean && (rawText.includes(clean) || compact.includes(compactText(clean)));
+  });
+}
+
+function compactText(value) {
+  return String(value || '').replaceAll(/\s+/g, '').toLowerCase();
+}
+
+function synopsisForIdentityAndHideout(draft, motif) {
+  const missions = Array.isArray(draft?.missions) ? draft.missions : [];
+  const first = missions[0]?.placeName || motif.setting;
+  const last = missions[missions.length - 1]?.placeName || '마지막 조사 지점';
+  return `${first}에서 도난 기록이 발견된다. 설계도와 장부는 단서일 뿐이며, 사건자료의 표식은 ${last}까지 이어진다. 플레이어는 현장 단서와 사건파일을 대조해 검은 그림자의 역할과 숨어든 장소의 특징을 유추해야 한다.`;
 }
 
 function synopsisForMotif(draft, motif) {
@@ -2393,6 +2537,42 @@ async function copyImagePrompt(prompt) {
   } catch {
     setMessage('클립보드 복사에 실패했습니다. 프롬프트를 직접 선택해 복사해 주세요.', 'error');
   }
+}
+
+async function generateAnswerPlan() {
+  if (!prepareDraftInputFromSelection()) return;
+  startDraftProgress('plan', 'Gemini가 선택 장소에 맞는 에피소드 장르와 최종 정답 키워드를 설계하고 있습니다.');
+  try {
+    let payload = JSON.parse(draftInput.value);
+    if (!siteDataEnriched.value) {
+      draftProgressStep.value = 'request';
+      draftStatus.value = '현장 근거를 먼저 자동 보강한 뒤 장르/정답 키워드를 요청합니다.';
+      payload = await adminEpisodeApi.enrichSiteData(payload);
+      draftInput.value = JSON.stringify(payload, null, 2);
+      siteDataEnriched.value = true;
+    }
+    draftProgressStep.value = 'request';
+    draftPlan.value = await adminEpisodeApi.createAnswerPlan(payload);
+    payload = applyDraftPlanToPayload(payload);
+    draftInput.value = JSON.stringify(payload, null, 2);
+    draftProgressStep.value = 'hydrate';
+    finishDraftProgress('장르와 최종 정답 키워드 계획이 생성되었습니다. 확인 후 전체 초안을 생성하세요.');
+    setMessage('AI 장르/정답 키워드 계획이 준비되었습니다. 아직 전체 초안은 생성되지 않았습니다.', 'success');
+  } catch (error) {
+    failDraftProgress(error.userMessage || error.message || '장르/정답 키워드 계획을 생성할 수 없습니다.');
+    setMessage(draftError.value, 'error');
+  }
+}
+
+function applyDraftPlanToPayload(payload) {
+  const keywords = (draftPlan.value?.finalAnswerKeywords || [])
+    .map((item) => item.keyword)
+    .filter(Boolean);
+  return {
+    ...payload,
+    selectedGenre: draftPlan.value?.selectedGenre || payload.selectedGenre,
+    finalAnswerKeywords: keywords
+  };
 }
 
 function finalAnswerTypeLabel(type) {
