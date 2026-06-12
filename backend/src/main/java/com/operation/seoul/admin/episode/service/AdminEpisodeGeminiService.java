@@ -3249,6 +3249,16 @@ public class AdminEpisodeGeminiService {
         draft.setFinalQuestion(naturalFinalQuestion(slotLabels));
         draft.setFinalAnswer(naturalFinalAnswer(keywords, slotLabels));
 
+        if (!finalQuestionNamesEverySlot(draft.getFinalQuestion(), slotLabels)) {
+            draft.setFinalQuestion(explicitFinalQuestion(slotLabels));
+            warnings.add("Final question was rewritten to name every approved answer slot.");
+        }
+
+        if (!finalAnswerIncludesEveryKeywordAsSentence(draft.getFinalAnswer(), keywords)) {
+            draft.setFinalAnswer(genericFinalAnswerSentence(keywords, slotLabels));
+            warnings.add("Final answer was rewritten as a natural sentence using every approved keyword.");
+        }
+
         maskFinalAnswerKeywordLeaks(draft, keywords, selectedGenre);
     }
 
@@ -5100,6 +5110,41 @@ public class AdminEpisodeGeminiService {
         return withSubject(keywords.get(0)) + " " + withObject(keywords.get(1)) + " 옮겼고, "
                 + withSubject(String.join(", ", keywords.subList(2, keywords.size())))
                 + " 성립하는 순간 기록을 확인하려 했다.";
+    }
+
+    private boolean finalQuestionNamesEverySlot(String question, List<String> labels) {
+        return naturalQuestionCoversSlots(question, labels == null ? List.of() : labels);
+    }
+
+    private String explicitFinalQuestion(List<String> labels) {
+        List<String> safeLabels = labels == null ? List.of() : labels.stream()
+                .filter(value -> !blank(value))
+                .distinct()
+                .toList();
+        if (safeLabels.isEmpty()) {
+            return "모든 단서를 종합하면 사건의 전말은 무엇인가?";
+        }
+        return String.join(", ", safeLabels) + "을 바탕으로 사건의 전말은 무엇인가?";
+    }
+
+    private boolean finalAnswerIncludesEveryKeywordAsSentence(String answer, List<String> keywords) {
+        if (blank(answer) || keywords == null || keywords.isEmpty()) {
+            return false;
+        }
+        return keywords.stream()
+                .filter(value -> !blank(value))
+                .allMatch(keyword -> textContains(answer, keyword))
+                && answer.codePointCount(0, answer.length()) >= 12;
+    }
+
+    private String genericFinalAnswerSentence(List<String> keywords, List<String> labels) {
+        List<String> safeKeywords = keywords == null ? List.of() : keywords.stream()
+                .filter(value -> !blank(value))
+                .toList();
+        if (safeKeywords.isEmpty()) {
+            return "모든 단서를 종합해 사건의 전말을 확인했다.";
+        }
+        return naturalFinalAnswer(safeKeywords, labels == null ? List.of() : labels);
     }
 
     private String keywordForSlot(List<String> labels, List<String> keywords, String... targets) {
