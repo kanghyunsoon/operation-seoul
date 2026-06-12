@@ -54,19 +54,32 @@ public class AiEpisodeDraftResponse {
         private String address;
         private Double latitude;
         private Double longitude;
+
         private String markerType;
         private String publicMarkerType;
         private String clueRole;
         private Boolean finalPlace;
+
         private String storyText;
         private Double arrivalRadius;
+
         private String puzzleType;
         private String questionText;
         private String answer;
         private String answerFormat;
+
+        // 추가
+        private String puzzleAnswerSource;   // NUMBER, VISIBLE_ELEMENT, KEYWORD, ADMIN_MEMO, FICTION_SAFE
+        private String puzzleAnswerRisk;     // OK, GENERIC, PLACE_NAME_RISK, FINAL_KEYWORD_RISK
+
         private String rewardClue;
+        private String rewardClueSlotId;     // WEAPON, CULPRIT, CASE_LOCATION 등
+        private String rewardClueLabel;      // 범행도구 단서, 범인 단서 등
+        private List<String> supportsKeywordSlots;
+
         private List<String> hints;
         private String groundRule;
+        private String verificationLevel;    // AUTO_OK, ADMIN_REVIEW, FIELD_REQUIRED
     }
 
     @Data

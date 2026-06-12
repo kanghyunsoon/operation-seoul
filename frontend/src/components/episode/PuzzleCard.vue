@@ -59,16 +59,16 @@ const interactionPrompt = computed(() => interaction.value?.prompt || '');
 
 const safeHints = computed(() => {
   const hints = (props.puzzle?.hints || []).filter(Boolean);
-  return hints.length ? hints : ['현장 메모와 사건자료 제목을 먼저 비교하세요.', '장소명 글자 추출이 아니라 단서의 의미를 보세요.', '정답은 사건파일에 붙일 짧은 단어입니다.'];
+  return hints.length ? hints : ['현장 메모와 사건자료 제목을 먼저 비교하세요.', '장소명 글자 추출이 아니라 단서의 의미를 보세요.', '정답은 미션 메모에 붙일 짧은 단어입니다.'];
 });
 const puzzleGuide = computed(() => {
   if (hasInteraction.value) return '화면의 장치를 풀면 정답 제출 버튼이 열립니다. 실제 성공 판정은 서버가 다시 확인합니다.';
   const type = String(props.puzzle?.puzzleType || '').toUpperCase();
   if (type === 'NUMBER_LOCK') return '관리자가 입력한 현장 숫자가 있을 때만 사용하는 숫자 암호입니다.';
   if (type === 'PATTERN') return '그림이 아니라 단서 카드와 장소 분위기의 반복 패턴을 비교하세요.';
-  if (type === 'STORY_COMBINATION') return '현재 장소의 문제 문장과 사건파일의 관련 카드를 대조해 핵심 단어를 입력합니다.';
-  if (type === 'INITIAL_SOUND') return '장소명 초성이 아니라 사건 메모 안의 키워드를 기준으로 풉니다.';
-  return '현장에서 확인 가능한 단서와 사건파일 자료를 연결해 풉니다.';
+  if (type === 'STORY_COMBINATION') return '현재 장소의 문제 문장과 미션 메모의 관련 카드를 대조해 핵심 단어를 입력합니다.';
+  if (type === 'INITIAL_SOUND') return '장소명 초성이 아니라 미션 메모 안의 키워드를 기준으로 풉니다.';
+  return '현장에서 확인 가능한 단서와 미션 메모 자료를 연결해 풉니다.';
 });
 
 watch(() => props.puzzle?.puzzleId, () => {

@@ -1,7 +1,7 @@
 ﻿<template>
   <main class="mypage">
     <header class="hero">
-      <button type="button" class="back" @click="router.push({ name: 'EpisodeList' })">사건파일 목록</button>
+      <button type="button" class="back" @click="router.push({ name: 'EpisodeList' })">미션 파일 목록</button>
       <button type="button" class="back" @click="router.push({ name: 'Recommendations' })">AI 추천</button>
       <button type="button" class="back" @click="router.push({ name: 'Coaching' })">AI 코칭</button>
       <button type="button" class="back" @click="router.push({ name: 'Challenges' })">챌린지</button>
@@ -9,7 +9,7 @@
       <button type="button" class="back" @click="router.push({ name: 'Groups' })">그룹</button>
       <p>MY FILES</p>
       <h1>내 관심 에피소드</h1>
-      <span>나중에 플레이할 사건파일을 모아볼 수 있습니다.</span>
+      <span>나중에 플레이할 미션 파일을 모아볼 수 있습니다.</span>
     </header>
 
     <p v-if="message" class="toast" :class="messageType">{{ message }}</p>

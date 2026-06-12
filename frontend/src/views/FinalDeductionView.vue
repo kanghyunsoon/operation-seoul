@@ -32,7 +32,7 @@
         <p>이 장소에서는 최종 추리를 시작할 수 없습니다. 장소 키워드 미션 진행 상태를 다시 확인해 주세요.</p>
         <div>
           <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">지도로 돌아가기</button>
-          <button type="button" class="secondary" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건파일 확인</button>
+          <button type="button" class="secondary" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">미션 파일 확인</button>
         </div>
       </section>
 
