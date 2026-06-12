@@ -468,7 +468,7 @@
               <button type="button" class="ghost-btn" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'enrich' }" @click="enrichSelectedSiteData">
                 {{ activeAction === 'enrich' ? '현장 근거 보강 중...' : 'RAG 현장근거 보강' }}
               </button>
-              <button type="button" class="primary-action" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'gemini' }" @click="generateGeminiDraft">
+              <button type="button" class="primary-action" :disabled="draftBusy || !canGenerateDraftFromSelection || draftPlan?.planReviewRequired" :class="{ busy: activeAction === 'gemini' }" @click="generateGeminiDraft">
                 {{ activeAction === 'gemini' ? 'Gemini 작성 중...' : 'Gemini로 전체 초안 작성' }}
               </button>
               <button type="button" class="ghost-btn" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'rule' }" @click="generateDraft">
@@ -500,8 +500,14 @@
           <section v-if="draftPlan" class="draft-feedback-panel keyword-plan-panel">
             <strong>AI 장르/최종 정답 키워드 계획</strong>
             <p>장르: {{ draftPlan.selectedGenreName }}</p>
-            <div class="chips">
-              <span v-for="item in draftPlan.finalAnswerKeywords || []" :key="`${item.label}-${item.keyword}`">{{ item.label }}: {{ item.keyword }}</span>
+            <p v-if="draftPlan.planReviewRequired" class="plan-review-warning">
+              자동 초안 생성을 중단했습니다. {{ draftPlan.reviewReason }}
+            </p>
+            <div class="plan-keyword-list">
+              <div v-for="item in draftPlan.finalAnswerKeywords || []" :key="`${item.label}-${item.keyword}`" class="plan-keyword-item">
+                <strong>{{ item.label }}: {{ item.keyword }}</strong>
+                <small>{{ item.sourceType }} · {{ item.sourcePlaceName }} · {{ item.sourceText }}</small>
+              </div>
             </div>
             <p v-if="draftPlan.finalQuestionGuide">최종 질문 방향: {{ draftPlan.finalQuestionGuide }}</p>
             <p v-if="draftPlan.rationale">{{ draftPlan.rationale }}</p>
@@ -611,7 +617,8 @@
               <p>TourAPI와 Kakao Local 후보 조회에는 백엔드 API 키가 필요합니다. 키가 없으면 수동 후보를 추가해서도 초안을 만들 수 있습니다.</p>
             </div>
             <p v-if="candidateLoading" class="empty">TourAPI 후보를 불러오는 중입니다.</p>
-            <p v-else-if="candidateLoaded && !placeCandidates.length" class="empty">TourAPI 후보가 없습니다. API 키, 지역 설정을 확인하거나 수동 후보를 사용하세요.</p>
+            <p v-else-if="candidateLoadError" class="empty">{{ candidateLoadError }}</p>
+            <p v-else-if="candidateLoaded && !placeCandidates.length" class="empty">선택한 지역에서 TourAPI 후보를 찾지 못했습니다.</p>
             <div class="candidate-grid">
               <article v-for="candidate in placeCandidates" :key="candidateKey(candidate)" class="candidate-card" :class="{ selected: anchorCandidate && candidateKey(anchorCandidate) === candidateKey(candidate) }">
                 <strong>{{ candidate.title }}</strong>
@@ -919,6 +926,135 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminEpisodeApi } from '@/api/adminEpisodeApi';
 
+
+const DEFAULT_ESCAPE_GENRE_CATALOG = [
+  {
+    genreId: 'MURDER_MYSTERY',
+    genreName: '살인 미스터리',
+    answerSlots: [
+      {
+        slotId: 'CULPRIT',
+        label: '범인',
+        description: '사건을 일으킨 픽션 인물 또는 역할명',
+        minClueCount: 2
+      },
+      {
+        slotId: 'WEAPON',
+        label: '범행도구',
+        description: '범행에 사용된 구체적인 물건',
+        minClueCount: 2
+      },
+      {
+        slotId: 'CASE_LOCATION',
+        label: '사건장소',
+        description: '사건이 발생한 구체적인 픽션 장소 또는 장소 특징',
+        minClueCount: 2
+      }
+    ],
+    recommendedPuzzleTypes: ['OBSERVATION', 'NUMBER_LOCK', 'STORY_COMBINATION'],
+    forbiddenPatterns: [
+      '실존 인물을 범인으로 만들기',
+      '실제 장소명을 정답으로 그대로 사용하기',
+      '관리자 확인 필요 문구 사용'
+    ],
+    finalQuestionTemplate: '{범인}이 {범행도구}로 {사건장소}에서 벌인 사건의 결론을 입력하게 한다.'
+  },
+  {
+    genreId: 'TREASURE_HUNT',
+    genreName: '보물찾기',
+    answerSlots: [
+      {
+        slotId: 'HIDDEN_ITEM',
+        label: '숨겨진 물건',
+        description: '플레이어가 최종적으로 찾아야 하는 구체적인 물건',
+        minClueCount: 2
+      },
+      {
+        slotId: 'UNLOCK_CONDITION',
+        label: '해금 조건',
+        description: '숨겨진 물건을 열거나 확인하기 위한 짧은 조건, 숫자, 표식',
+        minClueCount: 2
+      },
+      {
+        slotId: 'STORAGE_PLACE',
+        label: '보관 장소',
+        description: '물건이 보관된 장소 또는 장소 특징',
+        minClueCount: 2
+      }
+    ],
+    recommendedPuzzleTypes: ['OBSERVATION', 'NUMBER_LOCK', 'PATTERN'],
+    forbiddenPatterns: [
+      '최종 장소명을 그대로 정답으로 사용하기',
+      '비밀번호 같은 추상어만 정답으로 사용하기',
+      '관리자 확인 필요 문구 사용'
+    ],
+    finalQuestionTemplate: '{숨겨진 물건}을 찾기 위해 {해금 조건}을 만족하고 {보관 장소}를 확인하는 결론을 입력하게 한다.'
+  },
+  {
+    genreId: 'CODE_BREAKING',
+    genreName: '암호 해독',
+    answerSlots: [
+      {
+        slotId: 'FINAL_PHRASE',
+        label: '최종 문장',
+        description: '암호를 풀었을 때 나오는 짧은 최종 문장',
+        minClueCount: 2
+      },
+      {
+        slotId: 'KEY_NUMBER',
+        label: '핵심 숫자',
+        description: '암호 해독에 필요한 숫자 또는 숫자 조합',
+        minClueCount: 2
+      },
+      {
+        slotId: 'DECODE_LOCATION',
+        label: '암호해독 장소',
+        description: '암호를 대조하거나 해독하는 장소 또는 장소 특징',
+        minClueCount: 2
+      }
+    ],
+    recommendedPuzzleTypes: ['NUMBER_LOCK', 'INITIAL_SOUND', 'PATTERN'],
+    forbiddenPatterns: [
+      '최종 문장을 너무 길게 만들기',
+      '장소명만 정답으로 사용하기',
+      '관리자 확인 필요 문구 사용'
+    ],
+    finalQuestionTemplate: '{암호해독 장소}에서 {핵심 숫자}를 이용해 {최종 문장}을 해독하는 결론을 입력하게 한다.'
+  },
+  {
+    genreId: 'MISSING_CASE',
+    genreName: '실종 사건',
+    answerSlots: [
+      {
+        slotId: 'MISSING_REASON',
+        label: '실종 원인',
+        description: '실종이 발생한 픽션 원인',
+        minClueCount: 2
+      },
+      {
+        slotId: 'LAST_LOCATION',
+        label: '마지막 장소',
+        description: '실종자가 마지막으로 확인된 장소 또는 장소 특징',
+        minClueCount: 2
+      },
+      {
+        slotId: 'RELATED_ITEM',
+        label: '관련 물건',
+        description: '실종 원인을 밝히는 구체적인 물건',
+        minClueCount: 2
+      }
+    ],
+    recommendedPuzzleTypes: ['OBSERVATION', 'STORY_COMBINATION', 'PATTERN'],
+    forbiddenPatterns: [
+      '실제 인물의 실종 사건처럼 쓰기',
+      '실종 원인을 추상어로 쓰기',
+      '관리자 확인 필요 문구 사용'
+    ],
+    finalQuestionTemplate: '{실종 원인} 때문에 사라졌고, {마지막 장소}에서 마지막 흔적이 확인되며, {관련 물건}이 핵심 증거라는 결론을 입력하게 한다.'
+  }
+];
+
+
 const router = useRouter();
 const episodes = ref([]);
 const selected = ref(null);
@@ -944,6 +1080,7 @@ let draftTimerId = null;
 const candidateAreaCode = ref('seoul');
 const candidateLoading = ref(false);
 const candidateLoaded = ref(false);
+const candidateLoadError = ref('');
 const placeCandidates = ref([]);
 const anchorCandidate = ref(null);
 const nearbyCandidates = ref([]);
@@ -1077,6 +1214,15 @@ const caseBuilderNext = computed(() => {
         button: '장르/정답 키워드 생성',
         action: 'plan',
         disabled: false
+      };
+    }
+    if (draftPlan.value.planReviewRequired) {
+      return {
+        title: '7단계: 현장 관찰 데이터를 보강하세요.',
+        description: draftPlan.value.reviewReason || '근거 있는 최종 정답 키워드가 3개 미만입니다.',
+        button: '현장 데이터 보강 필요',
+        action: 'planReview',
+        disabled: true
       };
     }
     return {
@@ -1720,6 +1866,10 @@ async function generateGeminiDraft() {
     setMessage('먼저 AI 장르/최종 정답 키워드를 생성하고 확인하세요.', 'error');
     return;
   }
+  if (draftPlan.value.planReviewRequired) {
+    setMessage(draftPlan.value.reviewReason || '현장 관찰 요소를 보강한 뒤 plan을 다시 생성하세요.', 'error');
+    return;
+  }
   startDraftProgress('gemini', 'Gemini가 스토리 개요, 퍼즐, 단서, 관계자 카드, 해금 자료 카드 초안을 작성하고 있습니다. 최대 180초까지 기다립니다.');
   try {
     let payload = JSON.parse(draftInput.value);
@@ -1825,7 +1975,7 @@ function hydrateDraftForEditing() {
     draft.episodeTitle = suggestedDraftTitle(draft);
   }
   draft.subtitle = draft.subtitle || suggestedDraftSubtitle(draft);
-  draft.era = draft.era || suggestedDraftEra(draft);
+  draft.era = normalizeDraftEra(draft.era, draft);
   ensureDraftImagePrompts(draft);
   draft.missions.forEach((mission, index) => {
     mission.order = mission.order || index + 1;
@@ -1843,7 +1993,7 @@ function buildDraftSavePayload() {
     draft.episodeTitle = suggestedDraftTitle(draft);
   }
   draft.subtitle = draft.subtitle || suggestedDraftSubtitle(draft);
-  draft.era = draft.era || suggestedDraftEra(draft);
+  draft.era = normalizeDraftEra(draft.era, draft);
   ensureDraftIllustrationCards(draft);
   strengthenCaseMaterials(draft);
   draft.suspects = (draft.suspects || []).map((suspect) => {
@@ -2226,22 +2376,22 @@ function safeFictionSynopsis(draft) {
     draft?.genre
   ].join(' ');
   if (containsAny(source, ['항구', '항해', '개항', '항로', '일지', '목포'])) {
-    return '오래된 항구 기록이 발견되며, 공식 기록에 남지 않은 이동 경로와 그 길을 막아선 세력의 흔적이 드러난다. 요원은 항구 일대에 흩어진 암호와 증언을 대조해 숨겨진 경로의 의미, 방해자의 목적, 마지막 기록이 가리키는 결론을 밝혀야 한다.';
+    return commandBriefing('항구 일대의 기록이 서로 다른 이동 경로를 가리키고 있네', '흔적이 지워지기 전에 암호와 기록을 대조해 숨겨진 경로의 의미를 밝혀내게');
   }
   if (containsAny(source, ['비공개 조직', '비공개조직', '은신처', '거점', '아지트', '정체'])) {
-    return '도시 곳곳에 남은 표식이 하나의 비밀 조직을 가리킨다. 요원은 현장 기록과 엇갈린 증언을 대조해 조직의 역할, 숨어든 거점의 단서, 사건을 움직인 목적을 밝혀야 한다.';
+    return commandBriefing('도시 곳곳의 표식이 하나의 숨겨진 역할과 이동 경로를 가리키고 있네', '상대가 흔적을 거두기 전에 현장 기록을 대조해 관계자의 역할과 거점의 조건을 밝혀내게');
   }
   if (containsAny(source, ['보물', '상자', '봉인', '열쇠', '해금'])) {
-    return '오래 봉인된 물건의 행방을 둘러싸고 서로 다른 기록이 발견된다. 요원은 현장에 남은 암호와 보관 흔적을 따라가며 물건의 정체, 보관된 장소의 특징, 봉인을 푸는 조건을 밝혀야 한다.';
+    return commandBriefing('오래 봉인된 물건의 행방을 둘러싼 기록이 서로 어긋나고 있네', '봉인 장치가 다시 잠기기 전에 현장의 암호와 보관 흔적을 따라 정체와 확인 조건을 밝혀내게');
   }
   if (containsAny(source, ['암호', '문장', '숫자', '해독'])) {
-    return '낡은 기록 속 암호문이 여러 조사 지점에서 서로 다른 형태로 반복된다. 요원은 숫자, 문장, 상징의 연결 규칙을 찾아 마지막 암호가 전달하려던 의미를 밝혀야 한다.';
+    return commandBriefing('여러 조사 지점에서 같은 암호가 서로 다른 형태로 반복되고 있네', '암호 체계가 폐기되기 전에 숫자와 표식의 연결 규칙을 찾아 마지막 메시지의 의미를 밝혀내게');
   }
   if (containsAny(source, ['실종', '사라진', '마지막'])) {
-    return '한 인물 또는 기록이 사라진 뒤, 마지막 동선을 둘러싼 증언들이 서로 어긋난다. 요원은 현장 단서와 남겨진 물건을 대조해 사라진 이유와 마지막 흔적이 가리키는 결론을 밝혀야 한다.';
+    return commandBriefing('한 인물 또는 기록이 사라졌고 마지막 동선을 둘러싼 자료도 서로 어긋나고 있네', '남은 흔적까지 사라지기 전에 현장 단서와 물건을 대조해 실종의 이유와 행방을 밝혀내게');
   }
   const genre = draft?.genre || '이 스토리 미션';
-  return `선택된 장소 일대에서 오래된 기록과 서로 어긋나는 증언이 발견된다. 요원은 현장 단서, 암호, 미션 파일을 차례로 대조해 ${genre}의 핵심 역할과 마지막 단서가 가리키는 결론을 밝혀야 한다.`;
+  return commandBriefing('선택된 장소 일대에서 오래된 기록과 서로 어긋나는 단서가 발견됐네', `흔적이 훼손되기 전에 현장 단서와 암호를 차례로 대조해 ${genre}의 결론을 밝혀내게`);
 }
 
 function containsKeywordLeak(text, keywords) {
@@ -2264,15 +2414,23 @@ function compactText(value) {
 function synopsisForIdentityAndHideout(draft, motif) {
   const missions = Array.isArray(draft?.missions) ? draft.missions : [];
   const first = missions[0]?.placeName || motif.setting;
-  const last = missions[missions.length - 1]?.placeName || '마지막 조사 지점';
-  return `${first}에서 사라진 기록이 발견된다. 설계도와 장부는 단서일 뿐이며, 해금 자료의 표식은 ${last}까지 이어진다. 플레이어는 현장 단서와 미션 파일을 대조해 비공개 조직의 역할과 숨어든 장소의 특징을 유추해야 한다.`;
+  return commandBriefing(
+    `${first}에서 사라진 기록이 발견됐고, 관계자의 진술과 이동 흔적도 서로 어긋나고 있네`,
+    '상대가 자료를 회수하기 전에 현장 단서와 미션 파일을 대조해 숨겨진 역할과 거점의 조건을 밝혀내게'
+  );
 }
 
 function synopsisForMotif(draft, motif) {
   const missions = Array.isArray(draft?.missions) ? draft.missions : [];
   const first = missions[0]?.placeName || motif.setting;
-  const last = missions[missions.length - 1]?.placeName || '마지막 조사 지점';
-  return `${first}에서 시작된 ${motif.caseType}은 ${last}까지 이어진다. ${motif.victim}가 남긴 ${motif.trace}이 서로 어긋나며, 플레이어는 현장 단서와 사건자료를 대조해 ${motif.object}의 정체를 좁혀야 한다.`;
+  return commandBriefing(
+    `${first}에서 시작된 ${motif.caseType}의 흔적이 여러 조사 지점으로 이어지고 있네`,
+    `${motif.trace}이 사라지기 전에 현장 단서와 미션 파일을 대조해 목표의 정체와 이동 이유를 밝혀내게`
+  );
+}
+
+function commandBriefing(situation, directive) {
+  return `요원, ${situation}. 시간이 많지 않네. ${directive}. 당황할 필요는 없네. 평소 훈련한 대로 현장을 나누어 확인하면 충분히 해결할 수 있을 걸세. 내가 작전 기록을 통해 지원하겠네. 미션 파일을 확인하고 임무를 시작하도록.`;
 }
 
 function isWeakFinalQuestion(value) {
@@ -2302,7 +2460,22 @@ function suggestedDraftEra(draft) {
   if (source.includes('대한제국') || source.includes('정동') || source.includes('1905') || source.includes('1897')) return '대한제국 말기';
   if (source.includes('조선') || source.includes('궁') || source.includes('한양')) return '조선 후기';
   if (source.includes('근대') || source.includes('개화') || source.includes('일제')) return '근대 전환기';
-  return '현대에 남은 오래된 기록';
+  return '현대';
+}
+
+function normalizeDraftEra(value, draft) {
+  const source = `${String(value || '')} ${[
+    draft?.fictionSynopsis,
+    ...(Array.isArray(draft?.missions) ? draft.missions.flatMap((mission) => [mission.storyText, mission.groundRule, mission.placeName]) : [])
+  ].join(' ')}`;
+  if (source.includes('삼국') || source.includes('고구려') || source.includes('백제') || source.includes('신라')) return '삼국시대';
+  if (source.includes('고려')) return '고려시대';
+  if (source.includes('대한제국') || source.includes('1897') || source.includes('1905') || source.includes('정동')) return '대한제국 말기';
+  if (source.includes('일제강점기') || source.includes('일제') || source.includes('식민지')) return '일제강점기';
+  if (source.includes('조선 후기') || source.includes('조선후기') || source.includes('한양') || source.includes('정조') || source.includes('영조')) return '조선 후기';
+  if (source.includes('조선') || source.includes('궁궐') || source.includes('성곽')) return '조선시대';
+  if (source.includes('근대') || source.includes('개화') || source.includes('한국전쟁') || source.includes('전쟁기념관') || source.includes('산업화')) return '근현대';
+  return '현대';
 }
 
 function sourceCandidateForMission(mission) {
@@ -2325,6 +2498,8 @@ function primaryKeyword(source, mission) {
   return keywords.find((value) => value.length >= 2
     && value.length <= 12
     && !blocked.has(value.replace(/\s+/g, ''))
+    && !/^[가-힣A-Za-z0-9]+의$/.test(value)
+    && !['서울', '서울의', '지역', '지역의', '장소', '장소의', '현장', '현장의'].includes(value)
     && !String(source.title || '').includes(value)
     && value !== mission?.placeName) || '검수필요';
 }
@@ -2687,11 +2862,18 @@ async function generateAnswerPlan() {
     draftPlan.value.finalAnswerKeywords = (draftPlan.value.finalAnswerKeywords || [])
       .map((item) => ({ ...item, keyword: normalizeAnswerKeywordValue(item.keyword) }))
       .filter((item) => item.keyword);
-    payload = applyDraftPlanToPayload(payload);
-    draftInput.value = JSON.stringify(payload, null, 2);
+    if (!draftPlan.value.planReviewRequired) {
+      payload = applyDraftPlanToPayload(payload);
+      draftInput.value = JSON.stringify(payload, null, 2);
+    }
     draftProgressStep.value = 'hydrate';
-    finishDraftProgress('장르와 최종 정답 키워드 계획이 생성되었습니다. 확인 후 전체 초안을 생성하세요.');
-    setMessage('AI 장르/정답 키워드 계획이 준비되었습니다. 아직 전체 초안은 생성되지 않았습니다.', 'success');
+    if (draftPlan.value.planReviewRequired) {
+      finishDraftProgress('현장 근거가 부족해 자동 초안 생성을 중단했습니다.');
+      setMessage(draftPlan.value.reviewReason || '현장 관찰 데이터를 보강하세요.', 'error');
+    } else {
+      finishDraftProgress('장르와 최종 정답 키워드 계획이 생성되었습니다. 확인 후 전체 초안을 생성하세요.');
+      setMessage('AI 장르/정답 키워드 계획이 준비되었습니다. 아직 전체 초안은 생성되지 않았습니다.', 'success');
+    }
   } catch (error) {
     failDraftProgress(error.userMessage || error.message || '장르/정답 키워드 계획을 생성할 수 없습니다.');
     setMessage(draftError.value, 'error');
@@ -2699,6 +2881,10 @@ async function generateAnswerPlan() {
 }
 
 function applyDraftPlanToPayload(payload) {
+  if (draftPlan.value?.planReviewRequired) {
+    return payload;
+  }
+
   const finalAnswerKeywordItems = (draftPlan.value?.finalAnswerKeywords || [])
     .map((item) => ({
       slotId: String(item?.slotId || '').trim(),
@@ -2706,10 +2892,19 @@ function applyDraftPlanToPayload(payload) {
       keyword: normalizeAnswerKeywordValue(item?.keyword),
       aliases: Array.isArray(item?.aliases)
         ? item.aliases.map((alias) => String(alias || '').trim()).filter(Boolean)
-        : []
+        : [],
+
+      sourcePlaceOrder: item?.sourcePlaceOrder ?? null,
+      sourceBasis: String(item?.sourceBasis || '').trim(),
+      sourceType: String(item?.sourceType || '').trim(),
+      sourcePlaceName: String(item?.sourcePlaceName || '').trim(),
+      sourceText: String(item?.sourceText || '').trim(),
+      risk: String(item?.risk || '').trim()
     }))
     .filter((item) => item.slotId && item.label && item.keyword);
+
   const keywords = finalAnswerKeywordItems.map((item) => item.keyword);
+
   return {
     ...payload,
     selectedGenreId: draftPlan.value?.selectedGenreId || payload.selectedGenreId,
@@ -2894,18 +3089,23 @@ function linesToList(value) {
   return String(value || '').split('\n').map((item) => item.trim()).filter(Boolean);
 }
 
-function normalizeCandidate(candidate = {}) {
-  const latitude = coordinateValue(candidate.latitude, candidate.lat, candidate.y, candidate.mapY);
-  const longitude = coordinateValue(candidate.longitude, candidate.lng, candidate.lon, candidate.x, candidate.mapX);
-  return {
-    ...candidate,
-    title: candidate.title || candidate.name || candidate.placeName || candidate.place_name || '',
-    address: candidate.address || candidate.roadAddress || candidate.road_address_name || candidate.address_name || '',
-    latitude,
-    longitude,
-    description: candidate.description || candidate.overview || candidate.adminMemo || '',
-    source: candidate.source || candidate.provider || '장소 후보'
-  };
+function safeAiInputText(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+
+  const blocked = [
+    '관리자',
+    '검수',
+    '확인 필요',
+    '현장 메모',
+    'TourAPI 기준',
+    'Kakao Local 기준',
+    '공식 설명이 없어',
+    '데이터 보강',
+    '관찰 데이터 부족'
+  ];
+
+  return blocked.some((word) => text.includes(word)) ? '' : text;
 }
 
 function coordinateValue(...values) {
@@ -2915,6 +3115,20 @@ function coordinateValue(...values) {
     if (!Number.isNaN(numberValue)) return numberValue;
   }
   return null;
+}
+
+function normalizeCandidate(candidate = {}) {
+  return {
+    ...candidate,
+    title: String(candidate.title || candidate.name || candidate.placeName || '').trim(),
+    address: String(candidate.address || candidate.addr1 || candidate.roadAddress || '').trim(),
+    latitude: coordinateValue(candidate.latitude, candidate.lat, candidate.mapY, candidate.mapy, candidate.y),
+    longitude: coordinateValue(candidate.longitude, candidate.lng, candidate.mapX, candidate.mapx, candidate.x),
+    areaCode: String(candidate.areaCode || candidate.area || '').trim(),
+    source: String(candidate.source || '').trim(),
+    description: String(candidate.description || candidate.overview || '').trim(),
+    contentId: String(candidate.contentId || candidate.contentid || '').trim()
+  };
 }
 
 function hasCandidateCoordinate(candidate) {
@@ -2941,6 +3155,7 @@ function prepareDraftInputFromSelection() {
 async function loadPlaceCandidates() {
   candidateLoading.value = true;
   candidateLoaded.value = false;
+  candidateLoadError.value = '';
   anchorCandidate.value = null;
   nearbyCandidates.value = [];
   nearbyLoaded.value = false;
@@ -2948,13 +3163,17 @@ async function loadPlaceCandidates() {
   siteDataEnriched.value = false;
   try {
     const candidates = await adminEpisodeApi.getPlaceCandidates(candidateAreaCode.value);
+    if (!Array.isArray(candidates)) {
+      throw new Error('TourAPI 후보 응답 형식이 올바르지 않습니다.');
+    }
     placeCandidates.value = candidates.map(normalizeCandidate);
     candidateLoaded.value = true;
     setMessage(placeCandidates.value.length ? 'TourAPI 장소 후보를 불러왔습니다.' : 'TourAPI 장소 후보가 없습니다.', placeCandidates.value.length ? 'success' : 'error');
   } catch (error) {
     placeCandidates.value = [];
     candidateLoaded.value = true;
-    setMessage(error.userMessage || 'TourAPI 장소 후보를 불러올 수 없습니다.', 'error');
+    candidateLoadError.value = error.userMessage || error.message || 'TourAPI 장소 후보를 불러올 수 없습니다.';
+    setMessage(candidateLoadError.value, 'error');
   } finally {
     candidateLoading.value = false;
   }
@@ -3207,28 +3426,76 @@ function applyCandidatesToDraft(showMessage = true) {
   }
   const orderedCandidates = orderedSelectedCandidates.value.map(normalizeCandidate);
   const roles = buildRoles(orderedCandidates.length);
-  const payload = {
-    area: areaLabel(candidateAreaCode.value),
-    era: inferEraFromCandidates(orderedCandidates),
-    theme: '장소 기반 스토리 미션',
-    targetAudience: '야외 방탈출 플레이어',
-    playTime: '90~120분',
-    places: orderedCandidates.map((candidate, index) => ({
-      name: candidate.title,
-      address: candidate.address,
-      latitude: candidate.latitude,
-      longitude: candidate.longitude,
-      description: candidate.description || (isAnchorCandidate(candidate)
-        ? 'TourAPI 기준 조사 후보입니다. 운영 공개 전 실제 현장 요소와 접근 가능 여부를 검수하세요.'
-        : 'Kakao Local 주변 후보입니다. 실제 역사/현장 정보는 관리자 검수 후 사용하세요.'),
-      visibleElements: ['관리자 현장 메모 필요'],
-      numbers: [],
-      keywords: [candidate.title, areaLabel(candidateAreaCode.value), candidate.source || '장소 후보'],
-      adminMemo: `${candidate.source || '장소 후보'} 기반입니다. 실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
-      role: roles[index],
-      publicMarkerType: publicMarkerForCandidate(index, roles[index], orderedCandidates.length),
-      arrivalRadius: 50
-    }))
+const payload = {
+  area: areaLabel(candidateAreaCode.value),
+  era: inferEraFromCandidates(orderedCandidates),
+  theme: '장소 기반 스토리 미션',
+  targetAudience: '야외 방탈출 플레이어',
+  playTime: '90~120분',
+
+  genreCatalog: DEFAULT_ESCAPE_GENRE_CATALOG,
+
+  missionPolicy: {
+    missionCount: orderedCandidates.length,
+    minMissionCount: 6,
+    maxMissionCount: 9,
+    minCluesPerAnswerSlot: 2,
+    answerHintRatio: 0.6,
+    destinationHintRatio: 0.4,
+    allowDynamicMissionCount: true
+  },
+
+  puzzlePolicy: {
+    maxSamePuzzleTypeCount: 3,
+    forbidPlaceNameTextExtraction: true,
+    forbidFinalKeywordAsPuzzleAnswer: true,
+    requireUniquePuzzleAnswer: true,
+    allowedPuzzleTypes: [
+      'OBSERVATION',
+      'NUMBER_LOCK',
+      'INITIAL_SOUND',
+      'PATTERN',
+      'STORY_COMBINATION'
+    ],
+    blockedGenericAnswers: [
+      '기록',
+      '단서',
+      '문서',
+      '메모',
+      '진실',
+      '비밀',
+      '장소',
+      '물건',
+      '사건',
+      '흔적',
+      '정답',
+      '검수필요'
+    ]
+  },
+
+    places: orderedCandidates.map((candidate, index) => {
+      const area = areaLabel(candidateAreaCode.value);
+      const safeDescription = safeAiInputText(candidate.description);
+
+      return {
+        name: candidate.title,
+        address: candidate.address,
+        latitude: candidate.latitude,
+        longitude: candidate.longitude,
+        description: safeDescription,
+        visibleElements: [],
+        numbers: [],
+        keywords: [
+          candidate.title,
+          area,
+          ...(candidate.category ? [candidate.category] : [])
+        ].filter(Boolean),
+        adminMemo: '',
+        role: roles[index],
+        publicMarkerType: publicMarkerForCandidate(index, roles[index], orderedCandidates.length),
+        arrivalRadius: 50
+      };
+    })
   };
   draftInput.value = JSON.stringify(payload, null, 2);
   draftResult.value = null;
@@ -3290,7 +3557,9 @@ function inferEraFromCandidates(candidates = []) {
   if (source.includes('대한제국') || source.includes('정동') || source.includes('1905') || source.includes('1897')) return '대한제국 말기';
   if (source.includes('조선') || source.includes('궁') || source.includes('한양')) return '조선 후기';
   if (source.includes('근대') || source.includes('개화') || source.includes('일제')) return '근대 전환기';
-  return '현대에 남은 오래된 기록';
+  if (source.includes('일제강점기') || source.includes('일제') || source.includes('식민지')) return '일제강점기';
+  if (source.includes('한국전쟁') || source.includes('전쟁기념관') || source.includes('산업화')) return '근현대';
+  return '현대';
 }
 
 function setMessage(text, type = 'success') {
@@ -3383,6 +3652,10 @@ h2, h3 { margin: 0 0 10px; }
 .spot-card.review-required { border-color: rgba(248,113,113,.78); background: linear-gradient(135deg, rgba(127,29,29,.5), rgba(69,10,10,.34) 48%, rgba(15,23,42,.56)); box-shadow: 0 0 0 1px rgba(248,113,113,.2) inset, 0 16px 34px rgba(127,29,29,.18); }
 .spot-card.review-required.final { border-color: rgba(252,165,165,.92); }
 .review-required-badge { width: fit-content; margin: 9px 0 4px; border: 1px solid rgba(254,202,202,.46); border-radius: 999px; background: rgba(127,29,29,.72); color: #fee2e2; padding: 6px 10px; font-size: .76rem; font-weight: 900; letter-spacing: .02em; }
+.plan-keyword-list { display: grid; gap: 8px; margin: 10px 0; }
+.plan-keyword-item { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid rgba(148,163,184,.26); border-radius: 10px; background: rgba(15,23,42,.42); }
+.plan-keyword-item small { color: #94a3b8; overflow-wrap: anywhere; }
+.plan-review-warning { padding: 10px 12px; border: 1px solid rgba(248,113,113,.55); border-radius: 10px; background: rgba(127,29,29,.42); color: #fecaca; font-weight: 800; }
 .spot-head { display: flex; justify-content: space-between; gap: 8px; }
 .spot-card p, .mini-grid p, .draft-panel p { color: #cbd5e1; line-height: 1.55; }
 .internal { color: #fecaca !important; font-weight: 900; }
