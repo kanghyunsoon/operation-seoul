@@ -131,7 +131,10 @@ public class AdminEpisodeService {
                         .longitude(lng)
                         .areaCode(normalizedAreaCode)
                         .source(place.getOrDefault("source", "TourAPI"))
-                        .description(place.getOrDefault("overview", "공식 설명이 없어 관리자 확인이 필요한 장소입니다."))
+                        .description(place.getOrDefault(
+                                "overview",
+                                title + " 일대의 장소명과 주소 정보를 바탕으로 야외 스토리 미션의 배경 장소로 사용합니다."
+                        ))
                         .contentId(place.get("contentId"))
                         .build());
             }
@@ -3119,16 +3122,44 @@ public class AdminEpisodeService {
 
 
     private String enrichedDescription(AiEpisodeDraftRequest.PlaceInput source, List<AdminPlaceCandidateResponse> rankedNearby) {
-        String base = blank(source.getDescription(), "선택된 조사 지점입니다.");
+        String base = blank(source.getDescription(), "");
+
+        if (containsOperationalPlaceholder(base)) {
+            base = "";
+        }
+
+        if (missing(base)) {
+            base = blank(source.getName(), "선택 장소")
+                    + " 일대의 장소명, 주소, 주변 동선 정보를 바탕으로 야외 스토리 미션의 배경 장소로 사용합니다.";
+        }
+
         String topSignals = rankedNearby.stream()
                 .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
                 .limit(3)
                 .map(AdminPlaceCandidateResponse::getTitle)
                 .collect(Collectors.joining(", "));
+
         if (topSignals.isBlank()) {
             return base;
         }
-        return base + " 주변 확인 후보: " + topSignals + ".";
+
+        return base + " 주변 동선 소재: " + topSignals + ".";
+    }
+
+    private boolean containsOperationalPlaceholder(String value) {
+        if (missing(value)) {
+            return false;
+        }
+
+        return value.contains("관리자")
+                || value.contains("검수")
+                || value.contains("확인 필요")
+                || value.contains("현장 메모")
+                || value.contains("공식 설명이 없어")
+                || value.contains("데이터 보강")
+                || value.contains("관찰 데이터 부족")
+                || value.contains("TourAPI 기준")
+                || value.contains("Kakao Local 기준");
     }
 
     private List<String> focusedKeywords(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
@@ -3141,38 +3172,8 @@ public class AdminEpisodeService {
     }
 
     private String enrichedAdminMemo(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
-        List<String> memo = new ArrayList<>();
-        if (!missing(place.getAdminMemo())) {
-            memo.add(place.getAdminMemo());
-        }
-        memo.add("RAG/사이트 보강으로 주변 Kakao Local 신호를 사용해 관리자 확인 범위를 좁혔습니다.");
-        memo.add("이 신호는 확인 후보로만 사용하세요. 간판, 숫자, 조형물, 영업시간은 현장 확인 전까지 확정 정보로 취급하지 않습니다.");
-        if (place.getLatitude() == null || place.getLongitude() == null) {
-            memo.add("좌표가 없어 외부 검색을 실행하지 못했습니다. 공개 전 위도/경도를 추가하세요.");
-            return String.join("\n", memo);
-        }
-        if (rankedNearby.isEmpty()) {
-            memo.add("900m 이내에서 주변 신호를 찾지 못했습니다. 관리자가 수동 현장 메모를 추가하세요.");
-            return String.join("\n", memo);
-        }
-        List<AdminPlaceCandidateResponse> usable = rankedNearby.stream()
-                .filter(candidate -> !"RAG_ERROR".equals(candidate.getSource()))
-                .limit(5)
-                .toList();
-        if (usable.isEmpty()) {
-            rankedNearby.stream().findFirst().ifPresent(candidate -> memo.add(candidate.getTitle() + " - " + blank(candidate.getDescription(), "외부 검색 실패")));
-            return String.join("\n", memo);
-        }
-        memo.add("주요 확인 후보:");
-        for (int i = 0; i < usable.size(); i++) {
-            AdminPlaceCandidateResponse candidate = usable.get(i);
-            memo.add((i + 1) + ". " + candidate.getTitle()
-                    + " / " + categoryKeyword(candidate)
-                    + " / 약 " + Math.round(distanceMeters(place.getLatitude(), place.getLongitude(), candidate.getLatitude(), candidate.getLongitude())) + "m"
-                    + " / 확인 대상: " + categoryVisibleElement(candidate));
-        }
-        memo.add("권장 퍼즐 근거: 현장 확인 후 관리자가 확정한 visibleElements/numbers만 사용하세요. 그 전에는 AI가 실제 관찰 사실이 아닌 스토리 단서와 확인용 임시 단서만 만듭니다.");
-        return String.join("\n", memo);
+        String memo = blank(place.getAdminMemo(), "");
+        return containsOperationalPlaceholder(memo) ? "" : memo;
     }
 
     private String categoryKeyword(AdminPlaceCandidateResponse candidate) {

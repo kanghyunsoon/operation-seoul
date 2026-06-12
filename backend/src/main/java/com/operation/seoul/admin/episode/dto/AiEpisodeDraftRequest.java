@@ -33,6 +33,13 @@ public class AiEpisodeDraftRequest {
         private String label;       // 범인, 범행도구, 사건장소
         private String keyword;     // 화공, 붓, 후원
         private List<String> aliases;
+
+        private Integer sourcePlaceOrder;
+        private String sourceBasis;
+        private String sourceType;
+        private String sourcePlaceName;
+        private String sourceText;
+        private String risk;
     }
 
     @Data
