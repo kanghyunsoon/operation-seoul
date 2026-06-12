@@ -13,7 +13,7 @@
     <section v-if="statusMessage" class="status-message" :class="statusType">
       <span>{{ statusMessage }}</span>
       <button v-if="caseFileUpdated" type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">
-        사건파일 확인
+        미션 파일 확인
       </button>
     </section>
 
@@ -353,7 +353,7 @@ async function submitPuzzle(answer) {
     caseFileUpdated.value = Boolean(result.correct && result.caseFileUpdated);
     const unlockedTypes = result.unlockedRewardTypes || [];
     if (result.correct && unlockedTypes.includes('STORY_CLUE')) setStatus('스토리 단서가 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
-    else if (result.correct && result.caseFileUpdated) setStatus('새 사건 자료가 사건파일에 추가되었습니다.', 'success');
+    else if (result.correct && result.caseFileUpdated) setStatus('새 미션 자료가 미션 파일에 추가되었습니다.', 'success');
     else if (result.correct) setStatus('정답입니다. 단서 보드가 갱신되었습니다.', 'success');
     await loadAll();
   } catch (error) {

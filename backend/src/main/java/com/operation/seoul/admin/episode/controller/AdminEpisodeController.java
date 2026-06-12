@@ -70,16 +70,16 @@ public class AdminEpisodeController {
             @RequestBody(required = false) AdminEpisodeUpdateRequest request
     ) {
         AdminEpisodeDetailResponse response = adminEpisodeService.createEpisode(request);
-        audit(response, "CREATE_EPISODE", "EPISODE", response.getId(), "새 사건파일 초안을 생성했습니다.");
-        return ResponseEntity.ok(ApiResponse.ok("사건파일 초안을 생성했습니다.", response));
+        audit(response, "CREATE_EPISODE", "EPISODE", response.getId(), "새 미션 파일 초안을 생성했습니다.");
+        return ResponseEntity.ok(ApiResponse.ok("미션 파일 초안을 생성했습니다.", response));
     }
 
     @DeleteMapping("/{episodeId}")
     public ResponseEntity<ApiResponse<Void>> deleteEpisode(@PathVariable Long episodeId) {
         AdminEpisodeDetailResponse existing = adminEpisodeService.getEpisode(episodeId);
         adminEpisodeService.deleteEpisode(episodeId);
-        audit(existing, "DELETE_EPISODE", "EPISODE", episodeId, "사건파일과 연결 데이터를 삭제했습니다.");
-        return ResponseEntity.ok(ApiResponse.ok("사건파일을 삭제했습니다."));
+        audit(existing, "DELETE_EPISODE", "EPISODE", episodeId, "미션 파일과 연결 데이터를 삭제했습니다.");
+        return ResponseEntity.ok(ApiResponse.ok("미션 파일을 삭제했습니다."));
     }
 
     @GetMapping("/{episodeId}/publish-readiness")
@@ -274,7 +274,7 @@ public class AdminEpisodeController {
             @RequestBody AiEpisodeDraftSaveRequest request
     ) {
         AdminEpisodeDetailResponse response = adminEpisodeService.saveAiDraft(request);
-        audit(response, "SAVE_AI_DRAFT", "EPISODE", response.getId(), "AI 초안을 DRAFT 사건파일로 저장했습니다.");
+        audit(response, "SAVE_AI_DRAFT", "EPISODE", response.getId(), "AI 초안을 DRAFT 미션 파일로 저장했습니다.");
         return ResponseEntity.ok(ApiResponse.ok("AI 에피소드 초안을 DRAFT로 저장했습니다.", response));
     }
 
@@ -306,9 +306,9 @@ public class AdminEpisodeController {
 
     private String statusSummary(String action) {
         return switch (action) {
-            case "PUBLISH_EPISODE" -> "공개 준비도 검증 후 사건파일을 게시했습니다.";
-            case "ARCHIVE_EPISODE" -> "사건파일을 보관 상태로 전환했습니다.";
-            case "REOPEN_EPISODE" -> "사건파일을 DRAFT 상태로 되돌렸습니다.";
+            case "PUBLISH_EPISODE" -> "공개 준비도 검증 후 미션 파일을 게시했습니다.";
+            case "ARCHIVE_EPISODE" -> "미션 파일을 보관 상태로 전환했습니다.";
+            case "REOPEN_EPISODE" -> "미션 파일을 DRAFT 상태로 되돌렸습니다.";
             default -> "에피소드 핵심 정보와 운영 설정을 수정했습니다.";
         };
     }

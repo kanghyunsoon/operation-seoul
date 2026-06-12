@@ -87,7 +87,7 @@ public class CoachingService {
 
     private List<String> improvements(CoachingReportResponse report) {
         List<String> values = new ArrayList<>();
-        if (!"CLEARED".equals(report.getStatus())) values.add("사건파일에서 단서 유형을 먼저 분류한 뒤 최종 추리로 넘어가세요.");
+        if (!"CLEARED".equals(report.getStatus())) values.add("미션 메모에서 단서 유형을 먼저 분류한 뒤 최종 추리로 넘어가세요.");
         if (value(report.getWrongAnswerCount()) >= 3) values.add("오답이 많습니다. 제출 전에 정답 단서와 목적지 단서를 분리해 확인하세요.");
         if (value(report.getDeductionQuestionCount()) >= 10) values.add("질문 수가 많습니다. 예/아니오로 검증 가능한 질문부터 우선하세요.");
         if (value(report.getFinalGuessCount()) >= 3) values.add("최종 제출 전 후보를 하나로 좁히는 검증 질문을 추가하세요.");
@@ -98,9 +98,9 @@ public class CoachingService {
 
     private List<String> nextActions(CoachingReportResponse report) {
         if (!"CLEARED".equals(report.getStatus())) {
-            return List.of("사건파일 단서 보드를 다시 확인하세요.", "완료하지 않은 장소를 먼저 방문하세요.", "최종 추리는 목적지 근거가 2개 이상 모였을 때 시작하세요.");
+            return List.of("미션 메모 단서 보드를 다시 확인하세요.", "완료하지 않은 장소를 먼저 방문하세요.", "최종 추리는 목적지 근거가 2개 이상 모였을 때 시작하세요.");
         }
-        return List.of("클리어 리포트를 보고 놓친 단서를 복기하세요.", "랭킹에서 같은 사건의 상위 기록과 비교하세요.", "추천 화면에서 다음 사건파일을 선택하세요.");
+        return List.of("클리어 리포트를 보고 놓친 단서를 복기하세요.", "랭킹에서 같은 사건의 상위 기록과 비교하세요.", "추천 화면에서 다음 미션 메모을 선택하세요.");
     }
 
     private String playStyle(int totalCleared, int totalHints, int totalWrong, int totalQuestions) {
@@ -113,7 +113,7 @@ public class CoachingService {
 
     private List<String> globalAdvice(int totalStarted, int totalCleared, int totalHints, int totalWrong, int totalQuestions) {
         List<String> advice = new ArrayList<>();
-        if (totalStarted == 0) advice.add("첫 사건파일을 시작하면 코칭 정확도가 올라갑니다.");
+        if (totalStarted == 0) advice.add("첫 미션 메모을 시작하면 코칭 정확도가 올라갑니다.");
         if (totalStarted > totalCleared) advice.add("진행 중인 사건을 먼저 마무리하면 추천과 챌린지 진행률이 좋아집니다.");
         if (totalWrong > totalCleared * 2) advice.add("정답 제출 전 단서 보드에서 정답 단서와 목적지 단서를 따로 검토하세요.");
         if (totalQuestions > totalCleared * 8) advice.add("최종 추리 질문은 후보를 제거하는 방식으로 줄이는 것이 좋습니다.");

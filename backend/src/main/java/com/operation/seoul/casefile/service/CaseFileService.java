@@ -279,7 +279,7 @@ public class CaseFileService {
 
     private String briefingTitle(Episode episode) {
         String title = episode == null ? null : episode.getTitle();
-        return title == null || title.isBlank() ? "사건파일" : title.trim() + " 사건파일";
+        return title == null || title.isBlank() ? "미션 메모" : title.trim() + " 미션 메모";
     }
 
     private String caseSummary(Episode episode) {
@@ -311,7 +311,7 @@ public class CaseFileService {
 
     private String caseGoal(Episode episode) {
         String target = finalAnswerTypeLabel(episode == null ? null : episode.getFinalAnswerType());
-        return "현장 단서와 사건 자료를 대조해 사건의 " + target + "를 밝혀라.";
+        return "현장 단서와 미션 자료를 대조해 사건의 " + target + "를 밝혀라.";
     }
 
     private String finalAnswerTypeLabel(String type) {

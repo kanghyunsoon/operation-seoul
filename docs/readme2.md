@@ -1,15 +1,15 @@
 ﻿# Operation Korea Project Guide
 
-이 문서는 프로젝트를 처음 보는 사람이 전체 구조와 핵심 흐름을 빠르게 이해하기 위한 입문용 문서입니다. 기존 `README.md`가 구현 상태와 API 목록을 넓게 정리한다면, 이 문서는 “무엇을 어디서 보면 되는지”와 “AI 사건파일 생성이 어떤 규칙으로 동작하는지”에 초점을 둡니다.
+이 문서는 프로젝트를 처음 보는 사람이 전체 구조와 핵심 흐름을 빠르게 이해하기 위한 입문용 문서입니다. 기존 `README.md`가 구현 상태와 API 목록을 넓게 정리한다면, 이 문서는 “무엇을 어디서 보면 되는지”와 “AI 미션 파일 생성이 어떤 규칙으로 동작하는지”에 초점을 둡니다.
 
 ## 1. 프로젝트 한 줄 요약
 
-Operation Korea는 실제 서울 장소 데이터를 기반으로 관리자가 사건파일형 야외 방탈출 에피소드를 만들고, 사용자가 지도 이동, 현장 퍼즐, 단서 수집, 최종 추리, 클리어 후 역사 해설까지 진행하는 웹 서비스입니다.
+Operation Korea는 실제 서울 장소 데이터를 기반으로 관리자가 미션 파일형 야외 방탈출 에피소드를 만들고, 사용자가 지도 이동, 현장 퍼즐, 단서 수집, 최종 추리, 클리어 후 역사 해설까지 진행하는 웹 서비스입니다.
 
 핵심 키워드:
 
 - 위치 기반 야외 방탈출
-- 사건파일/추리 게임
+- 미션 파일/추리 게임
 - TourAPI, Kakao Local 장소 후보
 - Gemini 기반 관리자용 에피소드 초안 생성
 - 실제 역사/문화 사실을 Fiction Mode와 Fact Mode로 분리
@@ -45,7 +45,7 @@ operation-seoul/
 
 ## 4. 사용자 경험 흐름
 
-사용자는 아래 순서로 사건파일을 플레이합니다.
+사용자는 아래 순서로 미션 파일을 플레이합니다.
 
 1. 로그인 또는 회원가입
 2. 공개 에피소드 목록 확인
@@ -55,7 +55,7 @@ operation-seoul/
 6. GPS 또는 개발 모드로 도착 판정
 7. 장소 퍼즐 풀이
 8. 퍼즐 보상으로 단서, 증거, 용의자, 메모 해금
-9. 사건파일 화면에서 단서 조합
+9. 미션 파일 화면에서 단서 조합
 10. 숨겨진 실제 최종 장소 도착
 11. 최종 추리 질문 진행
 12. 최종 정답 입력
@@ -68,14 +68,14 @@ operation-seoul/
 | 경로 | 역할 |
 | --- | --- |
 | `/intro` | 로그인/회원가입 |
-| `/episodes` | 공개 사건파일 목록 |
-| `/episodes/:episodeId` | 사건파일 상세 |
+| `/episodes` | 공개 미션 파일 목록 |
+| `/episodes/:episodeId` | 미션 파일 상세 |
 | `/episodes/:episodeId/briefing` | 시작 전 브리핑 |
 | `/episodes/:episodeId/map` | 지도, 도착 판정, 퍼즐 진입 |
 | `/episodes/:episodeId/case-file` | 단서/증거/용의자 확인 |
 | `/episodes/:episodeId/deduction` | 최종 추리 |
 | `/episodes/:episodeId/clear-report` | 클리어 리포트, 역사 해설, 리뷰 |
-| `/admin/episodes` | 관리자 사건파일 생성/운영 |
+| `/admin/episodes` | 관리자 미션 파일 생성/운영 |
 | `/admin/users` | 관리자 회원 관리 |
 | `/admin/reviews` | 관리자 리뷰 관리 |
 
@@ -86,9 +86,9 @@ operation-seoul/
 | 패키지 | 역할 |
 | --- | --- |
 | `auth` | 로그인, JWT, 현재 사용자 확인, 권한 처리 |
-| `admin.episode` | 관리자 사건파일 생성/수정/검수/AI 초안 생성 |
-| `episode` | 사용자 사건파일 조회, 지도, 도착, 퍼즐, 최종 추리, 클리어 |
-| `casefile` | 사건파일 탭, 단서/증거/용의자 자료 |
+| `admin.episode` | 관리자 미션 파일 생성/수정/검수/AI 초안 생성 |
+| `episode` | 사용자 미션 파일 조회, 지도, 도착, 퍼즐, 최종 추리, 클리어 |
+| `casefile` | 미션 파일 탭, 단서/증거/용의자 자료 |
 | `game` | legacy 또는 보조 게임/AI 코스 관련 기능 |
 | `location` | 지역/장소 관련 기능 |
 | `review` | 리뷰 작성/조회/관리 |
@@ -120,16 +120,16 @@ operation-seoul/
 | `src/api/episodeApi.js` | 사용자 에피소드 플레이 API |
 | `src/api/adminEpisodeApi.js` | 관리자 에피소드/AI 초안 API |
 | `src/stores/sessionStore.js` | 로그인 세션, 사용자/관리자 상태 |
-| `src/views/AdminEpisodesView.vue` | 관리자 사건파일 생성/운영 핵심 화면 |
+| `src/views/AdminEpisodesView.vue` | 관리자 미션 파일 생성/운영 핵심 화면 |
 | `src/views/EpisodeMapView.vue` | 지도, 도착 판정, 퍼즐 진입 |
-| `src/views/EpisodeCaseFileView.vue` | 사건파일 단서/증거/용의자 화면 |
+| `src/views/EpisodeCaseFileView.vue` | 미션 파일 단서/증거/용의자 화면 |
 | `src/views/FinalDeductionView.vue` | 최종 추리 화면 |
 | `src/views/ClearReportView.vue` | 클리어 후 역사 해설 화면 |
 | `src/components/episode/*` | 퍼즐, 단서 보드, 최종 답안 UI |
 
 ## 7. 관리자 AI 에피소드 생성 흐름
 
-현재 가장 중요한 비즈니스 플로우입니다. 관리자는 TourAPI/Kakao Local 장소를 고르고, AI가 장르와 정답 키워드를 먼저 제안한 뒤, 관리자가 확인하면 전체 사건파일 초안을 생성합니다.
+현재 가장 중요한 비즈니스 플로우입니다. 관리자는 TourAPI/Kakao Local 장소를 고르고, AI가 장르와 정답 키워드를 먼저 제안한 뒤, 관리자가 확인하면 전체 미션 파일 초안을 생성합니다.
 
 전체 흐름:
 

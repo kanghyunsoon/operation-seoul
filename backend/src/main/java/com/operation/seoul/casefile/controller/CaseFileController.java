@@ -20,6 +20,6 @@ public class CaseFileController {
 
     @GetMapping("/{episodeId}/case-file")
     public ResponseEntity<ApiResponse<CaseFileResponse>> getCaseFile(@PathVariable Long episodeId) {
-        return ResponseEntity.ok(ApiResponse.ok("사건파일입니다.", caseFileService.getCaseFile(episodeId, currentUserResolver.requireCurrentUser())));
+        return ResponseEntity.ok(ApiResponse.ok("미션 메모입니다.", caseFileService.getCaseFile(episodeId, currentUserResolver.requireCurrentUser())));
     }
 }

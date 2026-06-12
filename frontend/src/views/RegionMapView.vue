@@ -4,7 +4,7 @@
       <div>
         <p>REGION SELECT</p>
         <h1>어느 권역을 조사할까요?</h1>
-        <span>{{ sessionStore.currentUser?.nickname || '요원' }}님, 플레이할 사건파일의 지역을 선택하세요.</span>
+        <span>{{ sessionStore.currentUser?.nickname || '요원' }}님, 플레이할 미션 파일의 지역을 선택하세요.</span>
       </div>
       <div class="hero-actions">
         <button type="button" @click="router.push({ name: 'EpisodeList' })">전체 사건 보기</button>

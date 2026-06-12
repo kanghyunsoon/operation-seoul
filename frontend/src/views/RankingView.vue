@@ -6,7 +6,7 @@
       <h1>클리어 랭킹</h1>
       <span>점수, 오답 수, 추리 질문 수, 제출 횟수, 클리어 시간을 기준으로 정렬합니다.</span>
       <div class="hero-actions">
-        <button type="button" @click="router.push({ name: 'EpisodeList' })">사건파일 보기</button>
+        <button type="button" @click="router.push({ name: 'EpisodeList' })">미션 파일 보기</button>
         <button type="button" @click="router.push({ name: 'Challenges' })">챌린지</button>
         <button type="button" @click="loadRankings">새로고침</button>
       </div>
@@ -47,7 +47,7 @@
           </div>
           <span>{{ myRankings.length }}개</span>
         </div>
-        <div v-if="!myRankings.length" class="empty">아직 클리어한 사건파일이 없습니다.</div>
+        <div v-if="!myRankings.length" class="empty">아직 클리어한 미션 파일이 없습니다.</div>
         <div v-else class="my-list">
           <article v-for="entry in myRankings" :key="`mine-${entry.episodeId}-${entry.clearedAt}`">
             <strong>{{ entry.episodeTitle }}</strong>

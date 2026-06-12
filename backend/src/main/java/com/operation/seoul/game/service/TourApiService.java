@@ -71,9 +71,16 @@ public class TourApiService {
             urlBuilder.append("&contentTypeId=12");
 
             URI uri = new URI(urlBuilder.toString());
-            log.info("TourAPI request URI: {}", uri);
+            log.info("TourAPI lookup lat={} lng={} radius={}", lat, lng, radius);
 
             ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
+            if (response.getBody() == null || response.getBody().isBlank()) {
+                throw new ApiException(
+                        HttpStatus.BAD_GATEWAY,
+                        "TOURAPI_EMPTY_RESPONSE",
+                        "TourAPI가 빈 응답을 반환했습니다."
+                );
+            }
 
             JsonNode root = objectMapper.readTree(response.getBody());
             JsonNode header = root.path("response").path("header");
@@ -86,20 +93,49 @@ public class TourApiService {
 
             if (items.isArray()) {
                 for (JsonNode item : items) {
-                    Map<String, String> spot = new HashMap<>();
-                    spot.put("title", recoverMojibake(item.path("title").asText()));
-                    spot.put("address", recoverMojibake(item.path("addr1").asText()));
-                    spot.put("mapX", item.path("mapx").asText());
-                    spot.put("mapY", item.path("mapy").asText());
-                    spots.add(spot);
+                    addTourApiSpot(spots, item);
                 }
+            } else if (items.isObject()) {
+                addTourApiSpot(spots, items);
             }
+
+            int totalCount = root.path("response").path("body").path("totalCount").asInt(0);
+            if (totalCount > 0 && spots.isEmpty()) {
+                throw new ApiException(
+                        HttpStatus.BAD_GATEWAY,
+                        "TOURAPI_RESPONSE_PARSE_FAILED",
+                        "TourAPI 응답에 장소가 있지만 후보 데이터를 해석하지 못했습니다."
+                );
+            }
+            log.info("TourAPI lookup completed totalCount={} parsedCount={}", totalCount, spots.size());
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
             log.error("TourAPI lookup failed: {}", e.getMessage());
+            throw new ApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "TOURAPI_REQUEST_FAILED",
+                    "TourAPI 장소 조회에 실패했습니다."
+            );
         }
         return spots;
+    }
+
+    private void addTourApiSpot(List<Map<String, String>> spots, JsonNode item) {
+        String title = recoverMojibake(item.path("title").asText());
+        String mapX = item.path("mapx").asText();
+        String mapY = item.path("mapy").asText();
+        if (title == null || title.isBlank() || mapX.isBlank() || mapY.isBlank()) {
+            return;
+        }
+
+        Map<String, String> spot = new HashMap<>();
+        spot.put("title", title);
+        spot.put("address", recoverMojibake(item.path("addr1").asText()));
+        spot.put("mapX", mapX);
+        spot.put("mapY", mapY);
+        spot.put("source", "TourAPI");
+        spots.add(spot);
     }
 
     private void ensureTourApiKey() {

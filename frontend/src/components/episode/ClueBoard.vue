@@ -27,7 +27,7 @@
     </section>
 
     <section>
-      <h3>사건파일 해금</h3>
+      <h3>미션 메모 해금</h3>
       <p class="empty">증거 {{ board?.unlockedEvidenceIds?.length || 0 }}개 · 용의자 {{ board?.unlockedSuspectIds?.length || 0 }}명</p>
     </section>
   </aside>
