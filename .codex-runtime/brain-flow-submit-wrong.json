@@ -1,0 +1,44 @@
+﻿{
+    "brainPuzzleExplanation":  null,
+    "caseFileUpdated":  false,
+    "clueBoard":  {
+                      "answerClueCount":  0,
+                      "answerClues":  [
+
+                                      ],
+                      "clearedSuspectIds":  [
+
+                                            ],
+                      "completedSpotIds":  [
+
+                                           ],
+                      "destinationClueCount":  0,
+                      "destinationClues":  [
+
+                                           ],
+                      "episodeId":  84,
+                      "storyClueCount":  0,
+                      "storyClues":  [
+
+                                     ],
+                      "unlockedEvidenceIds":  [
+
+                                              ],
+                      "unlockedSuspectIds":  [
+
+                                             ],
+                      "visitedSpotIds":  [
+                                             533
+                                         ]
+                  },
+    "correct":  false,
+    "message":  "ì ëµì´ ìëëë¤. íì¥ ë¨ìì íí¸ë¥¼ ë¤ì íì¸í´ ì£¼ì¸ì.",
+    "newlyUnlockedItems":  null,
+    "rewardClue":  null,
+    "unlockedEvidenceIds":  null,
+    "unlockedMemoIds":  null,
+    "unlockedPhotoIds":  null,
+    "unlockedRewardTypes":  null,
+    "unlockedSuspectIds":  null,
+    "updatedSuspectIds":  null
+}

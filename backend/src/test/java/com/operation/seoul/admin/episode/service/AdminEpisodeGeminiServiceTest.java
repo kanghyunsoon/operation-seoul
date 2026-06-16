@@ -15,7 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdminEpisodeGeminiServiceTest {
-    private final AdminEpisodeGeminiService service = new AdminEpisodeGeminiService(new ObjectMapper());
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final AdminEpisodeGeminiService service = new AdminEpisodeGeminiService(objectMapper);
 
     @Test
     void normalizesMissingCaseObjectiveAndAcceptsAchievableHintDistribution() throws Exception {

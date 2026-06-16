@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="admin-review-page">
     <header class="admin-hero">
       <div>

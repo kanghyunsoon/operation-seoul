@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="admin-episode-page">
     <header class="admin-hero">
       <div>
@@ -500,6 +500,7 @@
           <section v-if="draftPlan" class="draft-feedback-panel keyword-plan-panel">
             <strong>AI 장르/최종 정답 키워드 계획</strong>
             <p>장르: {{ draftPlan.selectedGenreName }}</p>
+            <p class="muted">정답 키워드는 관련자, 정답 단서, 장소 3개이며 장소는 내부 최종 목적지입니다. 각 키워드는 힌트 3개씩 총 9개 단서 흐름으로 초안에 반영됩니다.</p>
             <p v-if="draftPlan.planReviewRequired" class="plan-review-warning">
               자동 초안 생성을 중단했습니다. {{ draftPlan.reviewReason }}
             </p>
@@ -1022,6 +1023,53 @@ const DEFAULT_ESCAPE_GENRE_CATALOG = [
     finalQuestionTemplate: '{암호해독 장소}에서 {핵심 숫자}를 이용해 {최종 문장}을 해독하는 결론을 입력하게 한다.'
   },
   {
+    genreId: 'ARCHIVE_TRACE',
+    genreName: '기록 추적',
+    answerSlots: [
+      { slotId: 'RELATED_PERSON', label: '관련자', description: '기록을 만들거나 옮긴 인물', minClueCount: 2 },
+      { slotId: 'ANSWER_CLUE', label: '정답 단서', description: '문서, 메모, 표식, 인장, 기록 조각', minClueCount: 2 },
+      { slotId: 'FINAL_DESTINATION', label: '장소', description: '기록이 최종 확인되는 장소', minClueCount: 2 }
+    ],
+    recommendedPuzzleTypes: ['OBSERVATION', 'STORY_COMBINATION', 'PATTERN'],
+    forbiddenPatterns: ['장소명을 그대로 정답으로 사용하기', '기록이라는 단어만 반복하기'],
+    finalQuestionTemplate: '{관련자}, {정답 단서}, {장소}를 연결해 사라진 기록의 결론을 입력하게 한다.'
+  },
+  {
+    genreId: 'WITNESS_CONTRADICTION',
+    genreName: '목격자 진술',
+    answerSlots: [
+      { slotId: 'RELATED_PERSON', label: '관련자', description: '진술이 엇갈리는 목격자 또는 관계자', minClueCount: 2 },
+      { slotId: 'ANSWER_CLUE', label: '정답 단서', description: '시간, 물건, 문서, 사진, 목격 기록의 모순', minClueCount: 2 },
+      { slotId: 'FINAL_DESTINATION', label: '장소', description: '진술의 모순이 확인되는 장소', minClueCount: 2 }
+    ],
+    recommendedPuzzleTypes: ['OBSERVATION', 'NUMBER_LOCK', 'STORY_COMBINATION'],
+    forbiddenPatterns: ['모든 인물을 똑같이 수상하게 만들기', '카드 이름을 단서처럼 직접 언급하기'],
+    finalQuestionTemplate: '{관련자}의 진술과 {정답 단서}, {장소}를 대조해 모순의 결론을 입력하게 한다.'
+  },
+  {
+    genreId: 'TIME_SLIP',
+    genreName: '시간 역행',
+    answerSlots: [
+      { slotId: 'RELATED_PERSON', label: '관련자', description: '과거 기록과 현재 단서를 연결하는 인물', minClueCount: 2 },
+      { slotId: 'ANSWER_CLUE', label: '정답 단서', description: '연도, 시각, 순서, 복원 흔적', minClueCount: 2 },
+      { slotId: 'FINAL_DESTINATION', label: '장소', description: '시간의 순서가 맞춰지는 장소', minClueCount: 2 }
+    ],
+    recommendedPuzzleTypes: ['NUMBER_LOCK', 'PATTERN', 'STORY_COMBINATION'],
+    forbiddenPatterns: ['전문 역사 지식만으로 풀게 하기', '연도를 무작위 암호로만 쓰기'],
+    finalQuestionTemplate: '{관련자}, {정답 단서}, {장소}를 시간 순서대로 맞춰 최종 결론을 입력하게 한다.'
+  },
+  {
+    genreId: 'URBAN_LEGEND',
+    genreName: '도시 전설',
+    answerSlots: [
+      { slotId: 'RELATED_PERSON', label: '관련자', description: '소문을 퍼뜨리거나 숨긴 인물', minClueCount: 2 },
+      { slotId: 'ANSWER_CLUE', label: '정답 단서', description: '골목, 표식, 그림자, 벽화, 오래된 물건', minClueCount: 2 },
+      { slotId: 'FINAL_DESTINATION', label: '장소', description: '소문의 실체가 확인되는 장소', minClueCount: 2 }
+    ],
+    recommendedPuzzleTypes: ['OBSERVATION', 'INITIAL_SOUND', 'PATTERN'],
+    forbiddenPatterns: ['공포 묘사만 반복하기', '근거 없는 실존 괴담 만들기'],
+    finalQuestionTemplate: '{관련자}, {정답 단서}, {장소}를 연결해 도시 전설의 실체를 입력하게 한다.'
+  },  {
     genreId: 'MISSING_CASE',
     genreName: '실종 사건',
     answerSlots: [
@@ -1209,8 +1257,8 @@ const caseBuilderNext = computed(() => {
     }
     if (!draftPlan.value) {
       return {
-        title: '6단계: AI 장르와 최종 정답 키워드를 먼저 확정하세요.',
-        description: '선택한 TourAPI 장소와 역사·문화 근거에 맞춰 장르와 정답 필수 키워드를 먼저 제안받습니다.',
+        title: '6단계: AI 장르와 최종 정답 키워드 3개를 먼저 확정하세요.',
+        description: '관련자 1개, 정답 단서 1개, 최종 목적지 장소 1개를 만들고 각 키워드별 힌트 3개 구조로 초안을 설계합니다.',
         button: '장르/정답 키워드 생성',
         action: 'plan',
         disabled: false
@@ -1227,7 +1275,7 @@ const caseBuilderNext = computed(() => {
     }
     return {
       title: '7단계: 확정한 정답 키워드로 Gemini 초안을 생성하세요.',
-      description: '관리자가 확인한 장르와 정답 키워드 계약을 바탕으로 스토리 개요, 미션, 관계자 카드, 해금 자료 카드를 생성합니다.',
+      description: '관리자가 확인한 관련자/정답 단서/장소 키워드 계약을 바탕으로 스토리, 미션, 관계자 카드, 해금 자료 카드를 생성합니다.',
       button: '키워드 확정 후 전체 초안 생성',
       action: 'gemini',
       disabled: false
@@ -1638,7 +1686,7 @@ async function addSuspect() {
       alias: `관계자 ${(selected.value?.suspects || []).length + 1}`,
       displayName: '새 관계자',
       suspiciousPoint: '의심 포인트를 입력하세요.',
-      unlockedByDefault: false
+      unlockedByDefault: true
     });
     hydrateEpisodeForm(selected.value);
     publishReadiness.value = null;
@@ -1891,7 +1939,7 @@ async function generateGeminiDraft() {
     finishDraftProgress('Gemini 초안이 생성되었고 저장 전 자동 보정까지 적용했습니다. 각 장소의 현장 근거만 최종 확인하세요.');
     setMessage('Gemini 미션 파일 초안이 생성되었습니다. 구조 보정은 적용됐고 아직 DB에는 저장되지 않았습니다.', 'success');
   } catch (error) {
-    failDraftProgress(error.userMessage || error.message || 'Gemini 초안을 생성할 수 없습니다. gemini.api.key와 gemini.model 설정을 확인하세요.');
+    failDraftProgress(error.userMessage || error.message || 'Gemini 초안을 생성할 수 없습니다. 모델 과부하가 지속되면 잠시 후 다시 시도하거나 gemini.api.key와 gemini.model 설정을 확인하세요.');
     setMessage(draftError.value, 'error');
   }
 }
@@ -2734,30 +2782,29 @@ function strengthenCaseMaterials(draft) {
   const finalAnswerType = draft.finalAnswerType || 'EVIDENCE';
   const suspectSeeds = [
     {
-      alias: '관계자 A',
-      displayName: '붉은 우산의 의뢰인',
-      relation: '사건 의뢰를 가장 먼저 전달한 인물',
-      suspicion: '현장 사진이 사라진 시간대에 조사 경로 근처에서 반복적으로 목격되었다.',
-      alibi: '비가 오기 전 카페 골목에 있었다고 주장하지만, 장소 키워드와 동선이 일부 겹친다.'
+      alias: '의뢰인',
+      displayName: '한서윤',
+      relation: '사라진 기록의 접수를 요청했고 봉투 보관 절차를 알고 있던 인물입니다.',
+      suspicion: '문서가 사라진 18시 20분 직전 봉투의 봉인을 확인했고, 접수대 기록보다 먼저 봉투 안쪽 훼손 사실을 말했습니다.',
+      alibi: '핵심 모순: 현장에 없었다고 말했지만, 접수 전에 훼손된 봉투 모서리와 봉인 방향을 정확히 알고 있었습니다.'
     },
     {
-      alias: '관계자 B',
-      displayName: '잃어버린 필름의 조수',
-      relation: '피해자의 기록 정리를 맡았던 조수',
-      suspicion: '사진과 메모의 순서를 알고 있어 단서를 바꿔치기할 수 있는 위치에 있었다.',
-      alibi: '자료실에 있었다고 말하지만, 정답 키워드 단서 중 하나가 그의 진술과 충돌한다.'
+      alias: '정리관',
+      displayName: '강도윤',
+      relation: '조사 자료를 시간순으로 정리하고 보관함 출입 기록을 관리했습니다.',
+      suspicion: '17시 50분 보관함 반출 기록에 그의 서명이 있어 사진과 메모 순서를 바꿀 수 있는 위치에 있었습니다.',
+      alibi: '배제 근거: 같은 시각 자료실 출입 로그와 다른 직원의 목격 기록이 일치해, 봉투 훼손 시간대에는 접수대에 접근하지 못했습니다.'
     },
     {
-      alias: '관계자 C',
-      displayName: '회색 봉투의 전달자',
-      relation: '마지막 문서를 전달한 익명의 중개인',
-      suspicion: '장소 키워드 두 개가 모두 이 인물의 이동 방향을 가리킨다.',
-      alibi: '봉투만 전달했을 뿐이라고 주장하지만, 봉투 안쪽에 사건의 핵심 단어가 남아 있다.'
+      alias: '전달자',
+      displayName: '윤재하',
+      relation: '마지막 쪽지를 전달했지만 문서 원본 보관 절차에는 참여하지 않았습니다.',
+      suspicion: '18시 이후 봉투를 들고 이동한 목격 기록이 있어 단서를 옮긴 사람으로 의심받았습니다.',
+      alibi: '배제 근거: 목격된 봉투는 이미 훼손된 뒤 전달된 복사본이었고, 전달 전 촬영된 사진에 같은 접힌 자국이 남아 있습니다.'
     }
-  ];
-  draft.suspects = suspectSeeds.map((seed, index) => {
+  ];  draft.suspects = suspectSeeds.map((seed, index) => {
     const current = draft.suspects?.[index] || {};
-    const displayName = isWeakText(current.displayName) ? seed.displayName : current.displayName;
+    const displayName = isWeakText(current.displayName) || isRoleLikeSuspectDisplayName(current.displayName) ? seed.displayName : current.displayName;
     return {
       ...current,
       alias: isWeakText(current.alias) ? seed.alias : current.alias,
@@ -2766,8 +2813,8 @@ function strengthenCaseMaterials(draft) {
         ? `${displayName}은 다른 이들이 알기 전부터 ${seed.suspicion} 그러나 그 정보의 출처는 끝까지 숨겼습니다.`
         : current.shortDescription,
       relationToVictim: seed.relation,
-      suspiciousPoint: isWeakText(current.suspiciousPoint) ? seed.suspicion : current.suspiciousPoint,
-      alibiSummary: isWeakText(current.alibiSummary) ? seed.alibi : current.alibiSummary,
+      suspiciousPoint: isWeakText(current.suspiciousPoint) || hasCardReference(current.suspiciousPoint) || isAbstractSuspectText(current.suspiciousPoint) ? seed.suspicion : current.suspiciousPoint,
+      alibiSummary: isWeakText(current.alibiSummary) || hasCardReference(current.alibiSummary) || lacksSuspectConclusion(current.alibiSummary, index) ? seed.alibi : current.alibiSummary,
       imagePrompt: current.imagePrompt || buildSuspectImagePrompt({ ...current, displayName, alias: seed.alias, suspiciousPoint: seed.suspicion }),
       portraitImageUrl: current.portraitImageUrl || ''
     };
@@ -2797,7 +2844,29 @@ function isWeakText(value) {
   return ['AI 초안', 'placeholder', '검수', '운영 공개 전', '관리자 검수', '사건 현장 스케치', '조사 시작 단서 카드', '초안입니다', '알리바이'].some((word) => text.includes(word));
 }
 
-function isWeakImageUrl(value) {
+function isRoleLikeSuspectDisplayName(value) {
+  const text = String(value || '').replace(/\s+/g, '');
+  if (!text || text.length <= 2) return true;
+  return ['의뢰인', '정리관', '전달자', '연락책', '보관담당자', '기록중개인', '관계자'].some((word) => text.includes(word));
+}
+
+function hasCardReference(value) {
+  const text = String(value || '');
+  return ['힌트 카드', '정답 힌트', '목적지 힌트', '카드 하나', '카드의'].some((word) => text.includes(word));
+}
+
+function isAbstractSuspectText(value) {
+  const text = String(value || '');
+  const hasConcreteBasis = ['문서', '시간', '시각', '봉투', '물건', '목격', '기록', '사진', '메모', '서명', '접수', '보관', '반출', '출입', '동선'].some((word) => text.includes(word));
+  const hasAbstractOnly = ['수상', '의심스럽', '진실을 숨', '잠적', '비밀을 숨'].some((word) => text.includes(word));
+  return !hasConcreteBasis || hasAbstractOnly;
+}
+
+function lacksSuspectConclusion(value, index) {
+  const text = String(value || '');
+  if (index === 0) return !text.includes('핵심 모순') || isAbstractSuspectText(text);
+  return !text.includes('배제 근거') || isAbstractSuspectText(text);
+}function isWeakImageUrl(value) {
   const url = String(value || '').trim();
   return !url || url.includes('generated-case-card') || url.includes('placeholder');
 }
@@ -3439,9 +3508,9 @@ const payload = {
     missionCount: orderedCandidates.length,
     minMissionCount: 6,
     maxMissionCount: 9,
-    minCluesPerAnswerSlot: 2,
-    answerHintRatio: 0.6,
-    destinationHintRatio: 0.4,
+    minCluesPerAnswerSlot: 3,
+    answerHintRatio: 0.57,
+    destinationHintRatio: 0.43,
     allowDynamicMissionCount: true
   },
 
@@ -3453,7 +3522,6 @@ const payload = {
     allowedPuzzleTypes: [
       'OBSERVATION',
       'NUMBER_LOCK',
-      'INITIAL_SOUND',
       'PATTERN',
       'STORY_COMBINATION'
     ],

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="map-page">
     <CaseFileTabMenu :episode-id="episodeId" active="map" />
 
@@ -69,7 +69,7 @@
       추리 장소 확인
     </button>
 
-    <PuzzleCard :puzzle="puzzle" :message="puzzleMessage" :correct="puzzleCorrect" @submit="submitPuzzle" @close="closePuzzle" />
+    <PuzzleCard :puzzle="puzzle" :message="puzzleMessage" :correct="puzzleCorrect" :explanation="puzzleExplanation" @submit="submitPuzzle" @close="closePuzzle" />
 
     <SpotBottomSheet
       :spot="selectedSpot"
@@ -83,6 +83,22 @@
     />
 
     <ClueBoard :board="clueBoard" :open="showClues" @close="showClues = false" />
+
+    <Teleport to="body">
+      <section v-if="rewardPopup.visible" class="reward-pop-overlay" aria-live="polite">
+        <article class="reward-pop-card" :class="{ fly: rewardPopup.flying }">
+          <span class="reward-kicker">MISSION CLEAR</span>
+          <h2>단서를 획득했습니다</h2>
+          <p class="reward-clue">{{ rewardPopup.clue }}</p>
+          <div v-if="rewardPopup.items.length" class="reward-items">
+            <span v-for="item in rewardPopup.items" :key="`${item.rewardType}-${item.itemType}-${item.targetId}`">
+              {{ rewardItemLabel(item) }}
+            </span>
+          </div>
+          <strong class="reward-destination">미션 메모에 보관 중</strong>
+        </article>
+      </section>
+    </Teleport>
   </main>
 </template>
 
@@ -108,6 +124,7 @@ const selectedSpot = ref(null);
 const puzzle = ref(null);
 const puzzleMessage = ref('');
 const puzzleCorrect = ref(null);
+const puzzleExplanation = ref('');
 const statusMessage = ref('');
 const statusType = ref('info');
 const caseFileUpdated = ref(false);
@@ -117,6 +134,12 @@ const finalArrivalResult = ref(null);
 const mapLoadFailed = ref(false);
 const mapLoadMessage = ref('');
 const currentPosition = ref(null);
+const rewardPopup = ref({
+  visible: false,
+  flying: false,
+  clue: '',
+  items: []
+});
 
 const devArrival = import.meta.env.VITE_DEV_ARRIVAL === 'true';
 const kakaoMapKey = import.meta.env.VITE_KAKAO_MAP_KEY || '';
@@ -128,6 +151,8 @@ let overlays = [];
 let routeLine = null;
 let currentPositionOverlay = null;
 let sdkPromise = null;
+let rewardPopupTimer = null;
+let rewardPopupClearTimer = null;
 
 onMounted(async () => {
   try {
@@ -138,7 +163,10 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => clearOverlays());
+onUnmounted(() => {
+  clearOverlays();
+  clearRewardPopupTimers();
+});
 
 async function loadAll() {
   mapData.value = await episodeApi.getMap(episodeId);
@@ -333,6 +361,7 @@ async function openPuzzle(spot) {
     puzzle.value = await episodeApi.getPuzzle(spot.spotId);
     puzzleMessage.value = '';
     puzzleCorrect.value = null;
+    puzzleExplanation.value = '';
   } catch (error) {
     setStatus(error.userMessage || '퍼즐을 열 수 없습니다.', 'error');
   }
@@ -342,6 +371,7 @@ function closePuzzle() {
   puzzle.value = null;
   puzzleMessage.value = '';
   puzzleCorrect.value = null;
+  puzzleExplanation.value = '';
 }
 
 async function submitPuzzle(answer) {
@@ -349,17 +379,56 @@ async function submitPuzzle(answer) {
     const result = await episodeApi.submitPuzzle(puzzle.value.puzzleId, answer);
     puzzleMessage.value = result.message;
     puzzleCorrect.value = result.correct;
+    puzzleExplanation.value = '';
     clueBoard.value = result.clueBoard || await episodeApi.getClueBoard(episodeId);
     caseFileUpdated.value = Boolean(result.correct && result.caseFileUpdated);
     const unlockedTypes = result.unlockedRewardTypes || [];
-    if (result.correct && unlockedTypes.includes('STORY_CLUE')) setStatus('스토리 단서가 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
-    else if (result.correct && result.caseFileUpdated) setStatus('새 미션 자료가 미션 파일에 추가되었습니다.', 'success');
-    else if (result.correct) setStatus('정답입니다. 단서 보드가 갱신되었습니다.', 'success');
+    if (result.correct) {
+      const popupData = rewardPopupData(result, unlockedTypes);
+      closePuzzle();
+      showRewardPopup(popupData);
+      if (unlockedTypes.includes('STORY_CLUE')) setStatus('스토리 단서가 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
+      else if (result.caseFileUpdated) setStatus('새 미션 자료가 미션 파일에 추가되었습니다.', 'success');
+      else setStatus('정답입니다. 단서 보드가 갱신되었습니다.', 'success');
+    }
     await loadAll();
   } catch (error) {
     puzzleMessage.value = error.userMessage || '정답을 제출할 수 없습니다.';
     puzzleCorrect.value = false;
   }
+}
+
+function rewardPopupData(result, unlockedTypes = []) {
+  const clue = String(result.rewardClue || '').trim()
+    || unlockedTypes.map(rewardTypeLabel).filter(Boolean).join(' · ')
+    || '새로운 현장 단서';
+  return {
+    clue,
+    items: Array.isArray(result.newlyUnlockedItems) ? result.newlyUnlockedItems : []
+  };
+}
+
+function showRewardPopup(data) {
+  clearRewardPopupTimers();
+  rewardPopup.value = {
+    visible: true,
+    flying: false,
+    clue: data.clue,
+    items: data.items
+  };
+  rewardPopupTimer = window.setTimeout(() => {
+    rewardPopup.value = { ...rewardPopup.value, flying: true };
+  }, 1150);
+  rewardPopupClearTimer = window.setTimeout(() => {
+    rewardPopup.value = { visible: false, flying: false, clue: '', items: [] };
+  }, 2150);
+}
+
+function clearRewardPopupTimers() {
+  clearTimeout(rewardPopupTimer);
+  clearTimeout(rewardPopupClearTimer);
+  rewardPopupTimer = null;
+  rewardPopupClearTimer = null;
 }
 
 function goDeduction() {
@@ -525,6 +594,23 @@ const markerLabel = (type) => ({
 }[type] || '키워드 미션');
 
 const shortLabel = (type) => ({ START: 'S', KEYWORD_1: '1', KEYWORD_2: '2', KEYWORD_3: '3', FINAL_DESTINATION: 'F', ANSWER_HINT: '1', DESTINATION_HINT: '3', STORY: '1', FINAL_CANDIDATE: 'F' }[type] || '•');
+
+const rewardTypeLabel = (type) => ({
+  ANSWER_CLUE: '정답 키워드 단서',
+  DESTINATION_CLUE: '장소 키워드 단서',
+  STORY_CLUE: '스토리 단서',
+  EVIDENCE_UNLOCK: '사건자료 해금',
+  PHOTO_UNLOCK: '사진 자료 해금',
+  MEMO_UNLOCK: '메모 해금',
+  SUSPECT_UNLOCK: '관계자 카드 해금',
+  SUSPECT_UPDATE: '관계자 정보 갱신'
+}[type] || type);
+
+const rewardItemLabel = (item) => {
+  const type = rewardTypeLabel(item.rewardType);
+  const target = item.itemType ? ` · ${item.itemType}` : '';
+  return `${type}${target}`;
+};
 </script>
 
 <style scoped>
@@ -589,6 +675,24 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .floating.admin-skip { bottom: 358px; background: #15803d; padding: 0 14px; }
 .floating.admin-final { bottom: 412px; background: #7c3aed; padding: 0 14px; }
 .floating.final-check { bottom: 466px; background: #991b1b; padding: 0 14px; }
+.reward-pop-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; pointer-events: none; background: radial-gradient(circle at 50% 42%, rgba(251,191,36,.18), transparent 34%); }
+.reward-pop-card { width: min(calc(100vw - 34px), 390px); box-sizing: border-box; padding: 18px; border: 1px solid rgba(251,191,36,.5); border-radius: 22px; background: linear-gradient(145deg, rgba(120,53,15,.96), rgba(15,23,42,.98)); color: #fff7ed; box-shadow: 0 30px 90px rgba(0,0,0,.52), 0 0 0 8px rgba(251,191,36,.08); transform-origin: 50% 20%; animation: reward-pop-in .34s cubic-bezier(.2, .9, .2, 1.15) both; }
+.reward-pop-card.fly { animation: reward-file-fly .92s cubic-bezier(.56, -.02, .2, 1) forwards; }
+.reward-kicker { display: inline-flex; border-radius: 999px; padding: 5px 8px; background: rgba(250,204,21,.18); color: #fde68a; font-size: .7rem; font-weight: 1000; letter-spacing: .12em; }
+.reward-pop-card h2 { margin: 10px 0 8px; font-size: 1.3rem; }
+.reward-clue { margin: 0; padding: 12px; border-radius: 16px; background: rgba(2,6,23,.42); color: #fef3c7; font-size: 1.02rem; font-weight: 1000; line-height: 1.45; }
+.reward-items { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.reward-items span { border-radius: 999px; padding: 6px 8px; background: rgba(34,197,94,.18); color: #bbf7d0; font-size: .76rem; font-weight: 900; }
+.reward-destination { display: block; margin-top: 12px; color: #a5f3fc; font-size: .82rem; text-align: right; }
+@keyframes reward-pop-in {
+  from { opacity: 0; transform: translateY(22px) scale(.9) rotate(-2deg); filter: blur(5px); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0); filter: blur(0); }
+}
+@keyframes reward-file-fly {
+  0% { opacity: 1; transform: translateY(0) scale(1) rotate(0); filter: blur(0); }
+  55% { opacity: .92; transform: translateY(-26vh) scale(.56) rotate(-7deg); filter: blur(.4px); }
+  100% { opacity: 0; transform: translate(calc(-50vw + 150px), calc(-50vh + 76px)) scale(.12) rotate(-14deg); filter: blur(3px); }
+}
 @media (min-width: 900px) {
   .map-page { padding-bottom: 32px; }
   .map-shell { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }

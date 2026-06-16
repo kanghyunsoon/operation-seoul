@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <aside v-if="spot" class="spot-sheet">
     <div class="sheet-bar"></div>
 

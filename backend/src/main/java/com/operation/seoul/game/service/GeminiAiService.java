@@ -788,6 +788,6 @@ public class GeminiAiService {
 
     /** 현재 프로젝트에서 사용하는 Gemini 모델 endpoint를 구성합니다. */
     private String geminiUrl() {
-        return "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + geminiApiKey.trim();
+        return "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey.trim();
     }
 }

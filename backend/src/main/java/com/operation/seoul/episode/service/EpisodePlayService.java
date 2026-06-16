@@ -361,7 +361,7 @@ public class EpisodePlayService {
 
     private Map<String, Object> sanitizeInteraction(Map<String, Object> interaction) {
         Map<String, Object> copy = new LinkedHashMap<>(interaction);
-        for (String key : List.of("title", "prompt", "storyHook", "basis")) {
+        for (String key : List.of("title", "prompt", "storyHook", "basis", "missionDescription")) {
             Object value = copy.get(key);
             if (value instanceof String text) {
                 copy.put(key, sanitizeCategoryCodes(text));
@@ -385,17 +385,18 @@ public class EpisodePlayService {
     private Map<String, Object> buildFallbackInteraction(Puzzle puzzle) {
         String localSolution = fallbackMinigameSolution(puzzle);
         Map<String, Object> config = new LinkedHashMap<>();
-        config.put("tiles", rotatedCharacters(localSolution));
+        config.put("nodes", fallbackPatternNodes(localSolution));
 
         Map<String, Object> interaction = new LinkedHashMap<>();
         interaction.put("version", 1);
-        interaction.put("type", "WORD_COMPOSE");
-        interaction.put("title", "단서 장치 · 단어 조합");
-        interaction.put("prompt", sanitizeCategoryCodes(puzzle.getQuestionText()));
-        interaction.put("storyHook", "해금 단서: " + sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "사건 단서")));
+        interaction.put("type", "PATTERN_LOCK");
+        interaction.put("title", "단서 장치 · 패턴 잠금");
+        interaction.put("prompt", "아래 미션을 해결하여 단서를 얻으세요.");
+        interaction.put("missionDescription", "잠깐 점등되는 노드 순서를 기억하고 그대로 입력한 뒤 결과를 제출하세요.");
+        interaction.put("storyHook", "아래 미션을 해결하여 단서를 얻으세요.");
         interaction.put("basis", sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "사건 단서")));
         interaction.put("localSolution", localSolution);
-        interaction.put("timeLimitSeconds", 0);
+        interaction.put("timeLimitSeconds", 60);
         interaction.put("config", config);
         return interaction;
     }
@@ -422,6 +423,26 @@ public class EpisodePlayService {
         return characters;
     }
 
+    private List<Integer> fallbackPatternNodes(String value) {
+        int seed = Math.abs(fallbackText(value, "단서장치").hashCode());
+        List<Integer> nodes = new ArrayList<>();
+        for (int divisor : List.of(1, 3, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41)) {
+            int node = (seed / divisor) % 9;
+            if (!nodes.contains(node)) {
+                nodes.add(node);
+            }
+            if (nodes.size() >= 7) {
+                break;
+            }
+        }
+        for (int node = 0; nodes.size() < 7 && node < 9; node++) {
+            if (!nodes.contains(node)) {
+                nodes.add(node);
+            }
+        }
+        return nodes;
+    }
+
     private String fallbackText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
@@ -442,11 +463,11 @@ public class EpisodePlayService {
     }
 
     private boolean isPuzzleAnswerAccepted(Puzzle puzzle, String submittedAnswer) {
-        String normalizedSubmitted = normalizeAnswer(submittedAnswer);
-        if (normalizeAnswer(puzzle.getAnswer()).equals(normalizedSubmitted)) {
-            return true;
+        Map<String, Object> interaction = readPuzzleInteraction(puzzle.getRewardPayload());
+        if (interaction != null) {
+            return minigameProofValidator.validate(puzzle.getRewardPayload(), submittedAnswer);
         }
-        return minigameProofValidator.validate(minigamePayload(puzzle), submittedAnswer);
+        return normalizeAnswer(puzzle.getAnswer()).equals(normalizeAnswer(submittedAnswer));
     }
 
     @Transactional
@@ -1102,7 +1123,7 @@ public class EpisodePlayService {
     }
 
     private String normalizeAnswer(String value) {
-        return value == null ? "" : value.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        return AnswerNormalizer.normalize(value);
     }
 
     private int maxQuestions(Episode episode) {
@@ -1173,4 +1194,3 @@ public class EpisodePlayService {
     }
 
 }
-

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="game-nav-shell">
     <button type="button" class="game-home" @click="router.push({ name: 'EpisodeList' })">홈</button>
     <nav class="case-tabs" aria-label="플레이 화면 전환">

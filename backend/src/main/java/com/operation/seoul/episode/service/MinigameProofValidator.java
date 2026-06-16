@@ -35,14 +35,14 @@ public class MinigameProofValidator {
             return switch (type) {
                 case "NUMBER_LOCK" -> proof.equals(config.path("solutionDigits").asText(""));
                 case "WORD_COMPOSE" -> normalize(proof).equals(normalize(localSolution));
-                case "COLOR_CODE" -> proof.equals(joinTextArray(config.path("solution"), ","));
                 case "MEMORY_CARD" -> "MATCHED".equals(proof);
                 case "PATTERN_LOCK" -> proof.equals(joinIntArray(config.path("nodes"), ","));
-                case "SWITCH_TOGGLE" -> proof.equals(joinBooleanStates(config.path("targetStates")));
-                case "RAPID_TAP" -> parseInt(proof) >= config.path("target").asInt(7);
+                case "RAPID_TAP" -> parseInt(proof) == config.path("target").asInt(7);
                 case "DIRECTION_SEQUENCE" -> proof.equals(joinTextArray(config.path("sequence"), ","));
-                case "SHADOW_FIND" -> parseInt(proof) == config.path("targetIndex").asInt(-1);
-                case "SLIDE_PUZZLE" -> proof.equals(joinTextArray(config.path("tiles"), ""));
+                case "UP_DOWN_TIMER" -> parseInt(proof) == config.path("solution").asInt(Integer.MIN_VALUE);
+                case "NUMBER_BASEBALL" -> proof.equals(config.path("solution").asText(""));
+                case "NUMBER_SEQUENCE_TAP" -> proof.equals(expectedNumberTapProof(config));
+                case "COLOR_STROOP", "LEFT_RIGHT_SORT" -> resultProofPasses(proof, config);
                 default -> false;
             };
         } catch (Exception ignored) {
@@ -64,18 +64,57 @@ public class MinigameProofValidator {
         return String.join(delimiter, values);
     }
 
-    private String joinBooleanStates(JsonNode node) {
-        if (node == null || !node.isArray()) return "";
-        List<String> values = new ArrayList<>();
-        node.forEach(item -> values.add(item.asBoolean(false) ? "1" : "0"));
-        return String.join(",", values);
-    }
-
     private int parseInt(String value) {
         try {
             return Integer.parseInt(value);
         } catch (Exception ignored) {
             return Integer.MIN_VALUE;
+        }
+    }
+
+    private String expectedNumberTapProof(JsonNode config) {
+        JsonNode sequence = config.path("sequence");
+        if (!sequence.isArray()) return "";
+        List<Integer> skipNumbers = intRuleList(config.path("skipNumbers"), config.path("skipNumber").asInt(Integer.MIN_VALUE));
+        List<Integer> doubleNumbers = intRuleList(config.path("doubleNumbers"), config.path("doubleNumber").asInt(Integer.MIN_VALUE));
+        List<String> values = new ArrayList<>();
+        sequence.forEach(item -> {
+            int value = item.asInt();
+            if (skipNumbers.contains(value)) {
+                return;
+            }
+            values.add(String.valueOf(value));
+            if (doubleNumbers.contains(value)) {
+                values.add(String.valueOf(value));
+            }
+        });
+        return String.join(",", values);
+    }
+
+    private List<Integer> intRuleList(JsonNode arrayNode, int fallback) {
+        List<Integer> values = new ArrayList<>();
+        if (arrayNode != null && arrayNode.isArray()) {
+            arrayNode.forEach(item -> values.add(item.asInt(Integer.MIN_VALUE)));
+        } else if (fallback != Integer.MIN_VALUE) {
+            values.add(fallback);
+        }
+        return values.stream().filter(value -> value != Integer.MIN_VALUE).distinct().limit(2).toList();
+    }
+
+    private boolean resultProofPasses(String proof, JsonNode config) {
+        try {
+            JsonNode result = objectMapper.readTree(proof);
+            int correctCount = result.path("correctCount").asInt(Integer.MIN_VALUE);
+            int passCorrectCount = config.path("passCorrectCount").asInt(Integer.MAX_VALUE);
+            int totalRounds = result.path("totalRounds").asInt(0);
+            int wrongCount = result.path("wrongCount").asInt(0);
+            int elapsedMillis = result.path("elapsedMillis").asInt(0);
+            return correctCount >= passCorrectCount
+                    && totalRounds > 0
+                    && wrongCount >= 0
+                    && elapsedMillis >= 0;
+        } catch (Exception ignored) {
+            return false;
         }
     }
 

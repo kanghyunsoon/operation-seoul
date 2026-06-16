@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="episode-page">
     <header class="hero">
       <div>

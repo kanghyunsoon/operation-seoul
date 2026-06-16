@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="case-file-page">
     <CaseFileTabMenu :episode-id="episodeId" active="case" />
 
@@ -38,7 +38,6 @@
           <span v-for="(clue, index) in caseFile.overview.unlockedStoryClues" :key="`overview-story-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
         </div>
         <p v-else class="story-locked-help">시작 장소의 현장 퍼즐을 해결하면 이 카드가 상세 스토리 기록으로 갱신됩니다.</p>
-        <blockquote>{{ caseFile.finalQuestion }}</blockquote>
         <p class="goal">목표: {{ caseFile.overview?.goal }}</p>
       </section>
 
@@ -60,11 +59,14 @@
               <h4>{{ suspect.displayName || '이름 미확인 인물' }}</h4>
               <p>{{ suspect.shortDescription || '사건과 연결된 가능성이 있는 인물입니다. 단서를 모으면 관계와 알리바이가 더 명확해집니다.' }}</p>
             </div>
-            <dl>
-              <dt>관계</dt><dd>{{ suspect.relationToVictim || '관계 미확인' }}</dd>
-              <dt>의심 포인트</dt><dd>{{ suspect.suspiciousPoint || '의심 포인트 미입력' }}</dd>
-              <dt>알리바이</dt><dd>{{ suspect.alibiSummary || '알리바이 미확인' }}</dd>
-            </dl>
+            <details class="suspect-detail">
+              <summary>상세 확인</summary>
+              <dl>
+                <dt>관계</dt><dd>{{ suspect.relationToVictim || '관계 미확인' }}</dd>
+                <dt>의심 포인트</dt><dd>{{ suspect.suspiciousPoint || '의심 포인트 미입력' }}</dd>
+                <dt>알리바이</dt><dd>{{ suspect.alibiSummary || '알리바이 미확인' }}</dd>
+              </dl>
+            </details>
             <span class="unlock-badge">{{ suspect.cleared ? '혐의 해소' : suspect.unlocked ? '상세 확인' : '기본 공개' }}</span>
           </article>
         </div>
@@ -97,25 +99,6 @@
             <span v-if="evidence.unlocked" class="unlock-badge">해금됨</span>
             <span v-else class="lock">잠김</span>
           </article>
-        </div>
-      </section>
-
-      <section class="dossier board">
-        <p class="section-label">단서 요약</p>
-        <div class="clue-column">
-          <h4>정답 키워드</h4>
-          <span v-for="(clue, index) in caseFile.clueSummary.answerClues" :key="`a-${clue}`">{{ humanizeClue(clue, 'answer', index) }}</span>
-          <em v-if="!caseFile.clueSummary.answerClues.length">아직 없음</em>
-        </div>
-        <div class="clue-column purple">
-          <h4>장소 키워드</h4>
-          <span v-for="(clue, index) in caseFile.clueSummary.destinationClues" :key="`d-${clue}`">{{ humanizeClue(clue, 'destination', index) }}</span>
-          <em v-if="!caseFile.clueSummary.destinationClues.length">아직 없음</em>
-        </div>
-        <div class="clue-column green">
-          <h4>스토리 단서</h4>
-          <span v-for="(clue, index) in caseFile.clueSummary.storyClues" :key="`s-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
-          <em v-if="!caseFile.clueSummary.storyClues.length">아직 없음</em>
         </div>
       </section>
 
@@ -250,6 +233,9 @@ blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; back
 .evidence-art { min-height: 82px; }
 em { color: #94a3b8; font-style: normal; font-size: .78rem; }
 dl { grid-column: 1 / -1; display: grid; gap: 4px; margin: 8px 0 0; }
+.suspect-detail { grid-column: 1 / -1; margin-top: 6px; }
+.suspect-detail summary { cursor: pointer; width: fit-content; border-radius: 999px; padding: 6px 10px; background: rgba(245,158,11,.16); color: #fde68a; font-size: .78rem; font-weight: 900; }
+.suspect-detail[open] summary { margin-bottom: 8px; }
 dt { color: #fbbf24; font-size: .76rem; font-weight: 900; }
 dd { margin: 0 0 6px; color: #cbd5e1; line-height: 1.5; }
 .lock, .unlock-badge { position: absolute; right: 12px; top: 12px; border-radius: 999px; padding: 4px 8px; font-size: .72rem; font-weight: 900; }
