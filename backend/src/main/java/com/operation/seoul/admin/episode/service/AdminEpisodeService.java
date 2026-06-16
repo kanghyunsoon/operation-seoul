@@ -408,7 +408,7 @@ public class AdminEpisodeService {
         suspect.setRelationToVictim(text(request.getRelationToVictim(), suspect.getRelationToVictim()));
         suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), suspect.getSuspiciousPoint()));
         suspect.setAlibiSummary(text(request.getAlibiSummary(), suspect.getAlibiSummary()));
-        suspect.setUnlockedByDefault(request.getUnlockedByDefault() == null ? suspect.getUnlockedByDefault() : request.getUnlockedByDefault());
+        suspect.setUnlockedByDefault(true);
         suspect.setDisplayOrder(request.getDisplayOrder() == null ? suspect.getDisplayOrder() : request.getDisplayOrder());
         adminEpisodeRepository.updateSuspect(suspect);
         return getEpisode(episodeId);
@@ -427,7 +427,7 @@ public class AdminEpisodeService {
         suspect.setRelationToVictim(text(request.getRelationToVictim(), "Review required."));
         suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), "Review required."));
         suspect.setAlibiSummary(text(request.getAlibiSummary(), "Review required."));
-        suspect.setUnlockedByDefault(request.getUnlockedByDefault() != null && request.getUnlockedByDefault());
+        suspect.setUnlockedByDefault(true);
         suspect.setDisplayOrder(request.getDisplayOrder() == null ? nextOrder : request.getDisplayOrder());
         adminEpisodeRepository.insertSuspect(suspect);
         return getEpisode(episodeId);
@@ -910,7 +910,7 @@ public class AdminEpisodeService {
 
         List<CaseSuspect> suspects = saveDraftSuspects(episode.getId(), draft.getSuspects());
         Map<Integer, CaseEvidence> evidenceByMissionOrder = saveDraftEvidences(episode.getId(), draft.getEvidences(), spotByOrder, suspects);
-        applyDraftRewardPayloads(episode.getId(), missions, puzzleByOrder, evidenceByMissionOrder);
+        applyDraftRewardPayloads(episode.getId(), missions, puzzleByOrder, evidenceByMissionOrder, finalKeywordValues(request.getSourceInput()));
         saveDraftPartnerReward(episode.getId());
         return getEpisode(episode.getId());
     }
@@ -967,7 +967,7 @@ public class AdminEpisodeService {
                 .relationToVictim(suspect.getRelationToVictim())
                 .suspiciousPoint(suspect.getSuspiciousPoint())
                 .alibiSummary(suspect.getAlibiSummary())
-                .unlockedByDefault(suspect.getUnlockedByDefault())
+                .unlockedByDefault(true)
                 .displayOrder(suspect.getDisplayOrder())
                 .build();
     }
@@ -1008,20 +1008,47 @@ public class AdminEpisodeService {
             CaseSuspect suspect = new CaseSuspect();
             suspect.setEpisodeId(episodeId);
             suspect.setAlias(blank(draft.getAlias(), "Suspect " + (char) ('A' + index)));
-            suspect.setDisplayName(blank(draft.getDisplayName(), "Unnamed stakeholder"));
+            suspect.setDisplayName(safeSuspectDisplayName(draft.getDisplayName(), index));
             suspect.setShortDescription(blank(draft.getShortDescription(), "A stakeholder who may have distorted the clue chain."));
             suspect.setRelationToVictim(blank(draft.getRelationToVictim(), "Case stakeholder"));
             suspect.setSuspiciousPoint(blank(draft.getSuspiciousPoint(), "There is an unexplained gap in the timeline."));
             suspect.setAlibiSummary(blank(draft.getAlibiSummary(), "The alibi requires comparison with evidence cards."));
             suspect.setPortraitImageUrl(draft.getPortraitImageUrl());
             suspect.setImagePrompt(ensureKoreanPersonPrompt(blank(draft.getImagePrompt(), buildSuspectImagePrompt(draft))));
-            suspect.setUnlockedByDefault(index == 0);
+            suspect.setUnlockedByDefault(true);
             suspect.setDisplayOrder(index + 1);
             adminEpisodeRepository.insertSuspect(suspect);
             saved.add(suspect);
             index++;
         }
         return saved;
+    }
+
+    private String safeSuspectDisplayName(String value, int index) {
+        String name = blank(value, "");
+        if (missing(name) || looksLikeSuspectAlias(name)) {
+            return switch (Math.floorMod(index, 3)) {
+                case 0 -> "한서윤";
+                case 1 -> "강도윤";
+                default -> "윤재하";
+            };
+        }
+        return name;
+    }
+
+    private boolean looksLikeSuspectAlias(String value) {
+        if (missing(value)) {
+            return true;
+        }
+        String compactValue = compact(value);
+        return compactValue.length() <= 2
+                || containsCompact(compactValue, "의뢰인")
+                || containsCompact(compactValue, "정리관")
+                || containsCompact(compactValue, "전달자")
+                || containsCompact(compactValue, "연락책")
+                || containsCompact(compactValue, "보관담당자")
+                || containsCompact(compactValue, "기록중개인")
+                || containsCompact(compactValue, "관계자");
     }
 
 
@@ -1138,7 +1165,7 @@ public class AdminEpisodeService {
 
 
 
-    private void applyDraftRewardPayloads(Long episodeId, List<AiEpisodeDraftResponse.MissionDraft> missions, Map<Integer, Puzzle> puzzleByOrder, Map<Integer, CaseEvidence> evidenceByMissionOrder) {
+    private void applyDraftRewardPayloads(Long episodeId, List<AiEpisodeDraftResponse.MissionDraft> missions, Map<Integer, Puzzle> puzzleByOrder, Map<Integer, CaseEvidence> evidenceByMissionOrder, List<String> finalKeywords) {
         for (int i = 0; i < missions.size(); i++) {
             AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
@@ -1183,12 +1210,19 @@ public class AdminEpisodeService {
         interaction.put("version", 1);
         interaction.put("type", type);
         interaction.put("title", interactionTitle(type, clueType));
-        interaction.put("prompt", sanitizeCategoryCodes(blank(mission.getQuestionText(), "단서 장치를 풀고 제출 버튼을 누르세요.")));
-        interaction.put("storyHook", "해금 단서: " + sanitizeCategoryCodes(blank(mission.getRewardClue(), "사건 단서")));
+        Map<String, Object> config = interactionConfig(type, localSolution, basis, index);
+        interaction.put("prompt", "아래 미션을 해결하여 단서를 얻으세요.");
+        interaction.put("missionDescription", missionDescription(type));
+        interaction.put("storyHook", "아래 미션을 해결하여 단서를 얻으세요.");
         interaction.put("basis", sanitizeCategoryCodes(basis));
         interaction.put("localSolution", localSolution);
-        interaction.put("timeLimitSeconds", type.equals("RAPID_TAP") ? 12 : 0);
-        interaction.put("config", interactionConfig(type, localSolution, basis, index));
+        interaction.put("timeLimitSeconds", switch (type) {
+            case "RAPID_TAP", "UP_DOWN_TIMER", "NUMBER_SEQUENCE_TAP", "COLOR_STROOP", "LEFT_RIGHT_SORT" -> ((Number) config.getOrDefault("durationSeconds", 10)).intValue();
+            case "MEMORY_CARD" -> 45;
+            case "DIRECTION_SEQUENCE", "PATTERN_LOCK" -> 60;
+            default -> 0;
+        });
+        interaction.put("config", config);
         return interaction;
     }
 
@@ -1196,17 +1230,16 @@ public class AdminEpisodeService {
         String puzzleType = normalizeType(mission.getPuzzleType());
         String answerFormat = normalizeType(mission.getAnswerFormat());
         if ("NUMBER_LOCK".equals(puzzleType) || "NUMBER".equals(answerFormat) || answer.matches("\\d{2,}")) return "NUMBER_LOCK";
-        return switch (Math.floorMod(index, 10)) {
-            case 0 -> "WORD_COMPOSE";
-            case 1 -> "COLOR_CODE";
-            case 2 -> "MEMORY_CARD";
-            case 3 -> "PATTERN_LOCK";
-            case 4 -> "SWITCH_TOGGLE";
-            case 5 -> "RAPID_TAP";
-            case 6 -> "DIRECTION_SEQUENCE";
-            case 7 -> "SHADOW_FIND";
-            case 8 -> "SLIDE_PUZZLE";
-            default -> "WORD_COMPOSE";
+        return switch (Math.floorMod(index, 9)) {
+            case 0 -> "MEMORY_CARD";
+            case 1 -> "DIRECTION_SEQUENCE";
+            case 2 -> "PATTERN_LOCK";
+            case 3 -> "UP_DOWN_TIMER";
+            case 4 -> "NUMBER_BASEBALL";
+            case 5 -> "NUMBER_SEQUENCE_TAP";
+            case 6 -> "COLOR_STROOP";
+            case 7 -> "LEFT_RIGHT_SORT";
+            default -> "RAPID_TAP";
         };
     }
 
@@ -1223,35 +1256,66 @@ public class AdminEpisodeService {
                 config.put("solutionDigits", solutionDigits);
             }
             case "WORD_COMPOSE" -> config.put("tiles", shuffledCharacters(answer));
-            case "COLOR_CODE" -> {
-                List<String> palette = List.of("#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#111827");
-                config.put("palette", palette);
-                config.put("solution", colorSolution(answer, index, palette));
-                config.put("labels", List.of("붉은 봉인", "노란 메모", "녹색 경로", "푸른 사진", "검은 봉투"));
+            case "MEMORY_CARD" -> {
+                config.put("cards", memoryCards(answer, basis));
+                config.put("maxMistakes", 5);
+                config.put("previewSeconds", 2);
             }
-            case "MEMORY_CARD" -> config.put("cards", memoryCards(answer, basis));
             case "PATTERN_LOCK" -> config.put("nodes", patternNodes(answer, index));
-            case "SWITCH_TOGGLE" -> {
-                List<String> switches = switchLabels(answer, basis);
-                config.put("switches", switches);
-                config.put("targetStates", switchTargetStates(switches.size()));
-            }
             case "RAPID_TAP" -> {
-                config.put("target", Math.min(9, Math.max(5, answer.length() + 2)));
+                int seed = Math.abs((answer + basis + index).hashCode());
+                int durationSeconds = 4 + Math.floorMod(seed, 7);
+                int maxTaps = durationSeconds * 6;
+                int gap = 1 + Math.floorMod(seed / 7, 5);
+                config.put("durationSeconds", durationSeconds);
+                config.put("maxTaps", maxTaps);
+                config.put("target", maxTaps - gap);
                 config.put("label", basis);
             }
-            case "DIRECTION_SEQUENCE" -> config.put("sequence", directionSequence(answer, index));
-            case "SHADOW_FIND" -> {
-                int targetIndex = Math.floorMod(Math.abs((answer + basis + index).hashCode()), 4);
-                List<String> shadows = shadowLabels(answer, basis, targetIndex);
-                config.put("label", basis);
-                config.put("targetIndex", targetIndex);
-                config.put("shadows", shadows);
+            case "DIRECTION_SEQUENCE" -> {
+                config.put("sequence", directionSequence(answer, index));
+                config.put("strict", true);
             }
-            case "SLIDE_PUZZLE" -> {
-                List<String> tiles = slideTiles(answer, basis);
-                config.put("tiles", tiles);
-                config.put("initialTiles", scrambledSlideTiles(tiles));
+            case "UP_DOWN_TIMER" -> {
+                int seed = Math.abs((answer + basis + index).hashCode());
+                int min = 1;
+                int max = 100;
+                config.put("min", min);
+                config.put("max", max);
+                config.put("solution", min + Math.floorMod(seed, max));
+                config.put("durationSeconds", 12 + Math.floorMod(seed / 11, 5));
+            }
+            case "NUMBER_BASEBALL" -> {
+                config.put("digits", 3);
+                config.put("solution", baseballDigits(answer, basis, index));
+                config.put("maxAttempts", 8);
+            }
+            case "NUMBER_SEQUENCE_TAP" -> {
+                List<Integer> sequence = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9);
+                List<Integer> skipNumbers = numberTapRuleNumbers(answer, basis, index, 0, List.of());
+                List<Integer> doubleNumbers = numberTapRuleNumbers(answer, basis, index, 3, skipNumbers);
+                config.put("sequence", sequence);
+                config.put("skipNumbers", skipNumbers);
+                config.put("doubleNumbers", doubleNumbers);
+                config.put("durationSeconds", 7);
+                config.put("buttons", sequence);
+            }
+            case "COLOR_STROOP" -> {
+                config.put("rounds", 10);
+                config.put("perRoundSeconds", 2);
+                config.put("durationSeconds", 20);
+                config.put("passCorrectCount", 8);
+                config.put("colors", colorStroopColors());
+                config.put("items", colorStroopItems(answer, basis, index));
+            }
+            case "LEFT_RIGHT_SORT" -> {
+                config.put("rounds", 30);
+                config.put("durationSeconds", 15);
+                config.put("passCorrectCount", 20);
+                config.put("targets", List.of(
+                        Map.of("key", "CAT", "label", "고양이", "correctSide", "LEFT"),
+                        Map.of("key", "DOG", "label", "개", "correctSide", "RIGHT")
+                ));
             }
             default -> config.put("label", basis);
         }
@@ -1267,15 +1331,33 @@ public class AdminEpisodeService {
         return prefix + " · " + switch (type) {
             case "NUMBER_LOCK" -> "숫자 락";
             case "WORD_COMPOSE" -> "단어 조합";
-            case "COLOR_CODE" -> "색상 코드";
             case "MEMORY_CARD" -> "기억 카드";
             case "PATTERN_LOCK" -> "패턴 잠금";
-            case "SWITCH_TOGGLE" -> "스위치 토글";
             case "RAPID_TAP" -> "빠른 탭";
             case "DIRECTION_SEQUENCE" -> "방향키 조합";
-            case "SHADOW_FIND" -> "그림자 찾기";
-            case "SLIDE_PUZZLE" -> "슬라이드 퍼즐";
+            case "UP_DOWN_TIMER" -> "시간제한 업다운";
+            case "NUMBER_BASEBALL" -> "숫자야구";
+            case "NUMBER_SEQUENCE_TAP" -> "숫자 누르기";
+            case "COLOR_STROOP" -> "색깔 반전퀴즈";
+            case "LEFT_RIGHT_SORT" -> "좌우 분류 반응";
             default -> "단서 입력";
+        };
+    }
+
+    private String missionDescription(String type) {
+        return switch (type) {
+            case "NUMBER_LOCK" -> "숫자 암호를 맞춘 뒤 결과를 제출하세요.";
+            case "WORD_COMPOSE" -> "흩어진 단어 조각을 올바르게 조합한 뒤 결과를 제출하세요.";
+            case "MEMORY_CARD" -> "카드 위치를 기억해 모든 짝을 맞춘 뒤 결과를 제출하세요.";
+            case "PATTERN_LOCK" -> "잠깐 점등되는 노드 순서를 기억하고 그대로 입력한 뒤 결과를 제출하세요.";
+            case "RAPID_TAP" -> "제한 시간 안에 목표 횟수만큼 정확히 탭한 뒤 결과를 제출하세요.";
+            case "DIRECTION_SEQUENCE" -> "제시된 방향 순서를 빠짐없이 입력한 뒤 결과를 제출하세요.";
+            case "UP_DOWN_TIMER" -> "UP/DOWN 힌트로 범위를 좁혀 제한 시간 안에 숨겨진 숫자를 추리하세요.";
+            case "NUMBER_BASEBALL" -> "스트라이크와 볼 결과를 기억해 숨겨진 숫자와 위치를 추리하세요.";
+            case "NUMBER_SEQUENCE_TAP" -> "7초 안에 1부터 9까지 누르되, 건너뛰기와 두 번 누르기 조건을 정확히 지키세요.";
+            case "COLOR_STROOP" -> "글자의 의미가 아니라 글자에 칠해진 실제 색깔을 제한 시간 안에 고르세요.";
+            case "LEFT_RIGHT_SORT" -> "중앙에 표시되는 동물을 정해진 좌우 방향으로 빠르게 분류하세요.";
+            default -> "미션을 완료한 뒤 결과를 제출하세요.";
         };
     }
 
@@ -1309,57 +1391,28 @@ public class AdminEpisodeService {
     }
 
     private List<String> memoryCards(String answer, String basis) {
-        List<String> seeds = new ArrayList<>(List.of(answer, basis, "봉인", "사진", "문서", "그림자"));
-        return seeds.stream().filter(value -> value != null && !value.isBlank()).distinct().limit(4).toList();
+        List<String> seeds = new ArrayList<>(List.of(answer, basis, "봉인", "사진", "문서", "그림자", "동선", "증거"));
+        return seeds.stream().filter(value -> value != null && !value.isBlank()).distinct().limit(6).toList();
     }
 
     private List<Integer> patternNodes(String answer, int index) {
         int seed = Math.abs((answer + index).hashCode());
         List<Integer> nodes = new ArrayList<>();
-        for (int divisor : List.of(1, 3, 7, 11, 13)) {
+        for (int divisor : List.of(1, 3, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41)) {
             int node = (seed / divisor) % 9;
             if (!nodes.contains(node)) {
                 nodes.add(node);
             }
-            if (nodes.size() >= 4) {
+            if (nodes.size() >= 7) {
                 break;
             }
         }
+        for (int node = 0; nodes.size() < 7 && node < 9; node++) {
+            if (!nodes.contains(node)) {
+                nodes.add(node);
+            }
+        }
         return nodes;
-    }
-
-    private List<String> switchLabels(String answer, String basis) {
-        List<String> labels = new ArrayList<>(List.of(basis, answer, "위장 단서", "동선 단서"));
-        return labels.stream().filter(value -> value != null && !value.isBlank()).distinct().limit(4).toList();
-    }
-
-    private List<String> colorSolution(String answer, int index, List<String> palette) {
-        int seed = Math.abs((answer + index).hashCode());
-        int length = Math.min(4, Math.max(3, answer.length()));
-        List<String> solution = new ArrayList<>();
-        for (int i = 0; i < length; i++) {
-            solution.add(palette.get((seed + i * 2) % palette.size()));
-        }
-        return solution;
-    }
-
-    private List<Boolean> switchTargetStates(int size) {
-        List<Boolean> states = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            states.add(i == 0 || i == 1);
-        }
-        return states;
-    }
-
-    private List<String> shadowLabels(String answer, String basis, int targetIndex) {
-        List<String> labels = new ArrayList<>();
-        labels.add("봉투");
-        labels.add("렌즈");
-        labels.add("문서");
-        labels.add("그림자");
-        String target = basis == null || basis.isBlank() ? answer : basis;
-        labels.set(Math.floorMod(targetIndex, labels.size()), target == null || target.isBlank() ? "단서" : target);
-        return labels;
     }
 
     private List<String> directionSequence(String answer, int index) {
@@ -1369,30 +1422,68 @@ public class AdminEpisodeService {
                 directions.get(seed % directions.size()),
                 directions.get((seed / 3) % directions.size()),
                 directions.get((seed / 7) % directions.size()),
-                directions.get((seed / 11) % directions.size())
+                directions.get((seed / 11) % directions.size()),
+                directions.get((seed / 17) % directions.size()),
+                directions.get((seed / 19) % directions.size())
         );
     }
 
-    private List<String> slideTiles(String answer, String basis) {
-        String source = answer == null || answer.isBlank() ? basis : answer;
-        List<String> tiles = new ArrayList<>(source.codePoints()
-                .mapToObj(codePoint -> new String(Character.toChars(codePoint)))
-                .filter(value -> !value.isBlank())
-                .limit(4)
-                .toList());
-        while (tiles.size() < 4) {
-            tiles.add(List.of("단", "서", "봉", "인").get(tiles.size()));
+    private String baseballDigits(String answer, String basis, int index) {
+        int seed = Math.abs((answer + basis + index).hashCode());
+        List<Integer> digits = new ArrayList<>();
+        for (int divisor : List.of(1, 3, 7, 11, 13, 17, 19, 23, 29, 31)) {
+            int digit = Math.floorMod(seed / divisor, 10);
+            if (!digits.contains(digit)) {
+                digits.add(digit);
+            }
+            if (digits.size() >= 3) {
+                break;
+            }
         }
-        return tiles;
+        while (digits.size() < 3) {
+            int digit = digits.size() + 1;
+            if (!digits.contains(digit)) {
+                digits.add(digit);
+            }
+        }
+        return digits.stream().map(String::valueOf).collect(Collectors.joining());
     }
 
-    private List<String> scrambledSlideTiles(List<String> tiles) {
-        List<String> initial = new ArrayList<>(tiles);
-        java.util.Collections.reverse(initial);
-        if (initial.equals(tiles) && initial.size() > 1) {
-            java.util.Collections.rotate(initial, 1);
+    private List<Integer> numberTapRuleNumbers(String answer, String basis, int index, int offset, List<Integer> excluded) {
+        int seed = Math.abs((answer + basis + index).hashCode());
+        List<Integer> values = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6, 7, 8, 9));
+        values.removeAll(excluded);
+        java.util.Collections.rotate(values, Math.floorMod(seed / (offset + 1), values.size()));
+        int count = 1 + Math.floorMod(seed / (offset + 7), 2);
+        return values.subList(0, Math.min(count, values.size()));
+    }
+
+    private List<Map<String, String>> colorStroopColors() {
+        return List.of(
+                Map.of("key", "RED", "label", "빨강", "hex", "#ef4444"),
+                Map.of("key", "BLUE", "label", "파랑", "hex", "#3b82f6"),
+                Map.of("key", "GREEN", "label", "초록", "hex", "#22c55e"),
+                Map.of("key", "YELLOW", "label", "노랑", "hex", "#eab308")
+        );
+    }
+
+    private List<Map<String, String>> colorStroopItems(String answer, String basis, int index) {
+        List<Map<String, String>> colors = colorStroopColors();
+        int seed = Math.abs((answer + basis + index).hashCode());
+        List<Map<String, String>> items = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            int textIndex = Math.floorMod(seed / (i + 1) + i, colors.size());
+            int colorIndex = Math.floorMod(textIndex + 1 + Math.floorMod(seed / (i + 3), colors.size() - 1), colors.size());
+            Map<String, String> text = colors.get(textIndex);
+            Map<String, String> color = colors.get(colorIndex);
+            items.add(Map.of(
+                    "text", text.get("label"),
+                    "textColorKey", color.get("key"),
+                    "textColorLabel", color.get("label"),
+                    "textColorHex", color.get("hex")
+            ));
         }
-        return initial;
+        return items;
     }
 
     private String writeObjectJson(Object value) {
@@ -1798,6 +1889,23 @@ public class AdminEpisodeService {
             second.stream().filter(value -> value != null && !value.isBlank()).forEach(value -> unique.putIfAbsent(value.trim(), value.trim()));
         }
         return new ArrayList<>(unique.values());
+    }
+
+    private List<String> finalKeywordValues(AiEpisodeDraftRequest request) {
+        if (request == null) {
+            return List.of();
+        }
+        if (request.getFinalAnswerKeywordItems() != null && !request.getFinalAnswerKeywordItems().isEmpty()) {
+            return request.getFinalAnswerKeywordItems().stream()
+                    .map(AiEpisodeDraftRequest.AnswerKeywordInput::getKeyword)
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .toList();
+        }
+        return request.getFinalAnswerKeywords() == null ? List.of() : request.getFinalAnswerKeywords().stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .toList();
     }
 
     private AdminEpisodeProgressStats safeStats(Long episodeId) {

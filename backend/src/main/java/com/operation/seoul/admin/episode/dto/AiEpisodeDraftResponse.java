@@ -67,7 +67,6 @@ public class AiEpisodeDraftResponse {
         private String questionText;
         private String answer;
         private String answerFormat;
-
         // 추가
         private String puzzleAnswerSource;   // NUMBER, VISIBLE_ELEMENT, KEYWORD, ADMIN_MEMO, FICTION_SAFE
         private String puzzleAnswerRisk;     // OK, GENERIC, PLACE_NAME_RISK, FINAL_KEYWORD_RISK

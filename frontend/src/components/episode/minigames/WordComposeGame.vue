@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="word-compose">
     <div class="answer-tray">{{ composed || '조각을 눌러 단어를 만드세요' }}</div>
     <div class="tile-grid">

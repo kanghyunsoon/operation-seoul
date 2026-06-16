@@ -1,4 +1,4 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 import { useSessionStore } from '@/stores/sessionStore';
 
 const apiClient = axios.create({

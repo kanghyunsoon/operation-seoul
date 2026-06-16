@@ -1,4 +1,4 @@
-﻿# Episode Minigame Components
+# Episode Minigame Components
 
 The puzzle UI is fixed to these component types. AI/Gemini may provide story text and config values in `rewardPayload.interaction`, but it must not generate arbitrary UI.
 
@@ -12,26 +12,25 @@ Every minigame receives:
 
 Every minigame emits:
 
-- `solved-change: boolean`: `true` only when the local interaction is solved.
+- `solved-change: boolean`: internal signal only. The player UI must not reveal whether it is correct before server submit.
 - `proof-change: string`: a `MG|TYPE|VALUE` proof string derived from the current player input.
 
-`PuzzleCard.vue` submits the proof to the backend only after `solved-change=true`. The backend validates the proof against `rewardPayload.interaction.config`. The actual puzzle answer remains server-side in `puzzles.answer` and is not sent as `interaction` data.
+`PuzzleCard.vue` can submit the proof at any time. The backend validates the proof against `rewardPayload.interaction.config`, and only a valid proof clears the device. The actual puzzle answer remains server-side in `puzzles.answer` and is not sent as `interaction` data.
 
 ## Types
 
 - `NUMBER_LOCK`: digit wheel. Proof must match `config.solutionDigits`.
 - `WORD_COMPOSE`: tile composition. Proof text must match `interaction.localSolution` ignoring whitespace/case.
-- `COLOR_CODE`: palette sequence. Proof must match `config.solution` exactly.
 - `MEMORY_CARD`: matching cards. Proof must be `MATCHED` after all pairs are matched.
 - `PATTERN_LOCK`: 3x3 node sequence. Proof must match `config.nodes` exactly.
-- `SWITCH_TOGGLE`: switch bank. Proof must match `config.targetStates` exactly.
-- `RAPID_TAP`: tap counter. Proof count must be at least `config.target`.
+- `RAPID_TAP`: timed tap counter. Proof count must exactly equal `config.target`.
 - `DIRECTION_SEQUENCE`: arrow pad. Proof must match `config.sequence` exactly.
-- `SHADOW_FIND`: choose one shadow. Proof index must equal `config.targetIndex`.
-- `SLIDE_PUZZLE`: reorder tiles. Proof must match `config.tiles` joined as text.
+- `UP_DOWN_TIMER`: timed up/down number guessing. Proof must equal `config.solution`.
+- `NUMBER_BASEBALL`: number baseball. Proof must equal `config.solution`.
+- `NUMBER_SEQUENCE_TAP`: rule-based number tapping. Proof must match the derived sequence after skip/double rules.
 
 ## Backend Generation
 
-`AdminEpisodeService.buildPuzzleInteraction()` assigns one of these 10 types and writes the matching config into `rewardPayload.interaction` while preserving `rewardPayload.rewards` for case-file unlocks.
+`AdminEpisodeService.buildPuzzleInteraction()` assigns one of these supported types and writes the matching config into `rewardPayload.interaction` while preserving `rewardPayload.rewards` for case-file unlocks.
 
 `EpisodePlayService.validateMinigameProof()` is the server-side verifier for all `MG|TYPE|VALUE` submissions.

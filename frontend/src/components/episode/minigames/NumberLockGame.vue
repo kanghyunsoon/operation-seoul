@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="number-lock" aria-label="숫자 맞추기">
     <div v-for="(_, index) in digitCount" :key="`digit-${index}`" class="digit-wheel">
       <button type="button" @click="bump(index, 1)">▲</button>

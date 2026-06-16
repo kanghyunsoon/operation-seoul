@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="mypage">
     <header class="hero">
       <button type="button" class="back" @click="router.push({ name: 'EpisodeList' })">미션 파일 목록</button>

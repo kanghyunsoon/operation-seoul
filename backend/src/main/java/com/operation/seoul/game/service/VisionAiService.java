@@ -123,7 +123,7 @@ public class VisionAiService {
 
     /** Vision 라벨들이 목표 단서를 설명하는지 Gemini에게 TRUE/FALSE로만 판정하게 합니다. */
     private boolean judgeMatchWithGemini(String labels, String target) throws Exception {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
         String prompt = String.format(
                 "당신은 '오퍼레이션 서울'의 작전 통제 AI입니다. 요원이 현장에서 찍은 사진의 분석 키워드들을 보고, 목표 사물과 일치하는지 판단하세요.\n\n" +

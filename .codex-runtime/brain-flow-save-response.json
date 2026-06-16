@@ -1,0 +1,322 @@
+﻿{
+    "actualHistorySummary":  "1. ëª¨í°ë¸ ê³µê°\\n2. ì¤ì  ë°°ê²½ í´ì¤",
+    "deductionForbiddenReveals":  "ë¹ë°ê´ë¦¬ì¸ì´ ììì´ì ë¥¼ ê²ì¦ìµì¢\u0085ì§ì ì ì¨ê²¼ë¤\në¹ë°ê´ë¦¬ì¸\nììì´ì \nê²ì¦ìµì¢\u0085ì§ì ",
+    "deductionSecretFacts":  "ë¸ë ì¸ í¼ì¦ ê²ì¦ì© ì¬ì¤",
+    "difficulty":  "NORMAL",
+    "era":  "íë",
+    "estimatedDistance":  "ì½ 0.7km",
+    "estimatedTime":  "90~120ë¶",
+    "evidences":  [
+
+                  ],
+    "fictionSynopsis":  "ìì, ê²ì¦ ì§ì ì ë°ë¼ ë¸ë ì¸ í¼ì¦ íë¦ì íì¸íê².",
+    "finalAnswer":  "ë¹ë°ê´ë¦¬ì¸ì´ ììì´ì ë¥¼ ê²ì¦ìµì¢\u0085ì§ì ì ì¨ê²¼ë¤",
+    "finalAnswerAliases":  "KW:ë¹ë°ê´ë¦¬ì¸|ììì´ì |ê²ì¦ìµì¢\u0085ì§ì ",
+    "finalAnswerType":  "HIDDEN_TRUTH",
+    "finalQuestion":  "ê´ë ¨ì, ì ëµ ë¨ì, ì¥ìë¥¼ ì¢\u0085í©íë©´ ì´ë¤ ê²°ë¡ ì¸ê°?",
+    "finalTruthSummary":  "3. í½ì\u0085ê³¼ ì­ì¬ì ë§¤ì¹­ (ëë¸ë¦¬í)\\nì¤í ë¦¬ ì [ê²ì¦] -\u003e ì¤ì  ë°°ê²½ ì [í\u0085ì¤í¸]: ê²ì¦ì© ê°ì ì¤ëª\u0085",
+    "genre":  "ê²ì¦",
+    "id":  84,
+    "maxDeductionQuestions":  20,
+    "noticeText":  "Review required.",
+    "partnerRewards":  [
+                           {
+                               "description":  "Review required.",
+                               "latitude":  null,
+                               "locationName":  "ê²ì ìì  ì§ì ",
+                               "longitude":  null,
+                               "partnerName":  "Operation Korea",
+                               "rewardId":  60,
+                               "rewardType":  "STAMP",
+                               "status":  "PLANNED",
+                               "title":  "ì§ì­ ë¦¬ìë ì¤ë¹ ì¤"
+                           }
+                       ],
+    "progressStats":  {
+                          "clearedPlayers":  0,
+                          "inProgressPlayers":  0,
+                          "totalPlayers":  0
+                      },
+    "recommendedPlayers":  "2~4ëª\u0085",
+    "spots":  [
+                  {
+                      "address":  "ìì¸ ê²ì¦ë¡ 1",
+                      "arrivalRadius":  80.0,
+                      "clueRole":  "START",
+                      "fieldVerificationNote":  "AI/ì¬ì´í¸ ë°ì´í° ê¸°ë° ê²ì ìë£ ì´ìì\u0085ëë¤. ì¢í, ëì°© ë°ê²½, í¼ì¦ ê·¼ê±°ë ì ê³µë íë³´ ë°ì´í°ë¡ íì¸íì¼ë©° ì¤ì  GPS QAë ì í ì¬í­ì\u0085ëë¤.",
+                      "fieldVerified":  true,
+                      "finalPlace":  false,
+                      "latitude":  37.561,
+                      "longitude":  126.971,
+                      "markerType":  "START",
+                      "placeName":  "ê²ì¦ ì§ì  1",
+                      "publicMarkerType":  "START",
+                      "puzzle":  {
+                                     "answer":  "ê²ì¦ë¨ì´1",
+                                     "answerFormat":  "TEXT",
+                                     "difficulty":  "NORMAL",
+                                     "hints":  [
+                                                   {
+                                                       "hintLevel":  1,
+                                                       "hintText":  "íì¥ íìì íì¸íì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  2,
+                                                       "hintText":  "ê¸°ë¡ì ë°ë³µì ë³´ì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  3,
+                                                       "hintText":  "ê²ì¦ ë¨ì´ë¥¼ ë ì¬ë¦¬ì¸ì."
+                                                   }
+                                               ],
+                                     "puzzleId":  533,
+                                     "puzzleType":  "STORY_COMBINATION",
+                                     "questionText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°í´ ê²ì¦ ë¨ì´ë¥¼ ì\u0085ë ¥íì¸ì.",
+                                     "rewardClue":  "ê²ì¦ ë¨ì 1",
+                                     "rewardPayload":  "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"ê²ì¦ ë¨ì 1\"}],\"interaction\":{\"version\":1,\"type\":\"MEMORY_CARD\",\"title\":\"ì¬ê±´ ì¥ì¹ Â· ê¸°ìµ ì¹´ë\",\"prompt\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"missionDescription\":\"ì¹´ë ìì¹ë¥¼ ê¸°ìµí´ ëª¨ë  ì§ì ë§ì¶ ë¤ ê²°ê³¼ë¥¼ ì ì¶íì¸ì.\",\"storyHook\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"basis\":\"ê²ì¦ë¨ì´1\",\"localSolution\":\"ê²ì¦ë¨ì´1\",\"timeLimitSeconds\":45,\"config\":{\"cards\":[\"ê²ì¦ë¨ì´1\",\"ë´ì¸\",\"ì¬ì§\",\"ë¬¸ì\",\"ê·¸ë¦¼ì\",\"ëì \"],\"maxMistakes\":5,\"previewSeconds\":2}},\"brainPuzzle\":{\"puzzleType\":\"PATTERN_SEQUENCE\",\"title\":\"ì¬ë¼ì§ ê¸°ë¡ì ê·ì¹\",\"questionText\":\"ë¤ì ë°°ì´ì ë¹ì¹¸ì ë¤ì´ê° ê°ì ì\u0085ë ¥íì¸ì.\",\"displayData\":{\"sequence\":[\"2\",\"4\",\"8\",\"16\",\"?\"]},\"answer\":\"32\",\"acceptableAnswers\":[\"32\"],\"hints\":[\"ì ì«ìì ë¤ì ì«ìì ê´ê³ë¥¼ ë³´ì¸ì.\",\"ê°ì ë°°ì¨ì´ ë°ë³µë©ëë¤.\"],\"explanation\":\"ê° í­ì ì´ì  í­ì 2ë¥¼ ê³±í ê°ì´ë¯ë¡ ì ëµì 32ì\u0085ëë¤.\",\"timeLimitSeconds\":60,\"difficulty\":2}}"
+                                 },
+                      "spotId":  533,
+                      "storyText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°íë ê²ì¦ ë¯¸ì\u0085ì\u0085ëë¤."
+                  },
+                  {
+                      "address":  "ìì¸ ê²ì¦ë¡ 2",
+                      "arrivalRadius":  80.0,
+                      "clueRole":  "ANSWER_HINT",
+                      "fieldVerificationNote":  "AI/ì¬ì´í¸ ë°ì´í° ê¸°ë° ê²ì ìë£ ì´ìì\u0085ëë¤. ì¢í, ëì°© ë°ê²½, í¼ì¦ ê·¼ê±°ë ì ê³µë íë³´ ë°ì´í°ë¡ íì¸íì¼ë©° ì¤ì  GPS QAë ì í ì¬í­ì\u0085ëë¤.",
+                      "fieldVerified":  true,
+                      "finalPlace":  false,
+                      "latitude":  37.562000000000005,
+                      "longitude":  126.972,
+                      "markerType":  "ANSWER_HINT",
+                      "placeName":  "ê²ì¦ ì§ì  2",
+                      "publicMarkerType":  "ANSWER_HINT",
+                      "puzzle":  {
+                                     "answer":  "ê²ì¦ë¨ì´2",
+                                     "answerFormat":  "TEXT",
+                                     "difficulty":  "NORMAL",
+                                     "hints":  [
+                                                   {
+                                                       "hintLevel":  1,
+                                                       "hintText":  "íì¥ íìì íì¸íì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  2,
+                                                       "hintText":  "ê¸°ë¡ì ë°ë³µì ë³´ì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  3,
+                                                       "hintText":  "ê²ì¦ ë¨ì´ë¥¼ ë ì¬ë¦¬ì¸ì."
+                                                   }
+                                               ],
+                                     "puzzleId":  534,
+                                     "puzzleType":  "STORY_COMBINATION",
+                                     "questionText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°í´ ê²ì¦ ë¨ì´ë¥¼ ì\u0085ë ¥íì¸ì.",
+                                     "rewardClue":  "ê²ì¦ ë¨ì 2",
+                                     "rewardPayload":  "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"ê²ì¦ ë¨ì 2\"}],\"interaction\":{\"version\":1,\"type\":\"DIRECTION_SEQUENCE\",\"title\":\"ì¦ê±° í´ë\u0085 Â· ë°©í¥í¤ ì¡°í©\",\"prompt\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"missionDescription\":\"ì ìë ë°©í¥ ììë¥¼ ë¹ ì§ìì´ ì\u0085ë ¥í ë¤ ê²°ê³¼ë¥¼ ì ì¶íì¸ì.\",\"storyHook\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"basis\":\"ê²ì¦ë¨ì´2\",\"localSolution\":\"ê²ì¦ë¨ì´2\",\"timeLimitSeconds\":60,\"config\":{\"sequence\":[\"UP\",\"RIGHT\",\"RIGHT\",\"LEFT\",\"UP\",\"DOWN\"],\"strict\":true}}}"
+                                 },
+                      "spotId":  534,
+                      "storyText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°íë ê²ì¦ ë¯¸ì\u0085ì\u0085ëë¤."
+                  },
+                  {
+                      "address":  "ìì¸ ê²ì¦ë¡ 3",
+                      "arrivalRadius":  80.0,
+                      "clueRole":  "ANSWER_HINT",
+                      "fieldVerificationNote":  "AI/ì¬ì´í¸ ë°ì´í° ê¸°ë° ê²ì ìë£ ì´ìì\u0085ëë¤. ì¢í, ëì°© ë°ê²½, í¼ì¦ ê·¼ê±°ë ì ê³µë íë³´ ë°ì´í°ë¡ íì¸íì¼ë©° ì¤ì  GPS QAë ì í ì¬í­ì\u0085ëë¤.",
+                      "fieldVerified":  true,
+                      "finalPlace":  false,
+                      "latitude":  37.563,
+                      "longitude":  126.973,
+                      "markerType":  "ANSWER_HINT",
+                      "placeName":  "ê²ì¦ ì§ì  3",
+                      "publicMarkerType":  "ANSWER_HINT",
+                      "puzzle":  {
+                                     "answer":  "ê²ì¦ë¨ì´3",
+                                     "answerFormat":  "TEXT",
+                                     "difficulty":  "NORMAL",
+                                     "hints":  [
+                                                   {
+                                                       "hintLevel":  1,
+                                                       "hintText":  "íì¥ íìì íì¸íì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  2,
+                                                       "hintText":  "ê¸°ë¡ì ë°ë³µì ë³´ì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  3,
+                                                       "hintText":  "ê²ì¦ ë¨ì´ë¥¼ ë ì¬ë¦¬ì¸ì."
+                                                   }
+                                               ],
+                                     "puzzleId":  535,
+                                     "puzzleType":  "STORY_COMBINATION",
+                                     "questionText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°í´ ê²ì¦ ë¨ì´ë¥¼ ì\u0085ë ¥íì¸ì.",
+                                     "rewardClue":  "ê²ì¦ ë¨ì 3",
+                                     "rewardPayload":  "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"ê²ì¦ ë¨ì 3\"}],\"interaction\":{\"version\":1,\"type\":\"PATTERN_LOCK\",\"title\":\"ì¦ê±° í´ë\u0085 Â· í¨í´ ì ê¸\",\"prompt\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"missionDescription\":\"ì ê¹ ì ë±ëë ë\u0085¸ë ììë¥¼ ê¸°ìµíê³  ê·¸ëë¡ ì\u0085ë ¥í ë¤ ê²°ê³¼ë¥¼ ì ì¶íì¸ì.\",\"storyHook\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"basis\":\"ê²ì¦ë¨ì´3\",\"localSolution\":\"ê²ì¦ë¨ì´3\",\"timeLimitSeconds\":60,\"config\":{\"nodes\":[2,0,4,6]}}}"
+                                 },
+                      "spotId":  535,
+                      "storyText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°íë ê²ì¦ ë¯¸ì\u0085ì\u0085ëë¤."
+                  },
+                  {
+                      "address":  "ìì¸ ê²ì¦ë¡ 4",
+                      "arrivalRadius":  80.0,
+                      "clueRole":  "DESTINATION_HINT",
+                      "fieldVerificationNote":  "AI/ì¬ì´í¸ ë°ì´í° ê¸°ë° ê²ì ìë£ ì´ìì\u0085ëë¤. ì¢í, ëì°© ë°ê²½, í¼ì¦ ê·¼ê±°ë ì ê³µë íë³´ ë°ì´í°ë¡ íì¸íì¼ë©° ì¤ì  GPS QAë ì í ì¬í­ì\u0085ëë¤.",
+                      "fieldVerified":  true,
+                      "finalPlace":  false,
+                      "latitude":  37.564,
+                      "longitude":  126.974,
+                      "markerType":  "DESTINATION_HINT",
+                      "placeName":  "ê²ì¦ ì§ì  4",
+                      "publicMarkerType":  "DESTINATION_HINT",
+                      "puzzle":  {
+                                     "answer":  "ê²ì¦ë¨ì´4",
+                                     "answerFormat":  "TEXT",
+                                     "difficulty":  "NORMAL",
+                                     "hints":  [
+                                                   {
+                                                       "hintLevel":  1,
+                                                       "hintText":  "íì¥ íìì íì¸íì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  2,
+                                                       "hintText":  "ê¸°ë¡ì ë°ë³µì ë³´ì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  3,
+                                                       "hintText":  "ê²ì¦ ë¨ì´ë¥¼ ë ì¬ë¦¬ì¸ì."
+                                                   }
+                                               ],
+                                     "puzzleId":  536,
+                                     "puzzleType":  "STORY_COMBINATION",
+                                     "questionText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°í´ ê²ì¦ ë¨ì´ë¥¼ ì\u0085ë ¥íì¸ì.",
+                                     "rewardClue":  "ê²ì¦ ë¨ì 4",
+                                     "rewardPayload":  "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"ê²ì¦ ë¨ì 4\"}],\"interaction\":{\"version\":1,\"type\":\"UP_DOWN_TIMER\",\"title\":\"ëì  ë³µì Â· ìê°ì í ì\u0085ë¤ì´\",\"prompt\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"missionDescription\":\"UP/DOWN íí¸ë¡ ë²ìë¥¼ ì¢í ì í ìê° ìì ì¨ê²¨ì§ ì«ìë¥¼ ì¶ë¦¬íì¸ì.\",\"storyHook\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"basis\":\"ê²ì¦ë¨ì´4\",\"localSolution\":\"ê²ì¦ë¨ì´4\",\"timeLimitSeconds\":34,\"config\":{\"min\":1,\"max\":100,\"solution\":24,\"durationSeconds\":34}}}"
+                                 },
+                      "spotId":  536,
+                      "storyText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°íë ê²ì¦ ë¯¸ì\u0085ì\u0085ëë¤."
+                  },
+                  {
+                      "address":  "ìì¸ ê²ì¦ë¡ 5",
+                      "arrivalRadius":  80.0,
+                      "clueRole":  "DESTINATION_HINT",
+                      "fieldVerificationNote":  "AI/ì¬ì´í¸ ë°ì´í° ê¸°ë° ê²ì ìë£ ì´ìì\u0085ëë¤. ì¢í, ëì°© ë°ê²½, í¼ì¦ ê·¼ê±°ë ì ê³µë íë³´ ë°ì´í°ë¡ íì¸íì¼ë©° ì¤ì  GPS QAë ì í ì¬í­ì\u0085ëë¤.",
+                      "fieldVerified":  true,
+                      "finalPlace":  false,
+                      "latitude":  37.565000000000005,
+                      "longitude":  126.975,
+                      "markerType":  "DESTINATION_HINT",
+                      "placeName":  "ê²ì¦ ì§ì  5",
+                      "publicMarkerType":  "DESTINATION_HINT",
+                      "puzzle":  {
+                                     "answer":  "ê²ì¦ë¨ì´5",
+                                     "answerFormat":  "TEXT",
+                                     "difficulty":  "NORMAL",
+                                     "hints":  [
+                                                   {
+                                                       "hintLevel":  1,
+                                                       "hintText":  "íì¥ íìì íì¸íì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  2,
+                                                       "hintText":  "ê¸°ë¡ì ë°ë³µì ë³´ì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  3,
+                                                       "hintText":  "ê²ì¦ ë¨ì´ë¥¼ ë ì¬ë¦¬ì¸ì."
+                                                   }
+                                               ],
+                                     "puzzleId":  537,
+                                     "puzzleType":  "STORY_COMBINATION",
+                                     "questionText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°í´ ê²ì¦ ë¨ì´ë¥¼ ì\u0085ë ¥íì¸ì.",
+                                     "rewardClue":  "ê²ì¦ ë¨ì 5",
+                                     "rewardPayload":  "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"ê²ì¦ ë¨ì 5\"}],\"interaction\":{\"version\":1,\"type\":\"NUMBER_BASEBALL\",\"title\":\"ëì  ë³µì Â· ì«ìì¼êµ¬\",\"prompt\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"missionDescription\":\"ì¤í¸ë¼ì´í¬ì ë³¼ ê²°ê³¼ë¥¼ ê¸°ìµí´ ì¨ê²¨ì§ ì«ìì ìì¹ë¥¼ ì¶ë¦¬íì¸ì.\",\"storyHook\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"basis\":\"ê²ì¦ë¨ì´5\",\"localSolution\":\"ê²ì¦ë¨ì´5\",\"timeLimitSeconds\":0,\"config\":{\"digits\":3,\"solution\":\"062\",\"maxAttempts\":8}}}"
+                                 },
+                      "spotId":  537,
+                      "storyText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°íë ê²ì¦ ë¯¸ì\u0085ì\u0085ëë¤."
+                  },
+                  {
+                      "address":  "ìì¸ ê²ì¦ë¡ 6",
+                      "arrivalRadius":  80.0,
+                      "clueRole":  "FINAL_PLACE",
+                      "fieldVerificationNote":  "AI/ì¬ì´í¸ ë°ì´í° ê¸°ë° ê²ì ìë£ ì´ìì\u0085ëë¤. ì¢í, ëì°© ë°ê²½, í¼ì¦ ê·¼ê±°ë ì ê³µë íë³´ ë°ì´í°ë¡ íì¸íì¼ë©° ì¤ì  GPS QAë ì í ì¬í­ì\u0085ëë¤.",
+                      "fieldVerified":  true,
+                      "finalPlace":  true,
+                      "latitude":  37.566,
+                      "longitude":  126.976,
+                      "markerType":  "FINAL",
+                      "placeName":  "ê²ì¦ ì§ì  6",
+                      "publicMarkerType":  "DESTINATION_HINT",
+                      "puzzle":  {
+                                     "answer":  "ê²ì¦ë¨ì´6",
+                                     "answerFormat":  "TEXT",
+                                     "difficulty":  "NORMAL",
+                                     "hints":  [
+                                                   {
+                                                       "hintLevel":  1,
+                                                       "hintText":  "íì¥ íìì íì¸íì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  2,
+                                                       "hintText":  "ê¸°ë¡ì ë°ë³µì ë³´ì¸ì."
+                                                   },
+                                                   {
+                                                       "hintLevel":  3,
+                                                       "hintText":  "ê²ì¦ ë¨ì´ë¥¼ ë ì¬ë¦¬ì¸ì."
+                                                   }
+                                               ],
+                                     "puzzleId":  538,
+                                     "puzzleType":  "STORY_COMBINATION",
+                                     "questionText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°í´ ê²ì¦ ë¨ì´ë¥¼ ì\u0085ë ¥íì¸ì.",
+                                     "rewardClue":  "ê²ì¦ ë¨ì 6",
+                                     "rewardPayload":  "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"ê²ì¦ ë¨ì 6\"}],\"interaction\":{\"version\":1,\"type\":\"NUMBER_SEQUENCE_TAP\",\"title\":\"ëì  ë³µì Â· ì«ì ëë¥´ê¸°\",\"prompt\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"missionDescription\":\"ê±´ëë°ê¸°ì ë ë² ëë¥´ê¸° ì¡°ê±´ì ì§í¤ë©° ì«ìë¥¼ ììëë¡ ì\u0085ë ¥íì¸ì.\",\"storyHook\":\"ìë ë¯¸ì\u0085ì í´ê²°íì¬ ë¨ìë¥¼ ì»ì¼ì¸ì.\",\"basis\":\"ê²ì¦ë¨ì´6\",\"localSolution\":\"ê²ì¦ë¨ì´6\",\"timeLimitSeconds\":0,\"config\":{\"sequence\":[8,9,1,2,3,4,5],\"skipNumber\":8,\"doubleNumber\":9,\"buttons\":[8,9,1,2,3,4,5,6,7]}}}"
+                                 },
+                      "spotId":  538,
+                      "storyText":  "íì¥ íìê³¼ ê¸°ë¡ì ëì¡°íë ê²ì¦ ë¯¸ì\u0085ì\u0085ëë¤."
+                  }
+              ],
+    "status":  "DRAFT",
+    "subtitle":  "ìë ê²ì¦",
+    "suspects":  [
+                     {
+                         "alias":  "ì©ìì A",
+                         "alibiSummary":  "ë¹ê° ê·¸ì¹  ëê¹ì§ ì¹´í ê·¼ì²ì ììë¤ê³  ì£¼ì¥í©ëë¤.",
+                         "displayName":  "ë¶ì ë´í¬ë¥¼ ë³¸ ëª©ê²©ì",
+                         "displayOrder":  1,
+                         "imagePrompt":  "Create a high-quality fictional detective case-file portrait of ë¶ì ë´í¬ë¥¼ ë³¸ ëª©ê²©ì. Casting is mandatory: depict a fictional Korean person from Seoul, South Korea. The subject must look unmistakably Korean; preserve the story\u0027s specified age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character\u0027s Korean identity. Visual style reference: flat 2D Korean webtoon / printed storybook illustration like the attached references, muted earth-tone palette, soft matte paper grain, subtle archival texture, simplified shapes, clean dark ink outlines, gentle cel shading, restrained noir mood, poster-like composition, not photorealistic. Match the case era exactly: Joseon, Daehan Empire, colonial modern, or contemporary Korean styling as specified by the story; use era-appropriate clothing, hair, props, architecture, paper, seals, and handwriting-like marks. Character clue: ëì  ìê°í ì¼ë¶ê° ë¹ì´ ììµëë¤.. Composition: bust portrait, 3/4 view, natural Korean styling and grooming appropriate to the character, restrained expression, sharp facial silhouette. Negative constraints: no photorealism, no 3D render, no glossy game art, no Western comic style, no European-looking models, no foreign tourist styling, no modern objects unless the story era is contemporary, no readable real text, no watermark, no logo, no UI frame.  No celebrity likeness.",
+                         "portraitImageUrl":  null,
+                         "relationToVictim":  "ë§ì§ë§ ìë¢° ì°ë½ì±\u0085",
+                         "shortDescription":  "íì¥ ëì  ê·¼ì²ìì ë§ì§ë§ ë´í¬ë¥¼ ë³¸ ì¸ë¬¼ì\u0085ëë¤.",
+                         "suspectId":  202,
+                         "suspiciousPoint":  "ëì  ìê°í ì¼ë¶ê° ë¹ì´ ììµëë¤.",
+                         "unlockedByDefault":  true
+                     },
+                     {
+                         "alias":  "ì©ìì B",
+                         "alibiSummary":  "ê¸°ë¡ì¤ì ììë¤ê³  ì£¼ì¥íì§ë§ íì¸í ëª©ê²©ìê° ììµëë¤.",
+                         "displayName":  "ì¬ë¼ì§ ê¸°ë¡ ê´ë¦¬ì¸",
+                         "displayOrder":  2,
+                         "imagePrompt":  "Create a high-quality fictional detective case-file portrait of ì¬ë¼ì§ ê¸°ë¡ ê´ë¦¬ì¸. Casting is mandatory: depict a fictional Korean person from Seoul, South Korea. The subject must look unmistakably Korean; preserve the story\u0027s specified age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character\u0027s Korean identity. Visual style reference: flat 2D Korean webtoon / printed storybook illustration like the attached references, muted earth-tone palette, soft matte paper grain, subtle archival texture, simplified shapes, clean dark ink outlines, gentle cel shading, restrained noir mood, poster-like composition, not photorealistic. Match the case era exactly: Joseon, Daehan Empire, colonial modern, or contemporary Korean styling as specified by the story; use era-appropriate clothing, hair, props, architecture, paper, seals, and handwriting-like marks. Character clue: ì¬ë¼ì§ íë¦ì ë³´ê´ ìì¹ë¥¼ ìê³  ìììµëë¤.. Composition: bust portrait, 3/4 view, natural Korean styling and grooming appropriate to the character, restrained expression, sharp facial silhouette. Negative constraints: no photorealism, no 3D render, no glossy game art, no Western comic style, no European-looking models, no foreign tourist styling, no modern objects unless the story era is contemporary, no readable real text, no watermark, no logo, no UI frame.  No celebrity likeness.",
+                         "portraitImageUrl":  null,
+                         "relationToVictim":  "ê¸°ë¡ê³  ì·¨ê¸ì",
+                         "shortDescription":  "íë¦ê³¼ ì¦ê±° íì¼ì ê´ë¦¬íë ë³´ì¡°ì¸ì\u0085ëë¤.",
+                         "suspectId":  203,
+                         "suspiciousPoint":  "ì¬ë¼ì§ íë¦ì ë³´ê´ ìì¹ë¥¼ ìê³  ìììµëë¤.",
+                         "unlockedByDefault":  false
+                     },
+                     {
+                         "alias":  "ì©ìì C",
+                         "alibiSummary":  "ë°°ë¬ ëì ê³¼ ëª©ê²© ìê°ì´ ë§ì§ ììµëë¤.",
+                         "displayName":  "ê²ì ë´í¬ë¥¼ ì®ê¸´ ë°°ë¬ì¸",
+                         "displayOrder":  3,
+                         "imagePrompt":  "Create a high-quality fictional detective case-file portrait of ê²ì ë´í¬ë¥¼ ì®ê¸´ ë°°ë¬ì¸. Casting is mandatory: depict a fictional Korean person from Seoul, South Korea. The subject must look unmistakably Korean; preserve the story\u0027s specified age, gender, occupation, and historical era. Do not cast a Western or European-looking model, and do not change the character\u0027s Korean identity. Visual style reference: flat 2D Korean webtoon / printed storybook illustration like the attached references, muted earth-tone palette, soft matte paper grain, subtle archival texture, simplified shapes, clean dark ink outlines, gentle cel shading, restrained noir mood, poster-like composition, not photorealistic. Match the case era exactly: Joseon, Daehan Empire, colonial modern, or contemporary Korean styling as specified by the story; use era-appropriate clothing, hair, props, architecture, paper, seals, and handwriting-like marks. Character clue: ì ëµì íì¹ ê²ì´ ìëë¼ ë¨ì íë¦ì ì¨ê²¼ì ê°ë¥ì±ì´ ììµëë¤.. Composition: bust portrait, 3/4 view, natural Korean styling and grooming appropriate to the character, restrained expression, sharp facial silhouette. Negative constraints: no photorealism, no 3D render, no glossy game art, no Western comic style, no European-looking models, no foreign tourist styling, no modern objects unless the story era is contemporary, no readable real text, no watermark, no logo, no UI frame.  No celebrity likeness.",
+                         "portraitImageUrl":  null,
+                         "relationToVictim":  "ìµì¢\u0085 ë¨ì ì´ë°ì",
+                         "shortDescription":  "ëª©ì ì§ ë¨ìì ëì ì´ ê²¹ì¹ë ë°°ë¬ì¸ì\u0085ëë¤.",
+                         "suspectId":  204,
+                         "suspiciousPoint":  "ì ëµì íì¹ ê²ì´ ìëë¼ ë¨ì íë¦ì ì¨ê²¼ì ê°ë¥ì±ì´ ììµëë¤.",
+                         "unlockedByDefault":  false
+                     }
+                 ],
+    "teamRoleGuide":  "Review required.",
+    "title":  "ë¸ë ì¸ í¼ì¦ ê²ì¦ ìí¼ìë 55763"
+}

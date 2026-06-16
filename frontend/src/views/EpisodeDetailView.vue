@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="detail-page">
     <button class="back" type="button" @click="router.push({ name: 'EpisodeList' })">목록으로 돌아가기</button>
     <section v-if="loading" class="panel">미션 파일을 불러오는 중입니다.</section>
@@ -26,7 +26,7 @@
         <span>정답 유형 <strong>{{ episode.finalAnswerType }}</strong></span>
       </div>
       <div class="actions">
-        <button class="primary" type="button" @click="start">브리핑으로 이동</button>
+        <button class="primary" type="button" @click="start">미션 파일 열기</button>
         <button class="secondary" type="button" :disabled="planBusy" @click="addPlan">내 일정에 추가</button>
         <button class="secondary" type="button" @click="router.push({ name: 'MyPage' })">내 관심 목록 보기</button>
       </div>
@@ -67,7 +67,7 @@ const start = async () => {
   try {
     const started = await episodeApi.startEpisode(episodeId);
     setMessage('에피소드를 시작했습니다.');
-    router.push({ name: 'EpisodeBriefing', params: { episodeId: started.id } });
+    router.push({ name: 'EpisodeCaseFile', params: { episodeId: started.id } });
   } catch (err) {
     setMessage(err.userMessage || '에피소드를 시작하지 못했습니다.', 'error');
   }

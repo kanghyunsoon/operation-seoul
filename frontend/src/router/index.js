@@ -10,7 +10,6 @@ import PlansView from '@/views/PlansView.vue';
 import GroupsView from '@/views/GroupsView.vue';
 import EpisodeListView from '@/views/EpisodeListView.vue';
 import EpisodeDetailView from '@/views/EpisodeDetailView.vue';
-import EpisodeBriefingView from '@/views/EpisodeBriefingView.vue';
 import EpisodeMapView from '@/views/EpisodeMapView.vue';
 import EpisodeCaseFileView from '@/views/EpisodeCaseFileView.vue';
 import FinalDeductionView from '@/views/FinalDeductionView.vue';
@@ -34,7 +33,7 @@ const routes = [
   { path: '/groups', name: 'Groups', component: GroupsView, meta: { requiresAuth: true } },
   { path: '/episodes', name: 'EpisodeList', component: EpisodeListView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId', name: 'EpisodeDetail', component: EpisodeDetailView, meta: { requiresAuth: true } },
-  { path: '/episodes/:episodeId/briefing', name: 'EpisodeBriefing', component: EpisodeBriefingView, meta: { requiresAuth: true } },
+  { path: '/episodes/:episodeId/briefing', redirect: (to) => ({ name: 'EpisodeCaseFile', params: { episodeId: to.params.episodeId } }) },
   { path: '/episodes/:episodeId/map', name: 'EpisodeMap', component: EpisodeMapView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/case-file', name: 'EpisodeCaseFile', component: EpisodeCaseFileView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/deduction', name: 'FinalDeduction', component: FinalDeductionView, meta: { requiresAuth: true } },

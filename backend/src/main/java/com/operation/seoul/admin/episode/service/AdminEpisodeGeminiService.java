@@ -14,6 +14,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -62,13 +63,19 @@ public class AdminEpisodeGeminiService {
             "AI_INFERRED_ROUTE_FEATURE"
     );
 
+    private static final List<PlanSlot> FIXED_FINAL_ANSWER_SLOTS = List.of(
+            new PlanSlot("RELATED_PERSON", "관련자", "최종 정답에 반드시 포함될 픽션 관련자 또는 역할"),
+            new PlanSlot("ANSWER_CLUE", "정답 단서", "최종 정답을 성립시키는 핵심 물건, 숫자, 문구, 조건 중 하나"),
+            new PlanSlot("FINAL_DESTINATION", "장소", "내부 최종 목적지의 실제 장소명")
+    );
+
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate(geminiRequestFactory());
 
     @Value("${gemini.api.key:}")
     private String geminiApiKey;
 
-    @Value("${gemini.model:gemini-3.1-flash-lite}")
+    @Value("${gemini.model:gemini-2.5-flash}")
     private String geminiModel;
 
     private static SimpleClientHttpRequestFactory geminiRequestFactory() {
@@ -201,16 +208,20 @@ public class AdminEpisodeGeminiService {
         if (request == null || request.getGenreCatalog() == null || request.getGenreCatalog().isEmpty()) {
             return blank(genreId) ? "CUSTOM" : genreId.trim();
         }
-        return request.getGenreCatalog().stream()
+        String matched = request.getGenreCatalog().stream()
                 .filter(genre -> genre != null && !blank(genre.getGenreId()))
                 .map(AiEpisodeDraftRequest.GenreTemplateInput::getGenreId)
                 .filter(id -> same(id, genreId))
                 .findFirst()
-                .orElseGet(() -> request.getGenreCatalog().stream()
-                        .filter(genre -> genre != null && !blank(genre.getGenreId()))
-                        .map(AiEpisodeDraftRequest.GenreTemplateInput::getGenreId)
-                        .findFirst()
-                        .orElse("CUSTOM"));
+                .orElse("");
+        String placeFit = genreIdByPlaceSignals(request);
+        if (blank(matched)) {
+            return blank(placeFit) ? firstGenreId(request) : placeFit;
+        }
+        if (same(matched, "TREASURE_HUNT") && !treasureGenreFits(request) && !blank(placeFit)) {
+            return placeFit;
+        }
+        return matched;
     }
 
     private AiEpisodePlanResponse sanitizePlanResponse(
@@ -228,19 +239,13 @@ public class AdminEpisodeGeminiService {
         );
 
         List<AiEpisodePlanResponse.AnswerSlotPlan> answerSlots =
-                resolvePlanAnswerSlotsFromCatalogOrGemini(
-                        genreId,
-                        geminiPlan.path("answerSlots"),
-                        request,
-                        warnings
-                );
+                fixedFinalAnswerSlots();
+        warnings.add("PLAN_SLOTS_FIXED_RELATED_PERSON_ANSWER_CLUE_FINAL_DESTINATION");
 
         List<AiEpisodePlanResponse.AnswerKeyword> geminiKeywordItems =
                 parsePlanKeywords(geminiPlan.path("finalAnswerKeywords"));
 
-        if (!hasGenreCatalog(request)) {
-            normalizePlanSlots(answerSlots, geminiKeywordItems, warnings);
-        }
+        normalizePlanSlots(answerSlots, geminiKeywordItems, warnings);
 
         List<AiEpisodePlanResponse.AnswerKeyword> keywordItems =
                 sanitizeGeminiFinalAnswerKeywordItems(
@@ -261,6 +266,8 @@ public class AdminEpisodeGeminiService {
 
             keywordItems = mergePlanKeywordItems(answerSlots, keywordItems, synthesized);
         }
+
+        keywordItems = enforceFinalDestinationKeyword(answerSlots, keywordItems, request, warnings);
 
         String genreName = resolveSelectedGenreNameFromCatalog(
                 genreId,
@@ -423,6 +430,223 @@ public class AdminEpisodeGeminiService {
                 && !request.getGenreCatalog().isEmpty();
     }
 
+    private String firstGenreId(AiEpisodeDraftRequest request) {
+        if (!hasGenreCatalog(request)) {
+            return "CUSTOM";
+        }
+        return request.getGenreCatalog().stream()
+                .filter(genre -> genre != null && !blank(genre.getGenreId()))
+                .map(AiEpisodeDraftRequest.GenreTemplateInput::getGenreId)
+                .findFirst()
+                .orElse("CUSTOM");
+    }
+
+    private String genreIdByPlaceSignals(AiEpisodeDraftRequest request) {
+        if (!hasGenreCatalog(request)) {
+            return "CUSTOM";
+        }
+        String text = genreSignalText(request);
+        Map<String, Integer> scores = new LinkedHashMap<>();
+        addGenreScore(scores, "CODE_BREAKING", text,
+                "암호", "코드", "숫자", "번호", "문양", "표식", "기호", "비문", "간판", "문장", "해독", "문서", "기록", "전시", "박물관", "기념");
+        addGenreScore(scores, "MISSING_CASE", text,
+                "실종", "사라", "마지막", "행방", "목격", "동선", "길", "거리", "골목", "역", "정류장", "흔적", "발자국", "이동");
+        addGenreScore(scores, "WITNESS_CONTRADICTION", text,
+                "증언", "진술", "목격", "시간", "시각", "출입", "서명", "접수", "반출", "기록", "메모", "사진");
+        addGenreScore(scores, "ARCHIVE_TRACE", text,
+                "기록", "문서", "자료", "보관", "도서", "서고", "기념", "역사", "전시", "박물관", "아카이브", "메모");
+        addGenreScore(scores, "TIME_SLIP", text,
+                "시간", "시계", "연도", "시대", "옛", "근대", "역사", "기념", "복원", "흔적");
+        addGenreScore(scores, "URBAN_LEGEND", text,
+                "전설", "소문", "골목", "벽화", "마을", "시장", "밤", "그림자", "오래된", "이야기");
+        addGenreScore(scores, "TREASURE_HUNT", text,
+                "보물", "상자", "열쇠", "봉인", "해금", "숨겨진", "감춰진", "보관함", "금고", "자물쇠");
+        addGenreScore(scores, "MURDER_MYSTERY", text,
+                "사건", "혈흔", "범인", "피해", "위협", "충돌", "갈등", "신고");
+
+        return scores.entrySet().stream()
+                .filter(entry -> genreExists(request, entry.getKey()))
+                .sorted((left, right) -> {
+                    int compare = Integer.compare(right.getValue(), left.getValue());
+                    if (compare != 0) {
+                        return compare;
+                    }
+                    return Integer.compare(genreTieBreaker(request, left.getKey()), genreTieBreaker(request, right.getKey()));
+                })
+                .filter(entry -> entry.getValue() > 0)
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElseGet(() -> diversifiedFallbackGenreId(request));
+    }
+
+    private String genreSignalText(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null) {
+            return "";
+        }
+        return request.getPlaces().stream()
+                .filter(place -> place != null)
+                .map(place -> String.join(" ",
+                        blank(place.getName()) ? "" : place.getName(),
+                        blank(place.getAddress()) ? "" : place.getAddress(),
+                        blank(place.getDescription()) ? "" : place.getDescription(),
+                        blank(place.getAdminMemo()) ? "" : place.getAdminMemo(),
+                        place.getVisibleElements() == null ? "" : String.join(" ", place.getVisibleElements()),
+                        place.getNumbers() == null ? "" : String.join(" ", place.getNumbers()),
+                        place.getKeywords() == null ? "" : String.join(" ", place.getKeywords()),
+                        place.getUsablePuzzleSources() == null ? "" : String.join(" ", place.getUsablePuzzleSources())
+                ))
+                .collect(java.util.stream.Collectors.joining(" "));
+    }
+
+    private void addGenreScore(Map<String, Integer> scores, String genreId, String text, String... signals) {
+        int score = 0;
+        for (String signal : signals) {
+            if (containsAny(text, signal)) {
+                score += 10;
+            }
+        }
+        scores.put(genreId, score);
+    }
+
+    private boolean genreExists(AiEpisodeDraftRequest request, String genreId) {
+        return hasGenreCatalog(request) && request.getGenreCatalog().stream()
+                .anyMatch(genre -> genre != null && same(genre.getGenreId(), genreId));
+    }
+
+    private int genreTieBreaker(AiEpisodeDraftRequest request, String genreId) {
+        String base = compact(String.join(" ",
+                request == null ? "" : blank(request.getArea()) ? "" : request.getArea(),
+                request == null ? "" : blank(request.getTheme()) ? "" : request.getTheme(),
+                genreId
+        ));
+        return Math.floorMod(base.hashCode(), 1000);
+    }
+
+    private String diversifiedFallbackGenreId(AiEpisodeDraftRequest request) {
+        List<String> ids = hasGenreCatalog(request)
+                ? request.getGenreCatalog().stream()
+                    .filter(genre -> genre != null && !blank(genre.getGenreId()))
+                    .map(AiEpisodeDraftRequest.GenreTemplateInput::getGenreId)
+                    .filter(id -> !same(id, "TREASURE_HUNT"))
+                    .toList()
+                : List.of();
+        if (ids.isEmpty()) {
+            return firstGenreId(request);
+        }
+        int index = Math.floorMod(genreSignalText(request).hashCode(), ids.size());
+        return ids.get(index);
+    }
+
+    private boolean treasureGenreFits(AiEpisodeDraftRequest request) {
+        String text = genreSignalText(request);
+        return containsAny(text, "보물", "상자", "열쇠", "봉인", "해금", "숨겨진", "감춰진", "보관함", "금고", "자물쇠");
+    }
+
+    private List<AiEpisodePlanResponse.AnswerSlotPlan> fixedFinalAnswerSlots() {
+        return FIXED_FINAL_ANSWER_SLOTS.stream()
+                .map(slot -> AiEpisodePlanResponse.AnswerSlotPlan.builder()
+                        .slotId(slot.slotId())
+                        .label(slot.label())
+                        .description(slot.description())
+                        .minClueCount(3)
+                        .build())
+                .toList();
+    }
+
+    private List<AiEpisodePlanResponse.AnswerKeyword> enforceFinalDestinationKeyword(
+            List<AiEpisodePlanResponse.AnswerSlotPlan> answerSlots,
+            List<AiEpisodePlanResponse.AnswerKeyword> keywordItems,
+            AiEpisodeDraftRequest request,
+            List<String> warnings) {
+        List<AiEpisodePlanResponse.AnswerKeyword> result = new ArrayList<>();
+        AiEpisodeDraftRequest.PlaceInput finalPlace = finalDestinationPlace(request);
+        String finalPlaceName = finalPlace == null ? "" : normalizeAnswerKeywordValue(finalPlace.getName());
+
+        for (AiEpisodePlanResponse.AnswerSlotPlan slot : answerSlots) {
+            AiEpisodePlanResponse.AnswerKeyword item = findKeywordForSlot(keywordItems, slot);
+            if ("FINAL_DESTINATION".equals(slot.getSlotId())) {
+                if (blank(finalPlaceName)) {
+                    warnings.add("FINAL_DESTINATION_PLACE_MISSING");
+                    continue;
+                }
+                result.add(AiEpisodePlanResponse.AnswerKeyword.builder()
+                        .slotId(slot.getSlotId())
+                        .label(slot.getLabel())
+                        .keyword(finalPlaceName)
+                        .aliases(List.of())
+                        .sourcePlaceOrder(finalDestinationPlaceOrder(request, finalPlace))
+                        .sourceBasis("내부 최종 목적지로 선택된 장소명")
+                        .sourceType("FINAL_DESTINATION")
+                        .sourcePlaceName(finalPlaceName)
+                        .sourceText("최종 정답의 장소 키워드는 내부 최종 목적지 장소명과 동일해야 합니다.")
+                        .difficulty("NORMAL")
+                        .risk("OK")
+                        .build());
+                continue;
+            }
+            if (item != null) {
+                item.setSlotId(slot.getSlotId());
+                item.setLabel(slot.getLabel());
+                result.add(item);
+            }
+        }
+
+        if (result.stream().noneMatch(item -> same(item.getSlotId(), "FINAL_DESTINATION"))) {
+            warnings.add("FINAL_DESTINATION_KEYWORD_NOT_CREATED");
+        }
+        return result;
+    }
+
+    private AiEpisodeDraftRequest.PlaceInput finalDestinationPlace(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null || request.getPlaces().isEmpty()) {
+            return null;
+        }
+        return request.getPlaces().stream()
+                .filter(place -> place != null && same(place.getRole(), "FINAL"))
+                .findFirst()
+                .orElseGet(() -> request.getPlaces().get(request.getPlaces().size() - 1));
+    }
+
+    private Integer finalDestinationPlaceOrder(
+            AiEpisodeDraftRequest request,
+            AiEpisodeDraftRequest.PlaceInput finalPlace) {
+        if (request == null || request.getPlaces() == null || finalPlace == null) {
+            return null;
+        }
+        for (int i = 0; i < request.getPlaces().size(); i++) {
+            if (request.getPlaces().get(i) == finalPlace) {
+                return i + 1;
+            }
+        }
+        return null;
+    }
+
+    private boolean isFinalDestinationSource(
+            AiEpisodeDraftRequest request,
+            Integer sourcePlaceOrder,
+            String sourcePlaceName) {
+        AiEpisodeDraftRequest.PlaceInput finalPlace = finalDestinationPlace(request);
+        if (finalPlace == null) {
+            return false;
+        }
+        Integer finalOrder = finalDestinationPlaceOrder(request, finalPlace);
+        if (sourcePlaceOrder != null && finalOrder != null) {
+            return sourcePlaceOrder.equals(finalOrder);
+        }
+        return !blank(sourcePlaceName) && same(sourcePlaceName, finalPlace.getName());
+    }
+
+    private boolean answerClueUsesExternalSource(String sourceText, String sourceBasis) {
+        String value = compact(String.join(" ",
+                sourceText == null ? "" : sourceText,
+                sourceBasis == null ? "" : sourceBasis
+        )).toLowerCase(Locale.ROOT);
+        return value.contains("nearby")
+                || value.contains("candidate")
+                || value.contains("주변후보")
+                || value.contains("확인후보");
+    }
+
     private List<AiEpisodePlanResponse.AnswerSlotPlan> resolvePlanAnswerSlotsFromCatalogOrGemini(
             String selectedGenreId,
             JsonNode geminiSlotsNode,
@@ -528,6 +752,12 @@ public class AdminEpisodeGeminiService {
                 sourcePlaceName = planSourcePlaceName(request, sourcePlaceOrder);
             }
 
+            if ("ANSWER_CLUE".equals(slot.getSlotId())
+                    && !isFinalDestinationSource(request, sourcePlaceOrder, sourcePlaceName)) {
+                warnings.add("GEMINI_PLAN_ANSWER_CLUE_NOT_FINAL_PLACE_REJECTED");
+                continue;
+            }
+
             String sourceType = sourceTypeForSlot(slot.getSlotId(), slot.getLabel());
 
             String sourceText = source.getSourceText();
@@ -547,6 +777,12 @@ public class AdminEpisodeGeminiService {
 
             if (blank(sourceBasis) || isBadPlanPlaceholder(sourceBasis)) {
                 sourceBasis = "선택 장소의 이름, 주소, 설명, 카테고리성 키워드를 스토리 단서로 재구성";
+            }
+
+            if ("ANSWER_CLUE".equals(slot.getSlotId())
+                    && answerClueUsesExternalSource(sourceText, sourceBasis)) {
+                warnings.add("GEMINI_PLAN_ANSWER_CLUE_EXTERNAL_SOURCE_REJECTED");
+                continue;
             }
 
             result.add(AiEpisodePlanResponse.AnswerKeyword.builder()
@@ -609,7 +845,8 @@ public class AdminEpisodeGeminiService {
                     slot.slotId(),
                     slot.label(),
                     request,
-                    used
+                    used,
+                    mergeKeywordItems(alreadyAccepted, result)
             );
 
             if (candidate == null) {
@@ -637,6 +874,19 @@ public class AdminEpisodeGeminiService {
             warnings.add("PLAN_KEYWORD_" + (i + 1) + "_AI_INFERRED");
         }
 
+        return result;
+    }
+
+    private List<AiEpisodePlanResponse.AnswerKeyword> mergeKeywordItems(
+            List<AiEpisodePlanResponse.AnswerKeyword> first,
+            List<AiEpisodePlanResponse.AnswerKeyword> second) {
+        List<AiEpisodePlanResponse.AnswerKeyword> result = new ArrayList<>();
+        if (first != null) {
+            result.addAll(first);
+        }
+        if (second != null) {
+            result.addAll(second);
+        }
         return result;
     }
 
@@ -704,7 +954,8 @@ public class AdminEpisodeGeminiService {
             failures.add("FORBIDDEN_SLOT");
         }
         if (keywordItems.stream().anyMatch(item ->
-                !"OK".equals(planKeywordRisk(item.getKeyword(), item.getLabel(), request)))) {
+                !isFinalDestinationKeyword(item)
+                        && !"OK".equals(planKeywordRisk(item.getKeyword(), item.getLabel(), request)))) {
             failures.add("INVALID_KEYWORD");
         }
         if (keywordItems.stream().anyMatch(item -> !hasValidPlanKeywordSource(item, request))) {
@@ -730,6 +981,11 @@ public class AdminEpisodeGeminiService {
 
         if (item == null) {
             return false;
+        }
+
+        if (isFinalDestinationKeyword(item)) {
+            AiEpisodeDraftRequest.PlaceInput finalPlace = finalDestinationPlace(request);
+            return finalPlace != null && same(item.getKeyword(), finalPlace.getName());
         }
 
         if (isBadPlanPlaceholder(item.getKeyword()) || isBadPlanPlaceholder(item.getSourceText())) {
@@ -772,6 +1028,13 @@ public class AdminEpisodeGeminiService {
         return values != null && values.stream().anyMatch(value -> same(value, target));
     }
 
+    private boolean isFinalDestinationKeyword(AiEpisodePlanResponse.AnswerKeyword item) {
+        return item != null
+                && (same(item.getSlotId(), "FINAL_DESTINATION")
+                || same(item.getLabel(), "장소")
+                || same(item.getSourceType(), "FINAL_DESTINATION"));
+    }
+
     private String planSlotDescription(String label) {
         return switch (label) {
             case "기록 매체" -> "형태와 용도를 단서로 추론하는 구체 매체";
@@ -788,7 +1051,7 @@ public class AdminEpisodeGeminiService {
         for (int i = 0; i < answerSlots.size(); i++) {
             AiEpisodePlanResponse.AnswerSlotPlan slot = answerSlots.get(i);
             String originalLabel = slot.getLabel();
-            PlanSlot normalized = normalizePlanSlot(slot.getSlotId(), originalLabel, i);
+            PlanSlot normalized = fixedFinalAnswerSlotAt(i);
             if (!same(originalLabel, normalized.label())
                     || !same(slot.getSlotId(), normalized.slotId())) {
                 warnings.add("PLAN_SLOT_" + (i + 1) + "_NORMALIZED_"
@@ -806,10 +1069,14 @@ public class AdminEpisodeGeminiService {
         }
         for (int i = answerSlots.size(); i < keywords.size(); i++) {
             AiEpisodePlanResponse.AnswerKeyword keyword = keywords.get(i);
-            PlanSlot normalized = normalizePlanSlot(keyword.getSlotId(), keyword.getLabel(), i);
+            PlanSlot normalized = fixedFinalAnswerSlotAt(i);
             keyword.setSlotId(normalized.slotId());
             keyword.setLabel(normalized.label());
         }
+    }
+
+    private PlanSlot fixedFinalAnswerSlotAt(int index) {
+        return FIXED_FINAL_ANSWER_SLOTS.get(Math.floorMod(index, FIXED_FINAL_ANSWER_SLOTS.size()));
     }
 
     private PlanSlot normalizePlanSlot(String slotId, String label, int index) {
@@ -1318,11 +1585,15 @@ public class AdminEpisodeGeminiService {
             String slotId,
             String label,
             AiEpisodeDraftRequest request,
-            Set<String> used) {
+            Set<String> used,
+            List<AiEpisodePlanResponse.AnswerKeyword> knownKeywords) {
 
         if (request == null || request.getPlaces() == null || request.getPlaces().isEmpty()) {
             return null;
         }
+
+        AiEpisodeDraftRequest.PlaceInput finalPlaceForAnswerClue =
+                "ANSWER_CLUE".equals(slotId) ? finalDestinationPlace(request) : null;
 
         for (int i = 0; i < request.getPlaces().size(); i++) {
             AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(i);
@@ -1331,13 +1602,23 @@ public class AdminEpisodeGeminiService {
                 continue;
             }
 
-            String context = planInferenceContext(place);
+            if (finalPlaceForAnswerClue != null && place != finalPlaceForAnswerClue) {
+                continue;
+            }
+
+            String context = "ANSWER_CLUE".equals(slotId)
+                    ? finalDestinationAnswerClueContext(place)
+                    : planInferenceContext(place);
 
             if (blank(context) || isBadPlanPlaceholder(context)) {
                 continue;
             }
 
             String keyword = switch (slotId) {
+                case "RELATED_PERSON" -> inferredCulpritKeyword(context);
+                case "ANSWER_CLUE" -> inferredWeaponKeyword(context);
+                case "FINAL_DESTINATION" -> blank(place.getName()) ? inferredCaseLocationKeyword(context) : place.getName();
+
                 case "CULPRIT" -> inferredCulpritKeyword(context);
                 case "WEAPON" -> inferredWeaponKeyword(context);
                 case "CASE_LOCATION" -> inferredCaseLocationKeyword(context);
@@ -1363,6 +1644,14 @@ public class AdminEpisodeGeminiService {
 
             keyword = normalizeAnswerKeywordValue(keyword);
 
+            if ("ANSWER_CLUE".equals(slotId)
+                    && (blank(keyword)
+                    || used.contains(compact(keyword))
+                    || isBadPlanPlaceholder(keyword)
+                    || !"OK".equals(planKeywordRisk(keyword, label, request)))) {
+                keyword = inferredAnswerClueFromFinalContext(request, knownKeywords, used);
+            }
+
             if (blank(keyword)
                     || used.contains(compact(keyword))
                     || isBadPlanPlaceholder(keyword)
@@ -1371,11 +1660,12 @@ public class AdminEpisodeGeminiService {
             }
 
             String sourceType = switch (slotId) {
+                case "FINAL_DESTINATION" -> "FINAL_DESTINATION";
                 case "DIRECTION", "CASE_LOCATION", "STORAGE_PLACE", "DECODE_LOCATION", "LAST_LOCATION" ->
                         "AI_INFERRED_ROUTE_FEATURE";
                 case "CONDITION", "UNLOCK_CONDITION", "KEY_NUMBER" ->
                         "AI_INFERRED_OBSERVATION";
-                case "MEDIA", "CULPRIT", "WEAPON", "HIDDEN_ITEM", "FINAL_PHRASE", "MISSING_REASON", "RELATED_ITEM" ->
+                case "RELATED_PERSON", "ANSWER_CLUE", "MEDIA", "CULPRIT", "WEAPON", "HIDDEN_ITEM", "FINAL_PHRASE", "MISSING_REASON", "RELATED_ITEM" ->
                         "AI_INFERRED_STORY_OBJECT";
                 default -> "AI_INFERRED_STORY_OBJECT";
             };
@@ -1418,6 +1708,77 @@ public class AdminEpisodeGeminiService {
         if (containsAny(context, "비", "우산", "거리")) return "접힌 우산";
         if (containsAny(context, "식당", "시장", "영수증")) return "찢긴 영수증";
         return "부러진 펜";
+    }
+
+    private String inferredAnswerClueFromFinalContext(
+            AiEpisodeDraftRequest request,
+            List<AiEpisodePlanResponse.AnswerKeyword> knownKeywords,
+            Set<String> used) {
+        AiEpisodeDraftRequest.PlaceInput finalPlace = finalDestinationPlace(request);
+        String placeText = finalPlace == null ? "" : String.join(" ",
+                blank(finalPlace.getName()) ? "" : finalPlace.getName(),
+                blank(finalPlace.getAddress()) ? "" : finalPlace.getAddress(),
+                blank(finalPlace.getDescription()) ? "" : finalPlace.getDescription(),
+                blank(finalPlace.getAdminMemo()) ? "" : finalPlace.getAdminMemo(),
+                finalPlace.getVisibleElements() == null ? "" : String.join(" ", finalPlace.getVisibleElements()),
+                finalPlace.getNumbers() == null ? "" : String.join(" ", finalPlace.getNumbers()),
+                finalPlace.getKeywords() == null ? "" : String.join(" ", finalPlace.getKeywords()),
+                finalPlace.getUsablePuzzleSources() == null ? "" : String.join(" ", finalPlace.getUsablePuzzleSources())
+        );
+        String relatedPerson = keywordForKnownSlot(knownKeywords, "RELATED_PERSON");
+
+        List<String> candidates = new ArrayList<>();
+        if (containsAny(placeText, "문", "입구", "gate", "door")) {
+            candidates.add("입구 표식");
+        }
+        if (containsAny(placeText, "전시", "기념", "박물관", "gallery", "museum", "exhibition")) {
+            candidates.add("기념 인장");
+        }
+        if (containsAny(placeText, "계단", "언덕", "길", "거리", "동선", "route", "street")) {
+            candidates.add("동선 표식");
+        }
+        if (containsAny(placeText, "사진", "카메라", "그림", "벽화", "image", "photo")) {
+            candidates.add("흐린 사진");
+        }
+        if (containsAny(placeText, "번호", "숫자", "연도", "number", "year")) {
+            candidates.add("확인 번호");
+        }
+        if (containsAny(relatedPerson, "기록", "보관", "archivist")) {
+            candidates.add("봉인 기록");
+        }
+        if (containsAny(relatedPerson, "사진", "촬영", "camera")) {
+            candidates.add("사진 조각");
+        }
+        if (containsAny(relatedPerson, "전달", "배달", "courier")) {
+            candidates.add("접힌 쪽지");
+        }
+        candidates.add("봉인 표식");
+        candidates.add("확인 표식");
+        candidates.add("기록 조각");
+
+        for (String candidate : candidates) {
+            String normalized = normalizeAnswerKeywordValue(candidate);
+            if (!blank(normalized)
+                    && !used.contains(compact(normalized))
+                    && "OK".equals(planKeywordRisk(normalized, "정답 단서", request))) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
+    private String keywordForKnownSlot(
+            List<AiEpisodePlanResponse.AnswerKeyword> knownKeywords,
+            String slotId) {
+        if (knownKeywords == null) {
+            return "";
+        }
+        return knownKeywords.stream()
+                .filter(item -> item != null && same(item.getSlotId(), slotId))
+                .map(AiEpisodePlanResponse.AnswerKeyword::getKeyword)
+                .filter(value -> !blank(value))
+                .findFirst()
+                .orElse("");
     }
 
     private String inferredCaseLocationKeyword(String context) {
@@ -1554,6 +1915,10 @@ public class AdminEpisodeGeminiService {
 
     private String sourceTypeForSlot(String slotId, String label) {
         String slot = normalize(slotId) + " " + compact(label);
+
+        if (containsAny(slot, "FINAL_DESTINATION", "최종목적지", "장소")) {
+            return "FINAL_DESTINATION";
+        }
 
         if (containsAny(slot,
                 "DIRECTION", "ROUTE", "LOCATION", "PLACE", "STORAGE",
@@ -1734,6 +2099,62 @@ public class AdminEpisodeGeminiService {
         ).trim();
     }
 
+    private String finalDestinationAnswerClueContext(AiEpisodeDraftRequest.PlaceInput place) {
+        if (place == null) {
+            return "";
+        }
+
+        String directContext = String.join(" ",
+                safeFinalAnswerClueText(place.getDescription()),
+                safeFinalAnswerClueText(place.getAdminMemo()),
+                safeFinalAnswerClueValues(place.getVisibleElements()),
+                safeFinalAnswerClueValues(place.getNumbers()),
+                safeFinalAnswerClueValues(place.getKeywords())
+        ).trim();
+
+        if (!blank(directContext)) {
+            return directContext;
+        }
+
+        return String.join(" ",
+                safeFinalAnswerClueValues(place.getUsablePuzzleSources()),
+                blank(place.getName()) ? "" : place.getName(),
+                blank(place.getAddress()) ? "" : place.getAddress()
+        ).trim();
+    }
+
+    private String safeFinalAnswerClueValues(List<String> values) {
+        if (values == null) {
+            return "";
+        }
+        return values.stream()
+                .map(this::safeFinalAnswerClueText)
+                .filter(value -> !blank(value))
+                .collect(java.util.stream.Collectors.joining(" "));
+    }
+
+    private String safeFinalAnswerClueText(String value) {
+        if (blank(value) || isNearbyCandidateSignal(value)) {
+            return "";
+        }
+        return value;
+    }
+
+    private boolean isNearbyCandidateSignal(String value) {
+        String compactValue = compact(value).toLowerCase(Locale.ROOT);
+        return compactValue.contains("kakao")
+                || compactValue.contains("kakaolocal")
+                || compactValue.contains("localapi")
+                || compactValue.contains("nearby")
+                || compactValue.contains("candidate")
+                || compactValue.contains("주변")
+                || compactValue.contains("후보")
+                || compactValue.contains("상권")
+                || compactValue.contains("900m")
+                || compactValue.contains("카페쉼터")
+                || compactValue.contains("식당상권");
+    }
+
     private String inferredMediaKeyword(String context) {
         if (containsAny(context, "전쟁", "기념", "전시", "박물관")) {
             return "전시 기록 카드";
@@ -1865,7 +2286,7 @@ public class AdminEpisodeGeminiService {
                 .publishChecklist(List.of(
                         "모든 장소 좌표와 도착 반경이 선택 장소 데이터 또는 현장 QA 기준으로 맞는지 확인하세요.",
                         "모든 퍼즐이 제공된 장소 데이터, 관리자 메모, 사이트 보강 정보, 또는 안전한 픽션 단서에 근거하는지 확인하세요.",
-                        "최종 정답이 실제 장소명, 실존 인물명, 실제 사건명을 그대로 사용하지 않는지 확인하세요.",
+                        "최종 정답은 관련자, 정답 단서, 최종 목적지 장소 키워드를 모두 포함하는지 확인하세요.",
                         "지도 API에는 publicMarkerType만 노출하고 내부 finalPlace는 절대 노출하지 마세요.",
                         "생성된 초안은 먼저 DRAFT로 저장하고, 차단 이슈가 모두 해결된 뒤 공개하세요."
                 ))
@@ -1964,11 +2385,19 @@ public class AdminEpisodeGeminiService {
             - finalAnswerAliases must include one item prefixed with "KW:" followed by all approved keyword values joined by "|".
             - Example: "KW:화공|붓|후원".
             - If legacy input.finalAnswerKeywords exists instead of finalAnswerKeywordItems, treat those values as mandatory final answer keywords.
+            - Operation Korea answer contract is fixed:
+              * RELATED_PERSON / 관련자: one fictional person, role, or group connected to the incident.
+              * ANSWER_CLUE / 정답 단서: one concrete object, number, phrase, tool, evidence, or condition.
+              * FINAL_DESTINATION / 장소: the actual internal final destination place name.
+            - Generate exactly three clue trails for the final answer: three clues for 관련자, three clues for 정답 단서, and three clues for 장소.
+            - Each mission rewardClue must support one of those three slots through rewardClueSlotId and supportsKeywordSlots.
+            - Use SUSPECT_CLUE evidence/cards for 관련자, ANSWER_CLUE for 정답 단서, and DESTINATION_CLUE for 장소.
+            - Destination clues must point to the final destination keyword indirectly before clear, not to a different fictional location.
             
             Final question rules:
             - finalQuestion must ask for the complete final answer implied by all approved slots.
             - finalQuestion must use slot labels or mystery roles, not exact keyword values.
-            - Good: "정체, 핵심 물건, 마지막 조건을 종합하면 어떤 결론인가?"
+            - Good: "관련자, 정답 단서, 장소를 종합하면 어떤 결론인가?"
             - Bad: "화공, 붓, 후원을 종합하면 무엇인가?"
             - Do not ask for only one keyword if multiple final answer keywords are approved.
             
@@ -2014,10 +2443,12 @@ public class AdminEpisodeGeminiService {
             - Respect input.missionPolicy.startCount if present.
             - Respect input.missionPolicy.finalCount if present.
             - Respect input.missionPolicy.minCluesPerAnswerSlot if present.
-            - Every approved answer slot must be supported by at least minCluesPerAnswerSlot separate rewardClues when possible.
+            - Every approved answer slot must be supported by exactly three separate clue-bearing missions when possible.
+            - With 9 playable hint missions, distribute them as 3 RELATED_PERSON clues, 3 ANSWER_CLUE clues, and 3 FINAL_DESTINATION clues.
+            - If there are fewer than 9 non-start missions, keep the distribution as balanced as possible and never omit FINAL_DESTINATION.
             - START missions introduce the operation.
-            - ANSWER_HINT missions narrow non-location answer slots.
-            - DESTINATION_HINT missions narrow route, hideout, storage, or destination-related slots.
+            - ANSWER_HINT missions narrow RELATED_PERSON or ANSWER_CLUE.
+            - DESTINATION_HINT missions narrow FINAL_DESTINATION.
             - FINAL mission is internal only and ties all answer slots together.
             - publicMarkerType must never be FINAL.
             - If markerType is FINAL, publicMarkerType must be DESTINATION_HINT.
@@ -2069,6 +2500,17 @@ public class AdminEpisodeGeminiService {
             - Character cards are fictional stakeholders, handlers, witnesses, couriers, archivists, brokers, guides, or false leads.
             - If finalAnswerType is not CULPRIT, character cards are not "the criminal".
             - Every character card must have alias, displayName, shortDescription, relationToVictim, suspiciousPoint, alibiSummary, and imagePrompt.
+            - Character displayName must be a fictional Korean full name, not a role or alias. Good: "한서윤", "강도윤", "윤재하". Bad: "의뢰인", "정리관", "전달자", "기록 중개인", "보관 담당자".
+            - Character alias may be a role label such as "의뢰인", "정리관", or "전달자".
+            - Character suspiciousPoint and alibiSummary must not mention "힌트 카드", "정답 힌트 카드", "목적지 힌트 카드", "카드 하나", or any UI/card object. Write them as in-world actions, route contradictions, statements, timestamps, objects, or witness claims.
+            - Create exactly three character cards with different deduction roles:
+              1) primary contradiction candidate: alibiSummary must include "핵심 모순:" and one decisive contradiction.
+              2) excludable false lead: alibiSummary must include "배제 근거:" and a concrete reason this person can be ruled out later.
+              3) witness or courier: alibiSummary must include "배제 근거:" and explain why this person moved a clue but did not create the core incident.
+            - shortDescription is the card front summary. Keep it short: name/role level, one line, no long suspicion text.
+            - relationToVictim must be one sentence about how the person is connected to the incident.
+            - suspiciousPoint must cite at least one concrete basis: document, time, object, witness record, signature, entry log, photo, memo, or route record.
+            - Avoid abstract words such as "의심스럽다", "수상하다", "잠적했다", "진실을 숨긴다" unless paired with a concrete time/object/document basis.
             - Every evidence card must connect to a mission rewardClue, character contradiction, route condition, or story clue without printing an exact final answer keyword.
             - Evidence cards must have title, type, textSummary, sourceMissionOrder, and imagePrompt.
             - Character and evidence text must state a specific action, contradiction, trace, condition, or relationship that helps deduction.
@@ -2180,24 +2622,32 @@ public class AdminEpisodeGeminiService {
             
             Your job:
             - Choose one episode genre.
-            - Use that genre's answer slots.
-            - Generate short final answer keywords for each slot.
+            - Use the fixed Operation Korea answer slots, not genre-specific answer slots.
+            - Generate short final answer keywords for 관련자 and 정답 단서.
+            - Use the internal FINAL place name as the 장소 keyword.
+            - Plan three clue trails for each keyword, for a total of nine clue directions when enough missions exist.
             - The result will be reviewed by an admin before full draft generation.
             
             Source rules:
             - Use only the provided input JSON.
             - Use selected places, descriptions, keywords, visibleElements, numbers, adminMemo, and place roles as source material.
+            - ANSWER_CLUE must be derived from the internal FINAL place itself: its description, visibleElements, numbers, keywords, adminMemo, site/RAG enrichment about that place, or a story-safe inference from RELATED_PERSON + FINAL_DESTINATION.
+            - ANSWER_CLUE must not use a nearby candidate place, nearby shop, unrelated selected place, or route-neighbor as the answer value.
             - Do not invent real historical facts that are not present in the input.
             - Do not use real historical people as perpetrators, villains, false leads, or final answer values.
             
             Genre rules:
-            - If input.genreCatalog exists and is not empty, it is the source of truth.
-            - Choose exactly one genre from input.genreCatalog.
+            - If input.genreCatalog exists and is not empty, choose exactly one genre from input.genreCatalog for tone only.
+            - Choose the genre by place fit, not by safest default. Use museums, records, documents, numbers, signs, routes, witnesses, markets, alleys, stations, parks, memorials, or visible objects as genre signals.
+            - Do not over-select TREASURE_HUNT. Select TREASURE_HUNT only when the place data clearly contains treasure, box, key, seal, lock, hidden object, storage, or unlocking motifs.
+            - If the route is record/document/museum-heavy, prefer ARCHIVE_TRACE or CODE_BREAKING when available.
+            - If the route is alley/street/movement/last-seen-heavy, prefer MISSING_CASE or WITNESS_CONTRADICTION when available.
+            - If the route is old story/neighborhood/market/wall/art-heavy, prefer URBAN_LEGEND when available.
             - Return the chosen genre's genreId as selectedGenreId.
             - Return the chosen genre's genreName as selectedGenreName.
             - Do not create a genre that is not in input.genreCatalog when genreCatalog is provided.
             - Keep genreId from genreCatalog.
-            - Never modify slotId, label, or answerSlots when genreCatalog is provided.
+            - Do not use genreCatalog answerSlots as final answer slots.
             - Do not use generic names such as 기록 추적 미션, 기억 찾기, 미스터리 탐방, 야외 추리 미션, 장소 탐색 미션.
             
             Fallback genre rules:
@@ -2207,57 +2657,27 @@ public class AdminEpisodeGeminiService {
             - The inferred genre must still be playable as an outdoor clue-based episode.
             
             Answer slot rules:
-            - input.genreCatalog is the source of truth.
-            - You MUST choose exactly one genre from input.genreCatalog.
-            - You MUST copy the chosen genre's answerSlots exactly.
-            - Do not rename slotId.
-            - Do not rename label.
-            - Do not replace specific genre slots with abstract slots.
-            - Forbidden replacement examples:
-              * 범인 -> 관계자 역할
-              * 범행도구 -> 핵심 물건
-              * 사건장소 -> 보관 단서
-              * 숨겨진 물건 -> 기록 매체
-              * 해금 조건 -> 확인 조건
-              * 보관 장소 -> 방향 표식
-              * 최종 문장 -> 확인 조건
-              * 핵심 숫자 -> 대조 기준
-              * 암호해독 장소 -> 보관 단서
-              * 실종 원인 -> 숨겨진 진실
-              * 마지막 장소 -> 방향 표식
-              * 관련 물건 -> 기록 매체
-            - If selected genre is 살인 미스터리, answerSlots must be exactly 범인, 범행도구, 사건장소.
-            - If selected genre is 보물찾기, answerSlots must be exactly 숨겨진 물건, 해금 조건, 보관 장소.
-            - If selected genre is 암호 해독, answerSlots must be exactly 최종 문장, 핵심 숫자, 암호해독 장소.
-            - If selected genre is 실종 사건, answerSlots must be exactly 실종 원인, 마지막 장소, 관련 물건.
+            - You MUST return exactly these three answerSlots in this order:
+            - slotId=RELATED_PERSON, label=관련자, minClueCount=3.
+            - slotId=ANSWER_CLUE, label=정답 단서, minClueCount=3.
+            - slotId=FINAL_DESTINATION, label=장소, minClueCount=3.
+            - Do not rename these slotIds or labels.
+            - Do not use genre-specific slot labels such as 범인, 범행도구, 사건장소, 최종 문장, 핵심 숫자, 암호해독 장소, 보관 장소 as answerSlots.
             
             Final answer keyword rules:
             - STRICT ANTI-HALLUCINATION RULE: Never generate meaningless repeating numbers or symbols like "11", "111", "222", "11. 11.". Every keyword MUST be a valid, contextual Korean word.
             - Each keyword must be an actual answer value, not a slot label.
-            - Bad: label=정체, keyword=정체
-            - Good: label=정체, keyword=기록 중개인
-            - Bad: label=핵심 물건, keyword=핵심 물건
-            - Good: label=핵심 물건, keyword=봉인된 붓
-            - Bad: label=마지막 조건, keyword=마지막 조건
-            - Good: label=마지막 조건, keyword=붉은 인장
-            
-            Genre-specific keyword rules:
-            - 살인 미스터리:
-              * 범인 keyword: fictional role or suspect nickname, e.g. 기록 중개인, 골목 사진사, 야간 보관자.
-              * 범행도구 keyword: concrete object, e.g. 깨진 렌즈, 녹슨 열쇠, 접힌 우산.
-              * 사건장소 keyword: fictional place feature, not full real place name, e.g. 낮은 돌계단, 붉은 철문 뒤, 벽화 골목 끝.
-            - 보물찾기:
-              * 숨겨진 물건 keyword: concrete treasure object, e.g. 황금 열쇠, 낡은 사진첩, 봉인된 지도.
-              * 해금 조건 keyword: short condition/code/marker, e.g. 세 개의 표식, 같은 방향 화살표, 1446.
-              * 보관 장소 keyword: place feature, not full real place name, e.g. 두 번째 계단, 파란 문 아래, 오래된 우물 옆.
-            - 암호 해독:
-              * 최종 문장 keyword: short phrase, max 12 Korean syllables if possible.
-              * 핵심 숫자 keyword: number or short numeric code.
-              * 암호해독 장소 keyword: place feature, not full real place name.
-            - 실종 사건:
-              * 실종 원인 keyword: concrete fictional cause, e.g. 빚 독촉, 잘못 배달된 기록, 숨겨진 거래.
-              * 마지막 장소 keyword: place feature, not full real place name.
-              * 관련 물건 keyword: concrete object, e.g. 찢어진 일기장, 젖은 영수증, 깨진 손목시계.
+            - RELATED_PERSON keyword: fictional role, suspect nickname, handler, courier, archivist, or group connected to the incident, e.g. 기록 중개인, 골목 사진사, 야간 보관자.
+            - ANSWER_CLUE keyword: concrete object, number, code, phrase, tool, evidence, or condition, e.g. 깨진 렌즈, 접힌 우산, 1897, 붉은 인장.
+            - ANSWER_CLUE sourcePlaceName/sourcePlaceOrder must point to the internal FINAL place.
+            - ANSWER_CLUE sourceType should be VISIBLE_ELEMENT, KEYWORD, NUMBER, DESCRIPTION, ADMIN_MEMO, or AI_INFERRED_STORY_OBJECT based only on the internal FINAL place.
+            - FINAL_DESTINATION keyword: the exact name of the input place whose role is FINAL. If no role is FINAL, use the last input place name.
+            - Bad: label=관련자, keyword=관련자
+            - Good: label=관련자, keyword=기록 중개인
+            - Bad: label=정답 단서, keyword=정답 단서
+            - Good: label=정답 단서, keyword=봉인된 붓
+            - Bad: label=장소, keyword=표지판 아래
+            - Good: label=장소, keyword=<the actual FINAL place name from input>
             
             Keyword quality rules:
             - Keep each keyword short, concrete, atomic, and easy to type.
@@ -2269,7 +2689,8 @@ public class AdminEpisodeGeminiService {
             - Forbidden generic keywords: 단서, 기록, 문서, 메모, 진실, 비밀, 장소, 물건, 사건, 흔적, 정보, 기억, 조건, 정체.
             - Forbidden abstract or poetic keywords: 다시 찾은 일상, 잊힌 기억, 숨겨진 진실, 평화의 의미, 되찾은 시간.
             - A keyword must not equal its slot label, a shortened slot label, or a generic restatement of that label.
-            - A keyword must not be a selected place name, route name, neighborhood name, or a near-match made by adding 언덕길, 골목, 거리, 마을, 광장, 전시장, 식당, 카페, 상점.
+            - RELATED_PERSON and ANSWER_CLUE must not be selected place names, route names, or neighborhood names.
+            - FINAL_DESTINATION must be the selected internal final place name.
             - Bad place-derived answers: 해방촌마을, 해방촌 언덕길, 전쟁기념관 야외전시장.
             - Bad abstract answers: 다시 찾은 일상, 잊힌 기억, 숨겨진 진실, 평화의 의미.
             - Bad label answers: 핵심 물건, 최종 목적지, 해제 문구, 정체, 조건.
@@ -2277,7 +2698,8 @@ public class AdminEpisodeGeminiService {
             - Do not use adjective-heavy forms unless the adjective is truly the answer.
             - Avoid: 잊혀진, 숨겨진, 가려진, 봉인된, 사라진, 오래된, 비밀스러운.
             - Avoid possessive forms using "의" unless absolutely necessary.
-            - Do not use a full selected place name as a final answer keyword.
+            - Do not use a full selected place name for RELATED_PERSON or ANSWER_CLUE.
+            - Do use the full selected final place name for FINAL_DESTINATION.
             - Do not use a real person's name as a final answer keyword.
             
             Clue grounding rules:
@@ -2322,9 +2744,9 @@ public class AdminEpisodeGeminiService {
             Final question guide rules:
             - finalQuestionGuide must explain what the player will ultimately submit.
             - MUST naturally integrate all the generated finalAnswerKeywords into one clear sentence.
-            - Example: "용의자 A가 얼린 북어로 궁전 뒷뜰에서 영의정을 시해한 사건입니다." (Using the exact keywords generated).
+            - Example: "기록 중개인이 붉은 인장을 대한문에서 확인했다." (Using the exact generated 관련자, 정답 단서, 장소 keywords).
             - Do not mechanically list slot labels followed by "종합해 최종 결론을 보고하게 한다".
-            - Describe the actual player objective with actions such as 대조하다, 추론하다, 행방을 밝히다, 확인 조건을 찾다.
+            - Describe that the player combines 관련자, 정답 단서, and 장소 clues at the final destination and submits a sentence containing all three keywords.
             
             Output schema:
             {
@@ -2346,7 +2768,7 @@ public class AdminEpisodeGeminiService {
                   "aliases": ["optional alias"],
                   "sourcePlaceOrder": 1,
                   "sourceBasis": "string",
-                  "sourceType": "VISIBLE_ELEMENT|KEYWORD|NUMBER|DESCRIPTION|ADMIN_MEMO|SITE_ENRICHMENT|AI_INFERRED_STORY_OBJECT|AI_INFERRED_ROUTE_FEATURE|AI_INFERRED_OBSERVATION",
+                  "sourceType": "VISIBLE_ELEMENT|KEYWORD|NUMBER|DESCRIPTION|ADMIN_MEMO|SITE_ENRICHMENT|FINAL_DESTINATION|AI_INFERRED_STORY_OBJECT|AI_INFERRED_ROUTE_FEATURE|AI_INFERRED_OBSERVATION",
                   "sourcePlaceName": "string",
                   "sourceText": "string",
                   "difficulty": "EASY|NORMAL|HARD",
@@ -2370,8 +2792,36 @@ public class AdminEpisodeGeminiService {
                 "temperature", 0.6,
                 "responseMimeType", "application/json"
         ));
+        List<String> models = geminiCallModels();
+        RestClientException lastRequestException = null;
+        String lastModel = models.get(0);
+
+        for (String model : models) {
+            lastModel = model;
+            try {
+                return callGeminiModel(model, body);
+            } catch (RestClientException e) {
+                lastRequestException = e;
+                if (!isTransientGeminiFailure(e)) {
+                    break;
+                }
+            }
+        }
+
+        if (lastRequestException != null) {
+            String reason = isTransientGeminiFailure(lastRequestException)
+                    ? "Gemini 모델이 일시적으로 과부하 상태입니다. 잠시 후 다시 시도하세요."
+                    : "Gemini 호출에 실패했습니다. gemini.api.key와 gemini.model 설정을 확인하세요.";
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_REQUEST_FAILED",
+                    reason + " 마지막 시도 모델=" + lastModel + ", 원인: " + lastRequestException.getMessage());
+        }
+
+        throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_REQUEST_FAILED", "Gemini 호출에 실패했습니다.");
+    }
+
+    private String callGeminiModel(String model, Map<String, Object> body) {
         String url = UriComponentsBuilder
-                .fromUriString("https://generativelanguage.googleapis.com/v1beta/models/" + geminiModel + ":generateContent")
+                .fromUriString("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent")
                 .queryParam("key", geminiApiKey)
                 .build()
                 .toUriString();
@@ -2386,10 +2836,34 @@ public class AdminEpisodeGeminiService {
         } catch (ApiException e) {
             throw e;
         } catch (RestClientException e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_REQUEST_FAILED", "Gemini 호출에 실패했습니다. gemini.api.key와 gemini.model=" + geminiModel + " 설정을 확인하세요. 원인: " + e.getMessage());
+            throw e;
         } catch (Exception e) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_RESPONSE_PARSE_FAILED", "Gemini 응답을 초안 JSON으로 해석할 수 없습니다. 모델이 JSON 스키마를 지켰는지 확인하세요.");
         }
+    }
+
+    private List<String> geminiCallModels() {
+        String configured = blank(geminiModel) ? "gemini-2.5-flash" : geminiModel.trim();
+        List<String> models = new ArrayList<>();
+        models.add(configured);
+        if (!same(configured, "gemini-2.5-flash")) {
+            models.add("gemini-2.5-flash");
+        }
+        return models;
+    }
+
+    private boolean isTransientGeminiFailure(RestClientException e) {
+        if (e instanceof RestClientResponseException responseException) {
+            int status = responseException.getStatusCode().value();
+            return status == 429 || status == 503 || status == 502 || status == 504;
+        }
+        String message = e.getMessage();
+        return message != null && (message.contains("429")
+                || message.contains("502")
+                || message.contains("503")
+                || message.contains("504")
+                || message.contains("UNAVAILABLE")
+                || message.contains("high demand"));
     }
 
     private AiEpisodeDraftResponse.EpisodeDraft parseDraft(String json) {
@@ -3095,6 +3569,10 @@ public class AdminEpisodeGeminiService {
             mission.setArrivalRadius(place.getArrivalRadius() == null ? 50.0 : place.getArrivalRadius());
             sanitizeFinalPlaceNarrative(mission, role, i, warnings);
             mission.setPuzzleType(PUZZLE_TYPES.contains(normalize(mission.getPuzzleType())) ? normalize(mission.getPuzzleType()) : recommendedPuzzleType(place));
+            if ("INITIAL_SOUND".equals(normalize(mission.getPuzzleType()))) {
+                mission.setPuzzleType("PATTERN");
+                warnings.add("Mission " + (i + 1) + " was normalized; review before publishing.");
+            }
             mission.setAnswerFormat(ANSWER_FORMATS.contains(normalize(mission.getAnswerFormat())) ? normalize(mission.getAnswerFormat()) : answerFormat(place));
             if ("NUMBER_LOCK".equals(normalize(mission.getPuzzleType())) && lacksProvidedNumber(request, i + 1)) {
                 applyPlayableStoryPuzzle(mission, place, role, i);
@@ -3830,6 +4308,17 @@ public class AdminEpisodeGeminiService {
                 "초성", "자음", "모음", "몇 번째 글자", "몇번째글자", "글자를 조합", "글자 조합");
         if (rewardFromPlaceName || textExtractionQuestion) {
             mission.setRewardClue(fallbackReward(role, index));
+            mission.setQuestionText("요원, 화면의 단서 장치를 조작해 이 지점의 확인 키를 복원하게. 장소명 글자나 상호명 문자를 쓰지 말고, 장치 패턴과 미션 파일의 단서 흐름만 대조하게.");
+            mission.setHints(List.of(
+                    "장소명, 상호명, 간판 글자 추출은 사용하지 않네.",
+                    "장치에 표시된 순서, 색, 위치, 기억 패턴을 먼저 해제하게.",
+                    "해제 후 제출되는 확인 키가 이 장소의 클리어 판정으로 처리되네."
+            ));
+            mission.setPuzzleType("PATTERN");
+            mission.setAnswerFormat("TEXT");
+            mission.setPuzzleAnswerSource("FICTION_SAFE");
+            mission.setPuzzleAnswerRisk("OK");
+            mission.setVerificationLevel("ADMIN_REVIEW");
             warnings.add("Mission " + (index + 1) + " was normalized; review before publishing.");
         }
     }
@@ -4042,6 +4531,7 @@ public class AdminEpisodeGeminiService {
         return containsAny(text,
                 "lettercount", "nthletter", "syllable", "initialonly", "firstletter", "lastletter", "combineinorder", "substring",
                 "첫글자", "마지막글자", "두번째글자", "초성", "자음", "모음", "몇번째글자", "글자를조합", "글자조합",
+                "글자·음절", "글자/음절", "글자-음절", "문자추출", "문자 추출", "음절추출", "음절 추출",
                 "장소명", "지명", "상호명", "지역명", "장소이름", "가게이름");
     }
 
@@ -4492,27 +4982,27 @@ public class AdminEpisodeGeminiService {
         List<AiEpisodeDraftResponse.SuspectDraft> defaults = List.of(
                 AiEpisodeDraftResponse.SuspectDraft.builder()
                         .alias("의뢰인")
-                        .displayName("봉투를 맡긴 기록 중개인")
-                        .shortDescription("미션을 의뢰했지만 자신이 받은 봉투의 출처를 끝까지 숨기는 인물입니다.")
-                        .relationToVictim("사라진 문서의 최초 전달자")
-                        .suspiciousPoint("문서가 사라지기 전 마지막으로 봉투의 봉인을 확인했고, 봉투 안 물건의 정확한 이름을 알고 있습니다.")
-                        .alibiSummary("의뢰 시간에는 다른 장소에 있었다고 주장하지만, 정답 힌트 카드의 봉인 문양 설명과 그의 진술이 맞물립니다.")
+                        .displayName("한서윤")
+                        .shortDescription("사라진 봉투를 처음 맡긴 의뢰인")
+                        .relationToVictim("사라진 문서의 접수를 요청했고 봉투 보관 절차를 알고 있던 인물입니다.")
+                        .suspiciousPoint("문서가 사라진 18시 20분 직전 봉투의 봉인을 직접 확인했고, 접수대 기록보다 먼저 봉투 안쪽 훼손 사실을 말했습니다.")
+                        .alibiSummary("핵심 모순: 현장에 없었다고 말했지만, 접수 전에 훼손된 봉투 모서리와 봉인 방향을 정확히 알고 있었습니다.")
                         .build(),
                 AiEpisodeDraftResponse.SuspectDraft.builder()
                         .alias("정리관")
-                        .displayName("기록 순서를 바꾼 보관 담당자")
-                        .shortDescription("문서와 사진의 순서를 정리하던 중 일부 자료를 다른 파일철로 옮긴 인물입니다.")
-                        .relationToVictim("미션 자료를 분류하던 내부 협력자")
-                        .suspiciousPoint("사진, 메모, 목격 기록의 시간 순서를 바꾸면 최종 목적지가 전혀 다른 곳처럼 보이게 만들 수 있습니다.")
-                        .alibiSummary("자료실에만 있었다고 주장하지만, 목적지 힌트 카드 하나가 그의 이동 경로와 충돌합니다.")
+                        .displayName("강도윤")
+                        .shortDescription("사진과 메모 순서를 정리한 보관 담당자")
+                        .relationToVictim("조사 자료를 시간순으로 정리하고 보관함 출입 기록을 관리했습니다.")
+                        .suspiciousPoint("17시 50분 보관함 반출 기록에 그의 서명이 있어 사진과 메모 순서를 바꿀 수 있는 위치에 있었습니다.")
+                        .alibiSummary("배제 근거: 같은 시각 자료실 출입 로그와 다른 직원의 목격 기록이 일치해, 봉투가 훼손된 시간대에는 접수대에 접근하지 못했습니다.")
                         .build(),
                 AiEpisodeDraftResponse.SuspectDraft.builder()
                         .alias("전달자")
-                        .displayName("마지막 쪽지를 옮긴 연락책")
-                        .shortDescription("최종 장소를 직접 말하지 않고 방향과 물건의 특징만 남긴 연락책입니다.")
-                        .relationToVictim("마지막 단서를 운반한 증언자")
-                        .suspiciousPoint("정답을 숨긴 인물이라기보다, 정답을 보호하기 위해 일부 힌트를 일부러 흐리게 남겼을 가능성이 있습니다.")
-                        .alibiSummary("가방만 전달했다고 주장하지만, 스토리 단서와 목적지 힌트를 함께 보면 그가 숨긴 방향성이 드러납니다.")
+                        .displayName("윤재하")
+                        .shortDescription("마지막 쪽지를 운반한 연락책")
+                        .relationToVictim("마지막 쪽지를 전달했지만 문서 원본 보관 절차에는 참여하지 않았습니다.")
+                        .suspiciousPoint("18시 이후 봉투를 들고 이동한 목격 기록이 있어 단서를 옮긴 사람으로 의심받았습니다.")
+                        .alibiSummary("배제 근거: 목격된 봉투는 이미 훼손된 뒤 전달된 복사본이었고, 전달 전 촬영된 사진에 같은 접힌 자국이 남아 있습니다.")
                         .build()
         );
         for (AiEpisodeDraftResponse.SuspectDraft fallback : defaults) {
@@ -4521,10 +5011,63 @@ public class AdminEpisodeGeminiService {
             }
             suspects.add(fallback);
         }
+        for (int i = 0; i < suspects.size(); i++) {
+            AiEpisodeDraftResponse.SuspectDraft suspect = suspects.get(i);
+            if (suspect == null) {
+                continue;
+            }
+            AiEpisodeDraftResponse.SuspectDraft fallback = defaults.get(Math.floorMod(i, defaults.size()));
+            if (isRoleLikeSuspectDisplayName(suspect.getDisplayName())) {
+                suspect.setDisplayName(fallback.getDisplayName());
+            }
+            if (blank(suspect.getAlias())) {
+                suspect.setAlias(fallback.getAlias());
+            }
+            if (isWeakSuspectFrontText(suspect.getShortDescription())) {
+                suspect.setShortDescription(fallback.getShortDescription());
+            }
+            if (isWeakSuspectDetailText(suspect.getRelationToVictim())) {
+                suspect.setRelationToVictim(fallback.getRelationToVictim());
+            }
+            if (isWeakSuspectDetailText(suspect.getSuspiciousPoint())) {
+                suspect.setSuspiciousPoint(fallback.getSuspiciousPoint());
+            }
+            if (isWeakSuspectDetailText(suspect.getAlibiSummary())
+                    || (i == 0 && !containsAny(suspect.getAlibiSummary(), "핵심 모순"))
+                    || (i > 0 && !containsAny(suspect.getAlibiSummary(), "배제 근거"))) {
+                suspect.setAlibiSummary(fallback.getAlibiSummary());
+            }
+        }
         if (draft.getSuspects() == null || draft.getSuspects().size() < 3) {
-            warnings.add("관계자 카드가 3개 미만이라 스토리 역할이 분명한 기본 관계자 카드로 보강했습니다.");
+            warnings.add("관계자 카드가 3개 미만이라 역할이 분리된 기본 관계자 카드로 보강했습니다.");
         }
         draft.setSuspects(suspects);
+    }
+
+    private boolean isRoleLikeSuspectDisplayName(String value) {
+        if (blank(value)) {
+            return true;
+        }
+        String compactValue = compact(value);
+        return compactValue.length() <= 2
+                || containsAny(value, "의뢰인", "정리관", "전달자", "연락책", "보관 담당자", "기록 중개인", "관계자");
+    }
+
+    private boolean isWeakSuspectFrontText(String value) {
+        if (blank(value)) {
+            return true;
+        }
+        return value.length() > 40 || containsAny(value, "수상", "의심스럽", "진실", "숨긴", "힌트 카드", "정답 힌트", "목적지 힌트");
+    }
+
+    private boolean isWeakSuspectDetailText(String value) {
+        if (blank(value) || containsAny(value, "힌트 카드", "정답 힌트", "목적지 힌트", "카드 하나", "카드의")) {
+            return true;
+        }
+        boolean concrete = containsAny(value,
+                "문서", "시간", "시각", "봉투", "물건", "목격", "기록", "사진", "메모", "서명", "접수", "보관", "반출", "출입", "동선");
+        boolean abstractOnly = containsAny(value, "수상", "의심스럽", "진실을 숨", "잠적", "비밀을 숨");
+        return !concrete || abstractOnly;
     }
 
     private void ensureMissionEvidences(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request, List<String> warnings) {
@@ -5076,6 +5619,11 @@ public class AdminEpisodeGeminiService {
                 && hasPlanSlot(labels, "조건", "표식", "문구")) {
             return "흩어진 흔적을 대조하면, 잃어버린 물건은 무엇이며 어디에 보관되어 있고 어떤 조건에서 확인할 수 있는가?";
         }
+        if (hasPlanSlot(labels, "관련자")
+                && hasPlanSlot(labels, "정답 단서")
+                && hasPlanSlot(labels, "장소")) {
+            return "관련자, 정답 단서, 장소를 모두 연결하면 이번 미션의 최종 결론은 무엇인가?";
+        }
         if (labels.size() == 2) {
             return "흩어진 단서를 종합하면, 사라진 대상의 정체와 그것이 향한 곳은 어디인가?";
         }
@@ -5091,6 +5639,14 @@ public class AdminEpisodeGeminiService {
         }
         if (keywords.size() == 2) {
             return withSubject(keywords.get(0)) + " 마지막 흔적이 가리킨 " + keywords.get(1) + "에 숨겨져 있었다.";
+        }
+        if (hasPlanSlot(labels, "관련자")
+                && hasPlanSlot(labels, "정답 단서")
+                && hasPlanSlot(labels, "장소")) {
+            String person = keywordForSlot(labels, keywords, "관련자");
+            String clue = keywordForSlot(labels, keywords, "정답 단서");
+            String place = keywordForSlot(labels, keywords, "장소");
+            return withSubject(person) + " " + withObject(clue) + " " + place + "에서 확인하려 했다.";
         }
         if (hasPlanSlot(labels, "실종 원인")
                 && hasPlanSlot(labels, "마지막 장소")

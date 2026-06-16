@@ -119,7 +119,7 @@ public class CaseFileService {
     }
 
     private CaseFileResponse.Suspect toSuspect(CaseSuspect suspect, Set<Long> unlockedIds, Set<Long> clearedIds, List<CaseEvidence> evidences) {
-        boolean unlocked = Boolean.TRUE.equals(suspect.getUnlockedByDefault()) || unlockedIds.contains(suspect.getId());
+        boolean unlocked = true;
         int relatedCount = (int) evidences.stream().filter(evidence -> suspect.getId().equals(evidence.getRelatedSuspectId())).count();
         return CaseFileResponse.Suspect.builder()
                 .suspectId(suspect.getId())
@@ -151,7 +151,7 @@ public class CaseFileService {
                 .build();
     }
     private int countUnlockedSuspects(List<CaseSuspect> suspects, Set<Long> unlockedIds) {
-        return (int) suspects.stream().filter(suspect -> Boolean.TRUE.equals(suspect.getUnlockedByDefault()) || unlockedIds.contains(suspect.getId())).count();
+        return suspects.size();
     }
 
     private int countUnlockedEvidences(List<CaseEvidence> evidences, Set<Long> unlockedIds) {

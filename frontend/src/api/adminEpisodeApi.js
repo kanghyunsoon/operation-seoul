@@ -1,4 +1,4 @@
-﻿import apiClient from '@/api/axiosInstance';
+import apiClient from '@/api/axiosInstance';
 
 const unwrap = (response) => response.data?.data ?? response.data;
 const AI_DRAFT_TIMEOUT_MS = 180000;

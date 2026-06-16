@@ -12,18 +12,17 @@ class MinigameProofValidatorTest {
     private final MinigameProofValidator validator = new MinigameProofValidator(new ObjectMapper());
 
     @Test
-    void acceptsValidProofForAllTenMinigameTypes() {
+    void acceptsValidProofForSupportedMinigameTypes() {
         List<ProofCase> cases = List.of(
                 new ProofCase("NUMBER_LOCK", "{\"solutionDigits\":\"1897\"}", "", "1897"),
                 new ProofCase("WORD_COMPOSE", "{}", "Cracked Lens", "cracked-lens"),
-                new ProofCase("COLOR_CODE", "{\"solution\":[\"RED\",\"BLUE\",\"GOLD\"]}", "", "RED,BLUE,GOLD"),
                 new ProofCase("MEMORY_CARD", "{\"pairs\":4}", "", "MATCHED"),
                 new ProofCase("PATTERN_LOCK", "{\"nodes\":[1,5,9,7]}", "", "1,5,9,7"),
-                new ProofCase("SWITCH_TOGGLE", "{\"targetStates\":[true,false,true]}", "", "1,0,1"),
                 new ProofCase("RAPID_TAP", "{\"target\":9}", "", "9"),
                 new ProofCase("DIRECTION_SEQUENCE", "{\"sequence\":[\"UP\",\"LEFT\",\"DOWN\"]}", "", "UP,LEFT,DOWN"),
-                new ProofCase("SHADOW_FIND", "{\"targetIndex\":2}", "", "2"),
-                new ProofCase("SLIDE_PUZZLE", "{\"tiles\":[\"A\",\"B\",\"C\",\"D\"]}", "", "ABCD")
+                new ProofCase("UP_DOWN_TIMER", "{\"solution\":73}", "", "73"),
+                new ProofCase("NUMBER_BASEBALL", "{\"solution\":\"427\"}", "", "427"),
+                new ProofCase("NUMBER_SEQUENCE_TAP", "{\"sequence\":[1,2,3,4,5],\"skipNumber\":3,\"doubleNumber\":5}", "", "1,2,4,5,5")
         );
 
         for (ProofCase proofCase : cases) {
@@ -40,6 +39,13 @@ class MinigameProofValidatorTest {
         assertFalse(validator.validate(payload(numberLock), "MG|WORD_COMPOSE|1897"));
         assertFalse(validator.validate("{not-json", "MG|NUMBER_LOCK|1897"));
         assertFalse(validator.validate(payload(numberLock), "MG|NUMBER_LOCK|" + "1".repeat(501)));
+    }
+
+    @Test
+    void rejectsRapidTapCountsThatDoNotExactlyMatchTarget() {
+        ProofCase rapidTap = new ProofCase("RAPID_TAP", "{\"target\":29}", "", "29");
+        assertFalse(validator.validate(payload(rapidTap), "MG|RAPID_TAP|28"));
+        assertFalse(validator.validate(payload(rapidTap), "MG|RAPID_TAP|30"));
     }
 
     private String payload(ProofCase proofCase) {
