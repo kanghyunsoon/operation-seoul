@@ -9,6 +9,8 @@ import java.util.List;
 @Builder
 public class ClueBoardResponse {
     private Long episodeId;
+    private List<String> relatedPersonClues;
+    private List<String> coreClues;
     private List<String> answerClues;
     private List<String> destinationClues;
     private List<String> storyClues;
@@ -17,6 +19,8 @@ public class ClueBoardResponse {
     private List<Long> unlockedSuspectIds;
     private List<Long> clearedSuspectIds;
     private List<Long> unlockedEvidenceIds;
+    private Integer relatedPersonClueCount;
+    private Integer coreClueCount;
     private Integer answerClueCount;
     private Integer destinationClueCount;
     private Integer storyClueCount;

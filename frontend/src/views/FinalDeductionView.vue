@@ -29,7 +29,7 @@
       <section v-if="!startData.sessionId" class="blocked">
         <strong>최종 추리 조건 미충족</strong>
         <p>실제 최종 장소에 도착해야 최종 추리 채팅과 정답 제출을 시작할 수 있습니다.</p>
-        <p>이 장소에서는 최종 추리를 시작할 수 없습니다. 장소 키워드 미션 진행 상태를 다시 확인해 주세요.</p>
+        <p>이 장소에서는 최종 추리를 시작할 수 없습니다. 장소 미션 진행 상태를 다시 확인해 주세요.</p>
         <div>
           <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">지도로 돌아가기</button>
           <button type="button" class="secondary" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">미션 파일 확인</button>

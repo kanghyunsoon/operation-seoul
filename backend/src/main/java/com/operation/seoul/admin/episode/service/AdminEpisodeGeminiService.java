@@ -65,7 +65,7 @@ public class AdminEpisodeGeminiService {
 
     private static final List<PlanSlot> FIXED_FINAL_ANSWER_SLOTS = List.of(
             new PlanSlot("RELATED_PERSON", "관련자", "최종 정답에 반드시 포함될 픽션 관련자 또는 역할"),
-            new PlanSlot("ANSWER_CLUE", "정답 단서", "최종 정답을 성립시키는 핵심 물건, 숫자, 문구, 조건 중 하나"),
+            new PlanSlot("ANSWER_CLUE", "핵심 단서", "최종 정답을 성립시키는 핵심 물건, 숫자, 문구, 조건 중 하나"),
             new PlanSlot("FINAL_DESTINATION", "장소", "내부 최종 목적지의 실제 장소명")
     );
 
@@ -268,6 +268,7 @@ public class AdminEpisodeGeminiService {
         }
 
         keywordItems = enforceFinalDestinationKeyword(answerSlots, keywordItems, request, warnings);
+        keywordItems = enforceConcreteAnswerClueKeyword(answerSlots, keywordItems, request, warnings);
 
         String genreName = resolveSelectedGenreNameFromCatalog(
                 genreId,
@@ -578,7 +579,7 @@ public class AdminEpisodeGeminiService {
                         .sourceBasis("내부 최종 목적지로 선택된 장소명")
                         .sourceType("FINAL_DESTINATION")
                         .sourcePlaceName(finalPlaceName)
-                        .sourceText("최종 정답의 장소 키워드는 내부 최종 목적지 장소명과 동일해야 합니다.")
+                        .sourceText("최종 정답의 장소는 내부 최종 목적지 장소명과 동일해야 합니다.")
                         .difficulty("NORMAL")
                         .risk("OK")
                         .build());
@@ -750,6 +751,15 @@ public class AdminEpisodeGeminiService {
 
             if (blank(sourcePlaceName)) {
                 sourcePlaceName = planSourcePlaceName(request, sourcePlaceOrder);
+            }
+            if ("ANSWER_CLUE".equals(slot.getSlotId())
+                    && !isFinalDestinationSource(request, sourcePlaceOrder, sourcePlaceName)) {
+                AiEpisodeDraftRequest.PlaceInput finalPlace = finalDestinationPlace(request);
+                if (finalPlace != null && isAiInferredSourceType(source.getSourceType())) {
+                    sourcePlaceOrder = finalDestinationPlaceOrder(request, finalPlace);
+                    sourcePlaceName = finalPlace.getName();
+                    warnings.add("GEMINI_PLAN_ANSWER_CLUE_SOURCE_ASSIGNED_TO_FINAL_PLACE");
+                }
             }
 
             if ("ANSWER_CLUE".equals(slot.getSlotId())
@@ -1491,6 +1501,90 @@ public class AdminEpisodeGeminiService {
                 });
     }
 
+    private List<AiEpisodePlanResponse.AnswerKeyword> enforceConcreteAnswerClueKeyword(
+            List<AiEpisodePlanResponse.AnswerSlotPlan> answerSlots,
+            List<AiEpisodePlanResponse.AnswerKeyword> keywordItems,
+            AiEpisodeDraftRequest request,
+            List<String> warnings) {
+        if (keywordItems == null) {
+            return List.of();
+        }
+        List<AiEpisodePlanResponse.AnswerKeyword> result = new ArrayList<>(keywordItems);
+        Set<String> used = result.stream()
+                .filter(item -> item != null && !same(item.getSlotId(), "ANSWER_CLUE"))
+                .map(AiEpisodePlanResponse.AnswerKeyword::getKeyword)
+                .filter(value -> !blank(value))
+                .map(this::compact)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+
+        for (AiEpisodePlanResponse.AnswerKeyword item : result) {
+            if (item == null || !same(item.getSlotId(), "ANSWER_CLUE")) {
+                continue;
+            }
+            String keyword = normalizeAnswerKeywordValue(item.getKeyword());
+            if (isConcreteAnswerClueKeyword(keyword) && "OK".equals(planKeywordRisk(keyword, item.getLabel(), request))) {
+                item.setKeyword(keyword);
+                return result;
+            }
+            String replacement = inferredAnswerClueFromFinalContext(request, result, used);
+            if (blank(replacement)) {
+                replacement = "조작된 기록서";
+            }
+            item.setKeyword(replacement);
+            item.setAliases(answerClueAliases(replacement));
+            item.setRisk("OK");
+            item.setSourceType(blank(item.getSourceType()) ? "AI_INFERRED_STORY_OBJECT" : item.getSourceType());
+            item.setSourceText("핵심 단서는 최종 입력 가능한 구체 명사구로 보정되었습니다.");
+            warnings.add("ANSWER_CLUE_KEYWORD_REWRITTEN_CONCRETE");
+            return result;
+        }
+
+        AiEpisodePlanResponse.AnswerSlotPlan slot = answerSlots == null ? null : answerSlots.stream()
+                .filter(item -> item != null && same(item.getSlotId(), "ANSWER_CLUE"))
+                .findFirst()
+                .orElse(null);
+        result.add(AiEpisodePlanResponse.AnswerKeyword.builder()
+                .slotId("ANSWER_CLUE")
+                .label(slot == null ? "핵심 단서" : slot.getLabel())
+                .keyword("조작된 기록서")
+                .aliases(answerClueAliases("조작된 기록서"))
+                .sourceType("AI_INFERRED_STORY_OBJECT")
+                .sourceText("핵심 단서는 최종 입력 가능한 구체 명사구로 보강되었습니다.")
+                .difficulty("NORMAL")
+                .risk("OK")
+                .build());
+        warnings.add("ANSWER_CLUE_KEYWORD_REWRITTEN_CONCRETE");
+        return result;
+    }
+
+    private boolean isConcreteAnswerClueKeyword(String keyword) {
+        if (blank(keyword)) {
+            return false;
+        }
+        String compactKeyword = compact(keyword);
+        if (Set.of(
+                "옛서찰", "사라져가는것들", "숨은증인", "오래된기억", "기록의의미", "진실",
+                "기록", "단서", "문서", "메모", "서찰", "증인", "기억", "의미"
+        ).contains(compactKeyword)) {
+            return false;
+        }
+        return containsAny(keyword,
+                "조작", "누락", "거짓", "훼손", "사라진", "봉인", "바뀐", "위조", "숨겨진", "마지막", "삭제", "변조", "허위")
+                && containsAny(keyword,
+                "기록서", "기록", "증언", "알리바이", "장부", "목격자", "보고서", "순찰 기록", "진술", "명령서",
+                "문서", "출입 기록", "거래 장부", "사진 기록", "쪽지", "메모");
+    }
+
+    private List<String> answerClueAliases(String keyword) {
+        String normalized = blank(keyword) ? "조작된 기록서" : keyword.trim();
+        List<String> aliases = new ArrayList<>();
+        aliases.add(normalized.replace("된 ", " ").trim());
+        aliases.add(normalized.replace("된", "").trim());
+        aliases.add(normalized.replace("바뀐", "변조된").trim());
+        aliases.add(normalized.replace("조작된", "고쳐진").trim());
+        return aliases.stream().filter(value -> !blank(value)).distinct().toList();
+    }
+
     private void validateNormalizedPlan(
             String genreName,
             List<AiEpisodePlanResponse.AnswerKeyword> keywords,
@@ -1703,6 +1797,7 @@ public class AdminEpisodeGeminiService {
     }
 
     private String inferredWeaponKeyword(String context) {
+        if (containsAny(context, "향교", "서원", "서예", "붓", "유교", "교육", "기록", "문서")) return "오래된 붓";
         if (containsAny(context, "사진", "카메라", "필름", "골목")) return "깨진 렌즈";
         if (containsAny(context, "문", "철문", "잠금", "열쇠")) return "녹슨 열쇠";
         if (containsAny(context, "비", "우산", "거리")) return "접힌 우산";
@@ -1728,6 +1823,10 @@ public class AdminEpisodeGeminiService {
         String relatedPerson = keywordForKnownSlot(knownKeywords, "RELATED_PERSON");
 
         List<String> candidates = new ArrayList<>();
+        if (containsAny(placeText, "충주향교", "향교", "서원", "유교", "교육", "서예", "붓", "문서", "기록")
+                || containsAny(relatedPerson, "향교", "기록자", "기록")) {
+            candidates.add("오래된 붓");
+        }
         if (containsAny(placeText, "문", "입구", "gate", "door")) {
             candidates.add("입구 표식");
         }
@@ -1756,11 +1855,20 @@ public class AdminEpisodeGeminiService {
         candidates.add("확인 표식");
         candidates.add("기록 조각");
 
+        candidates.add(0, "조작된 기록서");
+        candidates.add(1, "누락된 증언");
+        candidates.add(2, "거짓 알리바이");
+        candidates.add(3, "훼손된 장부");
+        candidates.add(4, "봉인된 보고서");
+        candidates.add(5, "바뀐 순찰 기록");
+        candidates.add(6, "위조된 명령서");
+        candidates.add(7, "숨겨진 거래 장부");
+
         for (String candidate : candidates) {
             String normalized = normalizeAnswerKeywordValue(candidate);
             if (!blank(normalized)
                     && !used.contains(compact(normalized))
-                    && "OK".equals(planKeywordRisk(normalized, "정답 단서", request))) {
+                    && "OK".equals(planKeywordRisk(normalized, "핵심 단서", request))) {
                 return normalized;
             }
         }
@@ -2286,7 +2394,7 @@ public class AdminEpisodeGeminiService {
                 .publishChecklist(List.of(
                         "모든 장소 좌표와 도착 반경이 선택 장소 데이터 또는 현장 QA 기준으로 맞는지 확인하세요.",
                         "모든 퍼즐이 제공된 장소 데이터, 관리자 메모, 사이트 보강 정보, 또는 안전한 픽션 단서에 근거하는지 확인하세요.",
-                        "최종 정답은 관련자, 정답 단서, 최종 목적지 장소 키워드를 모두 포함하는지 확인하세요.",
+                        "최종 정답은 관련자, 핵심 단서, 장소를 모두 포함하는지 확인하세요.",
                         "지도 API에는 publicMarkerType만 노출하고 내부 finalPlace는 절대 노출하지 마세요.",
                         "생성된 초안은 먼저 DRAFT로 저장하고, 차단 이슈가 모두 해결된 뒤 공개하세요."
                 ))
@@ -2387,17 +2495,25 @@ public class AdminEpisodeGeminiService {
             - If legacy input.finalAnswerKeywords exists instead of finalAnswerKeywordItems, treat those values as mandatory final answer keywords.
             - Operation Korea answer contract is fixed:
               * RELATED_PERSON / 관련자: one fictional person, role, or group connected to the incident.
-              * ANSWER_CLUE / 정답 단서: one concrete object, number, phrase, tool, evidence, or condition.
+              * ANSWER_CLUE / 핵심 단서: one concrete object, number, phrase, tool, evidence, or condition.
               * FINAL_DESTINATION / 장소: the actual internal final destination place name.
-            - Generate exactly three clue trails for the final answer: three clues for 관련자, three clues for 정답 단서, and three clues for 장소.
+            - ANSWER_CLUE keyword must be a concrete short noun phrase that a player can type, not a symbolic abstraction.
+            - Bad ANSWER_CLUE examples: "옛 서찰", "사라져가는 것들", "숨은 증인", "오래된 기억", "기록의 의미", "진실".
+            - Good ANSWER_CLUE examples: "조작된 기록서", "누락된 증언", "거짓 알리바이", "훼손된 장부", "사라진 목격자", "봉인된 보고서", "바뀐 순찰 기록", "마지막 진술", "숨겨진 거래 장부", "위조된 명령서".
+            - Generate exactly three clue trails for the final answer: three clues for 관련자, three clues for 핵심 단서, and three clues for 장소.
             - Each mission rewardClue must support one of those three slots through rewardClueSlotId and supportsKeywordSlots.
-            - Use SUSPECT_CLUE evidence/cards for 관련자, ANSWER_CLUE for 정답 단서, and DESTINATION_CLUE for 장소.
+            - Use SUSPECT_CLUE evidence/cards for 관련자, ANSWER_CLUE for 핵심 단서, and DESTINATION_CLUE for 장소.
+            - RELATED_PERSON mission rewardClue and SUSPECT_CLUE evidence must reveal the core contradiction or exclusion basis only after the player clears that mission.
+            - ANSWER_CLUE mission rewardClue must not print the full ANSWER_CLUE keyword, but must include at least one category word such as 기록, 문서, 장부, 보고서, 증언, 진술, 알리바이, 목격자, 명령서, 물건, 사람, or 행동.
+            - ANSWER_CLUE mission rewardClue must also include a concrete state/action such as 조작, 누락, 거짓, 훼손, 사라진, 봉인, 바뀐, 위조, 숨겨진, 삭제, 변조, 원본과 다른, or 다르게 고쳐진.
+            - Do not use vague rewardClue wording such as "뭔가 이상하다", "서로 맞지 않았다", "암시한다", "진실임을 암시한다", or "중요해 보인다".
+            - Do not perform cumulative letter reveal in rewardClue text. The server will attach per-card letterReveal data separately.
             - Destination clues must point to the final destination keyword indirectly before clear, not to a different fictional location.
             
             Final question rules:
             - finalQuestion must ask for the complete final answer implied by all approved slots.
             - finalQuestion must use slot labels or mystery roles, not exact keyword values.
-            - Good: "관련자, 정답 단서, 장소를 종합하면 어떤 결론인가?"
+            - Good: "관련자, 핵심 단서, 장소를 종합하면 어떤 결론인가?"
             - Bad: "화공, 붓, 후원을 종합하면 무엇인가?"
             - Do not ask for only one keyword if multiple final answer keywords are approved.
             
@@ -2504,9 +2620,10 @@ public class AdminEpisodeGeminiService {
             - Character alias may be a role label such as "의뢰인", "정리관", or "전달자".
             - Character suspiciousPoint and alibiSummary must not mention "힌트 카드", "정답 힌트 카드", "목적지 힌트 카드", "카드 하나", or any UI/card object. Write them as in-world actions, route contradictions, statements, timestamps, objects, or witness claims.
             - Create exactly three character cards with different deduction roles:
-              1) primary contradiction candidate: alibiSummary must include "핵심 모순:" and one decisive contradiction.
-              2) excludable false lead: alibiSummary must include "배제 근거:" and a concrete reason this person can be ruled out later.
-              3) witness or courier: alibiSummary must include "배제 근거:" and explain why this person moved a clue but did not create the core incident.
+              1) primary contradiction candidate: alibiSummary must be a plausible claim only; do not include "핵심 모순:" or the decisive contradiction.
+              2) excludable false lead: alibiSummary must be a plausible claim only; do not include "배제 근거:" or the reason this person can be ruled out.
+              3) witness or courier: alibiSummary must state only their claimed movement or role, not why they did not create the core incident.
+            - Put decisive contradictions and exclusion bases in RELATED_PERSON mission rewardClue and SUSPECT_CLUE evidence, not in the default suspect alibiSummary.
             - shortDescription is the card front summary. Keep it short: name/role level, one line, no long suspicion text.
             - relationToVictim must be one sentence about how the person is connected to the incident.
             - suspiciousPoint must cite at least one concrete basis: document, time, object, witness record, signature, entry log, photo, memo, or route record.
@@ -2623,7 +2740,7 @@ public class AdminEpisodeGeminiService {
             Your job:
             - Choose one episode genre.
             - Use the fixed Operation Korea answer slots, not genre-specific answer slots.
-            - Generate short final answer keywords for 관련자 and 정답 단서.
+            - Generate short final answer keywords for 관련자 and 핵심 단서.
             - Use the internal FINAL place name as the 장소 keyword.
             - Plan three clue trails for each keyword, for a total of nine clue directions when enough missions exist.
             - The result will be reviewed by an admin before full draft generation.
@@ -2659,7 +2776,7 @@ public class AdminEpisodeGeminiService {
             Answer slot rules:
             - You MUST return exactly these three answerSlots in this order:
             - slotId=RELATED_PERSON, label=관련자, minClueCount=3.
-            - slotId=ANSWER_CLUE, label=정답 단서, minClueCount=3.
+            - slotId=ANSWER_CLUE, label=핵심 단서, minClueCount=3.
             - slotId=FINAL_DESTINATION, label=장소, minClueCount=3.
             - Do not rename these slotIds or labels.
             - Do not use genre-specific slot labels such as 범인, 범행도구, 사건장소, 최종 문장, 핵심 숫자, 암호해독 장소, 보관 장소 as answerSlots.
@@ -2674,8 +2791,8 @@ public class AdminEpisodeGeminiService {
             - FINAL_DESTINATION keyword: the exact name of the input place whose role is FINAL. If no role is FINAL, use the last input place name.
             - Bad: label=관련자, keyword=관련자
             - Good: label=관련자, keyword=기록 중개인
-            - Bad: label=정답 단서, keyword=정답 단서
-            - Good: label=정답 단서, keyword=봉인된 붓
+            - Bad: label=핵심 단서, keyword=핵심 단서
+            - Good: label=핵심 단서, keyword=조작된 기록서
             - Bad: label=장소, keyword=표지판 아래
             - Good: label=장소, keyword=<the actual FINAL place name from input>
             
@@ -2744,9 +2861,9 @@ public class AdminEpisodeGeminiService {
             Final question guide rules:
             - finalQuestionGuide must explain what the player will ultimately submit.
             - MUST naturally integrate all the generated finalAnswerKeywords into one clear sentence.
-            - Example: "기록 중개인이 붉은 인장을 대한문에서 확인했다." (Using the exact generated 관련자, 정답 단서, 장소 keywords).
+            - Example: "기록 중개인이 붉은 인장을 대한문에서 확인했다." (Using the exact generated 관련자, 핵심 단서, 장소 keywords).
             - Do not mechanically list slot labels followed by "종합해 최종 결론을 보고하게 한다".
-            - Describe that the player combines 관련자, 정답 단서, and 장소 clues at the final destination and submits a sentence containing all three keywords.
+            - Describe that the player combines 관련자, 핵심 단서, and 장소 clues at the final destination and submits a sentence containing all three keywords.
             
             Output schema:
             {
@@ -3602,6 +3719,7 @@ public class AdminEpisodeGeminiService {
             sanitizeForbiddenRevealReward(mission, draft, role, i, warnings);
             sanitizeFinalAnswerLeaks(draft, mission, place, request, role, i, warnings);
             sanitizeGenericRewardClue(mission, place, request, role, i, warnings);
+            sanitizeAnswerClueReward(mission, request, i, warnings);
             if (mission.getHints() == null || mission.getHints().size() < 3) {
                 warnings.add("Mission " + (i + 1) + " was normalized; review before publishing.");
             }
@@ -4696,7 +4814,7 @@ public class AdminEpisodeGeminiService {
 
     private String markerRoleLabel(String role) {
         return switch (role) {
-            case "ANSWER_HINT" -> "정답 단서";
+            case "ANSWER_HINT" -> "핵심 단서";
             case "DESTINATION_HINT", "FINAL" -> "목적지 단서";
             case "START" -> "시작 단서";
             default -> "스토리 단서";
@@ -4882,13 +5000,15 @@ public class AdminEpisodeGeminiService {
                     changed = true;
                 }
                 if (containsFinalKeywordOrAlias(card.getSuspiciousPoint(), draft)
-                        || containsAnyApprovedFinalKeyword(card.getSuspiciousPoint(), request)) {
+                        || containsAnyApprovedFinalKeyword(card.getSuspiciousPoint(), request)
+                        || revealsSuspectResolution(card.getSuspiciousPoint())) {
                     card.setSuspiciousPoint("진술과 이동 기록 사이에 확인이 필요한 간접적인 차이가 있습니다.");
                     changed = true;
                 }
                 if (containsFinalKeywordOrAlias(card.getAlibiSummary(), draft)
-                        || containsAnyApprovedFinalKeyword(card.getAlibiSummary(), request)) {
-                    card.setAlibiSummary("해금 자료 카드와 현장 동선을 함께 대조해야 진술의 신뢰도를 판단할 수 있습니다.");
+                        || containsAnyApprovedFinalKeyword(card.getAlibiSummary(), request)
+                        || revealsSuspectResolution(card.getAlibiSummary())) {
+                    card.setAlibiSummary("정해진 시간에 자신이 맡은 절차를 처리하고 있었다고 진술합니다.");
                     changed = true;
                 }
             }
@@ -4985,24 +5105,24 @@ public class AdminEpisodeGeminiService {
                         .displayName("한서윤")
                         .shortDescription("사라진 봉투를 처음 맡긴 의뢰인")
                         .relationToVictim("사라진 문서의 접수를 요청했고 봉투 보관 절차를 알고 있던 인물입니다.")
-                        .suspiciousPoint("문서가 사라진 18시 20분 직전 봉투의 봉인을 직접 확인했고, 접수대 기록보다 먼저 봉투 안쪽 훼손 사실을 말했습니다.")
-                        .alibiSummary("핵심 모순: 현장에 없었다고 말했지만, 접수 전에 훼손된 봉투 모서리와 봉인 방향을 정확히 알고 있었습니다.")
+                        .suspiciousPoint("문서가 사라진 18시 20분 직전 봉투의 봉인을 확인한 사람으로 기록되어 있습니다.")
+                        .alibiSummary("그 시간에는 접수대 밖 복도에서 다음 접수 순서를 기다렸다고 진술합니다.")
                         .build(),
                 AiEpisodeDraftResponse.SuspectDraft.builder()
                         .alias("정리관")
                         .displayName("강도윤")
                         .shortDescription("사진과 메모 순서를 정리한 보관 담당자")
                         .relationToVictim("조사 자료를 시간순으로 정리하고 보관함 출입 기록을 관리했습니다.")
-                        .suspiciousPoint("17시 50분 보관함 반출 기록에 그의 서명이 있어 사진과 메모 순서를 바꿀 수 있는 위치에 있었습니다.")
-                        .alibiSummary("배제 근거: 같은 시각 자료실 출입 로그와 다른 직원의 목격 기록이 일치해, 봉투가 훼손된 시간대에는 접수대에 접근하지 못했습니다.")
+                        .suspiciousPoint("17시 50분 보관함 반출 기록에 그의 서명이 있어 자료 순서를 확인할 위치에 있었습니다.")
+                        .alibiSummary("자료실에서 시간순 목록을 정리하고 있었다고 말하며, 당시 출입 기록이 따로 남아 있다고 설명합니다.")
                         .build(),
                 AiEpisodeDraftResponse.SuspectDraft.builder()
                         .alias("전달자")
                         .displayName("윤재하")
                         .shortDescription("마지막 쪽지를 운반한 연락책")
                         .relationToVictim("마지막 쪽지를 전달했지만 문서 원본 보관 절차에는 참여하지 않았습니다.")
-                        .suspiciousPoint("18시 이후 봉투를 들고 이동한 목격 기록이 있어 단서를 옮긴 사람으로 의심받았습니다.")
-                        .alibiSummary("배제 근거: 목격된 봉투는 이미 훼손된 뒤 전달된 복사본이었고, 전달 전 촬영된 사진에 같은 접힌 자국이 남아 있습니다.")
+                        .suspiciousPoint("18시 이후 봉투를 들고 이동한 목격 기록이 있어 동선 확인 대상이 되었습니다.")
+                        .alibiSummary("봉투를 전달했을 뿐 원본 보관함에는 접근하지 않았다고 진술합니다.")
                         .build()
         );
         for (AiEpisodeDraftResponse.SuspectDraft fallback : defaults) {
@@ -5029,12 +5149,10 @@ public class AdminEpisodeGeminiService {
             if (isWeakSuspectDetailText(suspect.getRelationToVictim())) {
                 suspect.setRelationToVictim(fallback.getRelationToVictim());
             }
-            if (isWeakSuspectDetailText(suspect.getSuspiciousPoint())) {
+            if (isWeakSuspectDetailText(suspect.getSuspiciousPoint()) || revealsSuspectResolution(suspect.getSuspiciousPoint())) {
                 suspect.setSuspiciousPoint(fallback.getSuspiciousPoint());
             }
-            if (isWeakSuspectDetailText(suspect.getAlibiSummary())
-                    || (i == 0 && !containsAny(suspect.getAlibiSummary(), "핵심 모순"))
-                    || (i > 0 && !containsAny(suspect.getAlibiSummary(), "배제 근거"))) {
+            if (isWeakSuspectDetailText(suspect.getAlibiSummary()) || revealsSuspectResolution(suspect.getAlibiSummary())) {
                 suspect.setAlibiSummary(fallback.getAlibiSummary());
             }
         }
@@ -5068,6 +5186,13 @@ public class AdminEpisodeGeminiService {
                 "문서", "시간", "시각", "봉투", "물건", "목격", "기록", "사진", "메모", "서명", "접수", "보관", "반출", "출입", "동선");
         boolean abstractOnly = containsAny(value, "수상", "의심스럽", "진실을 숨", "잠적", "비밀을 숨");
         return !concrete || abstractOnly;
+    }
+
+    private boolean revealsSuspectResolution(String value) {
+        return containsAny(value,
+                "핵심 모순", "배제 근거", "결정적 모순", "모순이 드러", "모순을 드러",
+                "범인", "진범", "배제할 수", "배제된다", "배제됩니다", "결정적 증거",
+                "알리바이가 거짓", "진술이 거짓", "접근하지 못했", "만들지 않았", "생성하지 않았");
     }
 
     private void ensureMissionEvidences(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request, List<String> warnings) {
@@ -5575,6 +5700,104 @@ public class AdminEpisodeGeminiService {
         warnings.add("Mission " + (index + 1) + " reward clue was normalized; review before publishing.");
     }
 
+    private void sanitizeAnswerClueReward(
+            AiEpisodeDraftResponse.MissionDraft mission,
+            AiEpisodeDraftRequest request,
+            int index,
+            List<String> warnings) {
+        if (mission == null || !"ANSWER_CLUE".equals(normalize(mission.getRewardClueSlotId()))) {
+            return;
+        }
+        String keyword = approvedKeywordForSlot(request, "ANSWER_CLUE");
+        String reward = mission.getRewardClue();
+        boolean unsafe = blank(reward)
+                || containsAnyApprovedFinalKeyword(reward, request)
+                || textContains(reward, keyword)
+                || isVagueAnswerClueReward(reward)
+                || !hasAnswerClueCategoryWord(reward)
+                || !hasAnswerClueStateWord(reward);
+        if (!unsafe) {
+            return;
+        }
+        mission.setRewardClue(answerClueRewardFor(keyword, index));
+        warnings.add("Mission " + (index + 1) + " reward clue was normalized; review before publishing.");
+    }
+
+    private String approvedKeywordForSlot(AiEpisodeDraftRequest request, String slotId) {
+        if (request == null || request.getFinalAnswerKeywordItems() == null) {
+            return "";
+        }
+        return request.getFinalAnswerKeywordItems().stream()
+                .filter(item -> item != null && same(item.getSlotId(), slotId))
+                .map(AiEpisodeDraftRequest.AnswerKeywordInput::getKeyword)
+                .filter(value -> !blank(value))
+                .findFirst()
+                .orElse("");
+    }
+
+    private boolean isVagueAnswerClueReward(String reward) {
+        return containsAny(reward,
+                "뭔가 이상", "이상하다", "서로 맞지", "암시", "진실임", "가치롭게 여겼던", "의미를 가진다",
+                "중요해 보인다", "관련 있어 보인다", "단서일 수 있다", "확인이 필요");
+    }
+
+    private boolean hasAnswerClueCategoryWord(String reward) {
+        return containsAny(reward,
+                "기록", "기록물", "기록서", "문서", "장부", "보고서", "증언", "진술", "알리바이",
+                "목격자", "명령서", "출입 기록", "순찰 기록", "사진", "쪽지", "메모", "물건", "사람", "행동");
+    }
+
+    private boolean hasAnswerClueStateWord(String reward) {
+        return containsAny(reward,
+                "고쳐진", "바뀐", "누락", "빠진", "훼손", "찢긴", "봉인", "숨긴", "숨겨진", "위조",
+                "조작", "거짓", "삭제", "변조", "다르게 적힌", "원본과 다른");
+    }
+
+    private String answerClueRewardFor(String keyword, int index) {
+        String normalized = blank(keyword) ? "조작된 기록서" : keyword.trim();
+        int variant = Math.floorMod(index, 3);
+        if (containsAny(normalized, "증언", "진술")) {
+            return switch (variant) {
+                case 0 -> "사건 시간대의 진술에서 꼭 있어야 할 문장이 빠져 있다.";
+                case 1 -> "빠진 증언은 단순한 누락이 아니라 누군가의 행적을 가리기 위한 것으로 보인다.";
+                default -> "여러 사람의 말보다 누락된 증언 자체가 핵심 단서다.";
+            };
+        }
+        if (containsAny(normalized, "알리바이")) {
+            return switch (variant) {
+                case 0 -> "관계자의 알리바이에 실제 동선과 맞지 않는 시간 표시가 남아 있다.";
+                case 1 -> "그 시간 표시는 착오가 아니라 일부러 꾸며낸 진술에 가깝다.";
+                default -> "사건 당일 행적을 설명한 알리바이 자체가 핵심 단서다.";
+            };
+        }
+        if (containsAny(normalized, "장부", "거래")) {
+            return switch (variant) {
+                case 0 -> "장부의 일부 항목이 원래 순서와 다르게 고쳐진 흔적이 있다.";
+                case 1 -> "바뀐 항목은 단순 계산 실수가 아니라 특정 거래를 숨기기 위한 것으로 보인다.";
+                default -> "사건 당일의 흐름을 적은 장부 자체가 핵심 단서다.";
+            };
+        }
+        if (containsAny(normalized, "보고서", "명령서", "문서", "기록서", "기록")) {
+            return switch (variant) {
+                case 0 -> "기록물의 일부가 원래 내용과 다르게 고쳐진 흔적이 있다.";
+                case 1 -> "바뀐 내용은 단순한 오기가 아니라 누군가의 행적을 숨기기 위한 것으로 보인다.";
+                default -> "사건 당일의 동선을 적은 문서 자체가 핵심 단서다.";
+            };
+        }
+        if (containsAny(normalized, "목격자", "사람")) {
+            return switch (variant) {
+                case 0 -> "목격자로 분류된 사람이 사건 기록에서 의도적으로 빠져 있다.";
+                case 1 -> "빠진 사람은 우연한 누락이 아니라 현장 동선을 확인할 수 있는 인물이다.";
+                default -> "사건 당일을 직접 본 사람의 존재 자체가 핵심 단서다.";
+            };
+        }
+        return switch (variant) {
+            case 0 -> "핵심 단서가 된 물건에는 원래 상태와 다르게 바뀐 흔적이 있다.";
+            case 1 -> "그 변화는 우연한 손상이 아니라 누군가의 행적을 숨기려는 행동으로 보인다.";
+            default -> "사건 당일의 흐름을 설명하는 물건 자체가 핵심 단서다.";
+        };
+    }
+
     private String naturalFinalSynopsis(List<String> labels) {
         String objective = labels.size() >= 2
                 ? String.join(", ", labels) + "에 해당하는 단서를 확보하고 모든 흔적이 이어진 이유를 밝혀내게"
@@ -5620,9 +5843,9 @@ public class AdminEpisodeGeminiService {
             return "흩어진 흔적을 대조하면, 잃어버린 물건은 무엇이며 어디에 보관되어 있고 어떤 조건에서 확인할 수 있는가?";
         }
         if (hasPlanSlot(labels, "관련자")
-                && hasPlanSlot(labels, "정답 단서")
+                && hasPlanSlot(labels, "핵심 단서", "정답 단서")
                 && hasPlanSlot(labels, "장소")) {
-            return "관련자, 정답 단서, 장소를 모두 연결하면 이번 미션의 최종 결론은 무엇인가?";
+            return "관련자, 핵심 단서, 장소를 모두 연결하면 이번 미션의 최종 결론은 무엇인가?";
         }
         if (labels.size() == 2) {
             return "흩어진 단서를 종합하면, 사라진 대상의 정체와 그것이 향한 곳은 어디인가?";
@@ -5641,10 +5864,10 @@ public class AdminEpisodeGeminiService {
             return withSubject(keywords.get(0)) + " 마지막 흔적이 가리킨 " + keywords.get(1) + "에 숨겨져 있었다.";
         }
         if (hasPlanSlot(labels, "관련자")
-                && hasPlanSlot(labels, "정답 단서")
+                && hasPlanSlot(labels, "핵심 단서", "정답 단서")
                 && hasPlanSlot(labels, "장소")) {
             String person = keywordForSlot(labels, keywords, "관련자");
-            String clue = keywordForSlot(labels, keywords, "정답 단서");
+            String clue = keywordForSlot(labels, keywords, "핵심 단서", "정답 단서");
             String place = keywordForSlot(labels, keywords, "장소");
             return withSubject(person) + " " + withObject(clue) + " " + place + "에서 확인하려 했다.";
         }
@@ -5748,8 +5971,11 @@ public class AdminEpisodeGeminiService {
             if (isGenericCardText(suspect.getShortDescription())) {
                 suspect.setShortDescription("이 인물은 다른 이들이 알기 전부터 " + clue + "의 존재를 알고 있었지만, 그 출처만은 끝까지 숨겼습니다.");
             }
-            if (isGenericCardText(suspect.getSuspiciousPoint())) {
-                suspect.setSuspiciousPoint("그의 진술에서는 " + clue + "이 발견된 시점보다 앞서 같은 특징을 언급한 모순이 드러납니다.");
+            if (isGenericCardText(suspect.getSuspiciousPoint()) || revealsSuspectResolution(suspect.getSuspiciousPoint())) {
+                suspect.setSuspiciousPoint("그의 진술에는 " + clue + "와 함께 대조해야 할 시간과 동선 차이가 남아 있습니다.");
+            }
+            if (revealsSuspectResolution(suspect.getAlibiSummary())) {
+                suspect.setAlibiSummary("정해진 시간에 자신이 맡은 절차를 처리하고 있었다고 진술합니다.");
             }
             suspect.setImagePrompt(ensureTextFreeImagePrompt(suspect.getImagePrompt()));
         }

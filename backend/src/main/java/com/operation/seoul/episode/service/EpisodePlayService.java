@@ -266,7 +266,7 @@ public class EpisodePlayService {
         String message = actualFinal
                 ? "조사 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다."
                 : ("DESTINATION_HINT".equals(spot.getPublicMarkerType())
-                    ? "장소 키워드와 대조할 조사 지점입니다. 미션 메모과 단서 보드를 다시 확인해 주세요."
+                    ? "장소 단서와 대조할 조사 지점입니다. 미션 메모과 단서 보드를 다시 확인해 주세요."
                     : "도착이 확인되었습니다. 현장 퍼즐을 열 수 있습니다.");
 
         return ArriveResponse.builder()
@@ -560,7 +560,7 @@ public class EpisodePlayService {
         }
         List<String> clues = allClues(progress);
         String message = clues.size() < 3
-                ? "단서가 부족합니다. 더 정확한 질문을 위해 정답 힌트 장소를 더 조사해 주세요."
+                ? "단서가 부족합니다. 더 정확한 질문을 위해 관련자/핵심 단서 미션을 더 조사해 주세요."
                 : "최종 추리 채팅이 시작되었습니다.";
         return DeductionStartResponse.builder()
                 .sessionId(session.getId())
@@ -670,9 +670,9 @@ public class EpisodePlayService {
         }
         List<Long> visitedSpotIds = readLongList(progress.getVisitedSpotIds());
         List<Long> completedSpotIds = readLongList(progress.getCompletedSpotIds());
-        List<String> answerClues = readStringList(progress.getCollectedAnswerClues());
-        List<String> destinationClues = readStringList(progress.getCollectedDestinationClues());
-        List<String> storyClues = readStringList(progress.getCollectedStoryClues());
+        List<String> answerClues = readStringList(progress.getCollectedAnswerClues()).stream().map(this::clueValueWithoutSlot).toList();
+        List<String> destinationClues = readStringList(progress.getCollectedDestinationClues()).stream().map(this::clueValueWithoutSlot).toList();
+        List<String> storyClues = readStringList(progress.getCollectedStoryClues()).stream().map(this::clueValueWithoutSlot).toList();
         MissionSpot finalArrivedSpot = progress.getFinalArrivedSpotId() == null ? null : episodeRepository.findSpotById(progress.getFinalArrivedSpotId());
         Long elapsedSeconds = progress.getStartedAt() == null ? null : Duration.between(progress.getStartedAt(), progress.getClearedAt()).getSeconds();
 
@@ -770,11 +770,22 @@ public class EpisodePlayService {
     }
 
     private ClueBoardResponse buildClueBoard(UserEpisodeProgress progress) {
-        List<String> answer = readStringList(progress.getCollectedAnswerClues()).stream().map(this::sanitizeCategoryCodes).toList();
-        List<String> destination = readStringList(progress.getCollectedDestinationClues()).stream().map(this::sanitizeCategoryCodes).toList();
-        List<String> story = readStringList(progress.getCollectedStoryClues()).stream().map(this::sanitizeCategoryCodes).toList();
+        List<String> rawAnswer = readStringList(progress.getCollectedAnswerClues()).stream().map(this::sanitizeCategoryCodes).toList();
+        List<String> relatedPerson = typedClues(rawAnswer, "RELATED_PERSON", true);
+        List<String> core = typedClues(rawAnswer, "ANSWER_CLUE", false);
+        List<String> answer = Stream.concat(relatedPerson.stream(), core.stream()).toList();
+        List<String> destination = readStringList(progress.getCollectedDestinationClues()).stream()
+                .map(this::sanitizeCategoryCodes)
+                .map(this::clueValueWithoutSlot)
+                .toList();
+        List<String> story = readStringList(progress.getCollectedStoryClues()).stream()
+                .map(this::sanitizeCategoryCodes)
+                .map(this::clueValueWithoutSlot)
+                .toList();
         return ClueBoardResponse.builder()
                 .episodeId(progress.getEpisodeId())
+                .relatedPersonClues(relatedPerson)
+                .coreClues(core)
                 .answerClues(answer)
                 .destinationClues(destination)
                 .storyClues(story)
@@ -783,6 +794,8 @@ public class EpisodePlayService {
                 .unlockedSuspectIds(readLongList(progress.getUnlockedSuspectIds()))
                 .clearedSuspectIds(readLongList(progress.getClearedSuspectIds()))
                 .unlockedEvidenceIds(readLongList(progress.getUnlockedEvidenceIds()))
+                .relatedPersonClueCount(relatedPerson.size())
+                .coreClueCount(core.size())
                 .answerClueCount(answer.size())
                 .destinationClueCount(destination.size())
                 .storyClueCount(story.size())
@@ -808,9 +821,9 @@ public class EpisodePlayService {
         }
         String clean = sanitizeCategoryCodes(clue.trim());
         if ("ANSWER_HINT".equals(spot.getClueRole())) {
-            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), clean));
+            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), typedClueValue(inferAnswerSlot(spot, clean), clean)));
         } else if ("DESTINATION_HINT".equals(spot.getClueRole()) || "FINAL_PLACE".equals(spot.getClueRole())) {
-            progress.setCollectedDestinationClues(addString(progress.getCollectedDestinationClues(), clean));
+            progress.setCollectedDestinationClues(addString(progress.getCollectedDestinationClues(), typedClueValue("FINAL_DESTINATION", clean)));
         } else {
             progress.setCollectedStoryClues(addString(progress.getCollectedStoryClues(), clean));
         }
@@ -834,7 +847,9 @@ public class EpisodePlayService {
                         String type = reward.path("type").asText("");
                         String value = sanitizeCategoryCodes(reward.path("value").asText(""));
                         Long targetId = reward.hasNonNull("targetId") ? reward.path("targetId").asLong() : null;
-                        boolean added = applyReward(progress, type, value, targetId);
+                        String slotId = normalizeRewardSlot(reward.path("slotId").asText(""));
+                        value = rewardValueWithLetterReveal(value, reward);
+                        boolean added = applyReward(progress, spot, type, value, slotId, targetId);
                         if (added) {
                             rewardTypes.add(type);
                             if (isEvidenceUnlock(type) && targetId != null) {
@@ -874,10 +889,11 @@ public class EpisodePlayService {
         return new RewardApplyResult(!rewardTypes.isEmpty(), rewardTypes, evidenceIds, suspectIds, updatedSuspectIds, photoIds, memoIds, items);
     }
 
-    private boolean applyReward(UserEpisodeProgress progress, String type, String value, Long targetId) {
+    private boolean applyReward(UserEpisodeProgress progress, MissionSpot spot, String type, String value, String slotId, Long targetId) {
         return switch (type) {
-            case "ANSWER_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), value, progress::setCollectedAnswerClues);
-            case "DESTINATION_CLUE" -> addStringReward(progress.getCollectedDestinationClues(), value, progress::setCollectedDestinationClues);
+            case "ANSWER_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue(slotId.isBlank() ? inferAnswerSlot(spot, value) : slotId, value), progress::setCollectedAnswerClues);
+            case "SUSPECT_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue("RELATED_PERSON", value), progress::setCollectedAnswerClues);
+            case "DESTINATION_CLUE" -> addStringReward(progress.getCollectedDestinationClues(), typedClueValue("FINAL_DESTINATION", value), progress::setCollectedDestinationClues);
             case "STORY_CLUE" -> addStringReward(progress.getCollectedStoryClues(), value, progress::setCollectedStoryClues);
             case "EVIDENCE_UNLOCK", "PHOTO_UNLOCK" -> targetId != null && addLongReward(progress.getUnlockedEvidenceIds(), targetId, progress::setUnlockedEvidenceIds);
             case "MEMO_UNLOCK" -> applyMemoUnlock(progress, value, targetId);
@@ -887,13 +903,93 @@ public class EpisodePlayService {
         };
     }
 
+    private String rewardValueWithLetterReveal(String value, JsonNode reward) {
+        if (reward == null || !"ANSWER_CLUE".equals(reward.path("type").asText(""))) {
+            return value;
+        }
+        JsonNode letterReveal = reward.path("letterReveal");
+        if (!letterReveal.isObject()) {
+            return value;
+        }
+        String revealed = sanitizeCategoryCodes(letterReveal.path("revealedText").asText(""));
+        if (revealed.isBlank()) {
+            return value;
+        }
+        String clean = sanitizeCategoryCodes(fallbackText(value, "").trim());
+        return clean.isBlank() ? "공개 글자: " + revealed : clean + "\n공개 글자: " + revealed;
+    }
+
     private String rewardTypeForSpot(MissionSpot spot) {
         String role = spot == null ? "" : spot.getClueRole();
         return switch (role) {
-            case "ANSWER_HINT" -> "ANSWER_CLUE";
+            case "ANSWER_HINT" -> "RELATED_PERSON".equals(inferAnswerSlot(spot, "")) ? "SUSPECT_CLUE" : "ANSWER_CLUE";
             case "DESTINATION_HINT", "FINAL_PLACE" -> "DESTINATION_CLUE";
             default -> "STORY_CLUE";
         };
+    }
+
+    private List<String> typedClues(List<String> values, String slotId, boolean includeLegacyRelated) {
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < values.size(); i++) {
+            String value = values.get(i);
+            if (hasClueSlot(value, slotId)) {
+                result.add(clueValueWithoutSlot(value));
+            } else if (!hasAnyClueSlot(value) && isLegacyClueForSlot(value, i, slotId, includeLegacyRelated)) {
+                result.add(clueValueWithoutSlot(value));
+            }
+        }
+        return result;
+    }
+
+    private boolean isLegacyClueForSlot(String value, int index, String slotId, boolean includeLegacyRelated) {
+        if ("RELATED_PERSON".equals(slotId)) {
+            return includeLegacyRelated && (index % 2 == 0 || containsAny(value, "관련자", "관계자", "용의자", "진술", "알리바이", "목격", "전달자", "기록자"));
+        }
+        if ("ANSWER_CLUE".equals(slotId)) {
+            return !isLegacyClueForSlot(value, index, "RELATED_PERSON", true);
+        }
+        return false;
+    }
+
+    private String inferAnswerSlot(MissionSpot spot, String clue) {
+        String marker = normalize(spot == null ? null : spot.getPublicMarkerType());
+        if ("KEYWORD_1".equals(marker)) {
+            return "RELATED_PERSON";
+        }
+        if ("KEYWORD_2".equals(marker)) {
+            return "ANSWER_CLUE";
+        }
+        return containsAny(clue, "관련자", "관계자", "용의자", "진술", "알리바이", "목격", "전달자", "기록자")
+                ? "RELATED_PERSON"
+                : "ANSWER_CLUE";
+    }
+
+    private String normalizeRewardSlot(String value) {
+        String normalized = normalize(value);
+        return switch (normalized) {
+            case "RELATED_PERSON", "ANSWER_CLUE", "FINAL_DESTINATION" -> normalized;
+            default -> "";
+        };
+    }
+
+    private String typedClueValue(String slotId, String value) {
+        String clean = sanitizeCategoryCodes(fallbackText(value, "").trim());
+        String normalized = normalizeRewardSlot(slotId);
+        return normalized.isBlank() || clean.isBlank() ? clean : normalized + "::" + clean;
+    }
+
+    private boolean hasClueSlot(String value, String slotId) {
+        return value != null && value.startsWith(slotId + "::");
+    }
+
+    private boolean hasAnyClueSlot(String value) {
+        return value != null && (value.startsWith("RELATED_PERSON::") || value.startsWith("ANSWER_CLUE::") || value.startsWith("FINAL_DESTINATION::"));
+    }
+
+    private String clueValueWithoutSlot(String value) {
+        String text = value == null ? "" : value;
+        int marker = text.indexOf("::");
+        return marker < 0 ? text : text.substring(marker + 2);
     }
 
     private boolean applyMemoUnlock(UserEpisodeProgress progress, String value, Long targetId) {
@@ -922,7 +1018,7 @@ public class EpisodePlayService {
             case "PHOTO_UNLOCK" -> "PHOTO";
             case "MEMO_UNLOCK" -> "MEMO";
             case "EVIDENCE_UNLOCK" -> "EVIDENCE";
-            case "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE" -> "CLUE";
+            case "SUSPECT_CLUE", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE" -> "CLUE";
             default -> "UNKNOWN";
         };
     }
@@ -974,12 +1070,12 @@ public class EpisodePlayService {
             return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 정답을 직접 노출할 수 있어 답변할 수 없습니다.");
         }
         if (allClues(progress).size() < 2) {
-            return new DeductionAnswer("INSUFFICIENT_CLUE", "단서가 부족합니다. 먼저 정답 힌트 장소를 더 조사해 주세요.");
+            return new DeductionAnswer("INSUFFICIENT_CLUE", "단서가 부족합니다. 먼저 관련자/핵심 단서 미션을 더 조사해 주세요.");
         }
         if (containsAny(normalizedQuestion,
                 "lens", "glass", "photo", "camera", "reflection", "fragment",
                 "렌즈", "유리", "사진", "카메라", "반사", "조각")) {
-            return new DeductionAnswer("RELATED", "관련 있습니다. 정답 힌트 단서들과 함께 비교해 보세요.");
+            return new DeductionAnswer("RELATED", "관련 있습니다. 핵심 단서 힌트들과 함께 비교해 보세요.");
         }
         if (containsAny(normalizedQuestion,
                 "film", "album", "lastword", "redwall",
@@ -1023,9 +1119,9 @@ public class EpisodePlayService {
             case "that question would reveal the answer or investigation site directly, so i cannot answer it." ->
                     "정답이나 조사 지점을 직접 노출할 수 있어 답변할 수 없습니다.";
             case "not enough clues. investigate more answer-hint sites first." ->
-                    "단서가 부족합니다. 먼저 정답 힌트 장소를 더 조사해 주세요.";
+                    "단서가 부족합니다. 먼저 관련자/핵심 단서 미션을 더 조사해 주세요.";
             case "related. compare it with the answer-hint clues." ->
-                    "관련 있습니다. 정답 힌트 단서들과 함께 비교해 보세요.";
+                    "관련 있습니다. 핵심 단서 힌트들과 함께 비교해 보세요.";
             case "partially correct. the direction is right, but the final answer is a more specific object." ->
                     "부분적으로 맞습니다. 방향은 맞지만 최종 정답은 더 구체적인 물건입니다.";
             case "no. it does not directly match the collected clues." ->
@@ -1043,7 +1139,7 @@ public class EpisodePlayService {
             case "YES", "RELATED" -> "관련 있습니다. 수집한 단서와 함께 비교해 보세요.";
             case "NO", "NOT_RELATED" -> "아닙니다. 수집한 단서와 직접 맞물리지는 않습니다.";
             case "PARTIAL" -> "부분적으로 맞습니다. 방향은 맞지만 더 구체적인 단서가 필요합니다.";
-            case "INSUFFICIENT_CLUE" -> "단서가 부족합니다. 먼저 정답 힌트 장소를 더 조사해 주세요.";
+            case "INSUFFICIENT_CLUE" -> "단서가 부족합니다. 먼저 관련자/핵심 단서 미션을 더 조사해 주세요.";
             case "REFUSED_DIRECT_REVEAL" -> "정답이나 조사 지점을 직접 노출할 수 있어 답변할 수 없습니다.";
             default -> "질문이 모호합니다. 어떤 수집 단서와 연결되는지 더 구체적으로 물어봐 주세요.";
         };
@@ -1119,6 +1215,7 @@ public class EpisodePlayService {
     private List<String> allClues(UserEpisodeProgress progress) {
         return Stream.of(readStringList(progress.getCollectedAnswerClues()), readStringList(progress.getCollectedDestinationClues()), readStringList(progress.getCollectedStoryClues()))
                 .flatMap(List::stream)
+                .map(this::clueValueWithoutSlot)
                 .toList();
     }
 

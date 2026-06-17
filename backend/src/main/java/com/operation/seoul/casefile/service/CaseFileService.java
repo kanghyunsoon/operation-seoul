@@ -40,9 +40,20 @@ public class CaseFileService {
         UserEpisodeProgress progress = caseFileRepository.findProgress(user.getId(), episodeId);
         List<Long> visitedSpotIds = readLongList(progress == null ? null : progress.getVisitedSpotIds());
         List<Long> completedSpotIds = readLongList(progress == null ? null : progress.getCompletedSpotIds());
-        List<String> answerClues = readStringList(progress == null ? null : progress.getCollectedAnswerClues()).stream().map(this::localizeClueValue).toList();
-        List<String> destinationClues = readStringList(progress == null ? null : progress.getCollectedDestinationClues()).stream().map(this::localizeClueValue).toList();
-        List<String> storyClues = readStringList(progress == null ? null : progress.getCollectedStoryClues()).stream().map(this::localizeClueValue).toList();
+        List<String> rawAnswerClues = readStringList(progress == null ? null : progress.getCollectedAnswerClues());
+        List<String> relatedPersonClues = typedClues(rawAnswerClues, "RELATED_PERSON", true);
+        List<String> coreClues = typedClues(rawAnswerClues, "ANSWER_CLUE", false);
+        List<String> answerClues = new ArrayList<>();
+        answerClues.addAll(relatedPersonClues);
+        answerClues.addAll(coreClues);
+        List<String> destinationClues = readStringList(progress == null ? null : progress.getCollectedDestinationClues()).stream()
+                .map(this::clueValueWithoutSlot)
+                .map(this::localizeClueValue)
+                .toList();
+        List<String> storyClues = readStringList(progress == null ? null : progress.getCollectedStoryClues()).stream()
+                .map(this::clueValueWithoutSlot)
+                .map(this::localizeClueValue)
+                .toList();
         Set<Long> unlockedSuspectIds = readLongList(progress == null ? null : progress.getUnlockedSuspectIds()).stream().collect(Collectors.toSet());
         Set<Long> clearedSuspectIds = readLongList(progress == null ? null : progress.getClearedSuspectIds()).stream().collect(Collectors.toSet());
         Set<Long> unlockedEvidenceIds = readLongList(progress == null ? null : progress.getUnlockedEvidenceIds()).stream().collect(Collectors.toSet());
@@ -78,6 +89,8 @@ public class CaseFileService {
                 .suspects(suspects.stream().map(suspect -> toSuspect(suspect, unlockedSuspectIds, clearedSuspectIds, evidences)).toList())
                 .evidences(evidences.stream().map(evidence -> toEvidence(evidence, unlockedEvidenceIds)).toList())
                 .clueSummary(CaseFileResponse.ClueSummary.builder()
+                        .relatedPersonClues(relatedPersonClues)
+                        .coreClues(coreClues)
                         .answerClues(answerClues)
                         .destinationClues(destinationClues)
                         .storyClues(storyClues)
@@ -207,6 +220,56 @@ public class CaseFileService {
         };
     }
 
+    private List<String> typedClues(List<String> values, String slotId, boolean includeLegacyRelated) {
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < values.size(); i++) {
+            String value = values.get(i);
+            if (hasClueSlot(value, slotId)) {
+                result.add(localizeClueValue(clueValueWithoutSlot(value)));
+            } else if (!hasAnyClueSlot(value) && isLegacyClueForSlot(value, i, slotId, includeLegacyRelated)) {
+                result.add(localizeClueValue(value));
+            }
+        }
+        return result;
+    }
+
+    private boolean isLegacyClueForSlot(String value, int index, String slotId, boolean includeLegacyRelated) {
+        if ("RELATED_PERSON".equals(slotId)) {
+            return includeLegacyRelated && (index % 2 == 0 || containsAny(value, "관련자", "관계자", "용의자", "진술", "알리바이", "목격", "전달자", "기록자"));
+        }
+        if ("ANSWER_CLUE".equals(slotId)) {
+            return !isLegacyClueForSlot(value, index, "RELATED_PERSON", true);
+        }
+        return false;
+    }
+
+    private boolean hasClueSlot(String value, String slotId) {
+        return value != null && value.startsWith(slotId + "::");
+    }
+
+    private boolean hasAnyClueSlot(String value) {
+        return value != null && (value.startsWith("RELATED_PERSON::") || value.startsWith("ANSWER_CLUE::") || value.startsWith("FINAL_DESTINATION::"));
+    }
+
+    private String clueValueWithoutSlot(String value) {
+        String text = value == null ? "" : value;
+        int marker = text.indexOf("::");
+        return marker < 0 ? text : text.substring(marker + 2);
+    }
+
+    private boolean containsAny(String source, String... keywords) {
+        if (source == null) {
+            return false;
+        }
+        String compact = source.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        for (String keyword : keywords) {
+            if (compact.contains(keyword.replaceAll("\\s+", "").toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private String localizeEvidenceTitle(String value) {
         if (value == null || value.isBlank()) {
             return value;
@@ -303,7 +366,7 @@ public class CaseFileService {
                 .map(String::trim)
                 .toList();
         if (safeClues.isEmpty()) {
-            return base + "\n\n시작 기록이 해금되었습니다. 첫 현장 단서와 사건자료를 대조해 정답 단서와 목적지 단서를 분리하세요.";
+            return base + "\n\n시작 기록이 해금되었습니다. 첫 현장 단서와 사건자료를 대조해 핵심 단서와 장소 단서를 분리하세요.";
         }
         return base + "\n\n해금된 시작 기록: " + String.join(" · ", safeClues)
                 + "\n이 기록은 사건의 배경을 보강하는 단서입니다. 최종 정답이나 장소를 직접 말하지 않으므로 다른 증거 카드와 함께 대조해야 합니다.";
