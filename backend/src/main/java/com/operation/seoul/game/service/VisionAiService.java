@@ -31,6 +31,12 @@ public class VisionAiService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
+    @Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
+    private String geminiBaseUrl;
+
+    @Value("${gemini.model:gemini-2.5-flash}")
+    private String geminiModel;
+
     /**
      * 업로드 이미지가 미션의 목표 단서를 충분히 담았는지 확인하고 성공 시 세션을 클리어합니다.
      * 관리자는 현장 테스트 편의를 위해 Vision 판정 없이 통과할 수 있습니다.
@@ -123,7 +129,7 @@ public class VisionAiService {
 
     /** Vision 라벨들이 목표 단서를 설명하는지 Gemini에게 TRUE/FALSE로만 판정하게 합니다. */
     private boolean judgeMatchWithGemini(String labels, String target) throws Exception {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+        String url = geminiUrl();
 
         String prompt = String.format(
                 "당신은 '오퍼레이션 서울'의 작전 통제 AI입니다. 요원이 현장에서 찍은 사진의 분석 키워드들을 보고, 목표 사물과 일치하는지 판단하세요.\n\n" +
@@ -146,5 +152,9 @@ public class VisionAiService {
         String aiAnswer = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText().trim();
 
         return aiAnswer.equalsIgnoreCase("TRUE");
+    }
+
+    private String geminiUrl() {
+        return geminiBaseUrl.replaceAll("/+$", "") + "/models/" + geminiModel.trim() + ":generateContent";
     }
 }

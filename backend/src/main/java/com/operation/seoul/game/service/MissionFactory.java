@@ -35,6 +35,12 @@ public class MissionFactory {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
+    @Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
+    private String geminiBaseUrl;
+
+    @Value("${gemini.model:gemini-2.5-flash}")
+    private String geminiModel;
+
     // 백엔드 표준 키(kakao.rest.api.key)를 우선 사용하되, 기존 로컬 설정(VITE_KAKAO_REST_KEY)도 호환합니다.
     @Value("${kakao.rest.api.key:${VITE_KAKAO_REST_KEY:}}")
     private String kakaoApiKey;
@@ -130,7 +136,7 @@ public class MissionFactory {
 
     private AiCourseResponseDto generateStoryFromGemini(String finalSpot, double finalLat, double finalLng, List<Map<String, Object>> subs) {
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey;
+            String url = geminiUrl();
 
             String promptText = String.format(
                     "당신은 '오퍼레이션 코리아' 작전 지휘관입니다. 다음 4개의 장소를 순서대로 방문하여 힌트를 얻는 '독립운동 혹은 첩보 밀서 전달' 컨셉의 방탈출 시나리오를 만드세요.\n" +
@@ -162,6 +168,7 @@ public class MissionFactory {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("x-goog-api-key", geminiApiKey.trim());
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
             ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
@@ -184,5 +191,9 @@ public class MissionFactory {
             log.error("🚨 Gemini 작전 생성 실패 상세 원인: ", e);
             throw new RuntimeException("AI 시나리오 파싱 오류: " + e.getMessage());
         }
+    }
+
+    private String geminiUrl() {
+        return geminiBaseUrl.replaceAll("/+$", "") + "/models/" + geminiModel.trim() + ":generateContent";
     }
 }
