@@ -31,7 +31,7 @@
         </div>
 
         <p class="map-caption">
-          미션은 최종 정답을 이루는 세 가지 키워드 색상으로 표시됩니다. 장소 키워드 미션을 모두 해결하면 검은색 최종 목적지 마커가 공개됩니다.
+          미션은 관련자, 핵심 단서, 장소 색상으로 표시됩니다. 장소 미션을 모두 해결하면 검은색 최종 목적지 마커가 공개됩니다.
         </p>
       </section>
 
@@ -587,17 +587,17 @@ function setStatus(text, type = 'info') {
 
 const markerLabel = (type) => ({
   START: '시작 장소',
-  KEYWORD_1: '키워드 1 미션',
-  KEYWORD_2: '키워드 2 미션',
-  KEYWORD_3: '장소 키워드 미션',
+  KEYWORD_1: '관련자 미션',
+  KEYWORD_2: '핵심 단서 미션',
+  KEYWORD_3: '장소 미션',
   FINAL_DESTINATION: '최종 목적지',
 }[type] || '키워드 미션');
 
-const shortLabel = (type) => ({ START: 'S', KEYWORD_1: '1', KEYWORD_2: '2', KEYWORD_3: '3', FINAL_DESTINATION: 'F', ANSWER_HINT: '1', DESTINATION_HINT: '3', STORY: '1', FINAL_CANDIDATE: 'F' }[type] || '•');
+const shortLabel = (type) => ({ START: 'S', KEYWORD_1: '관', KEYWORD_2: '핵', KEYWORD_3: '장', FINAL_DESTINATION: 'F', ANSWER_HINT: '핵', DESTINATION_HINT: '장', STORY: '관', FINAL_CANDIDATE: 'F' }[type] || '•');
 
 const rewardTypeLabel = (type) => ({
-  ANSWER_CLUE: '정답 키워드 단서',
-  DESTINATION_CLUE: '장소 키워드 단서',
+  ANSWER_CLUE: '핵심 단서',
+  DESTINATION_CLUE: '장소 단서',
   STORY_CLUE: '스토리 단서',
   EVIDENCE_UNLOCK: '사건자료 해금',
   PHOTO_UNLOCK: '사진 자료 해금',

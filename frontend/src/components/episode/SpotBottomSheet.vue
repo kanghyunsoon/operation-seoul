@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <aside v-if="spot" class="spot-sheet">
     <div class="sheet-bar"></div>
 
@@ -44,12 +44,12 @@ defineEmits(['navigate', 'arrive', 'open-puzzle', 'close-puzzle', 'start-deducti
 
 const roleLabel = (type) => ({
   START: '시작 장소',
-  KEYWORD_1: '키워드 1 미션',
-  KEYWORD_2: '키워드 2 미션',
-  KEYWORD_3: '장소 키워드 미션',
+  KEYWORD_1: '관련자 미션',
+  KEYWORD_2: '핵심 단서 미션',
+  KEYWORD_3: '장소 미션',
   FINAL_DESTINATION: '최종 목적지',
-  ANSWER_HINT: '키워드 1 미션',
-  DESTINATION_HINT: '장소 키워드 미션',
+  ANSWER_HINT: '핵심 단서 미션',
+  DESTINATION_HINT: '장소 미션',
   STORY: '스토리 단서',
   FINAL_CANDIDATE: '조사 지점'
 }[type] || '조사 지점');

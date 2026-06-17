@@ -34,7 +34,7 @@
 
       <div class="metric-grid">
         <article><strong>{{ report.completedSpotCount || 0 }}/{{ report.totalSpotCount || 0 }}</strong><span>조사 완료 장소</span></article>
-        <article><strong>{{ report.answerClueCount || 0 }}</strong><span>정답 단서</span></article>
+        <article><strong>{{ report.answerClueCount || 0 }}</strong><span>핵심 단서</span></article>
         <article><strong>{{ report.destinationClueCount || 0 }}</strong><span>목적지 단서</span></article>
         <article><strong>{{ report.deductionQuestionCount || 0 }}</strong><span>최종 추리 질문</span></article>
         <article><strong>{{ report.wrongAnswerCount || 0 }}</strong><span>오답</span></article>
@@ -60,7 +60,7 @@
       <article class="paper-block">
         <h2>수집한 단서</h2>
         <div class="clue-section">
-          <h3>정답 단서</h3>
+          <h3>핵심 단서</h3>
           <div class="chips"><span v-for="clue in report.answerClues || []" :key="`a-${clue}`">{{ clue }}</span><em v-if="!(report.answerClues || []).length">없음</em></div>
         </div>
         <div class="clue-section">

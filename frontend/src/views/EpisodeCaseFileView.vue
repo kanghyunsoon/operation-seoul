@@ -41,6 +41,38 @@
         <p class="goal">목표: {{ caseFile.overview?.goal }}</p>
       </section>
 
+      <section class="dossier board">
+        <div class="section-head">
+          <div>
+            <p class="section-label">수집 단서</p>
+            <h3>최종 정답 키워드별 힌트</h3>
+            <p class="section-help">미션 보상 단서는 관련자 힌트, 핵심 단서 힌트, 장소 힌트로 나뉘며 시작 장소의 스토리 단서는 별도로 보관됩니다.</p>
+          </div>
+        </div>
+        <div class="clue-summary-grid">
+          <article>
+            <strong>관련자 힌트</strong>
+            <span v-for="(clue, index) in relatedPersonClues" :key="`related-${clue}`">{{ humanizeClue(clue, 'related', index) }}</span>
+            <em v-if="!relatedPersonClues.length">아직 없음</em>
+          </article>
+          <article>
+            <strong>핵심 단서 힌트</strong>
+            <span v-for="(clue, index) in coreClues" :key="`core-${clue}`">{{ humanizeClue(clue, 'core', index) }}</span>
+            <em v-if="!coreClues.length">아직 없음</em>
+          </article>
+          <article>
+            <strong>장소 힌트</strong>
+            <span v-for="(clue, index) in caseFile.clueSummary?.destinationClues || []" :key="`destination-${clue}`">{{ humanizeClue(clue, 'destination', index) }}</span>
+            <em v-if="!(caseFile.clueSummary?.destinationClues || []).length">아직 없음</em>
+          </article>
+          <article>
+            <strong>스토리 단서</strong>
+            <span v-for="(clue, index) in caseFile.clueSummary?.storyClues || []" :key="`story-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
+            <em v-if="!(caseFile.clueSummary?.storyClues || []).length">아직 없음</em>
+          </article>
+        </div>
+      </section>
+
       <section class="dossier">
         <div class="section-head">
           <div>
@@ -77,7 +109,7 @@
           <div>
             <p class="section-label">증거 / 메모 / 사진 카드</p>
             <h3>{{ caseFile.progressSummary.unlockedEvidenceCount }}/{{ caseFile.progressSummary.totalEvidenceCount }}개 해금</h3>
-            <p class="section-help">각 카드는 정답 키워드, 장소 키워드, 용의자 진술 중 하나를 좁히는 근거입니다. 해금 순서와 관련 인물을 함께 보면 최종 추리 난도가 내려갑니다.</p>
+            <p class="section-help">각 카드는 관련자 힌트, 핵심 단서 힌트, 장소 힌트 중 하나를 좁히는 근거입니다. 해금 순서와 관련 인물을 함께 보면 최종 추리 난도가 내려갑니다.</p>
           </div>
         </div>
         <div class="evidence-grid">
@@ -141,6 +173,16 @@ const error = ref('');
 
 const cleanNotices = computed(() => (caseFile.value?.notices || []).filter((notice) => !String(notice).includes('AI 초안 저장본')));
 const visibleSuspects = computed(() => (caseFile.value?.suspects || []).filter((suspect) => suspect.displayName || suspect.alias));
+const relatedPersonClues = computed(() => {
+  const explicit = caseFile.value?.clueSummary?.relatedPersonClues || [];
+  if (explicit.length) return explicit;
+  return legacyAnswerClues().filter((_, index) => index % 2 === 0);
+});
+const coreClues = computed(() => {
+  const explicit = caseFile.value?.clueSummary?.coreClues || [];
+  if (explicit.length) return explicit;
+  return legacyAnswerClues().filter((_, index) => index % 2 === 1);
+});
 
 onMounted(loadCaseFile);
 
@@ -157,8 +199,12 @@ async function loadCaseFile() {
 }
 
 const statusLabel = (status) => ({ NOT_STARTED: '시작 전', IN_PROGRESS: '조사 중', FINAL_READY: '최종 추리 가능', CLEARED: '클리어 완료', FAILED: '실패' }[status] || status);
-const clueTypeLabel = (type) => ({ ANSWER_CLUE: '정답 키워드', DESTINATION_CLUE: '장소 키워드', STORY_CLUE: '스토리 단서', SUSPECT_CLUE: '용의자 단서' }[type] || type);
-const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '용의자 단서', POST_IT: '포스트잇', ANSWER_CLUE: '정답 키워드', DESTINATION_CLUE: '장소 키워드', STORY_CLUE: '스토리 단서' }[type] || type);
+const clueTypeLabel = (type) => ({ ANSWER_CLUE: '핵심 단서 힌트', DESTINATION_CLUE: '장소 힌트', STORY_CLUE: '스토리 단서', SUSPECT_CLUE: '관련자 힌트' }[type] || type);
+const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '관련자 힌트', POST_IT: '포스트잇', ANSWER_CLUE: '핵심 단서 힌트', DESTINATION_CLUE: '장소 힌트', STORY_CLUE: '스토리 단서' }[type] || type);
+
+function legacyAnswerClues() {
+  return caseFile.value?.clueSummary?.answerClues || [];
+}
 
 function suspectPortraitSrc(suspect) { return usableImageUrl(suspect.portraitImageUrl) || generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint); }
 function evidenceImageSrc(evidence) { return usableImageUrl(evidence.imageUrl) || generatedCaseCardDataUrl(evidence.title, evidence.type, evidence.textSummary); }
@@ -168,6 +214,8 @@ function humanizeClue(value, kind, index) {
   const text = String(value || '').trim();
   if (!/^(answer|destination|story)-clue-\d+$/i.test(text)) return text;
   const fallback = {
+    related: ['엇갈린 진술', '남겨진 서명', '목격 기록', '알리바이 틈'],
+    core: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
     answer: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
     destination: ['장소 표식', '닫힌 문', '굽은 골목'],
     story: ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표']
@@ -226,6 +274,11 @@ blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; back
 .section-head { display: flex; align-items: end; justify-content: space-between; gap: 10px; padding: 18px 18px 0; }
 .section-help { margin: 6px 0 0; color: #cbd5e1; font-size: .84rem; line-height: 1.55; }
 .card-grid, .evidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; padding: 14px 18px 18px; }
+.clue-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 14px 18px 18px; }
+.clue-summary-grid article { display: grid; align-content: start; gap: 7px; min-height: 118px; border: 1px solid rgba(148,163,184,.2); border-radius: 14px; padding: 12px; background: rgba(2,6,23,.28); }
+.clue-summary-grid strong { color: #fde68a; font-size: .9rem; }
+.clue-summary-grid span { border-radius: 999px; padding: 6px 9px; background: rgba(245,158,11,.14); color: #ffedd5; font-size: .78rem; font-weight: 850; line-height: 1.35; }
+.clue-summary-grid em { color: #94a3b8; font-size: .82rem; font-style: normal; }
 .suspect-card, .evidence-card { position: relative; overflow: hidden; display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 14px; border: 1px solid rgba(148,163,184,.18); border-radius: 16px; background: rgba(2,6,23,.34); }
 .suspect-card.locked, .evidence-card.locked { filter: grayscale(.45); opacity: .72; }
 .portrait-frame, .evidence-art { overflow: hidden; width: 96px; min-height: 116px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #7c2d12, #0f172a); color: #fde68a; font-weight: 1000; font-size: .74rem; }
@@ -249,5 +302,5 @@ dd { margin: 0 0 6px; color: #cbd5e1; line-height: 1.5; }
 .clue-column.green span { background: rgba(21,128,61,.24); color: #bbf7d0; }
 .clue-column em { color: #94a3b8; }
 ul { margin: 0; padding-left: 18px; color: #cbd5e1; line-height: 1.65; }
-@media (max-width: 720px) { .cover-grid, .log-grid, .suspect-card, .evidence-card { grid-template-columns: 1fr; } .portrait-frame, .evidence-art { width: 100%; min-height: 160px; } }
+@media (max-width: 720px) { .cover-grid, .log-grid, .suspect-card, .evidence-card, .clue-summary-grid { grid-template-columns: 1fr; } .portrait-frame, .evidence-art { width: 100%; min-height: 160px; } }
 </style>

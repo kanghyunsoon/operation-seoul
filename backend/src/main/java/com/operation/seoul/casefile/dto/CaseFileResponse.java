@@ -75,6 +75,8 @@ public class CaseFileResponse {
     @Data
     @Builder
     public static class ClueSummary {
+        private List<String> relatedPersonClues;
+        private List<String> coreClues;
         private List<String> answerClues;
         private List<String> destinationClues;
         private List<String> storyClues;

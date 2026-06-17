@@ -53,7 +53,7 @@ public class AdminEpisodeService {
     private static final Set<String> CLUE_ROLES = Set.of("START", "ANSWER_HINT", "DESTINATION_HINT", "FINAL_PLACE");
     private static final Set<String> PUZZLE_TYPES = Set.of("OBSERVATION", "NUMBER_LOCK", "INITIAL_SOUND", "PATTERN", "STORY_COMBINATION");
     private static final Set<String> ANSWER_FORMATS = Set.of("TEXT", "NUMBER", "CHOICE", "CODE");
-    private static final Set<String> REWARD_TYPES = Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "MEMO_UNLOCK", "EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "SUSPECT_UNLOCK", "SUSPECT_UPDATE");
+    private static final Set<String> REWARD_TYPES = Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "SUSPECT_CLUE", "MEMO_UNLOCK", "EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "SUSPECT_UNLOCK", "SUSPECT_UPDATE");
     private static final Set<String> EVIDENCE_TYPES = Set.of("PHOTO", "MEMO", "NOTE", "DOCUMENT", "EVIDENCE", "SUSPECT_CLUE", "POST_IT", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE");
     private static final Set<String> PARTNER_REWARD_TYPES = Set.of("COUPON", "GIFT_CARD", "LOCAL_CURRENCY", "CAFE_DISCOUNT", "STAMP");
     private static final Set<String> PARTNER_REWARD_STATUSES = Set.of("DISABLED", "PLANNED", "ACTIVE", "ENDED");
@@ -535,7 +535,7 @@ public class AdminEpisodeService {
                     Long targetId = reward.hasNonNull("targetId") ? reward.path("targetId").asLong() : null;
                     if (!REWARD_TYPES.contains(type)) errors.add("rewards[" + i + "].type is unsupported: " + type);
                     String targetLabel = null;
-                    if (Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE").contains(type) && value.isBlank()) errors.add("rewards[" + i + "] " + type + " requires value.");
+                    if (Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "SUSPECT_CLUE").contains(type) && value.isBlank()) errors.add("rewards[" + i + "] " + type + " requires value.");
                     if ("MEMO_UNLOCK".equals(type) && targetId == null && value.isBlank()) errors.add("rewards[" + i + "] MEMO_UNLOCK requires targetId or value.");
                     if (Set.of("EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "MEMO_UNLOCK").contains(type) && targetId != null) targetLabel = validateEvidenceTarget(episodeId, targetId, i, errors);
                     if (Set.of("SUSPECT_UNLOCK", "SUSPECT_UPDATE").contains(type)) targetLabel = validateSuspectTarget(episodeId, targetId, i, errors);
@@ -796,7 +796,7 @@ public class AdminEpisodeService {
     private List<AiEpisodeDraftResponse.EvidenceDraft> defaultDraftEvidences(List<AiEpisodeDraftResponse.MissionDraft> missions) {
         return missions.stream().limit(8).map(mission -> AiEpisodeDraftResponse.EvidenceDraft.builder()
                 .title(mission.getRewardClue() + " \uB2E8\uC11C \uCE74\uB4DC")
-                .type("ANSWER_HINT".equals(mission.getClueRole()) ? "ANSWER_CLUE" : "DESTINATION_HINT".equals(mission.getClueRole()) ? "DESTINATION_CLUE" : "NOTE")
+                .type(evidenceTypeForMission(mission))
                 .imageUrl("")
                 .imagePrompt("Create a high-quality detective evidence image for a Korean outdoor escape-room case file. Subject: "
                         + mission.getRewardClue() + " clue card. Story detail: Case material unlocked after solving this mission. "
@@ -909,7 +909,7 @@ public class AdminEpisodeService {
         }
 
         List<CaseSuspect> suspects = saveDraftSuspects(episode.getId(), draft.getSuspects());
-        Map<Integer, CaseEvidence> evidenceByMissionOrder = saveDraftEvidences(episode.getId(), draft.getEvidences(), spotByOrder, suspects);
+        Map<Integer, CaseEvidence> evidenceByMissionOrder = saveDraftEvidences(episode.getId(), draft.getEvidences(), missions, spotByOrder, suspects);
         applyDraftRewardPayloads(episode.getId(), missions, puzzleByOrder, evidenceByMissionOrder, finalKeywordValues(request.getSourceInput()));
         saveDraftPartnerReward(episode.getId());
         return getEpisode(episode.getId());
@@ -1054,21 +1054,24 @@ public class AdminEpisodeService {
 
 
 
-    private Map<Integer, CaseEvidence> saveDraftEvidences(Long episodeId, List<AiEpisodeDraftResponse.EvidenceDraft> drafts, Map<Integer, MissionSpot> spotByOrder, List<CaseSuspect> suspects) {
+    private Map<Integer, CaseEvidence> saveDraftEvidences(Long episodeId, List<AiEpisodeDraftResponse.EvidenceDraft> drafts, List<AiEpisodeDraftResponse.MissionDraft> missions, Map<Integer, MissionSpot> spotByOrder, List<CaseSuspect> suspects) {
         Map<Integer, CaseEvidence> evidenceByMissionOrder = new HashMap<>();
         List<AiEpisodeDraftResponse.EvidenceDraft> source = drafts == null ? List.of() : drafts;
+        Map<Integer, AiEpisodeDraftResponse.MissionDraft> missionByOrder = missionByOrder(missions);
         int index = 0;
         for (AiEpisodeDraftResponse.EvidenceDraft draft : source) {
+            AiEpisodeDraftResponse.MissionDraft mission = missionByOrder.get(draft.getSourceMissionOrder());
+            String evidenceType = evidenceTypeForMission(mission);
             CaseEvidence evidence = new CaseEvidence();
             evidence.setEpisodeId(episodeId);
             evidence.setTitle(blank(draft.getTitle(), "\uC0AC\uAC74 \uC790\uB8CC " + (index + 1)));
-            evidence.setType(validateValue(blank(draft.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Unsupported evidence type."));
+            evidence.setType(validateValue(blank(draft.getType(), evidenceType), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Unsupported evidence type."));
             evidence.setImageUrl(draft.getImageUrl());
             evidence.setImagePrompt(ensureKoreanEvidencePrompt(blank(draft.getImagePrompt(), buildEvidenceImagePrompt(draft))));
             evidence.setTextSummary(blank(draft.getTextSummary(), "\uD604\uC7A5 \uB2E8\uC11C\uB97C \uC870\uD569\uD574 \uCD5C\uC885 \uCD94\uB9AC\uB97C \uB3D5\uB294 \uC0AC\uAC74 \uC790\uB8CC\uC785\uB2C8\uB2E4."));
             evidence.setSourceSpotId(resolveSourceSpotId(draft, spotByOrder));
             evidence.setRelatedSuspectId(resolveLinkedSuspectId(draft, suspects, index));
-            evidence.setRelatedClueType(blank(draft.getType(), "NOTE"));
+            evidence.setRelatedClueType(evidenceType);
             evidence.setUnlockedByDefault(index == 0);
             evidence.setDisplayOrder(index + 1);
             adminEpisodeRepository.insertEvidence(evidence);
@@ -1076,6 +1079,62 @@ public class AdminEpisodeService {
             index++;
         }
         return evidenceByMissionOrder;
+    }
+
+    private Map<Integer, AiEpisodeDraftResponse.MissionDraft> missionByOrder(List<AiEpisodeDraftResponse.MissionDraft> missions) {
+        Map<Integer, AiEpisodeDraftResponse.MissionDraft> result = new HashMap<>();
+        if (missions == null) {
+            return result;
+        }
+        for (int i = 0; i < missions.size(); i++) {
+            AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);
+            int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
+            result.put(order, mission);
+        }
+        return result;
+    }
+
+    private String evidenceTypeForMission(AiEpisodeDraftResponse.MissionDraft mission) {
+        if (mission == null) {
+            return "NOTE";
+        }
+        String slotId = normalizeSlotId(mission.getRewardClueSlotId());
+        if ("RELATED_PERSON".equals(slotId)) {
+            return "SUSPECT_CLUE";
+        }
+        if ("ANSWER_CLUE".equals(slotId)) {
+            return "ANSWER_CLUE";
+        }
+        if ("FINAL_DESTINATION".equals(slotId)) {
+            return "DESTINATION_CLUE";
+        }
+        return switch (blank(mission.getClueRole(), "")) {
+            case "DESTINATION_HINT", "FINAL_PLACE" -> "DESTINATION_CLUE";
+            case "ANSWER_HINT" -> "ANSWER_CLUE";
+            default -> "STORY_CLUE";
+        };
+    }
+
+    private String rewardTypeForMission(AiEpisodeDraftResponse.MissionDraft mission) {
+        String evidenceType = evidenceTypeForMission(mission);
+        if ("SUSPECT_CLUE".equals(evidenceType)) {
+            return "SUSPECT_CLUE";
+        }
+        if ("DESTINATION_CLUE".equals(evidenceType)) {
+            return "DESTINATION_CLUE";
+        }
+        if ("STORY_CLUE".equals(evidenceType)) {
+            return "STORY_CLUE";
+        }
+        return "ANSWER_CLUE";
+    }
+
+    private String normalizeSlotId(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "RELATED_PERSON", "ANSWER_CLUE", "FINAL_DESTINATION" -> normalized;
+            default -> "";
+        };
     }
 
 
@@ -1166,6 +1225,8 @@ public class AdminEpisodeService {
 
 
     private void applyDraftRewardPayloads(Long episodeId, List<AiEpisodeDraftResponse.MissionDraft> missions, Map<Integer, Puzzle> puzzleByOrder, Map<Integer, CaseEvidence> evidenceByMissionOrder, List<String> finalKeywords) {
+        String coreKeyword = finalKeywords != null && finalKeywords.size() >= 2 ? finalKeywords.get(1) : "";
+        int answerClueRevealIndex = 0;
         for (int i = 0; i < missions.size(); i++) {
             AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
@@ -1173,16 +1234,20 @@ public class AdminEpisodeService {
             if (puzzle == null) {
                 continue;
             }
-            String clueType = switch (blank(mission.getClueRole(), "")) {
-                case "ANSWER_HINT" -> "ANSWER_CLUE";
-                case "DESTINATION_HINT", "FINAL_PLACE" -> "DESTINATION_CLUE";
-                default -> "STORY_CLUE";
-            };
+            String slotId = normalizeSlotId(mission.getRewardClueSlotId());
+            String clueType = rewardTypeForMission(mission);
             CaseEvidence evidence = evidenceByMissionOrder.get(order);
             List<Map<String, Object>> rewards = new ArrayList<>();
             Map<String, Object> clueReward = new LinkedHashMap<>();
             clueReward.put("type", clueType);
             clueReward.put("value", sanitizeCategoryCodes(blank(mission.getRewardClue(), "검수단서")));
+            if (!slotId.isBlank()) {
+                clueReward.put("slotId", slotId);
+            }
+            if ("ANSWER_CLUE".equals(slotId) && coreKeyword != null && !coreKeyword.isBlank()) {
+                clueReward.put("letterReveal", distributedLetterReveal(coreKeyword, answerClueRevealIndex));
+                answerClueRevealIndex++;
+            }
             rewards.add(clueReward);
             if (evidence != null) {
                 Map<String, Object> evidenceReward = new LinkedHashMap<>();
@@ -1200,6 +1265,36 @@ public class AdminEpisodeService {
             }
             adminEpisodeRepository.updatePuzzle(puzzle);
         }
+    }
+
+    private Map<String, Object> distributedLetterReveal(String keyword, int revealIndex) {
+        String source = keyword == null ? "" : keyword.trim();
+        StringBuilder revealed = new StringBuilder();
+        int syllableIndex = 0;
+        int nonSpaceCount = Math.max(1, source.codePointCount(0, source.length()) - (int) source.codePoints().filter(Character::isWhitespace).count());
+        int[] preferredPositions = new int[] {
+                0,
+                Math.min(2, nonSpaceCount - 1),
+                nonSpaceCount - 1
+        };
+        int revealPosition = preferredPositions[Math.floorMod(revealIndex, preferredPositions.length)];
+
+        for (int i = 0; i < source.length(); ) {
+            int codePoint = source.codePointAt(i);
+            if (Character.isWhitespace(codePoint)) {
+                revealed.appendCodePoint(codePoint);
+            } else {
+                boolean expose = syllableIndex == revealPosition;
+                revealed.append(expose ? new String(Character.toChars(codePoint)) : "□");
+                syllableIndex++;
+            }
+            i += Character.charCount(codePoint);
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("targetKeyword", source);
+        payload.put("revealedText", revealed.toString());
+        return payload;
     }
 
     private Map<String, Object> buildPuzzleInteraction(AiEpisodeDraftResponse.MissionDraft mission, int index, String clueType) {
