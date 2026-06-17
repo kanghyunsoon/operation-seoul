@@ -10,13 +10,15 @@ import com.operation.seoul.admin.episode.dto.AiEpisodePlanResponse;
 import com.operation.seoul.global.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -77,6 +79,9 @@ public class AdminEpisodeGeminiService {
 
     @Value("${gemini.model:gemini-2.5-flash}")
     private String geminiModel;
+
+    @Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
+    private String geminiBaseUrl;
 
     private static SimpleClientHttpRequestFactory geminiRequestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -1152,6 +1157,25 @@ public class AdminEpisodeGeminiService {
         return "OK";
     }
 
+    private boolean isForbiddenExampleKeyword(String keyword) {
+        if (blank(keyword)) {
+            return false;
+        }
+        String value = compact(keyword);
+        return Set.of(
+                "조작된기록서",
+                "누락된증언",
+                "거짓알리바이",
+                "훼손된장부",
+                "사라진목격자",
+                "봉인된보고서",
+                "바뀐순찰기록",
+                "마지막진술",
+                "숨겨진거래장부",
+                "위조된명령서"
+        ).contains(value);
+    }
+
     private boolean isPlanKeywordTooAbstract(String keyword) {
         if (isBadPlanPlaceholder(keyword)) {
             return true;
@@ -1528,7 +1552,7 @@ public class AdminEpisodeGeminiService {
             }
             String replacement = inferredAnswerClueFromFinalContext(request, result, used);
             if (blank(replacement)) {
-                replacement = "조작된 기록서";
+                replacement = "봉인 표식";
             }
             item.setKeyword(replacement);
             item.setAliases(answerClueAliases(replacement));
@@ -1546,8 +1570,8 @@ public class AdminEpisodeGeminiService {
         result.add(AiEpisodePlanResponse.AnswerKeyword.builder()
                 .slotId("ANSWER_CLUE")
                 .label(slot == null ? "핵심 단서" : slot.getLabel())
-                .keyword("조작된 기록서")
-                .aliases(answerClueAliases("조작된 기록서"))
+                .keyword("봉인 표식")
+                .aliases(answerClueAliases("봉인 표식"))
                 .sourceType("AI_INFERRED_STORY_OBJECT")
                 .sourceText("핵심 단서는 최종 입력 가능한 구체 명사구로 보강되었습니다.")
                 .difficulty("NORMAL")
@@ -1576,7 +1600,7 @@ public class AdminEpisodeGeminiService {
     }
 
     private List<String> answerClueAliases(String keyword) {
-        String normalized = blank(keyword) ? "조작된 기록서" : keyword.trim();
+        String normalized = blank(keyword) ? "봉인 표식" : keyword.trim();
         List<String> aliases = new ArrayList<>();
         aliases.add(normalized.replace("된 ", " ").trim());
         aliases.add(normalized.replace("된", "").trim());
@@ -1855,19 +1879,11 @@ public class AdminEpisodeGeminiService {
         candidates.add("확인 표식");
         candidates.add("기록 조각");
 
-        candidates.add(0, "조작된 기록서");
-        candidates.add(1, "누락된 증언");
-        candidates.add(2, "거짓 알리바이");
-        candidates.add(3, "훼손된 장부");
-        candidates.add(4, "봉인된 보고서");
-        candidates.add(5, "바뀐 순찰 기록");
-        candidates.add(6, "위조된 명령서");
-        candidates.add(7, "숨겨진 거래 장부");
-
         for (String candidate : candidates) {
             String normalized = normalizeAnswerKeywordValue(candidate);
             if (!blank(normalized)
                     && !used.contains(compact(normalized))
+                    && !isForbiddenExampleKeyword(normalized)
                     && "OK".equals(planKeywordRisk(normalized, "핵심 단서", request))) {
                 return normalized;
             }
@@ -2499,7 +2515,7 @@ public class AdminEpisodeGeminiService {
               * FINAL_DESTINATION / 장소: the actual internal final destination place name.
             - ANSWER_CLUE keyword must be a concrete short noun phrase that a player can type, not a symbolic abstraction.
             - Bad ANSWER_CLUE examples: "옛 서찰", "사라져가는 것들", "숨은 증인", "오래된 기억", "기록의 의미", "진실".
-            - Good ANSWER_CLUE examples: "조작된 기록서", "누락된 증언", "거짓 알리바이", "훼손된 장부", "사라진 목격자", "봉인된 보고서", "바뀐 순찰 기록", "마지막 진술", "숨겨진 거래 장부", "위조된 명령서".
+            - Example-like ANSWER_CLUE phrases in this prompt are shape references only and must not be copied as output.
             - Generate exactly three clue trails for the final answer: three clues for 관련자, three clues for 핵심 단서, and three clues for 장소.
             - Each mission rewardClue must support one of those three slots through rewardClueSlotId and supportsKeywordSlots.
             - Use SUSPECT_CLUE evidence/cards for 관련자, ANSWER_CLUE for 핵심 단서, and DESTINATION_CLUE for 장소.
@@ -2790,9 +2806,9 @@ public class AdminEpisodeGeminiService {
             - ANSWER_CLUE sourceType should be VISIBLE_ELEMENT, KEYWORD, NUMBER, DESCRIPTION, ADMIN_MEMO, or AI_INFERRED_STORY_OBJECT based only on the internal FINAL place.
             - FINAL_DESTINATION keyword: the exact name of the input place whose role is FINAL. If no role is FINAL, use the last input place name.
             - Bad: label=관련자, keyword=관련자
-            - Good: label=관련자, keyword=기록 중개인
+            - Good: label=관련자, keyword=한서윤
             - Bad: label=핵심 단서, keyword=핵심 단서
-            - Good: label=핵심 단서, keyword=조작된 기록서
+            - Good: label=핵심 단서, keyword=<new contextual object or condition from the input, not a copied example>
             - Bad: label=장소, keyword=표지판 아래
             - Good: label=장소, keyword=<the actual FINAL place name from input>
             
@@ -2937,13 +2953,12 @@ public class AdminEpisodeGeminiService {
     }
 
     private String callGeminiModel(String model, Map<String, Object> body) {
-        String url = UriComponentsBuilder
-                .fromUriString("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent")
-                .queryParam("key", geminiApiKey)
-                .build()
-                .toUriString();
+        String url = geminiBaseUrl.replaceAll("/+$", "") + "/models/" + model + ":generateContent";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-goog-api-key", geminiApiKey.trim());
         try {
-            String response = restTemplate.postForObject(url, body, String.class);
+            String response = restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);
             JsonNode root = objectMapper.readTree(response);
             String text = root.path("candidates").path(0).path("content").path("parts").path(0).path("text").asText();
             if (blank(text)) {
@@ -5754,13 +5769,13 @@ public class AdminEpisodeGeminiService {
     }
 
     private String answerClueRewardFor(String keyword, int index) {
-        String normalized = blank(keyword) ? "조작된 기록서" : keyword.trim();
+        String normalized = blank(keyword) ? "봉인 표식" : keyword.trim();
         int variant = Math.floorMod(index, 3);
         if (containsAny(normalized, "증언", "진술")) {
             return switch (variant) {
                 case 0 -> "사건 시간대의 진술에서 꼭 있어야 할 문장이 빠져 있다.";
                 case 1 -> "빠진 증언은 단순한 누락이 아니라 누군가의 행적을 가리기 위한 것으로 보인다.";
-                default -> "여러 사람의 말보다 누락된 증언 자체가 핵심 단서다.";
+                default -> "여러 사람의 말보다 빠진 진술의 위치 자체가 핵심 단서다.";
             };
         }
         if (containsAny(normalized, "알리바이")) {

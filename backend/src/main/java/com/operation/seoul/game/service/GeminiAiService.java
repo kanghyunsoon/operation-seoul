@@ -40,6 +40,12 @@ public class GeminiAiService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
+    @Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
+    private String geminiBaseUrl;
+
+    @Value("${gemini.model:gemini-2.5-flash}")
+    private String geminiModel;
+
     /**
      * 최종 목적지와 후보 POI 목록을 받아 Gemini가 작전 JSON을 생성하게 합니다.
      * prompt 안에서 정답 키워드 노출 금지, 힌트/최종 미션 수, realStory 형식을 강하게 제한합니다.
@@ -775,6 +781,7 @@ public class GeminiAiService {
         Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-goog-api-key", geminiApiKey.trim());
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
             JsonNode root = objectMapper.readTree(response.getBody());
@@ -788,6 +795,6 @@ public class GeminiAiService {
 
     /** 현재 프로젝트에서 사용하는 Gemini 모델 endpoint를 구성합니다. */
     private String geminiUrl() {
-        return "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey.trim();
+        return geminiBaseUrl.replaceAll("/+$", "") + "/models/" + geminiModel.trim() + ":generateContent";
     }
 }
