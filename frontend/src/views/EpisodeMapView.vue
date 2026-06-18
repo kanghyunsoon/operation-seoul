@@ -89,6 +89,7 @@
         <article class="reward-pop-card" :class="{ fly: rewardPopup.flying }">
           <span class="reward-kicker">MISSION CLEAR</span>
           <h2>단서를 획득했습니다</h2>
+          <span v-if="rewardPopup.typeLabel" class="reward-type">{{ rewardPopup.typeLabel }}</span>
           <p class="reward-clue">{{ rewardPopup.clue }}</p>
           <div v-if="rewardPopup.items.length" class="reward-items">
             <span v-for="item in rewardPopup.items" :key="`${item.rewardType}-${item.itemType}-${item.targetId}`">
@@ -137,6 +138,7 @@ const currentPosition = ref(null);
 const rewardPopup = ref({
   visible: false,
   flying: false,
+  typeLabel: '',
   clue: '',
   items: []
 });
@@ -387,9 +389,14 @@ async function submitPuzzle(answer) {
       const popupData = rewardPopupData(result, unlockedTypes);
       closePuzzle();
       showRewardPopup(popupData);
-      if (unlockedTypes.includes('STORY_CLUE')) setStatus('스토리 단서가 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
+      if (unlockedTypes.includes('STORY_CLUE')) setStatus('장소 힌트가 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
       else if (result.caseFileUpdated) setStatus('새 미션 자료가 미션 파일에 추가되었습니다.', 'success');
       else setStatus('정답입니다. 단서 보드가 갱신되었습니다.', 'success');
+    } else if (result.retryInteraction && puzzle.value) {
+      puzzle.value = {
+        ...puzzle.value,
+        interaction: result.retryInteraction
+      };
     }
     await loadAll();
   } catch (error) {
@@ -399,10 +406,12 @@ async function submitPuzzle(answer) {
 }
 
 function rewardPopupData(result, unlockedTypes = []) {
+  const typeLabel = hintTypeLabel(unlockedTypes);
   const clue = String(result.rewardClue || '').trim()
     || unlockedTypes.map(rewardTypeLabel).filter(Boolean).join(' · ')
     || '새로운 현장 단서';
   return {
+    typeLabel,
     clue,
     items: Array.isArray(result.newlyUnlockedItems) ? result.newlyUnlockedItems : []
   };
@@ -413,6 +422,7 @@ function showRewardPopup(data) {
   rewardPopup.value = {
     visible: true,
     flying: false,
+    typeLabel: data.typeLabel || '',
     clue: data.clue,
     items: data.items
   };
@@ -420,7 +430,7 @@ function showRewardPopup(data) {
     rewardPopup.value = { ...rewardPopup.value, flying: true };
   }, 1150);
   rewardPopupClearTimer = window.setTimeout(() => {
-    rewardPopup.value = { visible: false, flying: false, clue: '', items: [] };
+    rewardPopup.value = { visible: false, flying: false, typeLabel: '', clue: '', items: [] };
   }, 2150);
 }
 
@@ -596,15 +606,21 @@ const markerLabel = (type) => ({
 const shortLabel = (type) => ({ START: 'S', KEYWORD_1: '관', KEYWORD_2: '핵', KEYWORD_3: '장', FINAL_DESTINATION: 'F', ANSWER_HINT: '핵', DESTINATION_HINT: '장', STORY: '관', FINAL_CANDIDATE: 'F' }[type] || '•');
 
 const rewardTypeLabel = (type) => ({
-  ANSWER_CLUE: '핵심 단서',
-  DESTINATION_CLUE: '장소 단서',
-  STORY_CLUE: '스토리 단서',
+  SUSPECT_CLUE: '관계자 힌트',
+  ANSWER_CLUE: '핵심 단서 힌트',
+  DESTINATION_CLUE: '장소 힌트',
+  STORY_CLUE: '장소 힌트',
   EVIDENCE_UNLOCK: '사건자료 해금',
   PHOTO_UNLOCK: '사진 자료 해금',
   MEMO_UNLOCK: '메모 해금',
   SUSPECT_UNLOCK: '관계자 카드 해금',
   SUSPECT_UPDATE: '관계자 정보 갱신'
 }[type] || type);
+
+const hintTypeLabel = (types = []) => {
+  const type = (types || []).find((value) => ['SUSPECT_CLUE', 'ANSWER_CLUE', 'DESTINATION_CLUE', 'STORY_CLUE'].includes(value));
+  return rewardTypeLabel(type) || '';
+};
 
 const rewardItemLabel = (item) => {
   const type = rewardTypeLabel(item.rewardType);
@@ -680,6 +696,7 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .reward-pop-card.fly { animation: reward-file-fly .92s cubic-bezier(.56, -.02, .2, 1) forwards; }
 .reward-kicker { display: inline-flex; border-radius: 999px; padding: 5px 8px; background: rgba(250,204,21,.18); color: #fde68a; font-size: .7rem; font-weight: 1000; letter-spacing: .12em; }
 .reward-pop-card h2 { margin: 10px 0 8px; font-size: 1.3rem; }
+.reward-type { display: inline-flex; width: fit-content; margin: 0 0 8px; border-radius: 999px; padding: 5px 8px; background: rgba(14,165,233,.2); color: #bae6fd; font-size: .76rem; font-weight: 1000; }
 .reward-clue { margin: 0; padding: 12px; border-radius: 16px; background: rgba(2,6,23,.42); color: #fef3c7; font-size: 1.02rem; font-weight: 1000; line-height: 1.45; }
 .reward-items { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
 .reward-items span { border-radius: 999px; padding: 6px 8px; background: rgba(34,197,94,.18); color: #bbf7d0; font-size: .76rem; font-weight: 900; }

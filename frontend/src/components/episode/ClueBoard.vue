@@ -9,27 +9,21 @@
     </header>
 
     <section>
-      <h3>관련자 힌트 <span>{{ relatedPersonClues.length }}/3</span></h3>
-      <ul><li v-for="clue in displayClues(relatedPersonClues, 'related')" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!relatedPersonClues.length" class="empty">관련자를 좁혀 줄 단서가 아직 없습니다.</p>
+      <h3>관계자 힌트 <span>{{ relatedPersonClues.length }}/3</span></h3>
+      <ul><li v-for="clue in displayClues(relatedPersonClues)" :key="clue">{{ clue }}</li></ul>
+      <p v-if="!relatedPersonClues.length" class="empty">관계자를 좁혀 줄 단서가 아직 없습니다.</p>
     </section>
 
     <section>
       <h3>핵심 단서 힌트 <span>{{ coreClues.length }}/3</span></h3>
-      <ul><li v-for="clue in displayClues(coreClues, 'core')" :key="clue">{{ clue }}</li></ul>
+      <ul><li v-for="clue in displayClues(coreClues)" :key="clue">{{ clue }}</li></ul>
       <p v-if="!coreClues.length" class="empty">핵심 단서의 형태를 좁혀 줄 단서가 아직 없습니다.</p>
     </section>
 
     <section>
       <h3>장소 힌트 <span>{{ board?.destinationClueCount || 0 }}/3</span></h3>
-      <ul><li v-for="clue in displayClues(board?.destinationClues, 'destination')" :key="clue">{{ clue }}</li></ul>
+      <ul><li v-for="clue in displayClues(board?.destinationClues)" :key="clue">{{ clue }}</li></ul>
       <p v-if="!(board?.destinationClues || []).length" class="empty">최종 목적지를 열기 위한 장소 힌트가 아직 없습니다.</p>
-    </section>
-
-    <section>
-      <h3>스토리 단서</h3>
-      <ul><li v-for="clue in displayClues(board?.storyClues, 'story')" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!(board?.storyClues || []).length" class="empty">용의자 진술과 사건 배경을 해석할 보조 단서가 아직 없습니다.</p>
     </section>
 
     <section>
@@ -61,21 +55,8 @@ function legacyAnswerClues() {
   return props.board?.answerClues || [];
 }
 
-function displayClues(clues = [], kind) {
-  return (clues || []).map((clue, index) => humanizeClue(clue, kind, index));
-}
-
-function humanizeClue(value, kind, index) {
-  const text = String(value || '').trim();
-  if (!/^(answer|destination|story)-clue-\d+$/i.test(text)) return text;
-  const fallback = {
-    related: ['엇갈린 진술', '남겨진 서명', '목격 기록', '알리바이 틈'],
-    core: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
-    answer: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
-    destination: ['장소 표식', '닫힌 문', '굽은 골목'],
-    story: ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표']
-  };
-  return fallback[kind]?.[index % fallback[kind].length] || '미분류 단서';
+function displayClues(clues = []) {
+  return (clues || []).map((clue) => String(clue || '').trim()).filter(Boolean);
 }
 </script>
 

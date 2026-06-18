@@ -83,6 +83,9 @@ public class CaseFileService {
                         .detailedSummary(detailedStorySummary(episode, storyClues))
                         .goal(caseGoal(episode))
                         .fictionSynopsis(episode.getFictionSynopsis())
+                        .missionDescription(episode.getMissionDescription() == null || episode.getMissionDescription().isBlank()
+                                ? episode.getFictionSynopsis()
+                                : episode.getMissionDescription())
                         .storyUnlocked(storyUnlocked)
                         .unlockedStoryClues(storyClues)
                         .build())
@@ -153,10 +156,10 @@ public class CaseFileService {
         boolean unlocked = Boolean.TRUE.equals(evidence.getUnlockedByDefault()) || unlockedIds.contains(evidence.getId());
         return CaseFileResponse.Evidence.builder()
                 .evidenceId(evidence.getId())
-                .title(unlocked ? localizeEvidenceTitle(evidence.getTitle()) : "\uC7A0\uAE34 \uC0AC\uAC74\uC790\uB8CC")
+                .title(unlocked ? localizeEvidenceTitle(evidence.getTitle()) : "잠긴 사건자료")
                 .type(evidence.getType())
                 .imageUrl(unlocked ? evidence.getImageUrl() : null)
-                .textSummary(unlocked ? localizeEvidenceSummary(evidence.getTextSummary(), evidence.getTitle()) : "\uD604\uC7A5 \uD37C\uC990\uC744 \uD574\uACB0\uD558\uBA74 \uC774 \uC790\uB8CC\uAC00 \uC0AC\uAC74\uD30C\uC77C\uC5D0 \uCD94\uAC00\uB429\uB2C8\uB2E4.")
+                .textSummary(unlocked ? localizeEvidenceSummary(evidence.getTextSummary(), evidence.getTitle()) : "현장 퍼즐을 해결하면 이 자료가 사건파일에 추가됩니다.")
                 .sourceSpotId(unlocked ? evidence.getSourceSpotId() : null)
                 .relatedSuspectIds(unlocked && evidence.getRelatedSuspectId() != null ? List.of(evidence.getRelatedSuspectId()) : List.of())
                 .relatedClueType(evidence.getRelatedClueType())
@@ -181,7 +184,7 @@ public class CaseFileService {
             return value;
         }
         String normalized = value.trim();
-        return normalized.replaceAll("(?i)\\bmin\\b", "\uBD84").replaceAll("(?i)\\bhours?\\b", "\uC2DC\uAC04").replaceAll("(?i)\\babout\\b\\s*", "\uC57D ");
+        return normalized.replaceAll("(?i)\\bmin\\b", "분").replaceAll("(?i)\\bhours?\\b", "시간").replaceAll("(?i)\\babout\\b\\s*", "약 ");
     }
 
     private String localizeEstimatedDistance(String value) {
@@ -190,9 +193,9 @@ public class CaseFileService {
         }
         String normalized = value.trim();
         if (normalized.equalsIgnoreCase("walking route review required") || normalized.equalsIgnoreCase("review required")) {
-            return "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694";
+            return "도보 동선 확인 필요";
         }
-        return normalized.replaceAll("(?i)\\babout\\b\\s*", "\uC57D ");
+        return normalized.replaceAll("(?i)\\babout\\b\\s*", "약 ");
     }
 
     private String localizeClueValue(String value) {
@@ -202,21 +205,21 @@ public class CaseFileService {
         String text = value.trim();
         String normalized = text.toLowerCase(Locale.ROOT).replaceAll("[_\\-]+", " ").replaceAll("\\s+", " ");
         return switch (normalized) {
-            case "red wall" -> "\uBD89\uC740 \uB2F4\uC7A5";
-            case "last door" -> "\uB9C8\uC9C0\uB9C9 \uBB38";
-            case "north" -> "\uBD81\uCABD";
-            case "waterfront", "water side", "waterside" -> "\uBB3C\uAC00";
-            case "bell sound", "bell", "bell ring" -> "\uC885\uC18C\uB9AC";
-            case "seal" -> "\uBC00\uB78D \uC778\uC7A5";
-            case "photo" -> "\uD750\uB9B0 \uC0AC\uC9C4";
-            case "document" -> "\uC811\uD78C \uBB38\uC11C";
-            case "shadow" -> "\uAE34 \uADF8\uB9BC\uC790";
-            case "case start" -> "\uC0AC\uAC74 \uC2DC\uC791 \uB2E8\uC11C";
-            case "case clue" -> "\uC0AC\uAC74 \uB2E8\uC11C";
-            case "final place confirmation" -> "\uCD5C\uC885 \uC7A5\uC18C \uD655\uC778 \uB2E8\uC11C";
-            case "nearby verification focus", "site verification focus" -> "\uC8FC\uBCC0 \uD655\uC778 \uC9C0\uC810";
-            case "nearby famous place signal" -> "\uC8FC\uBCC0 \uBA85\uC18C \uB2E8\uC11C";
-            default -> isEnglishOnly(text) ? "\uD574\uB3C5 \uD544\uC694 \uB2E8\uC11C" : text;
+            case "red wall" -> "붉은 담장";
+            case "last door" -> "마지막 문";
+            case "north" -> "북쪽";
+            case "waterfront", "water side", "waterside" -> "물가";
+            case "bell sound", "bell", "bell ring" -> "종소리";
+            case "seal" -> "밀랍 인장";
+            case "photo" -> "흐린 사진";
+            case "document" -> "접힌 문서";
+            case "shadow" -> "긴 그림자";
+            case "case start" -> "사건 시작 단서";
+            case "case clue" -> "사건 단서";
+            case "final place confirmation" -> "최종 장소 확인 단서";
+            case "nearby verification focus", "site verification focus" -> "주변 확인 지점";
+            case "nearby famous place signal" -> "주변 명소 단서";
+            default -> isEnglishOnly(text) ? "해독 필요 단서" : text;
         };
     }
 
@@ -277,61 +280,61 @@ public class CaseFileService {
         String text = value.trim();
         String normalized = text.toLowerCase(Locale.ROOT).replaceAll("[_\\-]+", " ").replaceAll("\\s+", " ");
         return switch (normalized) {
-            case "first field photo envelope" -> "\uCCAB \uD604\uC7A5 \uC0AC\uC9C4 \uBD09\uD22C";
-            case "torn route memo" -> "\uCC22\uAE34 \uB3D9\uC120 \uBA54\uBAA8";
-            case "conflicting witness note" -> "\uC5C7\uAC08\uB9B0 \uBAA9\uACA9 \uAE30\uB85D";
-            case "lens fragment record" -> "\uB80C\uC988 \uD30C\uD3B8 \uAE30\uB85D";
-            case "red seal sketch" -> "\uBD89\uC740 \uC778\uC7A5 \uC2A4\uCF00\uCE58";
-            case "destination cipher memo" -> "\uBAA9\uC801\uC9C0 \uC554\uD638 \uBA54\uBAA8";
-            case "final route log" -> "\uCD5C\uC885 \uB3D9\uC120 \uAE30\uB85D";
-            case "sealed name card" -> "\uBD09\uC778\uB41C \uBA85\uD568";
-            case "final deduction support file" -> "\uCD5C\uC885 \uCD94\uB9AC \uBCF4\uC870 \uD30C\uC77C";
+            case "first field photo envelope" -> "첫 현장 사진 봉투";
+            case "torn route memo" -> "찢긴 동선 메모";
+            case "conflicting witness note" -> "엇갈린 목격 기록";
+            case "lens fragment record" -> "렌즈 파편 기록";
+            case "red seal sketch" -> "붉은 인장 스케치";
+            case "destination cipher memo" -> "목적지 암호 메모";
+            case "final route log" -> "최종 동선 기록";
+            case "sealed name card" -> "봉인된 명함";
+            case "final deduction support file" -> "최종 추리 보조 파일";
             default -> {
                 String clueTitle = normalized.endsWith(" clue card")
-                        ? localizeClueValue(text.substring(0, text.length() - " clue card".length())) + " \uB2E8\uC11C \uCE74\uB4DC"
+                        ? localizeClueValue(text.substring(0, text.length() - " clue card".length())) + " 단서 카드"
                         : text;
-                yield isEnglishOnly(clueTitle) ? "\uD574\uB3C5 \uD544\uC694 \uC0AC\uAC74\uC790\uB8CC" : clueTitle;
+                yield isEnglishOnly(clueTitle) ? "해독 필요 사건자료" : clueTitle;
             }
         };
     }
 
     private String localizeEvidenceSummary(String value, String title) {
         if (value == null || value.isBlank()) {
-            return "\uD604\uC7A5 \uB2E8\uC11C\uB97C \uCD94\uB9AC\uC5D0 \uC5F0\uACB0\uD558\uB294 \uC0AC\uAC74\uC790\uB8CC\uC785\uB2C8\uB2E4.";
+            return "현장 단서를 추리에 연결하는 사건자료입니다.";
         }
         String text = value.trim();
         String lower = text.toLowerCase(Locale.ROOT);
         if (lower.contains("marks the opening point of the case")) {
-            return "\uC0AC\uAC74\uC758 \uC2DC\uC791 \uC9C0\uC810\uC744 \uD45C\uC2DC\uD558\uB294 \uC790\uB8CC\uC785\uB2C8\uB2E4.";
+            return "사건의 시작 지점을 표시하는 자료입니다.";
         }
         if (lower.contains("links route movement with a missing trace")) {
-            return "\uB3D9\uC120\uACFC \uC0AC\uB77C\uC9C4 \uD754\uC801\uC744 \uC5F0\uACB0\uD558\uB294 \uBA54\uBAA8\uC785\uB2C8\uB2E4.";
+            return "동선과 사라진 흔적을 연결하는 메모입니다.";
         }
         if (lower.contains("witness record") && lower.contains("contradiction")) {
-            return "\uC11C\uB85C \uB9DE\uC9C0 \uC54A\uB294 \uC9C4\uC220\uC744 \uB4DC\uB7EC\uB0B4\uB294 \uBAA9\uACA9 \uAE30\uB85D\uC785\uB2C8\uB2E4.";
+            return "서로 맞지 않는 진술을 드러내는 목격 기록입니다.";
         }
         if (lower.contains("narrows the nature of the final object")) {
-            return "\uCD5C\uC885 \uC99D\uAC70\uBB3C\uC758 \uC815\uCCB4\uB97C \uC881\uD600\uC8FC\uB294 \uC790\uB8CC\uC785\uB2C8\uB2E4.";
+            return "최종 증거물의 정체를 좁혀주는 자료입니다.";
         }
         if (lower.contains("connecting suspect motive to the case")) {
-            return "\uC6A9\uC758\uC790\uC758 \uB3D9\uAE30\uC640 \uC0AC\uAC74\uC744 \uC5F0\uACB0\uD558\uB294 \uB2E8\uC11C\uC785\uB2C8\uB2E4.";
+            return "용의자의 동기와 사건을 연결하는 단서입니다.";
         }
         if (lower.contains("narrows the destination without naming it")) {
-            return "\uC7A5\uC18C\uBA85\uC744 \uC9C1\uC811 \uB9D0\uD558\uC9C0 \uC54A\uACE0 \uBAA9\uC801\uC9C0\uB97C \uC881\uD600\uC8FC\uB294 \uBA54\uBAA8\uC785\uB2C8\uB2E4.";
+            return "장소명을 직접 말하지 않고 목적지를 좁혀주는 메모입니다.";
         }
         if (lower.contains("reconstructing the final movement path")) {
-            return "\uCD5C\uC885 \uB3D9\uC120\uC744 \uB2E4\uC2DC \uAD6C\uC131\uD558\uB294 \uB370 \uD544\uC694\uD55C \uAE30\uB85D\uC785\uB2C8\uB2E4.";
+            return "최종 동선을 다시 구성하는 데 필요한 기록입니다.";
         }
         if (lower.contains("sealed file") && lower.contains("final deduction")) {
-            return "\uCD5C\uC885 \uCD94\uB9AC \uC804\uC5D0 \uD655\uC778\uD574\uC57C \uD560 \uBD09\uC778\uB41C \uD30C\uC77C\uC785\uB2C8\uB2E4.";
+            return "최종 추리 전에 확인해야 할 봉인된 파일입니다.";
         }
         if (lower.contains("support material for combining collected clues")) {
-            return "\uBAA8\uC740 \uB2E8\uC11C\uB97C \uC870\uD569\uD558\uB294 \uB370 \uD544\uC694\uD55C \uBCF4\uC870 \uC790\uB8CC\uC785\uB2C8\uB2E4.";
+            return "모은 단서를 조합하는 데 필요한 보조 자료입니다.";
         }
         if (lower.contains("case material unlocked after solving this mission")) {
-            return "\uC774 \uBBF8\uC158\uC744 \uD480\uBA74 \uD574\uAE08\uB418\uB294 \uC0AC\uAC74\uC790\uB8CC\uC785\uB2C8\uB2E4.";
+            return "이 미션을 풀면 해금되는 사건자료입니다.";
         }
-        return isEnglishOnly(text) ? localizeEvidenceTitle(title) + "\uC5D0 \uC5F0\uACB0\uB41C \uC0AC\uAC74\uC790\uB8CC\uC785\uB2C8\uB2E4." : text;
+        return isEnglishOnly(text) ? localizeEvidenceTitle(title) + "에 연결된 사건자료입니다." : text;
     }
     private boolean isEnglishOnly(String text) {
         if (text == null || text.isBlank() || text.chars().anyMatch(ch -> ch >= 0xAC00 && ch <= 0xD7A3)) {
@@ -346,7 +349,11 @@ public class CaseFileService {
     }
 
     private String caseSummary(Episode episode) {
-        String synopsis = episode == null ? null : episode.getFictionSynopsis();
+        String synopsis = episode == null
+                ? null
+                : episode.getMissionDescription() == null || episode.getMissionDescription().isBlank()
+                        ? episode.getFictionSynopsis()
+                        : episode.getMissionDescription();
         if (synopsis != null && !synopsis.isBlank()) {
             return synopsis.trim();
         }

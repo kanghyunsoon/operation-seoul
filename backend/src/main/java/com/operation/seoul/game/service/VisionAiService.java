@@ -19,6 +19,8 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class VisionAiService {
+    private static final String GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+    private static final String OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
     private final MissionRepository missionRepository;
     private final GameSessionRepository gameSessionRepository;
@@ -28,14 +30,20 @@ public class VisionAiService {
     @Value("${google.vision.key}")
     private String visionApiKey;
 
-    @Value("${gemini.api.key}")
+    @Value("${gemini.api.key:}")
     private String geminiApiKey;
 
-    @Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
-    private String geminiBaseUrl;
-
-    @Value("${gemini.model:gemini-2.5-flash}")
+    @Value("${gemini.model:gemini-2.5-flash-lite}")
     private String geminiModel;
+
+    @Value("${ai.provider:openai}")
+    private String aiProvider;
+
+    @Value("${openai.api.key:}")
+    private String openAiApiKey;
+
+    @Value("${openai.model:gpt-4.1-mini}")
+    private String openAiModel;
 
     /**
      * 업로드 이미지가 미션의 목표 단서를 충분히 담았는지 확인하고 성공 시 세션을 클리어합니다.
@@ -139,11 +147,13 @@ public class VisionAiService {
                 target, labels
         );
 
-        Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
+        if (useOpenAi()) {
+            return judgeMatchWithOpenAi(prompt);
+        }
 
+        Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", geminiApiKey.trim());
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
@@ -155,6 +165,29 @@ public class VisionAiService {
     }
 
     private String geminiUrl() {
-        return geminiBaseUrl.replaceAll("/+$", "") + "/models/" + geminiModel.trim() + ":generateContent";
+        return GEMINI_API_BASE_URL + "/models/" + geminiModel.trim() + ":generateContent?key="
+                + java.net.URLEncoder.encode(geminiApiKey.trim(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private boolean judgeMatchWithOpenAi(String prompt) throws Exception {
+        Map<String, Object> body = Map.of(
+                "model", openAiModel == null || openAiModel.isBlank() ? "gpt-4.1-mini" : openAiModel.trim(),
+                "temperature", 0,
+                "messages", List.of(
+                        Map.of("role", "system", "content", "Answer only TRUE or FALSE."),
+                        Map.of("role", "user", "content", prompt)
+                )
+        );
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(openAiApiKey.trim());
+        ResponseEntity<String> response = restTemplate.postForEntity(OPENAI_API_URL, new HttpEntity<>(body, headers), String.class);
+        JsonNode root = objectMapper.readTree(response.getBody());
+        String aiAnswer = root.path("choices").path(0).path("message").path("content").asText().trim();
+        return aiAnswer.equalsIgnoreCase("TRUE");
+    }
+
+    private boolean useOpenAi() {
+        return "openai".equalsIgnoreCase(aiProvider) || "gpt".equalsIgnoreCase(aiProvider);
     }
 }

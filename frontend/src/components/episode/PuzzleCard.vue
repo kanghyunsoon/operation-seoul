@@ -99,6 +99,12 @@ watch(() => props.puzzle?.puzzleId, () => {
   miniGameResetKey.value += 1;
 });
 
+watch(() => props.puzzle?.interaction?.retryVariant, () => {
+  miniGameSolved.value = false;
+  miniGameProof.value = '';
+  miniGameResetKey.value += 1;
+});
+
 function submit() {
   if (answer.value) emit('submit', answer.value);
 }

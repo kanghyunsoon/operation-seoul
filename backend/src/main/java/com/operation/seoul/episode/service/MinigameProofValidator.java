@@ -14,13 +14,18 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class MinigameProofValidator {
     private final ObjectMapper objectMapper;
+    private final MinigameRetryVariantFactory retryVariantFactory;
 
     public boolean validate(String rewardPayload, String submittedAnswer) {
+        return validate(rewardPayload, submittedAnswer, 0);
+    }
+
+    public boolean validate(String rewardPayload, String submittedAnswer, int expectedRetryVariant) {
         if (rewardPayload == null || rewardPayload.isBlank() || submittedAnswer == null || !submittedAnswer.startsWith("MG|")) {
             return false;
         }
-        String[] parts = submittedAnswer.split("\\|", 3);
-        if (parts.length < 3 || parts[2].length() > 500) {
+        String[] parts = submittedAnswer.split("\\|", 4);
+        if (parts.length < 3) {
             return false;
         }
         try {
@@ -29,9 +34,26 @@ public class MinigameProofValidator {
             if (!type.equals(parts[1])) {
                 return false;
             }
-            JsonNode config = interaction.path("config");
-            String proof = parts[2];
+            VariantProof variantProof = parseVariantProof(parts);
+            if (variantProof == null || variantProof.proof().length() > 500) {
+                return false;
+            }
+            int expectedVariant = Math.max(0, expectedRetryVariant);
+            if (expectedVariant > 0 && variantProof.variant() != expectedVariant) {
+                return false;
+            }
+            if (expectedVariant == 0 && variantProof.variant() > 0) {
+                return false;
+            }
+            JsonNode effectiveInteraction = variantProof.variant() > 0
+                    ? retryVariantFactory.variantInteraction(interaction, variantProof.variant())
+                    : interaction;
+            JsonNode config = effectiveInteraction.path("config");
+            String proof = variantProof.proof();
             String localSolution = interaction.path("localSolution").asText("");
+            if (variantProof.variant() > 0) {
+                localSolution = effectiveInteraction.path("localSolution").asText(localSolution);
+            }
             return switch (type) {
                 case "NUMBER_LOCK" -> proof.equals(config.path("solutionDigits").asText(""));
                 case "WORD_COMPOSE" -> normalize(proof).equals(normalize(localSolution));
@@ -47,6 +69,21 @@ public class MinigameProofValidator {
             };
         } catch (Exception ignored) {
             return false;
+        }
+    }
+
+    private VariantProof parseVariantProof(String[] parts) {
+        if (parts.length == 3) {
+            return new VariantProof(0, parts[2]);
+        }
+        String variantPart = parts[2];
+        if (!variantPart.startsWith("R")) {
+            return null;
+        }
+        try {
+            return new VariantProof(Integer.parseInt(variantPart.substring(1)), parts[3]);
+        } catch (Exception ignored) {
+            return null;
         }
     }
 
@@ -123,5 +160,8 @@ public class MinigameProofValidator {
         return Normalizer.normalize(value, Normalizer.Form.NFKC)
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
+    private record VariantProof(int variant, String proof) {
     }
 }

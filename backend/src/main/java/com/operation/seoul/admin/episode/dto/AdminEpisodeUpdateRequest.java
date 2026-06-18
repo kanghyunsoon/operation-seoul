@@ -12,6 +12,7 @@ public class AdminEpisodeUpdateRequest {
     private String estimatedTime;
     private String estimatedDistance;
     private String fictionSynopsis;
+    private String missionDescription;
     private String finalAnswerType;
     private String finalAnswer;
     private String finalAnswerAliases;

@@ -38,6 +38,7 @@ public class CaseFileResponse {
         private String detailedSummary;
         private String goal;
         private String fictionSynopsis;
+        private String missionDescription;
         private boolean storyUnlocked;
         private List<String> unlockedStoryClues;
     }

@@ -14,6 +14,7 @@ import java.util.List;
 public class AiEpisodeDraftResponse {
     private String generatorType;
     private String message;
+    private Boolean publishable;
     private EpisodeDraft draft;
     private List<String> validationWarnings;
     private List<String> nextSteps;
@@ -28,8 +29,10 @@ public class AiEpisodeDraftResponse {
         private String genre;
         private String era;
         private String fictionSynopsis;
+        private String missionDescription;
         private String selectedGenre;
         private List<String> finalAnswerKeywords;
+        private FinalAnswers finalAnswers;
         private String finalAnswerType;
         private String finalAnswer;
         private List<String> finalAnswerAliases;
@@ -51,6 +54,10 @@ public class AiEpisodeDraftResponse {
     public static class MissionDraft {
         private Integer order;
         private String placeName;
+        private String actualPlaceName;
+        private String storyPlaceAlias;
+        private List<String> placeEvidenceAnchor;
+        private List<String> forbiddenPlaceNames;
         private String address;
         private Double latitude;
         private Double longitude;
@@ -75,10 +82,33 @@ public class AiEpisodeDraftResponse {
         private String rewardClueSlotId;     // WEAPON, CULPRIT, CASE_LOCATION 등
         private String rewardClueLabel;      // 범행도구 단서, 범인 단서 등
         private List<String> supportsKeywordSlots;
+        private EvidenceDesign evidenceDesign;
 
         private List<String> hints;
         private String groundRule;
         private String verificationLevel;    // AUTO_OK, ADMIN_REVIEW, FIELD_REQUIRED
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EvidenceDesign {
+        private String artifactType;
+        private String visibleDetail;
+        private String recordFragment;
+        private String deductionUse;
+        private List<String> secretAnswerLinkLabels;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FinalAnswers {
+        private String relatedPerson;
+        private String coreClue;
+        private String finalLocation;
     }
 
     @Data

@@ -15,6 +15,7 @@ public class EpisodeDetailResponse {
     private String estimatedTime;
     private String estimatedDistance;
     private String fictionSynopsis;
+    private String missionDescription;
     private String finalAnswerType;
     private String finalQuestion;
     private String progressStatus;

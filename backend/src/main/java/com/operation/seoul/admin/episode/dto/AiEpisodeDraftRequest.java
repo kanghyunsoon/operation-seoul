@@ -21,6 +21,7 @@ public class AiEpisodeDraftRequest {
 
     // 실서비스용
     private List<AnswerKeywordInput> finalAnswerKeywordItems;
+    private FinalAnswersInput finalAnswers;
     private List<GenreTemplateInput> genreCatalog;
     private MissionPolicyInput missionPolicy;
     private PuzzlePolicyInput puzzlePolicy;
@@ -44,6 +45,13 @@ public class AiEpisodeDraftRequest {
         private String sourcePlaceName;
         private String sourceText;
         private String risk;
+    }
+
+    @Data
+    public static class FinalAnswersInput {
+        private String relatedPerson;
+        private String coreClue;
+        private String finalLocation;
     }
 
     @Data
