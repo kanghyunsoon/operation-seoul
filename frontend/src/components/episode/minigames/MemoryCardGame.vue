@@ -14,7 +14,12 @@
 </template>
 <script setup>
 import { computed, ref, watch } from 'vue';
-const props = defineProps({ config: { type: Object, default: () => ({}) }, submitValue: { type: String, default: '' }, basis: { type: String, default: '' } });
+const props = defineProps({
+  config: { type: Object, default: () => ({}) },
+  submitValue: { type: String, default: '' },
+  basis: { type: String, default: '' },
+  retryVariant: { type: Number, default: 0 }
+});
 const emit = defineEmits(['solved-change', 'proof-change']);
 const deck = ref([]);
 const opened = ref([]);
@@ -22,10 +27,13 @@ const mistakes = ref(0);
 const failed = ref(false);
 const solved = ref(false);
 const maxMistakes = computed(() => Number(props.config.maxMistakes || 5));
-watch(() => [props.config.cards, props.submitValue, props.basis], reset, { immediate: true, deep: true });
+watch(() => [props.config.cards, props.submitValue, props.basis, props.retryVariant], reset, { immediate: true, deep: true });
 function reset() {
   const cards = props.config.cards || [props.submitValue, props.basis, '봉인', '문서', '동선', '증거'].filter(Boolean);
-  deck.value = shuffle([...cards, ...cards].map((label, index) => ({ id: `${index}-${label}`, label, open: false, matched: false })));
+  deck.value = shuffle(
+    [...cards, ...cards].map((label, index) => ({ id: `${index}-${label}`, label, open: false, matched: false })),
+    props.retryVariant
+  );
   opened.value = [];
   mistakes.value = 0;
   failed.value = false;
@@ -59,8 +67,14 @@ function flip(card) {
     opened.value = [];
   }, 520);
 }
-function shuffle(items) {
-  return [...items].sort((a, b) => String(a.id).localeCompare(String(b.id))).sort((a, b) => (a.label.length + a.id.length) % 3 - ((b.label.length + b.id.length) % 3));
+function shuffle(items, retryVariant) {
+  const arranged = [...items].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  if (arranged.length < 2) return arranged;
+  const offset = Math.floorMod
+    ? Math.floorMod(retryVariant, arranged.length)
+    : ((retryVariant % arranged.length) + arranged.length) % arranged.length;
+  const rotated = [...arranged.slice(offset), ...arranged.slice(0, offset)];
+  return rotated.map((_, index) => rotated[(index * 5) % rotated.length]);
 }
 </script>
 <style scoped>

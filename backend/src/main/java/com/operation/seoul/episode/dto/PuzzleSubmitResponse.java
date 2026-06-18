@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -19,6 +20,7 @@ public class PuzzleSubmitResponse {
     private List<Long> unlockedMemoIds;
     private List<UnlockedCaseFileItem> newlyUnlockedItems;
     private ClueBoardResponse clueBoard;
+    private Map<String, Object> retryInteraction;
     private String message;
 
     @Data

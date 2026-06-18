@@ -9,7 +9,7 @@ import java.util.List;
 public interface EpisodeRepository {
     @Select("""
             select id, title, subtitle, region_id, era, genre, difficulty, estimated_time, estimated_distance,
-                   fiction_synopsis, final_answer_type, final_answer, final_answer_aliases, final_question,
+                   fiction_synopsis, mission_description, final_answer_type, final_answer, final_answer_aliases, final_question,
                    final_truth_summary, actual_history_summary, deduction_secret_facts,
                    deduction_forbidden_reveals, max_deduction_questions, status
             from episodes
@@ -22,6 +22,7 @@ public interface EpisodeRepository {
             @Result(property = "era", column = "era"), @Result(property = "genre", column = "genre"),
             @Result(property = "difficulty", column = "difficulty"), @Result(property = "estimatedTime", column = "estimated_time"),
             @Result(property = "estimatedDistance", column = "estimated_distance"), @Result(property = "fictionSynopsis", column = "fiction_synopsis"),
+            @Result(property = "missionDescription", column = "mission_description"),
             @Result(property = "finalAnswerType", column = "final_answer_type"), @Result(property = "finalAnswer", column = "final_answer"),
             @Result(property = "finalAnswerAliases", column = "final_answer_aliases"), @Result(property = "finalQuestion", column = "final_question"),
             @Result(property = "finalTruthSummary", column = "final_truth_summary"), @Result(property = "actualHistorySummary", column = "actual_history_summary"),
@@ -32,7 +33,7 @@ public interface EpisodeRepository {
 
     @Select("""
             select id, title, subtitle, region_id, era, genre, difficulty, estimated_time, estimated_distance,
-                   fiction_synopsis, final_answer_type, final_answer, final_answer_aliases, final_question,
+                   fiction_synopsis, mission_description, final_answer_type, final_answer, final_answer_aliases, final_question,
                    final_truth_summary, actual_history_summary, deduction_secret_facts,
                    deduction_forbidden_reveals, max_deduction_questions, status
             from episodes

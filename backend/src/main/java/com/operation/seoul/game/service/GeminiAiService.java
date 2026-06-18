@@ -30,6 +30,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class GeminiAiService {
+    private static final String GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
     private final MissionRepository missionRepository;
     private final GameSessionRepository gameSessionRepository;
@@ -40,10 +41,7 @@ public class GeminiAiService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
-    @Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
-    private String geminiBaseUrl;
-
-    @Value("${gemini.model:gemini-2.5-flash}")
+    @Value("${gemini.model:gemini-2.5-flash-lite}")
     private String geminiModel;
 
     /**
@@ -781,7 +779,6 @@ public class GeminiAiService {
         Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", geminiApiKey.trim());
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
             JsonNode root = objectMapper.readTree(response.getBody());
@@ -795,6 +792,7 @@ public class GeminiAiService {
 
     /** 현재 프로젝트에서 사용하는 Gemini 모델 endpoint를 구성합니다. */
     private String geminiUrl() {
-        return geminiBaseUrl.replaceAll("/+$", "") + "/models/" + geminiModel.trim() + ":generateContent";
+        return GEMINI_API_BASE_URL + "/models/" + geminiModel.trim() + ":generateContent?key="
+                + java.net.URLEncoder.encode(geminiApiKey.trim(), java.nio.charset.StandardCharsets.UTF_8);
     }
 }

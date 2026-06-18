@@ -25,6 +25,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class MissionFactory {
+    private static final String GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+    private static final String OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
     private final RegionRepository regionRepository;
     private final MissionRepository missionRepository;
@@ -32,14 +34,20 @@ public class MissionFactory {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Value("${gemini.api.key}")
+    @Value("${gemini.api.key:}")
     private String geminiApiKey;
 
-    @Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
-    private String geminiBaseUrl;
-
-    @Value("${gemini.model:gemini-2.5-flash}")
+    @Value("${gemini.model:gemini-2.5-flash-lite}")
     private String geminiModel;
+
+    @Value("${ai.provider:openai}")
+    private String aiProvider;
+
+    @Value("${openai.api.key:}")
+    private String openAiApiKey;
+
+    @Value("${openai.model:gpt-4.1-mini}")
+    private String openAiModel;
 
     // 백엔드 표준 키(kakao.rest.api.key)를 우선 사용하되, 기존 로컬 설정(VITE_KAKAO_REST_KEY)도 호환합니다.
     @Value("${kakao.rest.api.key:${VITE_KAKAO_REST_KEY:}}")
@@ -136,8 +144,6 @@ public class MissionFactory {
 
     private AiCourseResponseDto generateStoryFromGemini(String finalSpot, double finalLat, double finalLng, List<Map<String, Object>> subs) {
         try {
-            String url = geminiUrl();
-
             String promptText = String.format(
                     "당신은 '오퍼레이션 코리아' 작전 지휘관입니다. 다음 4개의 장소를 순서대로 방문하여 힌트를 얻는 '독립운동 혹은 첩보 밀서 전달' 컨셉의 방탈출 시나리오를 만드세요.\n" +
                             "1. %s (서브 힌트 1, 위도 %.4f, 경도 %.4f)\n" +
@@ -160,20 +166,7 @@ public class MissionFactory {
                     finalSpot, finalLat, finalLng
             );
 
-            Map<String, Object> requestBody = Map.of(
-                    "contents", List.of(
-                            Map.of("parts", List.of(Map.of("text", promptText)))
-                    )
-            );
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("x-goog-api-key", geminiApiKey.trim());
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-            JsonNode root = objectMapper.readTree(response.getBody());
-            String aiJsonText = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
+            String aiJsonText = generateAiText(promptText);
 
             // Gemini가 실수로 코드블록이나 설명을 붙여도 JSON 본문만 파싱합니다.
             int startIndex = aiJsonText.indexOf("{");
@@ -194,6 +187,42 @@ public class MissionFactory {
     }
 
     private String geminiUrl() {
-        return geminiBaseUrl.replaceAll("/+$", "") + "/models/" + geminiModel.trim() + ":generateContent";
+        return GEMINI_API_BASE_URL + "/models/" + geminiModel.trim() + ":generateContent?key="
+                + java.net.URLEncoder.encode(geminiApiKey.trim(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private String generateAiText(String prompt) throws Exception {
+        if (useOpenAi()) {
+            Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("model", openAiModel == null || openAiModel.isBlank() ? "gpt-4.1-mini" : openAiModel.trim());
+            body.put("temperature", 0.6);
+            body.put("response_format", Map.of("type", "json_object"));
+            body.put("messages", List.of(
+                    Map.of("role", "system", "content", "Return only valid JSON. Do not wrap the response in markdown."),
+                    Map.of("role", "user", "content", prompt)
+            ));
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(openAiApiKey.trim());
+            ResponseEntity<String> response = restTemplate.postForEntity(OPENAI_API_URL, new HttpEntity<>(body, headers), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            return root.path("choices").path(0).path("message").path("content").asText();
+        }
+
+        Map<String, Object> requestBody = Map.of(
+                "contents", List.of(
+                        Map.of("parts", List.of(Map.of("text", prompt)))
+                )
+        );
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<String> response = restTemplate.postForEntity(geminiUrl(), entity, String.class);
+        JsonNode root = objectMapper.readTree(response.getBody());
+        return root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
+    }
+
+    private boolean useOpenAi() {
+        return "openai".equalsIgnoreCase(aiProvider) || "gpt".equalsIgnoreCase(aiProvider);
     }
 }

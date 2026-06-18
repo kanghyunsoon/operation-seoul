@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.auth.domain.User;
+import com.operation.seoul.casefile.domain.CaseEvidence;
+import com.operation.seoul.casefile.repository.CaseFileRepository;
 import com.operation.seoul.episode.domain.*;
 import com.operation.seoul.episode.dto.*;
 import com.operation.seoul.episode.repository.EpisodeRepository;
@@ -41,10 +43,12 @@ public class EpisodePlayService {
             "YES", "NO", "RELATED", "NOT_RELATED", "PARTIAL", "AMBIGUOUS", "INSUFFICIENT_CLUE", "REFUSED_DIRECT_REVEAL"
     );
     private final EpisodeRepository episodeRepository;
+    private final CaseFileRepository caseFileRepository;
     private final EpisodeFavoriteRepository favoriteRepository;
     private final ObjectMapper objectMapper;
     private final OperationAreaResolver operationAreaResolver;
     private final MinigameProofValidator minigameProofValidator;
+    private final MinigameRetryVariantFactory minigameRetryVariantFactory;
     private final PuzzleAttemptGuard puzzleAttemptGuard;
 
     @Value("${app.dev-mode.arrival-enabled:false}")
@@ -80,9 +84,9 @@ public class EpisodePlayService {
             return value;
         }
         return value.trim()
-                .replaceAll("(?i)\\bmin\\b", "\uBD84")
-                .replaceAll("(?i)\\bhours?\\b", "\uC2DC\uAC04")
-                .replaceAll("(?i)\\babout\\b\\s*", "\uC57D ");
+                .replaceAll("(?i)\\bmin\\b", "분")
+                .replaceAll("(?i)\\bhours?\\b", "시간")
+                .replaceAll("(?i)\\babout\\b\\s*", "약 ");
     }
 
     private String localizeEstimatedDistance(String value) {
@@ -91,9 +95,9 @@ public class EpisodePlayService {
         }
         String normalized = value.trim();
         if (normalized.equalsIgnoreCase("walking route review required") || normalized.equalsIgnoreCase("review required")) {
-            return "\uB3C4\uBCF4 \uB3D9\uC120 \uD655\uC778 \uD544\uC694";
+            return "도보 동선 확인 필요";
         }
-        return normalized.replaceAll("(?i)\\babout\\b\\s*", "\uC57D ");
+        return normalized.replaceAll("(?i)\\babout\\b\\s*", "약 ");
     }
 
     public EpisodeDetailResponse getEpisode(Long episodeId, User user) {
@@ -109,6 +113,9 @@ public class EpisodePlayService {
                 .estimatedTime(localizeEstimatedTime(episode.getEstimatedTime()))
                 .estimatedDistance(localizeEstimatedDistance(episode.getEstimatedDistance()))
                 .fictionSynopsis(episode.getFictionSynopsis())
+                .missionDescription(episode.getMissionDescription() == null || episode.getMissionDescription().isBlank()
+                        ? episode.getFictionSynopsis()
+                        : episode.getMissionDescription())
                 .finalAnswerType(episode.getFinalAnswerType())
                 .finalQuestion(episode.getFinalQuestion())
                 .progressStatus(progress == null ? "NOT_STARTED" : progress.getStatus())
@@ -335,7 +342,7 @@ public class EpisodePlayService {
                 .answerFormat(puzzle.getAnswerFormat())
                 .difficulty(puzzle.getDifficulty())
                 .hints(episodeRepository.findHintsByPuzzleId(puzzle.getId()).stream().map(PuzzleHint::getHintText).map(this::sanitizeCategoryCodes).toList())
-                .interaction(puzzleInteraction(puzzle))
+                .interaction(puzzleInteraction(puzzle, activeWrongCount(user.getId(), puzzle.getId())))
                 .build();
     }
 
@@ -357,6 +364,18 @@ public class EpisodePlayService {
     private Map<String, Object> puzzleInteraction(Puzzle puzzle) {
         Map<String, Object> existing = readPuzzleInteraction(puzzle.getRewardPayload());
         return existing == null ? buildFallbackInteraction(puzzle) : sanitizeInteraction(existing);
+    }
+
+    private Map<String, Object> puzzleInteraction(Puzzle puzzle, int retryVariant) {
+        Map<String, Object> interaction = puzzleInteraction(puzzle);
+        return retryVariant <= 0
+                ? interaction
+                : sanitizeInteraction(minigameRetryVariantFactory.variantInteraction(interaction, retryVariant));
+    }
+
+    private int activeWrongCount(Long userId, Long puzzleId) {
+        Integer value = episodeRepository.findActivePuzzleWrongCount(userId, puzzleId);
+        return value == null ? 0 : Math.max(0, value);
     }
 
     private Map<String, Object> sanitizeInteraction(Map<String, Object> interaction) {
@@ -452,20 +471,20 @@ public class EpisodePlayService {
             return null;
         }
         return value
-                .replace("KakaoLocal:CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
-                .replace("KakaoLocal:FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
-                .replace("KakaoLocal:CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
-                .replace("KakaoLocal:AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810")
-                .replace("CE7", "\uce74\ud398/\ucee4\ud53c \ud734\uc2dd \uc9c0\uc810")
-                .replace("FD6", "\uc74c\uc2dd\uc810/\uc2dd\ub2f9 \uc0c1\uad8c")
-                .replace("CT1", "\ubb38\ud654\uc2dc\uc124/\uc804\uc2dc \uc9c0\uc810")
-                .replace("AT4", "\uad00\uad11\uba85\uc18c/\uba85\uc18c \uc9c0\uc810");
+                .replace("KakaoLocal:CE7", "카페/커피 휴식 지점")
+                .replace("KakaoLocal:FD6", "음식점/식당 상권")
+                .replace("KakaoLocal:CT1", "문화시설/전시 지점")
+                .replace("KakaoLocal:AT4", "관광명소/명소 지점")
+                .replace("CE7", "카페/커피 휴식 지점")
+                .replace("FD6", "음식점/식당 상권")
+                .replace("CT1", "문화시설/전시 지점")
+                .replace("AT4", "관광명소/명소 지점");
     }
 
-    private boolean isPuzzleAnswerAccepted(Puzzle puzzle, String submittedAnswer) {
+    private boolean isPuzzleAnswerAccepted(Puzzle puzzle, String submittedAnswer, int expectedRetryVariant) {
         Map<String, Object> interaction = readPuzzleInteraction(puzzle.getRewardPayload());
-        if (interaction != null) {
-            return minigameProofValidator.validate(puzzle.getRewardPayload(), submittedAnswer);
+        if (interaction != null || (submittedAnswer != null && submittedAnswer.startsWith("MG|"))) {
+            return minigameProofValidator.validate(minigamePayload(puzzle), submittedAnswer, expectedRetryVariant);
         }
         return normalizeAnswer(puzzle.getAnswer()).equals(normalizeAnswer(submittedAnswer));
     }
@@ -483,9 +502,11 @@ public class EpisodePlayService {
         }
 
         puzzleAttemptGuard.enforce(user.getId(), puzzle.getId());
-        boolean correct = isPuzzleAnswerAccepted(puzzle, request.getAnswer());
+        int expectedRetryVariant = activeWrongCount(user.getId(), puzzle.getId());
+        boolean correct = isPuzzleAnswerAccepted(puzzle, request.getAnswer(), expectedRetryVariant);
         if (!correct) {
             puzzleAttemptGuard.recordWrong(user.getId(), puzzle.getId());
+            int retryVariant = activeWrongCount(user.getId(), puzzle.getId());
             progress.setWrongAnswerCount(value(progress.getWrongAnswerCount()) + 1);
             episodeRepository.updateProgress(progress);
             log.info(
@@ -497,7 +518,8 @@ public class EpisodePlayService {
             );
             return PuzzleSubmitResponse.builder()
                     .correct(false)
-                    .message("정답이 아닙니다. 현장 단서와 힌트를 다시 확인해 주세요.")
+                    .message("정답이 아닙니다. 같은 미션의 다른 문제로 다시 시도해 주세요.")
+                    .retryInteraction(puzzleInteraction(puzzle, retryVariant))
                     .clueBoard(buildClueBoard(progress))
                     .build();
         }
@@ -770,18 +792,34 @@ public class EpisodePlayService {
     }
 
     private ClueBoardResponse buildClueBoard(UserEpisodeProgress progress) {
+        Set<Long> unlockedEvidenceIds = new LinkedHashSet<>(readLongList(progress.getUnlockedEvidenceIds()));
+        List<CaseEvidence> unlockedEvidences = caseFileRepository.findEvidences(progress.getEpisodeId()).stream()
+                .filter(evidence -> unlockedEvidenceIds.contains(evidence.getId()))
+                .toList();
         List<String> rawAnswer = readStringList(progress.getCollectedAnswerClues()).stream().map(this::sanitizeCategoryCodes).toList();
-        List<String> relatedPerson = typedClues(rawAnswer, "RELATED_PERSON", true);
-        List<String> core = typedClues(rawAnswer, "ANSWER_CLUE", false);
+        List<String> relatedPerson = evidenceClues(unlockedEvidences, "SUSPECT_CLUE");
+        if (relatedPerson.isEmpty()) {
+            relatedPerson = typedClues(rawAnswer, "RELATED_PERSON", true);
+        }
+        List<String> core = evidenceClues(unlockedEvidences, "ANSWER_CLUE");
+        if (core.isEmpty()) {
+            core = typedClues(rawAnswer, "ANSWER_CLUE", false);
+        }
         List<String> answer = Stream.concat(relatedPerson.stream(), core.stream()).toList();
-        List<String> destination = readStringList(progress.getCollectedDestinationClues()).stream()
-                .map(this::sanitizeCategoryCodes)
-                .map(this::clueValueWithoutSlot)
-                .toList();
-        List<String> story = readStringList(progress.getCollectedStoryClues()).stream()
-                .map(this::sanitizeCategoryCodes)
-                .map(this::clueValueWithoutSlot)
-                .toList();
+        List<String> destination = evidenceClues(unlockedEvidences, "DESTINATION_CLUE");
+        if (destination.isEmpty()) {
+            destination = readStringList(progress.getCollectedDestinationClues()).stream()
+                    .map(this::sanitizeCategoryCodes)
+                    .map(this::clueValueWithoutSlot)
+                    .toList();
+        }
+        List<String> story = evidenceClues(unlockedEvidences, "STORY_CLUE");
+        if (story.isEmpty()) {
+            story = readStringList(progress.getCollectedStoryClues()).stream()
+                    .map(this::sanitizeCategoryCodes)
+                    .map(this::clueValueWithoutSlot)
+                    .toList();
+        }
         return ClueBoardResponse.builder()
                 .episodeId(progress.getEpisodeId())
                 .relatedPersonClues(relatedPerson)
@@ -793,13 +831,23 @@ public class EpisodePlayService {
                 .completedSpotIds(readLongList(progress.getCompletedSpotIds()))
                 .unlockedSuspectIds(readLongList(progress.getUnlockedSuspectIds()))
                 .clearedSuspectIds(readLongList(progress.getClearedSuspectIds()))
-                .unlockedEvidenceIds(readLongList(progress.getUnlockedEvidenceIds()))
+                .unlockedEvidenceIds(List.copyOf(unlockedEvidenceIds))
                 .relatedPersonClueCount(relatedPerson.size())
                 .coreClueCount(core.size())
                 .answerClueCount(answer.size())
                 .destinationClueCount(destination.size())
                 .storyClueCount(story.size())
                 .build();
+    }
+
+    private List<String> evidenceClues(List<CaseEvidence> evidences, String clueType) {
+        return evidences.stream()
+                .filter(evidence -> clueType.equalsIgnoreCase(evidence.getRelatedClueType()))
+                .map(CaseEvidence::getTextSummary)
+                .filter(text -> text != null && !text.isBlank())
+                .map(this::sanitizeCategoryCodes)
+                .distinct()
+                .toList();
     }
 
     private void addLong(UserEpisodeProgress progress, String target, Long value) {
@@ -844,11 +892,15 @@ public class EpisodePlayService {
                 JsonNode rewards = objectMapper.readTree(puzzle.getRewardPayload()).path("rewards");
                 if (rewards.isArray()) {
                     for (JsonNode reward : rewards) {
-                        String type = reward.path("type").asText("");
+                        String slotId = normalizeRewardSlot(reward.path("slotId").asText(""));
+                        String rawType = reward.path("type").asText("");
+                        String type = isClueReward(rawType) ? rewardTypeForSpot(spot, rawType, slotId) : rawType;
+                        if (isClueReward(type)) {
+                            slotId = slotIdForRewardType(type);
+                        }
                         String value = sanitizeCategoryCodes(reward.path("value").asText(""));
                         Long targetId = reward.hasNonNull("targetId") ? reward.path("targetId").asLong() : null;
-                        String slotId = normalizeRewardSlot(reward.path("slotId").asText(""));
-                        value = rewardValueWithLetterReveal(value, reward);
+                        value = rewardValueWithLetterReveal(value, reward, type);
                         boolean added = applyReward(progress, spot, type, value, slotId, targetId);
                         if (added) {
                             rewardTypes.add(type);
@@ -903,8 +955,8 @@ public class EpisodePlayService {
         };
     }
 
-    private String rewardValueWithLetterReveal(String value, JsonNode reward) {
-        if (reward == null || !"ANSWER_CLUE".equals(reward.path("type").asText(""))) {
+    private String rewardValueWithLetterReveal(String value, JsonNode reward, String type) {
+        if (reward == null || !"ANSWER_CLUE".equals(type)) {
             return value;
         }
         JsonNode letterReveal = reward.path("letterReveal");
@@ -920,9 +972,13 @@ public class EpisodePlayService {
     }
 
     private String rewardTypeForSpot(MissionSpot spot) {
+        return rewardTypeForSpot(spot, "", "");
+    }
+
+    private String rewardTypeForSpot(MissionSpot spot, String requestedType, String slotId) {
         String role = spot == null ? "" : spot.getClueRole();
         return switch (role) {
-            case "ANSWER_HINT" -> "RELATED_PERSON".equals(inferAnswerSlot(spot, "")) ? "SUSPECT_CLUE" : "ANSWER_CLUE";
+            case "ANSWER_HINT" -> "RELATED_PERSON".equals(normalizeRewardSlot(slotId)) || "SUSPECT_CLUE".equals(requestedType) ? "SUSPECT_CLUE" : "ANSWER_CLUE";
             case "DESTINATION_HINT", "FINAL_PLACE" -> "DESTINATION_CLUE";
             default -> "STORY_CLUE";
         };
@@ -1009,6 +1065,19 @@ public class EpisodePlayService {
 
     private boolean isEvidenceUnlock(String type) {
         return "EVIDENCE_UNLOCK".equals(type) || "PHOTO_UNLOCK".equals(type) || "MEMO_UNLOCK".equals(type);
+    }
+
+    private boolean isClueReward(String type) {
+        return "SUSPECT_CLUE".equals(type) || "ANSWER_CLUE".equals(type) || "DESTINATION_CLUE".equals(type) || "STORY_CLUE".equals(type);
+    }
+
+    private String slotIdForRewardType(String type) {
+        return switch (type) {
+            case "SUSPECT_CLUE" -> "RELATED_PERSON";
+            case "ANSWER_CLUE" -> "ANSWER_CLUE";
+            case "DESTINATION_CLUE" -> "FINAL_DESTINATION";
+            default -> "";
+        };
     }
 
     private String itemType(String rewardType) {

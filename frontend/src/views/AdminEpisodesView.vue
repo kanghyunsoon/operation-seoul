@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="admin-episode-page">
     <header class="admin-hero">
       <div>
@@ -181,7 +181,11 @@
               <div class="edit-grid">
               <label>제목<input v-model.trim="episodeForm.title" type="text" /></label>
               <label>부제<input v-model.trim="episodeForm.subtitle" type="text" /></label>
-              <label>장르<input v-model.trim="episodeForm.genre" type="text" /></label>
+              <label>장르
+                <select v-model="episodeForm.genre">
+                  <option v-for="genre in allowedGenres" :key="genre.id" :value="genre.name">{{ genre.name }}</option>
+                </select>
+              </label>
               <label>시대<input v-model.trim="episodeForm.era" type="text" /></label>
               <label>난이도<input v-model.trim="episodeForm.difficulty" type="text" /></label>
               <label>상태
@@ -195,7 +199,8 @@
               <label>최종 정답<input v-model.trim="episodeForm.finalAnswer" type="text" /></label>
               <label class="wide">정답 alias<input v-model.trim="episodeForm.finalAnswerAliases" type="text" /></label>
               <label class="wide">최종 질문<input v-model.trim="episodeForm.finalQuestion" type="text" /></label>
-              <label class="wide">픽션 시놉시스<textarea v-model="episodeForm.fictionSynopsis" rows="3"></textarea></label>
+              <label class="wide">사건 줄거리<textarea v-model="episodeForm.fictionSynopsis" rows="3"></textarea></label>
+              <label class="wide">사용자 미션 설명<textarea v-model="episodeForm.missionDescription" rows="3"></textarea></label>
               <label class="wide">진실 파일<textarea v-model="episodeForm.finalTruthSummary" rows="3"></textarea></label>
               <label class="wide">실제 역사 해설<textarea v-model="episodeForm.actualHistorySummary" rows="3"></textarea></label>
               <label class="wide">추리 secret facts<textarea v-model="episodeForm.deductionSecretFacts" rows="3"></textarea></label>
@@ -501,9 +506,9 @@
             <strong>AI 장르/최종 정답 키워드 계획</strong>
             <p>장르: {{ draftPlan.selectedGenreName || draftPlan.selectedGenre }}</p>
             <div class="chips">
-              <span v-for="item in draftPlan.finalAnswerKeywords || []" :key="`${item.label}-${item.keyword}`">
-                {{ item.label }}: {{ item.keyword }}<template v-if="item.personRole || item.role"> / 역할: {{ item.personRole || item.role }}</template>
-              </span>
+              <span>관련자: {{ draftPlan.finalAnswers?.relatedPerson }}</span>
+              <span>핵심 단서: {{ draftPlan.finalAnswers?.coreClue }}</span>
+              <span>최종 장소: {{ draftPlan.finalAnswers?.finalLocation }}</span>
             </div>
             <p v-if="draftPlan.finalQuestionGuide">최종 질문 방향: {{ draftPlan.finalQuestionGuide }}</p>
             <p v-if="draftPlan.rationale">{{ draftPlan.rationale }}</p>
@@ -701,7 +706,11 @@
               <div class="edit-grid">
                 <label>제목<input v-model.trim="draftResult.draft.episodeTitle" type="text" /></label>
                 <label>부제<input v-model.trim="draftResult.draft.subtitle" type="text" /></label>
-                <label>장르<input v-model.trim="draftResult.draft.genre" type="text" /></label>
+                <label>장르
+                  <select v-model="draftResult.draft.genre" @change="draftResult.draft.selectedGenre = draftResult.draft.genre">
+                    <option v-for="genre in allowedGenres" :key="genre.id" :value="genre.name">{{ genre.name }}</option>
+                  </select>
+                </label>
                 <label>시대<input v-model.trim="draftResult.draft.era" type="text" /></label>
                 <label>정답 유형
                   <select v-model="draftResult.draft.finalAnswerType">
@@ -717,7 +726,8 @@
                 <label>질문 제한<input v-model.number="draftResult.draft.maxDeductionQuestions" type="number" min="1" /></label>
                 <label class="wide">정답 alias, 쉼표 구분<input :value="listToCsv(draftResult.draft.finalAnswerAliases)" type="text" @input="draftResult.draft.finalAnswerAliases = csvToList($event.target.value)" /></label>
                 <label class="wide">최종 질문<input v-model.trim="draftResult.draft.finalQuestion" type="text" /></label>
-                <label class="wide">Fiction Mode 임무 브리핑<textarea v-model="draftResult.draft.fictionSynopsis" rows="3"></textarea></label>
+                <label class="wide">Fiction Mode 사건 줄거리<textarea v-model="draftResult.draft.fictionSynopsis" rows="3"></textarea></label>
+                <label class="wide">사용자 미션 설명<textarea v-model="draftResult.draft.missionDescription" rows="3"></textarea></label>
                 <label class="wide">Fact Mode 3. 픽션과 역사의 매칭<textarea v-model="draftResult.draft.finalTruthSummary" rows="4"></textarea></label>
                 <label class="wide">Fact Mode 1~2. 모티브 공개/실제 사건 해설<textarea v-model="draftResult.draft.actualHistorySummary" rows="5"></textarea></label>
                 <label class="wide">추리 secret facts, 줄바꿈 구분<textarea :value="listToLines(draftResult.draft.deductionSecretFacts)" rows="3" @input="draftResult.draft.deductionSecretFacts = linesToList($event.target.value)"></textarea></label>
@@ -922,6 +932,17 @@ import { useRouter } from 'vue-router';
 import { adminEpisodeApi } from '@/api/adminEpisodeApi';
 
 const router = useRouter();
+const allowedGenres = [
+  { id: 'MURDER_MYSTERY', name: '살인 미스터리' },
+  { id: 'MISSING_CASE', name: '실종 사건' },
+  { id: 'TREASURE_HUNT', name: '보물찾기' },
+  { id: 'CODE_BREAKING', name: '암호 해독' }
+];
+const commonAnswerSlots = [
+  { slotId: 'RELATED_PERSON', field: 'relatedPerson', label: '관련자', description: '사건과 직접 연결되는 인물', minClueCount: 3 },
+  { slotId: 'ANSWER_CLUE', field: 'coreClue', label: '핵심 단서', description: '최종 결론을 성립시키는 구체적인 단서', minClueCount: 3 },
+  { slotId: 'FINAL_DESTINATION', field: 'finalLocation', label: '최종 장소', description: '내부 최종 목적지의 실제 장소명', minClueCount: 3 }
+];
 const episodes = ref([]);
 const selected = ref(null);
 const selectedEpisodeId = ref(null);
@@ -1203,6 +1224,7 @@ function hydrateEpisodeForm(episode) {
     estimatedTime: episode.estimatedTime || '',
     estimatedDistance: episode.estimatedDistance || '',
     fictionSynopsis: episode.fictionSynopsis || '',
+    missionDescription: episode.missionDescription || episode.fictionSynopsis || '',
     finalAnswerType: episode.finalAnswerType || '',
     finalAnswer: episode.finalAnswer || '',
     finalAnswerAliases: episode.finalAnswerAliases || '',
@@ -1869,6 +1891,9 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
   if (!draft.fictionSynopsis || isWeakText(draft.fictionSynopsis) || isRepeatedDefaultSynopsis(draft.fictionSynopsis)) {
     draft.fictionSynopsis = objective.synopsis || synopsisForMotif(draft, motif);
   }
+  if (!draft.missionDescription || isWeakText(draft.missionDescription) || isRepeatedDefaultSynopsis(draft.missionDescription)) {
+    draft.missionDescription = draft.fictionSynopsis;
+  }
   maskDraftKeywordLeaks(draft, draft.finalAnswerKeywords || []);
   if (!draft.finalTruthSummary || isWeakText(draft.finalTruthSummary)) {
     draft.finalTruthSummary = `3. 픽션과 역사의 매칭 (디브리핑)
@@ -1992,6 +2017,7 @@ function inferCaseMotif(draft) {
     draft?.episodeTitle,
     draft?.subtitle,
     draft?.fictionSynopsis,
+    draft?.missionDescription,
     ...(Array.isArray(draft?.missions) ? draft.missions.flatMap((mission) => [mission.placeName, mission.storyText, mission.rewardClue, mission.groundRule]) : [])
   ].join(' ');
   if (source.includes('커피') || source.includes('카페') || source.includes('찻집') || source.includes('CE7')) {
@@ -2067,6 +2093,7 @@ function finalQuestionForMotif(motif) {
 function inferFinalObjective(draft, motif) {
   const source = [
     draft?.fictionSynopsis,
+    draft?.missionDescription,
     draft?.finalQuestion,
     draft?.episodeTitle,
     draft?.subtitle,
@@ -2135,6 +2162,9 @@ function maskDraftKeywordLeaks(draft, keywords) {
   if (containsKeywordLeak(draft.fictionSynopsis, values) || containsMaskPlaceholder(draft.fictionSynopsis)) {
     draft.fictionSynopsis = safeFictionSynopsis(draft);
   }
+  if (containsKeywordLeak(draft.missionDescription, values) || containsMaskPlaceholder(draft.missionDescription)) {
+    draft.missionDescription = safeFictionSynopsis(draft);
+  }
   draft.finalQuestion = maskKeywords(draft.finalQuestion, values);
 }
 
@@ -2180,30 +2210,33 @@ function containsMaskPlaceholder(text) {
 }
 
 function safeFictionSynopsis(draft) {
+  const missions = (draft?.missions || []).filter((mission) => !mission.finalPlace && mission.markerType !== 'FINAL');
+  const firstPlace = missions[0]?.placeName || '첫 조사 장소';
+  const secondPlace = missions[1]?.placeName || '다음 조사 장소';
+  const genre = draft?.selectedGenre || draft?.genre || '실종 사건';
   const source = [
     draft?.episodeTitle,
     draft?.subtitle,
-    draft?.fictionSynopsis,
-    draft?.selectedGenre,
-    draft?.genre
+    ...missions.flatMap((mission) => [mission.storyText, mission.rewardClue, mission.groundRule])
   ].join(' ');
-  if (containsAny(source, ['항구', '항해', '개항', '항로', '일지', '목포'])) {
-    return '오래된 항구 기록이 발견되며, 공식 기록에 남지 않은 이동 경로와 그 길을 막아선 세력의 흔적이 드러난다. 요원은 항구 일대에 흩어진 암호와 증언을 대조해 숨겨진 경로의 의미, 방해자의 목적, 마지막 기록이 가리키는 결론을 밝혀야 한다.';
+  const clueTypes = containsAny(source, ['사진', '필름', '렌즈'])
+    ? '사진의 촬영 순서, 봉투 흔적, 시간 기록'
+    : containsAny(source, ['암호', '숫자', '문장', '표식'])
+      ? '반복되는 숫자, 방향 표식, 문장의 배열'
+      : containsAny(source, ['붓', '그림', '초안'])
+        ? '붓 자국, 찢어진 초안, 작업 시간 기록'
+        : '남겨진 물건, 시간 기록, 이동 방향';
+
+  if (genre === '살인 미스터리') {
+    return `${firstPlace}에서 단순 사고로 보기 어려운 사건 흔적이 발견되었습니다. ${secondPlace}을 포함한 각 장소는 당시의 행동과 진술을 대조하기 위해 조사해야 합니다. ${clueTypes}을 비교해 잘못된 추측을 제외하고, 관련자의 역할과 사용된 핵심 단서, 사건이 이어진 최종 장소를 밝혀내세요.`;
   }
-  if (containsAny(source, ['검은 그림자', '검은그림자', '은신처', '거점', '아지트', '정체'])) {
-    return '도시 곳곳에 남은 표식이 하나의 비밀 조직을 가리킨다. 요원은 현장 기록과 엇갈린 증언을 대조해 조직의 역할, 숨어든 거점의 단서, 사건을 움직인 목적을 밝혀야 한다.';
+  if (genre === '보물찾기') {
+    return `${firstPlace}에서 발견된 기록은 숨겨진 물건을 직접 가리키지 않고 여러 장소에 보관 단서를 나누어 남기고 있습니다. ${secondPlace}을 포함한 각 장소에서 ${clueTypes}을 모아 기록의 순서와 해금 조건을 복원해야 합니다. 어떤 물건이 숨겨졌는지, 그것을 확인하는 조건과 최종 장소가 어디인지 추리하세요.`;
   }
-  if (containsAny(source, ['보물', '상자', '봉인', '열쇠', '해금'])) {
-    return '오래 봉인된 물건의 행방을 둘러싸고 서로 다른 기록이 발견된다. 요원은 현장에 남은 암호와 보관 흔적을 따라가며 물건의 정체, 보관된 장소의 특징, 봉인을 푸는 조건을 밝혀야 한다.';
+  if (genre === '암호 해독') {
+    return `${firstPlace}에서 시작된 사건의 핵심은 용의자 추적이 아니라 장소마다 달라지는 글자와 숫자의 배열입니다. ${secondPlace}을 포함한 각 장소에서 ${clueTypes}을 확인하고 반복되는 규칙을 비교해야 합니다. 여러 장소의 정보를 조합해 암호의 의미와 정보가 확인되는 최종 장소를 밝혀내세요.`;
   }
-  if (containsAny(source, ['암호', '문장', '숫자', '해독'])) {
-    return '낡은 기록 속 암호문이 여러 조사 지점에서 서로 다른 형태로 반복된다. 요원은 숫자, 문장, 상징의 연결 규칙을 찾아 마지막 암호가 전달하려던 의미를 밝혀야 한다.';
-  }
-  if (containsAny(source, ['실종', '사라진', '마지막'])) {
-    return '한 인물 또는 기록이 사라진 뒤, 마지막 동선을 둘러싼 증언들이 서로 어긋난다. 요원은 현장 단서와 남겨진 물건을 대조해 사라진 이유와 마지막 흔적이 가리키는 결론을 밝혀야 한다.';
-  }
-  const genre = draft?.selectedGenre || draft?.genre || '이 사건';
-  return `선택된 장소 일대에서 오래된 기록과 서로 어긋나는 증언이 발견된다. 요원은 현장 단서, 암호, 사건파일을 차례로 대조해 ${genre}의 핵심 역할과 마지막 단서가 가리키는 결론을 밝혀야 한다.`;
+  return `사건 관계자의 흔적은 ${firstPlace} 한 곳에서 끝나지 않고 ${secondPlace}을 포함한 여러 장소에 흩어져 있습니다. 각 장소는 실제 이동 경로와 사라진 이유를 복원하는 데 필요한 서로 다른 기록을 보관하고 있습니다. ${clueTypes}을 비교해 겉보기 순서와 실제 동선을 구분하고, 관련자의 역할과 핵심 단서, 마지막 행방이 이어지는 최종 장소를 추리하세요.`;
 }
 
 function containsKeywordLeak(text, keywords) {
@@ -2246,6 +2279,12 @@ function isWeakFinalQuestion(value) {
 function isRepeatedDefaultSynopsis(value) {
   const text = String(value || '').trim();
   return [
+    '요원,',
+    '시간이 많지 않네',
+    '평소 훈련한 대로',
+    '미션 파일을 확인하고',
+    '당황할 필요는 없네',
+    '내가 작전 기록을 통해 지원하겠네',
     '정동의 한 사진사가 의문의 죽음을 맞았다',
     '남은 것은 마지막 사진과 흩어진 기록뿐이다',
     '사진, 메모, 동선 기록이 서로 맞지 않게 섞여 있었다'
@@ -2626,6 +2665,11 @@ async function generateAnswerPlan() {
     draftPlan.value.finalAnswerKeywords = (draftPlan.value.finalAnswerKeywords || [])
       .map((item) => ({ ...item, keyword: normalizeAnswerKeywordValue(item.keyword) }))
       .filter((item) => item.keyword);
+    draftPlan.value.finalAnswers = {
+      relatedPerson: normalizeAnswerKeywordValue(draftPlan.value.finalAnswers?.relatedPerson),
+      coreClue: normalizeAnswerKeywordValue(draftPlan.value.finalAnswers?.coreClue),
+      finalLocation: normalizeAnswerKeywordValue(draftPlan.value.finalAnswers?.finalLocation)
+    };
     payload = applyDraftPlanToPayload(payload);
     draftInput.value = JSON.stringify(payload, null, 2);
     draftProgressStep.value = 'hydrate';
@@ -2649,6 +2693,11 @@ function applyDraftPlanToPayload(payload) {
     ...payload,
     selectedGenreId: draftPlan.value?.selectedGenreId || payload.selectedGenreId,
     selectedGenreName: draftPlan.value?.selectedGenreName || draftPlan.value?.selectedGenre || payload.selectedGenreName || payload.selectedGenre,
+    finalAnswers: {
+      relatedPerson: draftPlan.value?.finalAnswers?.relatedPerson || '',
+      coreClue: draftPlan.value?.finalAnswers?.coreClue || '',
+      finalLocation: draftPlan.value?.finalAnswers?.finalLocation || ''
+    },
     finalAnswerKeywords: keywords,
     finalAnswerKeywordItems: keywordItems
   };
@@ -3007,7 +3056,7 @@ function isLocalBusinessCandidate(candidate) {
   const value = [candidate.title, candidate.address, candidate.source, candidate.description]
     .map((item) => String(item || '').toLowerCase())
     .join(' ');
-  return ['\uCE74\uD398', 'cafe', '\uCEE4\uD53C', '\uC2DC\uC7A5', '\uC0C1\uAC00', '\uACE8\uBAA9', '\uB9DB\uC9D1', '\uC2DD\uB2F9', '\uBD84\uC2DD', '\uACF5\uBC29', '\uC11C\uC810', '\uBE75', '\uBCA0\uC774\uCEE4\uB9AC', '\uD3B8\uC9D1\uC20D']
+  return ['카페', 'cafe', '커피', '시장', '상가', '골목', '맛집', '식당', '분식', '공방', '서점', '빵', '베이커리', '편집숍']
     .some((keyword) => value.includes(keyword));
 }
 
@@ -3018,7 +3067,7 @@ function candidateRouteScore(candidate, anchor) {
   const value = [normalized.title, normalized.address, normalized.source, normalized.description]
     .map((item) => String(item || '').toLowerCase())
     .join(' ');
-  if (['\uBB38\uD654', '\uBC15\uBB3C\uAD00', '\uBBF8\uC220\uAD00', '\uC804\uC2DC', '\uCC45', '\uC5ED\uC0AC', '\uACF5\uC6D0', '\uAC70\uB9AC'].some((keyword) => value.includes(keyword))) score += 24;
+  if (['문화', '박물관', '미술관', '전시', '책', '역사', '공원', '거리'].some((keyword) => value.includes(keyword))) score += 24;
   const distance = candidateDistanceMeters(anchor, normalized);
   if (Number.isFinite(distance)) {
     if (distance >= 120 && distance <= nearbyRadius.value) score += 20;
@@ -3098,12 +3147,12 @@ function rerollRecommendedRoute() {
   selectedCandidates.value = [...pickSpacedRouteCandidates(pool, anchor, 8), anchor].slice(0, 9);
   siteDataEnriched.value = false;
   applyCandidatesToDraft(false);
-  setMessage('\uCD94\uCC9C \uB8E8\uD2B8\uB97C \uB2E4\uC2DC \uAD6C\uC131\uD588\uC2B5\uB2C8\uB2E4. \uD544\uC694\uD558\uBA74 \uD6C4\uBCF4\uBCC4 \uAD50\uCCB4 \uBC84\uD2BC\uC73C\uB85C \uB354 \uC870\uC815\uD558\uC138\uC694.', 'success');
+  setMessage('추천 루트를 다시 구성했습니다. 필요하면 후보별 교체 버튼으로 더 조정하세요.', 'success');
 }
 
 function replaceSelectedCandidate(candidate) {
   if (isAnchorCandidate(candidate)) {
-    setMessage('TourAPI \uAE30\uC900 \uC7A5\uC18C\uB294 \uB0B4\uBD80 \uCD5C\uC885 \uC7A5\uC18C\uB77C \uC774 \uB2E8\uACC4\uC5D0\uC11C \uAD50\uCCB4\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.', 'error');
+    setMessage('TourAPI 기준 장소는 내부 최종 장소라 이 단계에서 교체할 수 없습니다.', 'error');
     return;
   }
   const oldKey = candidateKey(candidate);
@@ -3115,13 +3164,13 @@ function replaceSelectedCandidate(candidate) {
     .filter((item) => isFarEnoughFromRoute(item, selectedCandidates.value.filter((selected) => candidateKey(selected) !== oldKey)))
     .sort((a, b) => candidateRouteScore(b, anchor) - candidateRouteScore(a, anchor))[0];
   if (!replacement) {
-    setMessage('\uAD50\uCCB4\uD560 \uC218 \uC788\uB294 \uD6C4\uBCF4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uBC18\uACBD\uC744 \uB113\uD788\uAC70\uB098 \uC218\uB3D9 \uD6C4\uBCF4\uB97C \uCD94\uAC00\uD558\uC138\uC694.', 'error');
+    setMessage('교체할 수 있는 후보가 없습니다. 반경을 넓히거나 수동 후보를 추가하세요.', 'error');
     return;
   }
   selectedCandidates.value = selectedCandidates.value.map((item) => candidateKey(item) === oldKey ? replacement : item);
   siteDataEnriched.value = false;
   applyCandidatesToDraft(false);
-  setMessage('\uD6C4\uBCF4\uB97C ' + replacement.title + '\uB85C \uAD50\uCCB4\uD588\uC2B5\uB2C8\uB2E4.', 'success');
+  setMessage('후보를 ' + replacement.title + '로 교체했습니다.', 'success');
 }
 
 function isAnchorCandidate(candidate) {
@@ -3156,7 +3205,7 @@ function defaultVisibleElementsForCandidate(candidate = {}, index = 0) {
   const fallback = ['봉투', '수첩', '기록', '조각', '표식', '문', '발자국', '사진'];
   const raw = [candidate.title, candidate.description, candidate.source].join(' ');
   const tokens = raw
-    .replace(/[^\uAC00-\uD7A3A-Za-z0-9\s]/g, ' ')
+    .replace(/[^가-힣A-Za-z0-9\s]/g, ' ')
     .split(/\s+/)
     .map((token) => token.trim())
     .filter((token) => token.length >= 2 && token.length <= 8)
@@ -3195,9 +3244,14 @@ function applyCandidatesToDraft(showMessage = true) {
   const payload = {
     area: areaLabel(candidateAreaCode.value),
     era: inferEraFromCandidates(orderedCandidates),
-    theme: '역사 미스터리',
+    theme: '야외 사건 미션',
     targetAudience: '야외 방탈출 플레이어',
     playTime: '90~120분',
+    genreCatalog: allowedGenres.map((genre) => ({
+      genreId: genre.id,
+      genreName: genre.name,
+      answerSlots: commonAnswerSlots
+    })),
     places: orderedCandidates.map((candidate, index) => ({
       name: candidate.title,
       address: candidate.address,

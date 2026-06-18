@@ -53,6 +53,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     estimated_time varchar(100) null,
                     estimated_distance varchar(100) null,
                     fiction_synopsis text null,
+                    mission_description text null,
                     final_answer_type varchar(64) null,
                     final_answer varchar(255) null,
                     final_answer_aliases varchar(1000) null,
@@ -251,6 +252,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         addColumnIfMissing("episodes", "recommended_players", "alter table episodes add column recommended_players varchar(100) null");
         addColumnIfMissing("episodes", "team_role_guide", "alter table episodes add column team_role_guide text null");
         addColumnIfMissing("episodes", "notice_text", "alter table episodes add column notice_text text null");
+        addColumnIfMissing("episodes", "mission_description", "alter table episodes add column mission_description text null");
         addColumnIfMissing("puzzles", "reward_payload", "alter table puzzles add column reward_payload text null");
         addColumnIfMissing("mission_spots", "field_verified", "alter table mission_spots add column field_verified boolean not null default false");
         addColumnIfMissing("mission_spots", "field_verification_note", "alter table mission_spots add column field_verification_note text null");

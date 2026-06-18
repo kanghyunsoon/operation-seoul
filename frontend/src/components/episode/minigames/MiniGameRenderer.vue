@@ -7,6 +7,7 @@
       :config="config"
       :submit-value="submitValue"
       :basis="basis"
+      :retry-variant="retryVariant"
       @solved-change="handleSolved"
       @proof-change="handleProof"
       @auto-submit="handleAutoSubmit"
@@ -52,6 +53,7 @@ const activeComponent = computed(() => registry[type.value] || null);
 const config = computed(() => props.interaction?.config || {});
 const submitValue = computed(() => String(props.interaction?.localSolution || props.interaction?.basis || '').trim());
 const basis = computed(() => props.interaction?.basis || '');
+const retryVariant = computed(() => Number(props.interaction?.retryVariant || 0));
 const missionDescription = computed(() => props.interaction?.missionDescription || props.interaction?.prompt || '아래 미션을 해결하여 단서를 얻으세요.');
 const autoSubmit = computed(() => ['UP_DOWN_TIMER', 'NUMBER_BASEBALL', 'NUMBER_SEQUENCE_TAP', 'COLOR_STROOP', 'LEFT_RIGHT_SORT'].includes(type.value));
 const statusText = computed(() => {
@@ -69,16 +71,24 @@ function handleSolved(value) {
 }
 
 function handleProof(value) {
-  latestProof.value = String(value || '');
+  latestProof.value = withRetryVariant(String(value || ''));
   emit('proof-change', latestProof.value);
 }
 
 function handleAutoSubmit(value) {
-  const proof = String(value || latestProof.value || '');
+  const proof = withRetryVariant(String(value || latestProof.value || ''));
   if (!proof) return;
   latestProof.value = proof;
   emit('proof-change', proof);
   emit('auto-submit', proof);
+}
+
+function withRetryVariant(proof) {
+  if (!proof || retryVariant.value <= 0) return proof;
+  const parts = proof.split('|');
+  if (parts.length < 3 || parts[0] !== 'MG') return proof;
+  if (parts[2]?.startsWith('R')) return proof;
+  return `MG|${parts[1]}|R${retryVariant.value}|${parts.slice(2).join('|')}`;
 }
 </script>
 <style scoped>

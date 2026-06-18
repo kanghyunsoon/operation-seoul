@@ -17,6 +17,7 @@ public class AiEpisodePlanResponse {
 
     private List<AnswerSlotPlan> answerSlots;
     private List<AnswerKeyword> finalAnswerKeywords;
+    private FinalAnswers finalAnswers;
 
     private String finalQuestionGuide;
     private String rationale;
@@ -59,5 +60,15 @@ public class AiEpisodePlanResponse {
         private String sourceText;
         private String difficulty;
         private String risk;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FinalAnswers {
+        private String relatedPerson;
+        private String coreClue;
+        private String finalLocation;
     }
 }

@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdminEpisodeGeminiServiceTest {
@@ -32,12 +33,26 @@ class AdminEpisodeGeminiServiceTest {
         method.setAccessible(true);
         method.invoke(service, draft, source, new ArrayList<String>());
 
-        assertTrue(draft.getFinalQuestion().contains("실종 원인"));
-        assertTrue(draft.getFinalQuestion().contains("마지막 장소"));
-        assertTrue(draft.getFinalQuestion().contains("관련 물건"));
-        assertTrue(draft.getFinalAnswer().contains("통신 두절"));
+        assertEquals("실종 사건", draft.getGenre());
+        assertEquals("실종 사건", draft.getSelectedGenre());
+        assertTrue(draft.getFinalQuestion().contains("관련자"));
+        assertTrue(draft.getFinalQuestion().contains("핵심 단서"));
+        assertTrue(draft.getFinalQuestion().contains("최종 장소"));
+        assertTrue(draft.getFinalAnswer().contains("한서림"));
         assertTrue(draft.getFinalAnswer().contains("지하 연결로"));
         assertTrue(draft.getFinalAnswer().contains("찢어진 수첩"));
+        assertEquals("한서림", draft.getFinalAnswers().getRelatedPerson());
+        assertEquals("찢어진 수첩", draft.getFinalAnswers().getCoreClue());
+        assertEquals("지하 연결로", draft.getFinalAnswers().getFinalLocation());
+        assertFalse(draft.getFictionSynopsis().contains("테스트 지점 1"));
+        assertTrue(draft.getFictionSynopsis().contains("핵심 단서"));
+        assertTrue(draft.getFictionSynopsis().contains("최종 장소"));
+        assertFalse(draft.getFictionSynopsis().contains("요원"));
+        assertFalse(draft.getFictionSynopsis().contains("시간이 많지 않네"));
+        assertFalse(draft.getFictionSynopsis().contains("미션 파일을 확인하고"));
+        assertFalse(draft.getFictionSynopsis().contains("한서림"));
+        assertFalse(draft.getFictionSynopsis().contains("찢어진 수첩"));
+        assertFalse(draft.getFictionSynopsis().contains("지하 연결로"));
 
         AiEpisodeDraftValidationRequest request = new AiEpisodeDraftValidationRequest();
         request.setDraft(draft);
@@ -57,7 +72,7 @@ class AdminEpisodeGeminiServiceTest {
     private AiEpisodeDraftRequest sourceInput() {
         AiEpisodeDraftRequest request = new AiEpisodeDraftRequest();
         request.setSelectedGenreId("MISSING_CASE");
-        request.setSelectedGenreName("용산 연락 두절 추적");
+        request.setSelectedGenreName("실종 사건");
 
         AiEpisodeDraftRequest.MissionPolicyInput missionPolicy = new AiEpisodeDraftRequest.MissionPolicyInput();
         missionPolicy.setMissionCount(9);
@@ -73,11 +88,16 @@ class AdminEpisodeGeminiServiceTest {
         request.setPuzzlePolicy(puzzlePolicy);
 
         request.setFinalAnswerKeywordItems(List.of(
-                keyword("CAUSE", "실종 원인", "통신 두절"),
-                keyword("LAST_PLACE", "마지막 장소", "지하 연결로"),
-                keyword("RELATED_OBJECT", "관련 물건", "찢어진 수첩")
+                keyword("RELATED_PERSON", "관련자", "한서림"),
+                keyword("ANSWER_CLUE", "핵심 단서", "찢어진 수첩"),
+                keyword("FINAL_DESTINATION", "최종 장소", "지하 연결로")
         ));
-        request.setFinalAnswerKeywords(List.of("통신 두절", "지하 연결로", "찢어진 수첩"));
+        request.setFinalAnswerKeywords(List.of("한서림", "찢어진 수첩", "지하 연결로"));
+        AiEpisodeDraftRequest.FinalAnswersInput finalAnswers = new AiEpisodeDraftRequest.FinalAnswersInput();
+        finalAnswers.setRelatedPerson("한서림");
+        finalAnswers.setCoreClue("찢어진 수첩");
+        finalAnswers.setFinalLocation("지하 연결로");
+        request.setFinalAnswers(finalAnswers);
 
         List<AiEpisodeDraftRequest.PlaceInput> places = new ArrayList<>();
         for (int i = 0; i < 9; i++) {

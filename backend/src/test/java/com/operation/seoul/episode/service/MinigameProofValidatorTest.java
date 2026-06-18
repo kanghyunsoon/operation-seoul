@@ -3,13 +3,16 @@ package com.operation.seoul.episode.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MinigameProofValidatorTest {
-    private final MinigameProofValidator validator = new MinigameProofValidator(new ObjectMapper());
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final MinigameRetryVariantFactory retryVariantFactory = new MinigameRetryVariantFactory(objectMapper);
+    private final MinigameProofValidator validator = new MinigameProofValidator(objectMapper, retryVariantFactory);
 
     @Test
     void acceptsValidProofForSupportedMinigameTypes() {
@@ -46,6 +49,23 @@ class MinigameProofValidatorTest {
         ProofCase rapidTap = new ProofCase("RAPID_TAP", "{\"target\":29}", "", "29");
         assertFalse(validator.validate(payload(rapidTap), "MG|RAPID_TAP|28"));
         assertFalse(validator.validate(payload(rapidTap), "MG|RAPID_TAP|30"));
+    }
+
+    @Test
+    void validatesOnlyCurrentRetryVariant() throws Exception {
+        ProofCase direction = new ProofCase("DIRECTION_SEQUENCE", "{\"sequence\":[\"UP\",\"LEFT\",\"DOWN\"]}", "", "UP,LEFT,DOWN");
+        assertFalse(validator.validate(payload(direction), "MG|DIRECTION_SEQUENCE|UP,LEFT,DOWN", 1));
+
+        var sequence = retryVariantFactory
+                .variantInteraction(objectMapper.readTree(payload(direction)).path("interaction"), 1)
+                .path("config")
+                .path("sequence");
+        List<String> values = new ArrayList<>();
+        sequence.forEach(item -> values.add(item.asText()));
+        String expected = String.join(",", values);
+        String retryProof = "MG|DIRECTION_SEQUENCE|R1|" + expected;
+        assertTrue(validator.validate(payload(direction), retryProof, 1));
+        assertFalse(validator.validate(payload(direction), retryProof, 2));
     }
 
     private String payload(ProofCase proofCase) {

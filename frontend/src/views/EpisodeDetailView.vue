@@ -18,7 +18,7 @@
       </div>
       <h1>{{ episode.title }}</h1>
       <h2>{{ episode.subtitle }}</h2>
-      <p class="synopsis">{{ episode.fictionSynopsis }}</p>
+      <p class="synopsis">{{ episode.missionDescription || episode.fictionSynopsis }}</p>
       <div class="info-grid">
         <span>난이도 <strong>{{ episode.difficulty }}</strong></span>
         <span>예상 시간 <strong>{{ episode.estimatedTime }}</strong></span>

@@ -33,44 +33,12 @@
           <span>{{ caseFile.overview?.storyUnlocked ? '스토리 기록 해금' : '시작 미션 필요' }}</span>
         </div>
         <p class="story-summary">{{ caseFile.overview?.summary }}</p>
-        <div v-if="caseFile.overview?.storyUnlocked && caseFile.overview?.unlockedStoryClues?.length" class="story-clue-strip">
-          <strong>해금된 스토리 단서</strong>
-          <span v-for="(clue, index) in caseFile.overview.unlockedStoryClues" :key="`overview-story-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
+        <div v-if="caseFile.overview?.storyUnlocked && overviewStoryClues.length" class="story-clue-strip">
+          <strong>해금된 사건 기록</strong>
+          <span v-for="(clue, index) in overviewStoryClues" :key="`overview-story-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
         </div>
         <p v-else class="story-locked-help">시작 장소의 현장 퍼즐을 해결하면 이 카드가 상세 스토리 기록으로 갱신됩니다.</p>
         <p class="goal">목표: {{ caseFile.overview?.goal }}</p>
-      </section>
-
-      <section class="dossier board">
-        <div class="section-head">
-          <div>
-            <p class="section-label">수집 단서</p>
-            <h3>최종 정답 키워드별 힌트</h3>
-            <p class="section-help">미션 보상 단서는 관련자 힌트, 핵심 단서 힌트, 장소 힌트로 나뉘며 시작 장소의 스토리 단서는 별도로 보관됩니다.</p>
-          </div>
-        </div>
-        <div class="clue-summary-grid">
-          <article>
-            <strong>관련자 힌트</strong>
-            <span v-for="(clue, index) in relatedPersonClues" :key="`related-${clue}`">{{ humanizeClue(clue, 'related', index) }}</span>
-            <em v-if="!relatedPersonClues.length">아직 없음</em>
-          </article>
-          <article>
-            <strong>핵심 단서 힌트</strong>
-            <span v-for="(clue, index) in coreClues" :key="`core-${clue}`">{{ humanizeClue(clue, 'core', index) }}</span>
-            <em v-if="!coreClues.length">아직 없음</em>
-          </article>
-          <article>
-            <strong>장소 힌트</strong>
-            <span v-for="(clue, index) in caseFile.clueSummary?.destinationClues || []" :key="`destination-${clue}`">{{ humanizeClue(clue, 'destination', index) }}</span>
-            <em v-if="!(caseFile.clueSummary?.destinationClues || []).length">아직 없음</em>
-          </article>
-          <article>
-            <strong>스토리 단서</strong>
-            <span v-for="(clue, index) in caseFile.clueSummary?.storyClues || []" :key="`story-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
-            <em v-if="!(caseFile.clueSummary?.storyClues || []).length">아직 없음</em>
-          </article>
-        </div>
       </section>
 
       <section class="dossier">
@@ -89,17 +57,15 @@
             <div>
               <em>{{ suspect.alias || '용의자' }}</em>
               <h4>{{ suspect.displayName || '이름 미확인 인물' }}</h4>
-              <p>{{ suspect.shortDescription || '사건과 연결된 가능성이 있는 인물입니다. 단서를 모으면 관계와 알리바이가 더 명확해집니다.' }}</p>
+              <p>{{ suspect.relationToVictim || suspect.shortDescription || '사건과 연결된 가능성이 있는 인물입니다. 단서를 모으면 관계와 알리바이가 더 명확해집니다.' }}</p>
             </div>
-            <details class="suspect-detail">
-              <summary>상세 확인</summary>
+            <div class="suspect-facts">
               <dl>
-                <dt>관계</dt><dd>{{ suspect.relationToVictim || '관계 미확인' }}</dd>
                 <dt>의심 포인트</dt><dd>{{ suspect.suspiciousPoint || '의심 포인트 미입력' }}</dd>
                 <dt>알리바이</dt><dd>{{ suspect.alibiSummary || '알리바이 미확인' }}</dd>
               </dl>
-            </details>
-            <span class="unlock-badge">{{ suspect.cleared ? '혐의 해소' : suspect.unlocked ? '상세 확인' : '기본 공개' }}</span>
+            </div>
+            <span class="unlock-badge">{{ suspect.cleared ? '혐의 해소' : suspect.unlocked ? '정보 확인' : '기본 공개' }}</span>
           </article>
         </div>
       </section>
@@ -109,7 +75,7 @@
           <div>
             <p class="section-label">증거 / 메모 / 사진 카드</p>
             <h3>{{ caseFile.progressSummary.unlockedEvidenceCount }}/{{ caseFile.progressSummary.totalEvidenceCount }}개 해금</h3>
-            <p class="section-help">각 카드는 관련자 힌트, 핵심 단서 힌트, 장소 힌트 중 하나를 좁히는 근거입니다. 해금 순서와 관련 인물을 함께 보면 최종 추리 난도가 내려갑니다.</p>
+            <p class="section-help">각 카드는 관계자 힌트, 핵심 단서 힌트, 장소 힌트 중 하나를 좁히는 근거입니다. 해금 순서와 관계자 정보를 함께 보면 최종 추리 난도가 내려갑니다.</p>
           </div>
         </div>
         <div class="evidence-grid">
@@ -119,14 +85,9 @@
               <span v-else>LOCKED</span>
             </div>
             <div>
-              <span class="tag">{{ evidenceTypeLabel(evidence.type) }}</span>
+              <span v-if="evidence.unlocked && evidence.relatedClueType" class="hint-type">{{ clueTypeLabel(evidence.relatedClueType) }}</span>
               <h4>{{ evidence.unlocked ? evidence.title : '잠긴 사건자료' }}</h4>
               <p>{{ evidence.unlocked ? evidence.textSummary : '현장 퍼즐을 해결하면 이 자료가 미션 파일에 추가됩니다.' }}</p>
-              <div class="evidence-meta">
-                <small v-if="evidence.relatedClueType">{{ clueTypeLabel(evidence.relatedClueType) }}</small>
-                <small v-if="evidence.unlocked && evidence.relatedSuspectIds?.length">관련 인물 {{ suspectNames(evidence.relatedSuspectIds) }}</small>
-                <small v-if="!evidence.unlocked">가방에 들어올 자료</small>
-              </div>
             </div>
             <span v-if="evidence.unlocked" class="unlock-badge">해금됨</span>
             <span v-else class="lock">잠김</span>
@@ -173,17 +134,20 @@ const error = ref('');
 
 const cleanNotices = computed(() => (caseFile.value?.notices || []).filter((notice) => !String(notice).includes('AI 초안 저장본')));
 const visibleSuspects = computed(() => (caseFile.value?.suspects || []).filter((suspect) => suspect.displayName || suspect.alias));
-const relatedPersonClues = computed(() => {
-  const explicit = caseFile.value?.clueSummary?.relatedPersonClues || [];
-  if (explicit.length) return explicit;
-  return legacyAnswerClues().filter((_, index) => index % 2 === 0);
+const overviewStoryClues = computed(() => {
+  const evidenceTexts = new Set((caseFile.value?.evidences || [])
+    .filter((evidence) => evidence.unlocked)
+    .flatMap((evidence) => [evidence.title, evidence.textSummary])
+    .filter(Boolean)
+    .map((value) => normalizeText(value)));
+  return [
+    ...(caseFile.value?.overview?.unlockedStoryClues || []),
+    ...(caseFile.value?.clueSummary?.storyClues || [])
+  ]
+    .filter(Boolean)
+    .filter((clue, index, list) => list.findIndex((item) => normalizeText(item) === normalizeText(clue)) === index)
+    .filter((clue) => !evidenceTexts.has(normalizeText(clue)));
 });
-const coreClues = computed(() => {
-  const explicit = caseFile.value?.clueSummary?.coreClues || [];
-  if (explicit.length) return explicit;
-  return legacyAnswerClues().filter((_, index) => index % 2 === 1);
-});
-
 onMounted(loadCaseFile);
 
 async function loadCaseFile() {
@@ -199,28 +163,19 @@ async function loadCaseFile() {
 }
 
 const statusLabel = (status) => ({ NOT_STARTED: '시작 전', IN_PROGRESS: '조사 중', FINAL_READY: '최종 추리 가능', CLEARED: '클리어 완료', FAILED: '실패' }[status] || status);
-const clueTypeLabel = (type) => ({ ANSWER_CLUE: '핵심 단서 힌트', DESTINATION_CLUE: '장소 힌트', STORY_CLUE: '스토리 단서', SUSPECT_CLUE: '관련자 힌트' }[type] || type);
-const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '관련자 힌트', POST_IT: '포스트잇', ANSWER_CLUE: '핵심 단서 힌트', DESTINATION_CLUE: '장소 힌트', STORY_CLUE: '스토리 단서' }[type] || type);
+const clueTypeLabel = (type) => ({ ANSWER_CLUE: '핵심 단서 힌트', DESTINATION_CLUE: '장소 힌트', STORY_CLUE: '장소 힌트', SUSPECT_CLUE: '관계자 힌트' }[type] || type);
+const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '관계자 힌트', POST_IT: '포스트잇', ANSWER_CLUE: '핵심 단서 힌트', DESTINATION_CLUE: '장소 힌트', STORY_CLUE: '장소 힌트' }[type] || type);
 
-function legacyAnswerClues() {
-  return caseFile.value?.clueSummary?.answerClues || [];
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, '').toLowerCase();
 }
 
 function suspectPortraitSrc(suspect) { return usableImageUrl(suspect.portraitImageUrl) || generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint); }
 function evidenceImageSrc(evidence) { return usableImageUrl(evidence.imageUrl) || generatedCaseCardDataUrl(evidence.title, evidence.type, evidence.textSummary); }
 function usableImageUrl(value) { const url = String(value || '').trim(); return !url || url.includes('generated-case-card') ? '' : url; }
 function suspectNames(ids = []) { return ids.map((id) => caseFile.value?.suspects?.find((suspect) => suspect.suspectId === id)?.displayName).filter(Boolean).join(', '); }
-function humanizeClue(value, kind, index) {
-  const text = String(value || '').trim();
-  if (!/^(answer|destination|story)-clue-\d+$/i.test(text)) return text;
-  const fallback = {
-    related: ['엇갈린 진술', '남겨진 서명', '목격 기록', '알리바이 틈'],
-    core: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
-    answer: ['찢긴 가장자리', '빛에 탄 자국', '거꾸로 찍힌 그림자', '봉인 라벨'],
-    destination: ['장소 표식', '닫힌 문', '굽은 골목'],
-    story: ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표']
-  };
-  return fallback[kind]?.[index % fallback[kind].length] || '미분류 단서';
+function humanizeClue(value) {
+  return String(value || '').trim();
 }
 
 function generatedSuspectPortraitDataUrl(name = '용의자', alias = 'SUSPECT', seedText = '') {
@@ -286,15 +241,14 @@ blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; back
 .evidence-art { min-height: 82px; }
 em { color: #94a3b8; font-style: normal; font-size: .78rem; }
 dl { grid-column: 1 / -1; display: grid; gap: 4px; margin: 8px 0 0; }
-.suspect-detail { grid-column: 1 / -1; margin-top: 6px; }
-.suspect-detail summary { cursor: pointer; width: fit-content; border-radius: 999px; padding: 6px 10px; background: rgba(245,158,11,.16); color: #fde68a; font-size: .78rem; font-weight: 900; }
-.suspect-detail[open] summary { margin-bottom: 8px; }
+.suspect-facts { grid-column: 1 / -1; margin-top: 6px; }
 dt { color: #fbbf24; font-size: .76rem; font-weight: 900; }
 dd { margin: 0 0 6px; color: #cbd5e1; line-height: 1.5; }
 .lock, .unlock-badge { position: absolute; right: 12px; top: 12px; border-radius: 999px; padding: 4px 8px; font-size: .72rem; font-weight: 900; }
 .lock { background: rgba(15,23,42,.82); color: #f8fafc; }
 .unlock-badge { background: rgba(22,101,52,.82); color: #bbf7d0; }
 .tag, .clue-column span { display: inline-flex; width: fit-content; border-radius: 999px; padding: 5px 8px; background: rgba(245,158,11,.16); color: #fde68a; font-size: .74rem; font-weight: 900; }
+.hint-type { display: inline-flex; width: fit-content; border-radius: 999px; padding: 5px 8px; margin-bottom: 6px; background: rgba(245,158,11,.16); color: #fde68a; font-size: .74rem; font-weight: 900; }
 .evidence-meta { display: flex; flex-wrap: wrap; gap: 6px; }
 .evidence-card small { width: fit-content; border-radius: 999px; padding: 4px 7px; background: rgba(8,47,73,.42); color: #67e8f9; font-weight: 900; }
 .clue-column { display: grid; gap: 8px; margin-top: 12px; padding: 13px; border-radius: 16px; background: rgba(2,6,23,.34); }
