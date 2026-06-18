@@ -57,6 +57,14 @@ public class AdminEpisodeService {
     private static final Set<String> EVIDENCE_TYPES = Set.of("PHOTO", "MEMO", "NOTE", "DOCUMENT", "EVIDENCE", "SUSPECT_CLUE", "POST_IT", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE");
     private static final Set<String> PARTNER_REWARD_TYPES = Set.of("COUPON", "GIFT_CARD", "LOCAL_CURRENCY", "CAFE_DISCOUNT", "STAMP");
     private static final Set<String> PARTNER_REWARD_STATUSES = Set.of("DISABLED", "PLANNED", "ACTIVE", "ENDED");
+    private static final Set<String> INTERNAL_CONTENT_MARKERS = Set.of(
+            "관리자", "검수", "확인 필요", "현장 확인", "자료 부족", "보강 필요", "공식 설명 없음",
+            "추정", "review required", "admin review", "field required", "verification",
+            "adminmemo", "siteverificationfocus", "kakao local", "tourapi"
+    );
+    private static final List<String> STORY_TOKEN_FALLBACKS = List.of(
+            "봉투", "수첩", "문", "기록", "조각", "기둥", "발자국", "사진", "열쇠", "표식", "메모", "시간표"
+    );
     private static final int CANDIDATE_RADIUS_METERS = 18_000;
     private static final int MAX_CANDIDATES = 60;
     private static final Map<String, List<AreaSeed>> CANDIDATE_SEEDS = Map.of(
@@ -598,17 +606,17 @@ public class AdminEpisodeService {
                 .finalQuestion(objective.finalQuestion())
                 .finalTruthSummary(String.join("\n",
                         "3. 픽션과 역사의 매칭 (디브리핑)",
-                        "스토리 속 [" + objective.finalAnswer() + "] -> 실제 역사 속 [관리자 검수 필요 역사 자료]: 시놉시스가 요구한 해결 조건 전체를 하나의 최종 진실로 묶은 장치입니다.",
+                        "스토리 속 [" + objective.finalAnswer() + "] -> 실제 역사 속 [장소에 남은 기록과 기억]: 시놉시스가 요구한 해결 조건 전체를 하나의 최종 진실로 묶은 장치입니다.",
                         "스토리 속 [현장 지령] -> 실제 역사 속 [최종 목적지의 역사적 맥락]: 장소에 남은 사건의 흔적을 동선과 퍼즐로 바꾼 장치입니다.",
                         "스토리 속 [암호 카드] -> 실제 역사 속 [기록과 증언]: 플레이어가 단서를 대조하도록 실제 자료 해석 과정을 은유했습니다.",
                         "스토리 속 [조력자/용의자 진술] -> 실제 역사 속 [관련 인물과 이해관계]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 차용했습니다."
                 ))
                 .actualHistorySummary("""
                         1. 모티브 공개
-                        이 임무는 실제 [관리자 검수 필요 최종 목적지]에서 있었던 [관리자 검수 필요 역사적 사건/인물]을 모티브로 제작되었습니다.
+                        이 임무는 실제 장소에 남은 역사적 기억과 주변 동선의 분위기를 모티브로 제작되었습니다.
 
                         2. 실제 사건 해설
-                        이 초안은 규칙 기반 안전 fallback입니다. 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 최종 목적지의 실제 역사적 배경, 사건의 전말, 장소의 역사적 의의를 상세히 보강해야 합니다.
+                        이 초안은 규칙 기반 안전 fallback입니다. 플레이어는 장소의 기록, 관찰 요소, 이동 흔적을 조합해 사건의 배경과 의미를 해석하게 됩니다.
                         """.trim())
                 .deductionSecretFacts(List.of(
                         "최종 정답은 시놉시스가 요구한 해결 조건을 모두 포함해야 한다.",
@@ -908,9 +916,10 @@ public class AdminEpisodeService {
             }
         }
 
-        List<CaseSuspect> suspects = saveDraftSuspects(episode.getId(), draft.getSuspects(), draft.getFinalAnswerKeywords());
+        List<String> approvedFinalKeywords = finalKeywordValues(request.getSourceInput());
+        List<CaseSuspect> suspects = saveDraftSuspects(episode.getId(), draft.getSuspects(), approvedFinalKeywords);
         Map<Integer, CaseEvidence> evidenceByMissionOrder = saveDraftEvidences(episode.getId(), draft.getEvidences(), missions, spotByOrder, suspects);
-        applyDraftRewardPayloads(episode.getId(), missions, puzzleByOrder, evidenceByMissionOrder, finalKeywordValues(request.getSourceInput()));
+        applyDraftRewardPayloads(episode.getId(), missions, puzzleByOrder, evidenceByMissionOrder, approvedFinalKeywords);
         saveDraftPartnerReward(episode.getId());
         return getEpisode(episode.getId());
     }
@@ -1003,9 +1012,7 @@ public class AdminEpisodeService {
     private List<CaseSuspect> saveDraftSuspects(Long episodeId, List<AiEpisodeDraftResponse.SuspectDraft> drafts, List<String> finalAnswerKeywords) {
         List<AiEpisodeDraftResponse.SuspectDraft> source = drafts == null || drafts.isEmpty() ? defaultDraftSuspects() : drafts;
         String relatedPersonKeyword = finalAnswerKeywords == null || finalAnswerKeywords.isEmpty() ? "" : finalAnswerKeywords.get(0);
-        int targetPersonIndex = isUsableSuspectName(relatedPersonKeyword)
-                ? Math.floorMod(compact(relatedPersonKeyword).hashCode(), Math.max(1, source.size() - 1)) + (source.size() > 1 ? 1 : 0)
-                : -1;
+        int relatedPersonIndex = relatedPersonTargetIndex(source, relatedPersonKeyword);
         List<CaseSuspect> saved = new ArrayList<>();
         int index = 0;
         for (AiEpisodeDraftResponse.SuspectDraft draft : source) {
@@ -1013,7 +1020,7 @@ public class AdminEpisodeService {
             suspect.setEpisodeId(episodeId);
             suspect.setAlias(blank(draft.getAlias(), "Suspect " + (char) ('A' + index)));
             String displayName = safeSuspectDisplayName(draft.getDisplayName(), index);
-            if (index == targetPersonIndex) {
+            if (!missing(relatedPersonKeyword) && (same(displayName, relatedPersonKeyword) || index == relatedPersonIndex)) {
                 displayName = relatedPersonKeyword.trim();
             }
             suspect.setDisplayName(displayName);
@@ -1030,6 +1037,19 @@ public class AdminEpisodeService {
             index++;
         }
         return saved;
+    }
+
+    private int relatedPersonTargetIndex(List<AiEpisodeDraftResponse.SuspectDraft> source, String relatedPersonKeyword) {
+        if (missing(relatedPersonKeyword) || source == null || source.isEmpty()) {
+            return -1;
+        }
+        for (int i = 0; i < source.size(); i++) {
+            AiEpisodeDraftResponse.SuspectDraft draft = source.get(i);
+            if (draft != null && same(draft.getDisplayName(), relatedPersonKeyword)) {
+                return i;
+            }
+        }
+        return Math.floorMod(compact(relatedPersonKeyword).hashCode(), source.size());
     }
 
     private boolean isUsableSuspectName(String value) {
@@ -1084,12 +1104,12 @@ public class AdminEpisodeService {
             CaseEvidence evidence = new CaseEvidence();
             evidence.setEpisodeId(episodeId);
             evidence.setTitle(blank(draft.getTitle(), "\uC0AC\uAC74 \uC790\uB8CC " + (index + 1)));
-            evidence.setType(validateValue(blank(draft.getType(), evidenceType), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Unsupported evidence type."));
+            evidence.setType(validateValue(evidenceType, EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Unsupported evidence type."));
             evidence.setImageUrl(draft.getImageUrl());
             evidence.setImagePrompt(ensureKoreanEvidencePrompt(blank(draft.getImagePrompt(), buildEvidenceImagePrompt(draft))));
             evidence.setTextSummary(blank(draft.getTextSummary(), "\uD604\uC7A5 \uB2E8\uC11C\uB97C \uC870\uD569\uD574 \uCD5C\uC885 \uCD94\uB9AC\uB97C \uB3D5\uB294 \uC0AC\uAC74 \uC790\uB8CC\uC785\uB2C8\uB2E4."));
             evidence.setSourceSpotId(resolveSourceSpotId(draft, spotByOrder));
-            evidence.setRelatedSuspectId(resolveLinkedSuspectId(draft, suspects, index));
+            evidence.setRelatedSuspectId("STORY_CLUE".equals(evidenceType) ? null : resolveLinkedSuspectId(draft, suspects, index));
             evidence.setRelatedClueType(evidenceType);
             evidence.setUnlockedByDefault(index == 0);
             evidence.setDisplayOrder(index + 1);
@@ -1117,6 +1137,9 @@ public class AdminEpisodeService {
         if (mission == null) {
             return "NOTE";
         }
+        if (isStartMission(mission)) {
+            return "STORY_CLUE";
+        }
         String slotId = normalizeSlotId(mission.getRewardClueSlotId());
         if ("RELATED_PERSON".equals(slotId)) {
             return "SUSPECT_CLUE";
@@ -1135,6 +1158,9 @@ public class AdminEpisodeService {
     }
 
     private String rewardTypeForMission(AiEpisodeDraftResponse.MissionDraft mission) {
+        if (isStartMission(mission)) {
+            return "STORY_CLUE";
+        }
         String evidenceType = evidenceTypeForMission(mission);
         if ("SUSPECT_CLUE".equals(evidenceType)) {
             return "SUSPECT_CLUE";
@@ -1146,6 +1172,15 @@ public class AdminEpisodeService {
             return "STORY_CLUE";
         }
         return "ANSWER_CLUE";
+    }
+
+    private boolean isStartMission(AiEpisodeDraftResponse.MissionDraft mission) {
+        if (mission == null) {
+            return false;
+        }
+        return Integer.valueOf(1).equals(mission.getOrder())
+                || "START".equals(normalizeType(mission.getMarkerType()))
+                || "START".equals(normalizeType(mission.getClueRole()));
     }
 
     private String normalizeSlotId(String value) {
@@ -1253,7 +1288,7 @@ public class AdminEpisodeService {
             if (puzzle == null) {
                 continue;
             }
-            String slotId = normalizeSlotId(mission.getRewardClueSlotId());
+            String slotId = isStartMission(mission) ? "" : normalizeSlotId(mission.getRewardClueSlotId());
             String clueType = rewardTypeForMission(mission);
             CaseEvidence evidence = evidenceByMissionOrder.get(order);
             List<Map<String, Object>> rewards = new ArrayList<>();
@@ -1311,7 +1346,7 @@ public class AdminEpisodeService {
         }
         String role = normalizeType(blank(mission.getClueRole(), mission.getMarkerType()));
         if ("START".equals(role)) {
-            return conciseStartRewardClue(mission.getRewardClue());
+            return startStoryRevealClue(mission, index);
         }
         String reward = blank(mission.getRewardClue(), "");
         if (reward.isBlank() || reward.length() > 90 || looksLikeOperationBriefing(reward)) {
@@ -1326,6 +1361,34 @@ public class AdminEpisodeService {
             return text;
         }
         return "현장 기록에서 서로 맞지 않는 움직임이 포착되었다.";
+    }
+
+    private String startStoryRevealClue(AiEpisodeDraftResponse.MissionDraft mission, int index) {
+        String reward = blank(mission.getRewardClue(), "");
+        if (isUsableStartStoryReveal(reward)) {
+            return reward.trim();
+        }
+        String basis = safeStoryBasis(firstGroundingText(mission), index);
+        return "시작 기록이 해금되었습니다. 사라진 대상이 남긴 첫 기록에는 실제 동선과 맞지 않는 " + basis
+                + " 흔적이 있습니다. 이 단서는 단순한 이탈이 아니라 누군가가 순서와 시간을 조정해 사건의 방향을 흐렸을 가능성을 보여줍니다.";
+    }
+
+    private boolean isUsableStartStoryReveal(String text) {
+        if (text == null || text.isBlank() || text.length() < 70 || text.length() > 240) {
+            return false;
+        }
+        if (looksLikeOperationBriefing(text) || isInternalContentText(text)) {
+            return false;
+        }
+        return !containsAny(text, "관련자 힌트", "관계자 힌트", "용의자", "범인", "알리바이", "관계자 카드", "SUSPECT");
+    }
+
+    private String safeStoryBasis(String value, int index) {
+        String token = safeMemoryCardToken(value);
+        if (token.isBlank() || isInternalContentText(token)) {
+            return STORY_TOKEN_FALLBACKS.get(Math.floorMod(index, STORY_TOKEN_FALLBACKS.size()));
+        }
+        return token;
     }
 
     private boolean looksLikeOperationBriefing(String text) {
@@ -1373,7 +1436,7 @@ public class AdminEpisodeService {
 
     private Map<String, Object> buildPuzzleInteraction(AiEpisodeDraftResponse.MissionDraft mission, int index, String clueType) {
         String basis = sanitizeCategoryCodes(firstGroundingText(mission));
-        String localSolution = localGameSolution(mission, basis, index);
+        String localSolution = safeMiniGameSolution(localGameSolution(mission, basis, index), index);
         String type = chooseInteractionType(mission, index, localSolution);
         Map<String, Object> interaction = new LinkedHashMap<>();
         interaction.put("version", 1);
@@ -1426,7 +1489,7 @@ public class AdminEpisodeService {
             }
             case "WORD_COMPOSE" -> config.put("tiles", shuffledCharacters(answer));
             case "MEMORY_CARD" -> {
-                config.put("cards", memoryCards(answer, basis));
+                config.put("cards", safeMemoryCards(answer, basis));
                 config.put("maxMistakes", 5);
                 config.put("previewSeconds", 2);
             }
@@ -1546,6 +1609,14 @@ public class AdminEpisodeService {
         return source.length() > 8 ? source.substring(0, 8) : source;
     }
 
+    private String safeMiniGameSolution(String value, int index) {
+        String token = safeMemoryCardToken(value);
+        if (token.isBlank() || isInternalContentText(token)) {
+            return STORY_TOKEN_FALLBACKS.get(Math.floorMod(index, STORY_TOKEN_FALLBACKS.size()));
+        }
+        return token;
+    }
+
     private List<String> shuffledCharacters(String answer) {
         List<String> chars = new ArrayList<>(answer.codePoints()
                 .mapToObj(codePoint -> new String(Character.toChars(codePoint)))
@@ -1557,6 +1628,57 @@ public class AdminEpisodeService {
         }
         java.util.Collections.rotate(chars, Math.max(1, chars.size() / 2));
         return chars;
+    }
+
+    private List<String> safeMemoryCards(String answer, String basis) {
+        List<String> seeds = new ArrayList<>(List.of(answer, basis, "봉투", "사진", "문서", "조각", "동선", "증거", "수첩", "표식"));
+        List<String> cards = seeds.stream()
+                .map(this::safeMemoryCardToken)
+                .filter(value -> value != null && !value.isBlank())
+                .filter(value -> !isInternalContentText(value))
+                .distinct()
+                .limit(6)
+                .collect(Collectors.toCollection(ArrayList::new));
+        for (String fallback : STORY_TOKEN_FALLBACKS) {
+            if (cards.size() >= 6) {
+                break;
+            }
+            if (!cards.contains(fallback)) {
+                cards.add(fallback);
+            }
+        }
+        return cards;
+    }
+
+    private String safeMemoryCardToken(String value) {
+        if (value == null) {
+            return "";
+        }
+        String cleaned = value.replaceAll("[^가-힣A-Za-z0-9\\s]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (cleaned.isBlank() || isInternalContentText(cleaned)) {
+            return "";
+        }
+        List<String> blocked = List.of(
+                "관리자", "검수", "확인", "필요", "공식", "설명", "없음", "자료", "부족", "보강", "추정",
+                "admin", "review", "required", "field", "verification", "kakao", "tourapi"
+        );
+        for (String token : cleaned.split("\\s+")) {
+            String normalized = token.trim();
+            String lower = normalized.toLowerCase(Locale.ROOT);
+            if (normalized.length() >= 2
+                    && normalized.length() <= 4
+                    && blocked.stream().noneMatch(lower::contains)) {
+                return normalized;
+            }
+        }
+        String compacted = cleaned.replace(" ", "");
+        String lowerCompacted = compacted.toLowerCase(Locale.ROOT);
+        if (isInternalContentText(compacted) || blocked.stream().anyMatch(lowerCompacted::contains)) {
+            return "";
+        }
+        return compacted.length() > 4 ? compacted.substring(0, 4) : compacted;
     }
 
     private List<String> memoryCards(String answer, String basis) {
@@ -2098,7 +2220,7 @@ public class AdminEpisodeService {
         }
         if (request.getFinalAnswerKeywordItems() != null && !request.getFinalAnswerKeywordItems().isEmpty()) {
             return request.getFinalAnswerKeywordItems().stream()
-                    .map(AiEpisodeDraftRequest.AnswerKeywordInput::getKeyword)
+                    .map(this::finalKeywordValue)
                     .filter(value -> value != null && !value.isBlank())
                     .map(String::trim)
                     .toList();
@@ -2107,6 +2229,19 @@ public class AdminEpisodeService {
                 .filter(value -> value != null && !value.isBlank())
                 .map(String::trim)
                 .toList();
+    }
+
+    private String finalKeywordValue(AiEpisodeDraftRequest.AnswerKeywordInput item) {
+        if (item == null) {
+            return "";
+        }
+        if ("RELATED_PERSON".equals(normalizeType(item.getSlotId())) || containsAny(item.getLabel(), "관련자", "관계자", "용의자", "실종자", "협력자")) {
+            String personName = blank(item.getPersonName(), "");
+            if (isUsableSuspectName(personName)) {
+                return personName;
+            }
+        }
+        return item.getKeyword();
     }
 
     private AdminEpisodeProgressStats safeStats(Long episodeId) {
@@ -2422,6 +2557,17 @@ public class AdminEpisodeService {
             }
         }
         return false;
+    }
+
+    private boolean isInternalContentText(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String compacted = compact(text);
+        return INTERNAL_CONTENT_MARKERS.stream()
+                .map(this::compact)
+                .filter(marker -> !marker.isBlank())
+                .anyMatch(compacted::contains);
     }
 
     private boolean same(String a, String b) {

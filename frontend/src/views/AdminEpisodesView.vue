@@ -501,7 +501,9 @@
             <strong>AI 장르/최종 정답 키워드 계획</strong>
             <p>장르: {{ draftPlan.selectedGenreName || draftPlan.selectedGenre }}</p>
             <div class="chips">
-              <span v-for="item in draftPlan.finalAnswerKeywords || []" :key="`${item.label}-${item.keyword}`">{{ item.label }}: {{ item.keyword }}</span>
+              <span v-for="item in draftPlan.finalAnswerKeywords || []" :key="`${item.label}-${item.keyword}`">
+                {{ item.label }}: {{ item.keyword }}<template v-if="item.personRole || item.role"> / 역할: {{ item.personRole || item.role }}</template>
+              </span>
             </div>
             <p v-if="draftPlan.finalQuestionGuide">최종 질문 방향: {{ draftPlan.finalQuestionGuide }}</p>
             <p v-if="draftPlan.rationale">{{ draftPlan.rationale }}</p>
@@ -1870,17 +1872,17 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
   maskDraftKeywordLeaks(draft, draft.finalAnswerKeywords || []);
   if (!draft.finalTruthSummary || isWeakText(draft.finalTruthSummary)) {
     draft.finalTruthSummary = `3. 픽션과 역사의 매칭 (디브리핑)
-스토리 속 [${motif.object}] -> 실제 역사 속 [관리자 검수 필요 역사 자료]: 최종 단서가 하나의 역사적 기억으로 수렴하도록 만든 상징 장치입니다.
+스토리 속 [${motif.object}] -> 실제 역사 속 [장소에 남은 기록과 기억]: 최종 단서가 하나의 역사적 기억으로 수렴하도록 만든 상징 장치입니다.
 스토리 속 [현장 지령] -> 실제 역사 속 [최종 목적지의 역사적 맥락]: 장소에 남은 사건의 흔적을 동선과 퍼즐로 바꾼 장치입니다.
 스토리 속 [암호 카드] -> 실제 역사 속 [기록과 증언]: 플레이어가 단서를 대조하도록 실제 자료 해석 과정을 은유했습니다.
 스토리 속 [조력자/용의자 진술] -> 실제 역사 속 [관련 인물과 이해관계]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 차용했습니다.`;
   }
   if (!draft.actualHistorySummary || isWeakText(draft.actualHistorySummary)) {
     draft.actualHistorySummary = `1. 모티브 공개
-이 임무는 실제 [관리자 검수 필요 최종 목적지]에서 있었던 [관리자 검수 필요 역사적 사건/인물]을 모티브로 제작되었습니다.
+이 임무는 실제 장소에 남은 역사적 기억과 주변 동선의 분위기를 모티브로 제작되었습니다.
 
 2. 실제 사건 해설
-이 에피소드는 실제 장소의 역사·문화적 분위기와 주변 동선을 상징적인 요원 임무로 각색한 픽션 사건입니다. 운영 공개 전 관리자는 TourAPI 설명, 현장 표지, 공식 해설 자료를 확인해 실제 사건의 배경, 전말, 장소의 역사적 의의를 상세히 보강해야 합니다.`;
+이 에피소드는 실제 장소의 역사·문화적 분위기와 주변 동선을 상징적인 요원 임무로 각색한 픽션 사건입니다. 플레이어는 장소의 기록, 관찰 요소, 이동 흔적을 조합해 사건의 배경과 의미를 해석하게 됩니다.`;
   }
   draft.deductionSecretFacts = Array.isArray(draft.deductionSecretFacts) && draft.deductionSecretFacts.length
     ? draft.deductionSecretFacts
@@ -2359,16 +2361,16 @@ function questionForMission(mission, source, keyword) {
 function groundRuleForMission(source) {
   const elements = Array.isArray(source.visibleElements) ? source.visibleElements.filter(Boolean).join(', ') : '';
   const numbers = Array.isArray(source.numbers) ? source.numbers.filter(Boolean).join(', ') : '';
-  const memo = source.adminMemo || source.description || '관리자 현장 메모가 필요합니다.';
-  return `관리자 입력/후보 정보 기반 검수용 초안입니다. 관찰 요소: ${elements || '검수 필요'} / 숫자: ${numbers || '없음'} / 메모: ${memo}`;
+  const clueBasis = elements || numbers || source.description || '기록';
+  return `장소의 관찰 요소와 사건 기록을 근거로 사용합니다. 기준 단서: ${clueBasis}`;
 }
 
 function hintsForMission(mission, keyword) {
   if (mission.puzzleType === 'NUMBER_LOCK') {
-    return ['관리자 메모에 적힌 숫자 후보를 먼저 확인하세요.', '사건 시간표나 기록 순서와 연결되는 숫자 하나만 사용합니다.', '정답은 현장 검수로 확인된 숫자 후보 중 하나입니다.'];
+    return ['장소에 남은 숫자나 기록 순서를 먼저 확인하세요.', '사건 시간표나 이동 순서와 연결되는 숫자 하나만 사용합니다.', '정답은 현재 미션의 기록 안에서 확인할 수 있는 숫자 후보 중 하나입니다.'];
   }
   return [
-    '장소명 글자를 뽑지 말고 현장 메모의 관찰 요소를 먼저 확인하세요.',
+    '장소명 글자를 뽑지 말고 현재 장소의 관찰 요소를 먼저 확인하세요.',
     `이 문제는 ${keyword}와 연결된 사건 카드의 의미를 찾는 문제입니다.`,
     '단서 보드에 붙일 단어를 고른다고 생각하면 됩니다.'
   ];
@@ -2527,7 +2529,7 @@ function strengthenCaseMaterials(draft) {
       ...current,
       alias: isWeakText(current.alias) ? seed.alias : current.alias,
       displayName,
-      shortDescription: `${displayName}은 ${finalAnswerTypeLabel(finalAnswerType)}와 연결될 가능성이 있는 가상 용의자입니다.`,
+      shortDescription: `${withTopicParticle(displayName)} ${withAndParticle(finalAnswerTypeLabel(finalAnswerType))} 연결될 가능성이 있는 가상 용의자입니다.`,
       relationToVictim: seed.relation,
       suspiciousPoint: isWeakText(current.suspiciousPoint) ? seed.suspicion : current.suspiciousPoint,
       alibiSummary: isWeakText(current.alibiSummary) ? seed.alibi : current.alibiSummary,
@@ -2661,6 +2663,27 @@ function finalAnswerTypeLabel(type) {
     SECRET_KEYWORD: '비밀 키워드',
     HIDDEN_TRUTH: '숨겨진 진실'
   }[type] || '사건의 핵심 진실';
+}
+
+function hasFinalConsonant(value = '') {
+  const chars = Array.from(String(value).trim());
+  const last = chars[chars.length - 1];
+  if (!last) return false;
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return false;
+  return (code - 0xac00) % 28 !== 0;
+}
+
+function withTopicParticle(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return '이 인물은(는)';
+  return `${text}${hasFinalConsonant(text) ? '은' : '는'}`;
+}
+
+function withAndParticle(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return '사건의 핵심 진실과';
+  return `${text}${hasFinalConsonant(text) ? '과' : '와'}`;
 }
 
 function safeEvidenceType(type) {
@@ -3129,6 +3152,35 @@ function toggleCandidate(candidate) {
   siteDataEnriched.value = false;
 }
 
+function defaultVisibleElementsForCandidate(candidate = {}, index = 0) {
+  const fallback = ['봉투', '수첩', '기록', '조각', '표식', '문', '발자국', '사진'];
+  const raw = [candidate.title, candidate.description, candidate.source].join(' ');
+  const tokens = raw
+    .replace(/[^\uAC00-\uD7A3A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2 && token.length <= 8)
+    .filter((token) => !isInternalDraftToken(token));
+  const unique = Array.from(new Set(tokens)).slice(0, 3);
+  while (unique.length < 3) {
+    const token = fallback[(index + unique.length) % fallback.length];
+    if (!unique.includes(token)) unique.push(token);
+  }
+  return unique;
+}
+
+function defaultKeywordsForCandidate(candidate = {}, index = 0) {
+  const region = areaLabel(candidateAreaCode.value);
+  const clue = defaultVisibleElementsForCandidate(candidate, index)[0];
+  return [candidate.title, region, clue].filter((token) => token && !isInternalDraftToken(token));
+}
+
+function isInternalDraftToken(value = '') {
+  const normalized = String(value).replace(/\s+/g, '').toLowerCase();
+  return ['관리자', '검수', '확인필요', '현장확인', '자료부족', '보강필요', '공식설명없음', '추정', 'reviewrequired', 'adminreview', 'kakaolocal', 'tourapi']
+    .some((marker) => normalized.includes(marker));
+}
+
 function applyCandidatesToDraft(showMessage = true) {
   if (selectedCandidates.value.length < 9) {
     setMessage('기준 장소를 포함해 9개 장소를 선택해 주세요.', 'error');
@@ -3152,11 +3204,11 @@ function applyCandidatesToDraft(showMessage = true) {
       latitude: candidate.latitude,
       longitude: candidate.longitude,
       description: candidate.description || (isAnchorCandidate(candidate)
-        ? 'TourAPI 기준 조사 후보입니다. 운영 공개 전 실제 현장 요소와 접근 가능 여부를 검수하세요.'
-        : 'Kakao Local 주변 후보입니다. 실제 역사/현장 정보는 관리자 검수 후 사용하세요.'),
-      visibleElements: ['관리자 현장 메모 필요'],
+        ? '작전이 시작되는 기준 지점입니다. 첫 기록과 실제 동선을 대조하는 도입 단서가 남아 있습니다.'
+        : '주변 동선에서 발견한 조사 지점입니다. 표식, 기록, 이동 흔적을 연결하는 보조 단서로 사용됩니다.'),
+      visibleElements: defaultVisibleElementsForCandidate(candidate, index),
       numbers: [],
-      keywords: [candidate.title, areaLabel(candidateAreaCode.value), candidate.source || '장소 후보'],
+      keywords: defaultKeywordsForCandidate(candidate, index),
       adminMemo: `${candidate.source || '장소 후보'} 기반입니다. 실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
       role: roles[index],
       publicMarkerType: publicMarkerForCandidate(index, roles[index], orderedCandidates.length),

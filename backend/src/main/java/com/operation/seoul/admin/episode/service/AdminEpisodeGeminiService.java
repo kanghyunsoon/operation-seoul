@@ -66,7 +66,7 @@ public class AdminEpisodeGeminiService {
     );
 
     private static final List<PlanSlot> FIXED_FINAL_ANSWER_SLOTS = List.of(
-            new PlanSlot("RELATED_PERSON", "관련자", "최종 정답에 반드시 포함될 픽션 관련자 또는 역할"),
+            new PlanSlot("RELATED_PERSON", "관련자", "최종 정답에 반드시 포함될 픽션 인물 이름"),
             new PlanSlot("ANSWER_CLUE", "핵심 단서", "최종 정답을 성립시키는 핵심 물건, 숫자, 문구, 조건 중 하나"),
             new PlanSlot("FINAL_DESTINATION", "장소", "내부 최종 목적지의 실제 장소명")
     );
@@ -152,22 +152,38 @@ public class AdminEpisodeGeminiService {
 
         for (JsonNode node : keywordsNode) {
             String label = node.path("label").asText("");
-            String keyword = normalizeAnswerKeywordValue(node.path("keyword").asText(""));
+            String slotId = node.path("slotId").asText("");
+            if (blank(slotId)) {
+                slotId = label.trim();
+            }
+            String rawKeyword = normalizeAnswerKeywordValue(node.path("keyword").asText(""));
+            String personRole = node.path("personRole").asText(node.path("role").asText(""));
+            String personName = normalizeAnswerKeywordValue(node.path("personName").asText(""));
+            boolean personSlot = isRelatedPersonSlot(slotId, label);
+            if (personSlot) {
+                if (blank(personRole) && !isFictionalKoreanPersonName(rawKeyword)) {
+                    personRole = rawKeyword;
+                }
+                if (blank(personName) || !isFictionalKoreanPersonName(personName)) {
+                    personName = fictionalPersonName(rawKeyword + " " + personRole + " " + label);
+                }
+            }
+            String keyword = personSlot ? personName : rawKeyword;
+            String resolvedPersonRole = blank(personRole) ? relatedPersonRoleFallback(rawKeyword) : personRole.trim();
 
             boolean duplicate = keywords.stream()
                     .anyMatch(existing -> same(existing.getKeyword(), keyword));
 
             if (!blank(label) && !blank(keyword) && !duplicate) {
-                String slotId = node.path("slotId").asText("");
-                if (blank(slotId)) {
-                    slotId = label.trim();
-                }
-
                 keywords.add(AiEpisodePlanResponse.AnswerKeyword.builder()
                         .slotId(slotId.trim())
                         .label(label.trim())
+                        .type(personSlot ? "PERSON" : node.path("type").asText(""))
                         .keyword(keyword.trim())
-                        .aliases(readStringArray(node.path("aliases")))
+                        .personName(personSlot ? personName.trim() : node.path("personName").asText(""))
+                        .personRole(personSlot ? resolvedPersonRole : node.path("personRole").asText(""))
+                        .role(personSlot ? resolvedPersonRole : node.path("role").asText(""))
+                        .aliases(sanitizeKeywordAliases(personSlot, keyword, readStringArray(node.path("aliases"))))
                         .sourcePlaceOrder(node.path("sourcePlaceOrder").isNumber()
                                 ? node.path("sourcePlaceOrder").asInt()
                                 : null)
@@ -182,6 +198,63 @@ public class AdminEpisodeGeminiService {
         }
 
         return keywords;
+    }
+
+    private boolean isRelatedPersonSlot(String slotId, String label) {
+        String compacted = compact((slotId == null ? "" : slotId) + " " + (label == null ? "" : label));
+        return compacted.contains("relatedperson")
+                || compacted.contains("person")
+                || compacted.contains("관련자")
+                || compacted.contains("관계자")
+                || compacted.contains("용의자")
+                || compacted.contains("실종자")
+                || compacted.contains("협력자");
+    }
+
+    private boolean isFictionalKoreanPersonName(String value) {
+        if (blank(value)) {
+            return false;
+        }
+        String normalized = value.trim().replaceAll("\\s+", "");
+        return normalized.matches("[가-힣]{2,4}") && !looksLikePersonRoleKeyword(normalized);
+    }
+
+    private boolean looksLikePersonRoleKeyword(String value) {
+        if (blank(value)) {
+            return true;
+        }
+        String compacted = compact(value);
+        return compacted.length() <= 1
+                || containsAny(value,
+                "연구원", "담당자", "관리인", "관리자", "기록자", "보관자", "전달자", "배달원", "화공",
+                "중개인", "목격자", "협력자", "실종자", "용의자", "관계자", "관련자", "정리관",
+                "복원", "기록", "보관", "자료", "사진사", "점검", "안내인", "의뢰인");
+    }
+
+    private String fictionalPersonName(String seed) {
+        List<String> names = List.of("홍윤재", "서도윤", "한서림", "강도윤", "윤재하", "이서원", "문해준", "신아린", "오지후");
+        return names.get(Math.floorMod(compact(seed).hashCode(), names.size()));
+    }
+
+    private String relatedPersonRoleFallback(String roleSeed) {
+        if (!blank(roleSeed) && looksLikePersonRoleKeyword(roleSeed)) {
+            return roleSeed.trim();
+        }
+        return "사건 기록 관계자";
+    }
+
+    private List<String> sanitizeKeywordAliases(boolean personSlot, String keyword, List<String> aliases) {
+        if (!personSlot) {
+            return aliases == null ? List.of() : aliases;
+        }
+        List<String> values = new ArrayList<>();
+        if (aliases != null) {
+            aliases.stream()
+                    .filter(this::isFictionalKoreanPersonName)
+                    .filter(alias -> !same(alias, keyword))
+                    .forEach(values::add);
+        }
+        return values;
     }
 
     private List<AiEpisodePlanResponse.AnswerSlotPlan> parsePlanAnswerSlots(JsonNode slotsNode) {
@@ -741,7 +814,18 @@ public class AdminEpisodeGeminiService {
                 continue;
             }
 
+            boolean personSlot = isRelatedPersonSlot(slot.getSlotId(), slot.getLabel());
             String keyword = normalizeAnswerKeywordValue(source.getKeyword());
+            String personRole = "";
+            if (personSlot) {
+                personRole = blank(source.getPersonRole())
+                        ? blank(source.getRole()) ? relatedPersonRoleFallback(keyword) : source.getRole()
+                        : source.getPersonRole();
+                if (!isFictionalKoreanPersonName(keyword)) {
+                    personRole = relatedPersonRoleFallback(keyword);
+                    keyword = fictionalPersonName(keyword + " " + slot.getLabel());
+                }
+            }
 
             if (blank(keyword)
                     || used.contains(compact(keyword))
@@ -803,8 +887,12 @@ public class AdminEpisodeGeminiService {
             result.add(AiEpisodePlanResponse.AnswerKeyword.builder()
                     .slotId(slot.getSlotId())
                     .label(slot.getLabel())
+                    .type(personSlot ? "PERSON" : "")
                     .keyword(keyword)
-                    .aliases(source.getAliases() == null ? List.of() : source.getAliases())
+                    .personName(personSlot ? keyword : "")
+                    .personRole(personRole)
+                    .role(personRole)
+                    .aliases(sanitizeKeywordAliases(personSlot, keyword, source.getAliases() == null ? List.of() : source.getAliases()))
                     .sourcePlaceOrder(sourcePlaceOrder)
                     .sourceBasis(sourceBasis)
                     .sourceType(sourceType)
@@ -869,12 +957,23 @@ public class AdminEpisodeGeminiService {
                 continue;
             }
 
-            String risk = planKeywordRisk(candidate.value(), slot.label(), request);
+            boolean personSlot = isRelatedPersonSlot(slot.slotId(), slot.label());
+            String keyword = candidate.value();
+            String personRole = "";
+            if (personSlot) {
+                personRole = relatedPersonRoleFallback(keyword);
+                keyword = isFictionalKoreanPersonName(keyword) ? keyword : fictionalPersonName(keyword + " " + slot.label());
+            }
+            String risk = planKeywordRisk(keyword, slot.label(), request);
 
             result.add(AiEpisodePlanResponse.AnswerKeyword.builder()
                     .slotId(slot.slotId())
                     .label(slot.label())
-                    .keyword(candidate.value())
+                    .type(personSlot ? "PERSON" : "")
+                    .keyword(keyword)
+                    .personName(personSlot ? keyword : "")
+                    .personRole(personRole)
+                    .role(personRole)
                     .aliases(List.of())
                     .sourcePlaceOrder(candidate.sourcePlaceOrder())
                     .sourceBasis(candidate.sourceBasis())
@@ -885,7 +984,7 @@ public class AdminEpisodeGeminiService {
                     .risk("OK".equals(risk) ? "OK" : "REVIEW_REQUIRED")
                     .build());
 
-            used.add(compact(candidate.value()));
+            used.add(compact(keyword));
             warnings.add("PLAN_KEYWORD_" + (i + 1) + "_AI_INFERRED");
         }
 
@@ -1136,6 +1235,9 @@ public class AdminEpisodeGeminiService {
         if (blank(keyword) || isPlanKeywordTooAbstract(keyword)) {
             return "TOO_ABSTRACT";
         }
+        if (isRelatedPersonSlot("", label)) {
+            return isFictionalKoreanPersonName(keyword) ? "OK" : "WEAK_SOURCE";
+        }
         if (!blank(label) && (same(keyword, label)
                 || compact(label).contains(compact(keyword))
                 || compact(keyword).contains(compact(label)))) {
@@ -1246,7 +1348,7 @@ public class AdminEpisodeGeminiService {
         if (request != null && request.getPlaces() != null) {
             for (String sourceType : List.of(
                     "VISIBLE_ELEMENT", "KEYWORD", "NUMBER",
-                    "ADMIN_MEMO", "DESCRIPTION", "SITE_ENRICHMENT")) {
+                    "DESCRIPTION", "SITE_ENRICHMENT")) {
                 for (int i = 0; i < request.getPlaces().size(); i++) {
                     AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(i);
                     for (PlanSourceCandidate candidate : planCandidatesForSource(
@@ -1292,9 +1394,6 @@ public class AdminEpisodeGeminiService {
                     }
                 }
             }
-            case "ADMIN_MEMO" -> planTextCandidates(place.getAdminMemo()).stream()
-                    .map(value -> new PlanSourceCandidate(value, sourceType, place.getAdminMemo()))
-                    .forEach(candidates::add);
             case "DESCRIPTION" -> planTextCandidates(place.getDescription()).stream()
                     .map(value -> new PlanSourceCandidate(value, sourceType, place.getDescription()))
                     .forEach(candidates::add);
@@ -1694,7 +1793,16 @@ public class AdminEpisodeGeminiService {
 
         String compactValue = compact(value);
 
-        return BAD_PLAN_PLACEHOLDERS.stream()
+        boolean blockedPlaceholder = BAD_PLAN_PLACEHOLDERS.stream()
+                .map(this::compact)
+                .anyMatch(compactValue::contains);
+        if (blockedPlaceholder) {
+            return true;
+        }
+        return List.of(
+                        "관리자", "관리자확인", "검수필요", "현장확인필요", "공식설명없음", "자료부족", "보강필요",
+                        "추정", "reviewrequired", "adminreview", "fieldrequired"
+                ).stream()
                 .map(this::compact)
                 .anyMatch(compactValue::contains);
     }
@@ -1733,7 +1841,7 @@ public class AdminEpisodeGeminiService {
             }
 
             String keyword = switch (slotId) {
-                case "RELATED_PERSON" -> inferredCulpritKeyword(context);
+                case "RELATED_PERSON" -> fictionalPersonName(context);
                 case "ANSWER_CLUE" -> inferredWeaponKeyword(context);
                 case "FINAL_DESTINATION" -> blank(place.getName()) ? inferredCaseLocationKeyword(context) : place.getName();
 
@@ -2494,7 +2602,9 @@ public class AdminEpisodeGeminiService {
             
             Source of truth:
             - Use only the provided input JSON.
-            - Treat input.places, visibleElements, numbers, keywords, description, adminMemo, role, and publicMarkerType as source material.
+            - Treat input.places, visibleElements, numbers, keywords, description, role, and publicMarkerType as player-facing source material.
+            - Treat adminMemo as private operator context only. Never copy adminMemo wording into storyText, questionText, answer, hints, rewardClue, evidence, character cards, sourceText, visibleElements, or mini-game words.
+            - Never output internal/operator wording such as 관리자, 관리자 확인, 관리자 현장 메모 필요, 검수 필요, 현장 확인 필요, 공식 설명 없음, 자료 부족, 보강 필요, 추정, review required, admin review, or field required in any player-facing field.
             - Do not invent real signs, plaque text, numbers, stairs, murals, statues, access rules, or photo-verifiable objects.
             - Do not use outside facts unless they are explicitly present in the input.
             
@@ -2502,7 +2612,7 @@ public class AdminEpisodeGeminiService {
             - input.selectedGenreId and input.selectedGenreName are admin-approved if present.
             - input.finalAnswerKeywordItems are admin-approved if present.
             - If input.finalAnswerKeywordItems exists, you must use every item as a mandatory final answer component.
-            - Each finalAnswerKeywordItem contains slotId, label, keyword, and aliases.
+            - Each finalAnswerKeywordItem contains slotId, label, keyword, aliases, and may contain type/personName/personRole/role.
             - Do not rename, remove, merge, or replace approved slotIds, labels, or keywords.
             - finalAnswerKeywords in the output must contain the keyword values from input.finalAnswerKeywordItems.
             - finalAnswer must be one natural Korean sentence that includes every approved keyword value exactly or near-exactly.
@@ -2510,7 +2620,7 @@ public class AdminEpisodeGeminiService {
             - Example: "KW:화공|붓|후원".
             - If legacy input.finalAnswerKeywords exists instead of finalAnswerKeywordItems, treat those values as mandatory final answer keywords.
             - Operation Korea answer contract is fixed:
-              * RELATED_PERSON / 관련자: one fictional person, role, or group connected to the incident.
+              * RELATED_PERSON / 관련자: one fictional Korean full name connected to the incident. The role/job is in personRole/role and must not replace the keyword.
               * ANSWER_CLUE / 핵심 단서: one concrete object, number, phrase, tool, evidence, or condition.
               * FINAL_DESTINATION / 장소: the actual internal final destination place name.
             - ANSWER_CLUE keyword must be a concrete short noun phrase that a player can type, not a symbolic abstraction.
@@ -2597,8 +2707,10 @@ public class AdminEpisodeGeminiService {
             
             Puzzle grounding:
             - NUMBER_LOCK puzzles may use only numbers listed in place.numbers.
-            - OBSERVATION puzzles may use only visibleElements, keywords, description, and adminMemo.
-            - STORY_COMBINATION and PATTERN puzzles may use provided keywords, description, adminMemo, and fictional story-mission logic
+            - OBSERVATION puzzles may use only visibleElements, keywords, and description.
+            - STORY_COMBINATION and PATTERN puzzles may use provided keywords, description, and fictional story-mission logic.
+            - Mini-game words/cards must be short noun tokens from the incident story, place name, object, record, clue, number, symbol, or observable element. Good examples: 봉투, 수첩, 문, 기록, 조각, 기둥, 발자국.
+            - If place data is weak, create safe fictional clue nouns that fit the case and genre. Do not create review/admin placeholders.
             - Never create puzzles that ask for first/second/nth/last letter, syllable, initial consonant, substring, or spelling extraction from a place name or business name.
             - Never use a place name or fragment of a place name as puzzle answer.
             - If field data is weak, create a STORY_COMBINATION puzzle using available keywords/description/adminMemo.
@@ -2620,6 +2732,8 @@ public class AdminEpisodeGeminiService {
             - Every mission must have exactly 3 hints.
             - hints must become progressively clearer but must not directly reveal answer.
             - rewardClue must advance at least one final answer slot or destination inference through an indirect clue and must never print an exact final answer keyword or the full final answer.
+            - The first mission, START mission, or mission order 1 must unlock a story reveal only. It must not reveal a related person, suspect hint, culprit hint, suspect card, or relationship card.
+            - The first mission rewardClue must describe the case background, missing subject/object, first inconsistency, or route contradiction in 2-3 Korean sentences without printing the exact final answer keyword.
             - rewardClueSlotId must identify which final answer slot this clue supports when applicable.
             - rewardClueLabel must be a Korean label such as "정체 단서", "핵심 물건 단서", "동선 단서", "보관 장소 단서", "해금 조건 단서", or the selected genre's own slot label.
             - supportsKeywordSlots must list the slotIds this mission supports.
@@ -2634,6 +2748,8 @@ public class AdminEpisodeGeminiService {
             - Every character card must have alias, displayName, shortDescription, relationToVictim, suspiciousPoint, alibiSummary, and imagePrompt.
             - Character displayName must be a fictional Korean full name, not a role or alias. Good: "한서윤", "강도윤", "윤재하". Bad: "의뢰인", "정리관", "전달자", "기록 중개인", "보관 담당자".
             - Character alias may be a role label such as "의뢰인", "정리관", or "전달자".
+            - If input.finalAnswerKeywordItems has RELATED_PERSON/type PERSON, at most one character card may use displayName exactly equal to that keyword/personName. Do not assume the first character is the final related person; choose placement naturally and never mark it in player-facing text.
+            - Keep the final person's job in alias, shortDescription, relationToVictim, or personRole-like text, not in displayName.
             - Character suspiciousPoint and alibiSummary must not mention "힌트 카드", "정답 힌트 카드", "목적지 힌트 카드", "카드 하나", or any UI/card object. Write them as in-world actions, route contradictions, statements, timestamps, objects, or witness claims.
             - Create exactly three character cards with different deduction roles:
               1) primary contradiction candidate: alibiSummary must be a plausible claim only; do not include "핵심 모순:" or the decisive contradiction.
@@ -2800,7 +2916,8 @@ public class AdminEpisodeGeminiService {
             Final answer keyword rules:
             - STRICT ANTI-HALLUCINATION RULE: Never generate meaningless repeating numbers or symbols like "11", "111", "222", "11. 11.". Every keyword MUST be a valid, contextual Korean word.
             - Each keyword must be an actual answer value, not a slot label.
-            - RELATED_PERSON keyword: fictional role, suspect nickname, handler, courier, archivist, or group connected to the incident, e.g. 기록 중개인, 골목 사진사, 야간 보관자.
+            - RELATED_PERSON keyword must be a fictional Korean full name, not a job, role, suspect nickname, group, or title. Good: 홍윤재, 서도윤, 한서림. Bad: 복원 연구원, 기록 담당자, 화공, 관리인, 기록 중개인, 야간 보관자.
+            - RELATED_PERSON item must also include type="PERSON", personName equal to keyword, and personRole/role containing the job or story role, e.g. personRole="복원 기록 연구원".
             - ANSWER_CLUE keyword: concrete object, number, code, phrase, tool, evidence, or condition, e.g. 깨진 렌즈, 접힌 우산, 1897, 붉은 인장.
             - ANSWER_CLUE sourcePlaceName/sourcePlaceOrder must point to the internal FINAL place.
             - ANSWER_CLUE sourceType should be VISIBLE_ELEMENT, KEYWORD, NUMBER, DESCRIPTION, ADMIN_MEMO, or AI_INFERRED_STORY_OBJECT based only on the internal FINAL place.
@@ -2814,7 +2931,7 @@ public class AdminEpisodeGeminiService {
             
             Keyword quality rules:
             - Keep each keyword short, concrete, atomic, and easy to type.
-            - Prefer nouns, fictional role names, object names, short place features, short conditions, numbers, or short phrases.
+            - Prefer nouns, object names, short place features, short conditions, numbers, or short phrases. For RELATED_PERSON only, prefer a fictional Korean full name.
             - A keyword should usually be 1 to 6 Korean words.
             - Every keyword must be inferable from two or more indirect clues and easy for a player to type.
             - Do not output poetic phrases, full sentences, or title-like expressions as one keyword.
@@ -2833,7 +2950,7 @@ public class AdminEpisodeGeminiService {
             - Avoid possessive forms using "의" unless absolutely necessary.
             - Do not use a full selected place name for RELATED_PERSON or ANSWER_CLUE.
             - Do use the full selected final place name for FINAL_DESTINATION.
-            - Do not use a real person's name as a final answer keyword.
+            - Do not use a real historical or living person's name as a final answer keyword. For RELATED_PERSON, use only a fictional Korean full name.
             
             Clue grounding rules:
             - Each final answer keyword must have a sourceBasis.
@@ -2897,7 +3014,11 @@ public class AdminEpisodeGeminiService {
                 {
                   "slotId": "string",
                   "label": "string",
+                  "type": "PERSON|OBJECT|PLACE|CONDITION",
                   "keyword": "actual short answer value",
+                  "personName": "required when type is PERSON; same as keyword",
+                  "personRole": "required when type is PERSON; job or story role only",
+                  "role": "same as personRole when type is PERSON",
                   "aliases": ["optional alias"],
                   "sourcePlaceOrder": 1,
                   "sourceBasis": "string",
@@ -3730,6 +3851,12 @@ public class AdminEpisodeGeminiService {
                 mission.setRewardClue(fallbackReward(role, i));
                 warnings.add("Mission " + (i + 1) + " was normalized; review before publishing.");
             }
+            if ("START".equals(role)) {
+                mission.setRewardClue(startStoryRevealForDraft(mission, i));
+                mission.setRewardClueSlotId("");
+                mission.setRewardClueLabel("스토리 해금");
+                mission.setSupportsKeywordSlots(List.of());
+            }
             sanitizePlaceNameDependentReward(mission, request, role, i, warnings);
             sanitizeForbiddenRevealReward(mission, draft, role, i, warnings);
             sanitizeFinalAnswerLeaks(draft, mission, place, request, role, i, warnings);
@@ -3754,7 +3881,33 @@ public class AdminEpisodeGeminiService {
         strengthenDeductionCards(draft, request, warnings);
         sanitizeCardKeywordLeaks(draft, request, warnings);
         strengthenDeductionCards(draft, request, warnings);
+        ensureFinalRelatedPersonSuspect(draft, request, warnings);
+        sanitizeInternalOperatorFallbacks(draft);
         return normalizeWarningMessages(warnings);
+    }
+
+    private void sanitizeInternalOperatorFallbacks(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        if (draft == null) {
+            return;
+        }
+        draft.setActualHistorySummary(replaceInternalOperatorText(draft.getActualHistorySummary()));
+        draft.setFinalTruthSummary(replaceInternalOperatorText(draft.getFinalTruthSummary()));
+    }
+
+    private String replaceInternalOperatorText(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        return value
+                .replace("관리자 검수 필요 역사 자료", "장소에 남은 기록과 기억")
+                .replace("관리자 검수 필요 최종 장소", "사건의 마지막 조사 지점")
+                .replace("관리자 검수 필요 최종 목적지", "사건의 마지막 조사 지점")
+                .replace("관리자 검수 필요 역사적 사건/인물", "장소에 남은 역사적 기억")
+                .replace("관리자 확인", "기록 확인")
+                .replace("검수 필요", "기록 확인")
+                .replace("공식 설명 없음", "숨겨진 기록")
+                .replace("자료 부족", "빈 기록")
+                .replace("보강 필요", "추가 단서");
     }
 
     private List<String> normalizeWarningMessages(List<String> warnings) {
@@ -4358,6 +4511,34 @@ public class AdminEpisodeGeminiService {
             default ->
                     List.of("마지막 사진", "봉인된 봉투", "엇갈린 진술", "사라진 시간").get(Math.min(index % 4, 3));
         };
+    }
+
+    private String startStoryRevealForDraft(AiEpisodeDraftResponse.MissionDraft mission, int index) {
+        String reward = mission == null || blank(mission.getRewardClue()) ? "" : mission.getRewardClue();
+        if (!reward.isBlank()
+                && reward.length() >= 70
+                && reward.length() <= 240
+                && !isBadPlanPlaceholder(reward)
+                && !containsAny(reward, "관련자 힌트", "관계자 힌트", "용의자", "범인", "알리바이", "관계자 카드", "SUSPECT")) {
+            return reward.trim();
+        }
+        String basis = safeDraftStoryBasis(mission == null || blank(mission.getAnswer()) ? "" : mission.getAnswer(), index);
+        return "시작 기록이 해금되었습니다. 사라진 대상이 남긴 첫 기록에는 실제 동선과 맞지 않는 " + basis
+                + " 흔적이 있습니다. 이 단서는 단순한 이탈이 아니라 사건의 순서와 시간이 누군가에 의해 조정되었을 가능성을 보여줍니다.";
+    }
+
+    private String safeDraftStoryBasis(String value, int index) {
+        String cleaned = value == null ? "" : value.replaceAll("[^가-힣A-Za-z0-9\\s]", " ").replaceAll("\\s+", " ").trim();
+        if (cleaned.isBlank() || isBadPlanPlaceholder(cleaned)) {
+            return List.of("봉투", "수첩", "기록", "조각", "표식", "문", "발자국", "사진")
+                    .get(Math.floorMod(index, 8));
+        }
+        for (String token : cleaned.split("\\s+")) {
+            if (token.length() >= 2 && token.length() <= 4 && !isBadPlanPlaceholder(token)) {
+                return token;
+            }
+        }
+        return cleaned.length() > 4 ? cleaned.substring(0, 4) : cleaned;
     }
 
     private void sanitizeForbiddenReveals(
@@ -5004,8 +5185,9 @@ public class AdminEpisodeGeminiService {
 
         if (draft.getSuspects() != null) {
             for (AiEpisodeDraftResponse.SuspectDraft card : draft.getSuspects()) {
-                if (containsFinalKeywordOrAlias(card.getDisplayName(), draft)
-                        || containsAnyApprovedFinalKeyword(card.getDisplayName(), request)) {
+                if (!isApprovedRelatedPersonName(card.getDisplayName(), request)
+                        && (containsFinalKeywordOrAlias(card.getDisplayName(), draft)
+                        || containsAnyApprovedFinalKeyword(card.getDisplayName(), request))) {
                     card.setDisplayName("기록 전달 관계자");
                     changed = true;
                 }
@@ -5175,6 +5357,139 @@ public class AdminEpisodeGeminiService {
             warnings.add("관계자 카드가 3개 미만이라 역할이 분리된 기본 관계자 카드로 보강했습니다.");
         }
         draft.setSuspects(suspects);
+    }
+
+    private void ensureFinalRelatedPersonSuspect(
+            AiEpisodeDraftResponse.EpisodeDraft draft,
+            AiEpisodeDraftRequest request,
+            List<String> warnings
+    ) {
+        String finalPersonName = approvedRelatedPersonName(request);
+        if (draft == null || blank(finalPersonName)) {
+            return;
+        }
+
+        List<AiEpisodeDraftResponse.SuspectDraft> suspects =
+                draft.getSuspects() == null ? new ArrayList<>() : new ArrayList<>(draft.getSuspects());
+        if (suspects.isEmpty()) {
+            suspects.add(AiEpisodeDraftResponse.SuspectDraft.builder().build());
+        }
+
+        String finalPersonRole = approvedRelatedPersonRole(request);
+        int targetIndex = indexOfSuspectName(suspects, finalPersonName);
+        if (targetIndex < 0 && !blank(finalPersonRole)) {
+            targetIndex = indexOfSuspectRole(suspects, finalPersonRole);
+        }
+        if (targetIndex < 0) {
+            targetIndex = Math.floorMod(compact(finalPersonName).hashCode(), suspects.size());
+        }
+
+        AiEpisodeDraftResponse.SuspectDraft target = suspects.get(targetIndex);
+        if (target == null) {
+            target = AiEpisodeDraftResponse.SuspectDraft.builder().build();
+            suspects.set(targetIndex, target);
+        }
+
+        boolean changed = !same(target.getDisplayName(), finalPersonName);
+        target.setDisplayName(finalPersonName);
+        if (blank(target.getAlias()) && !blank(finalPersonRole)) {
+            target.setAlias(finalPersonRole);
+        }
+        if (isWeakSuspectFrontText(target.getShortDescription())) {
+            target.setShortDescription(suspectSummary(finalPersonName, finalPersonRole));
+        }
+        if (isWeakSuspectDetailText(target.getRelationToVictim()) && !blank(finalPersonRole)) {
+            target.setRelationToVictim(finalPersonRole + "로 사건 기록의 이동 순서와 보관 흐름을 확인할 수 있는 인물입니다.");
+        }
+        if (isWeakSuspectDetailText(target.getSuspiciousPoint()) && !blank(finalPersonRole)) {
+            target.setSuspiciousPoint("기록의 시간과 전달 순서가 맞지 않아 " + finalPersonRole + "의 동선을 다시 확인해야 합니다.");
+        }
+        if (isWeakSuspectDetailText(target.getAlibiSummary())) {
+            target.setAlibiSummary("알리바이는 미션 보상 단서와 기록 카드가 해금된 뒤 서로 대조해야 합니다.");
+        }
+
+        draft.setSuspects(suspects);
+        if (changed) {
+            warnings.add("Final related-person keyword was synchronized with the suspect card name.");
+        }
+    }
+
+    private boolean isApprovedRelatedPersonName(String value, AiEpisodeDraftRequest request) {
+        return !blank(value) && same(value, approvedRelatedPersonName(request));
+    }
+
+    private String approvedRelatedPersonName(AiEpisodeDraftRequest request) {
+        if (request == null || request.getFinalAnswerKeywordItems() == null) {
+            return "";
+        }
+        return request.getFinalAnswerKeywordItems().stream()
+                .filter(item -> item != null && isRelatedPersonSlot(item.getSlotId(), item.getLabel()))
+                .map(this::approvedKeywordValue)
+                .filter(this::isFictionalKoreanPersonName)
+                .findFirst()
+                .orElse("");
+    }
+
+    private String approvedRelatedPersonRole(AiEpisodeDraftRequest request) {
+        if (request == null || request.getFinalAnswerKeywordItems() == null) {
+            return "";
+        }
+        for (AiEpisodeDraftRequest.AnswerKeywordInput item : request.getFinalAnswerKeywordItems()) {
+            if (item == null || !isRelatedPersonSlot(item.getSlotId(), item.getLabel())) {
+                continue;
+            }
+            String role = normalizeAnswerKeywordValue(item.getPersonRole());
+            if (blank(role)) {
+                role = normalizeAnswerKeywordValue(item.getRole());
+            }
+            if (blank(role) && looksLikePersonRoleKeyword(item.getKeyword())) {
+                role = normalizeAnswerKeywordValue(item.getKeyword());
+            }
+            if (!blank(role)) {
+                return role;
+            }
+        }
+        return "";
+    }
+
+    private int indexOfSuspectName(List<AiEpisodeDraftResponse.SuspectDraft> suspects, String name) {
+        for (int i = 0; i < suspects.size(); i++) {
+            AiEpisodeDraftResponse.SuspectDraft suspect = suspects.get(i);
+            if (suspect != null && same(suspect.getDisplayName(), name)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int indexOfSuspectRole(List<AiEpisodeDraftResponse.SuspectDraft> suspects, String role) {
+        String normalizedRole = compact(role);
+        for (int i = 0; i < suspects.size(); i++) {
+            AiEpisodeDraftResponse.SuspectDraft suspect = suspects.get(i);
+            if (suspect == null || blank(normalizedRole)) {
+                continue;
+            }
+            boolean matched = java.util.Arrays.asList(
+                            suspect.getAlias(),
+                            suspect.getShortDescription(),
+                            suspect.getRelationToVictim(),
+                            suspect.getSuspiciousPoint(),
+                            suspect.getAlibiSummary()
+                    ).stream()
+                    .filter(value -> !blank(value))
+                    .map(this::compact)
+                    .anyMatch(value -> value.contains(normalizedRole));
+            if (matched) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private String suspectSummary(String personName, String personRole) {
+        String subject = blank(personName) ? "이 인물" : personName;
+        String role = blank(personRole) ? "사건 관계자" : personRole;
+        return subject + "은(는) " + role + "로 숨겨진 진실과 연결될 가능성이 있는 가상 용의자입니다.";
     }
 
     private boolean isRoleLikeSuspectDisplayName(String value) {
@@ -6099,7 +6414,7 @@ public class AdminEpisodeGeminiService {
 
         if (request.getFinalAnswerKeywordItems() != null && !request.getFinalAnswerKeywordItems().isEmpty()) {
             return request.getFinalAnswerKeywordItems().stream()
-                    .map(AiEpisodeDraftRequest.AnswerKeywordInput::getKeyword)
+                    .map(this::approvedKeywordValue)
                     .filter(value -> value != null && !value.isBlank())
                     .map(this::normalizeAnswerKeywordValue)
                     .filter(value -> !blank(value))
@@ -6119,6 +6434,24 @@ public class AdminEpisodeGeminiService {
         return List.of();
     }
 
+    private String approvedKeywordValue(AiEpisodeDraftRequest.AnswerKeywordInput item) {
+        if (item == null) {
+            return "";
+        }
+        if (isRelatedPersonSlot(item.getSlotId(), item.getLabel())) {
+            String personName = normalizeAnswerKeywordValue(item.getPersonName());
+            if (isFictionalKoreanPersonName(personName)) {
+                return personName;
+            }
+            String keyword = normalizeAnswerKeywordValue(item.getKeyword());
+            if (isFictionalKoreanPersonName(keyword)) {
+                return keyword;
+            }
+            return fictionalPersonName(keyword + " " + item.getPersonRole() + " " + item.getRole());
+        }
+        return item.getKeyword();
+    }
+
     private List<String> approvedFinalKeywordVariants(AiEpisodeDraftRequest request) {
         if (request == null || request.getFinalAnswerKeywordItems() == null
                 || request.getFinalAnswerKeywordItems().isEmpty()) {
@@ -6128,8 +6461,12 @@ public class AdminEpisodeGeminiService {
                 .filter(item -> item != null)
                 .flatMap(item -> {
                     List<String> values = new ArrayList<>();
-                    values.add(item.getKeyword());
-                    if (item.getAliases() != null) {
+                    values.add(approvedKeywordValue(item));
+                    if (isRelatedPersonSlot(item.getSlotId(), item.getLabel())) {
+                        if (item.getAliases() != null) {
+                            values.addAll(item.getAliases().stream().filter(this::isFictionalKoreanPersonName).toList());
+                        }
+                    } else if (item.getAliases() != null) {
                         values.addAll(item.getAliases());
                     }
                     return values.stream();

@@ -46,7 +46,11 @@ public class AiEpisodePlanResponse {
     public static class AnswerKeyword {
         private String slotId;
         private String label;
+        private String type;
         private String keyword;
+        private String personName;
+        private String personRole;
+        private String role;
         private List<String> aliases;
         private Integer sourcePlaceOrder;
         private String sourceBasis;
