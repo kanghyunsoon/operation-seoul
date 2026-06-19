@@ -30,6 +30,12 @@ public class ClearReportResponse {
     private Integer deductionQuestionCount;
     private Integer wrongAnswerCount;
     private Integer finalGuessCount;
+    private List<String> culpritClues;
+    private List<String> weaponClues;
+    private List<String> motiveClues;
+    private List<String> methodClues;
+
+    // Legacy fields kept for existing clients and saved progress.
     private List<String> answerClues;
     private List<String> destinationClues;
     private List<String> storyClues;

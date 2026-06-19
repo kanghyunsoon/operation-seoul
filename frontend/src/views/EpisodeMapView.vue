@@ -31,7 +31,7 @@
         </div>
 
         <p class="map-caption">
-          미션은 관련자, 핵심 단서, 장소 색상으로 표시됩니다. 장소 미션을 모두 해결하면 검은색 최종 목적지 마커가 공개됩니다.
+          8개의 조사 미션을 모두 해결하면 최종 장소가 자동으로 공개됩니다. 각 미션에서 범인, 흉기, 동기, 방법을 좁히는 서로 다른 단서를 수집하세요.
         </p>
       </section>
 
@@ -336,10 +336,10 @@ async function adminMoveToFinalSpot() {
   try {
     const result = await episodeApi.arriveFinalPlace(episodeId, { userLat: finalSpot.latitude, userLng: finalSpot.longitude, devMode: true });
     finalArrivalResult.value = result;
-    setStatus('관리자 테스트 GPS를 내부 최종 목적지로 이동했고 최종 추리 가능 상태를 확인했습니다.', 'success');
+    setStatus('관리자 테스트 GPS를 최종 장소로 이동했고 최종 추리 가능 상태를 확인했습니다.', 'success');
     await loadAll();
   } catch (error) {
-    setStatus(error.userMessage || '관리자 최종 목적지 이동에 실패했습니다.', 'error');
+    setStatus(error.userMessage || '관리자 최종 장소 이동에 실패했습니다.', 'error');
   }
 }
 
@@ -389,7 +389,7 @@ async function submitPuzzle(answer) {
       const popupData = rewardPopupData(result, unlockedTypes);
       closePuzzle();
       showRewardPopup(popupData);
-      if (unlockedTypes.includes('STORY_CLUE')) setStatus('장소 힌트가 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
+      if (unlockedTypes.includes('STORY_CLUE')) setStatus('새 사건 기록이 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
       else if (result.caseFileUpdated) setStatus('새 미션 자료가 미션 파일에 추가되었습니다.', 'success');
       else setStatus('정답입니다. 단서 보드가 갱신되었습니다.', 'success');
     } else if (result.retryInteraction && puzzle.value) {
@@ -597,19 +597,19 @@ function setStatus(text, type = 'info') {
 
 const markerLabel = (type) => ({
   START: '시작 장소',
-  KEYWORD_1: '관련자 미션',
-  KEYWORD_2: '핵심 단서 미션',
-  KEYWORD_3: '장소 미션',
-  FINAL_DESTINATION: '최종 목적지',
-}[type] || '키워드 미션');
+  KEYWORD_1: '조사 미션',
+  KEYWORD_2: '조사 미션',
+  KEYWORD_3: '조사 미션',
+  FINAL_DESTINATION: '최종 장소',
+}[type] || '조사 미션');
 
-const shortLabel = (type) => ({ START: 'S', KEYWORD_1: '관', KEYWORD_2: '핵', KEYWORD_3: '장', FINAL_DESTINATION: 'F', ANSWER_HINT: '핵', DESTINATION_HINT: '장', STORY: '관', FINAL_CANDIDATE: 'F' }[type] || '•');
+const shortLabel = (type) => ({ START: 'S', KEYWORD_1: '1', KEYWORD_2: '2', KEYWORD_3: '3', FINAL_DESTINATION: 'F', ANSWER_HINT: 'I', DESTINATION_HINT: 'I', STORY: 'R', FINAL_CANDIDATE: 'F' }[type] || '•');
 
 const rewardTypeLabel = (type) => ({
-  SUSPECT_CLUE: '관계자 힌트',
-  ANSWER_CLUE: '핵심 단서 힌트',
-  DESTINATION_CLUE: '장소 힌트',
-  STORY_CLUE: '장소 힌트',
+  SUSPECT_CLUE: '용의자 단서',
+  ANSWER_CLUE: '추리 단서',
+  DESTINATION_CLUE: '사건 단서',
+  STORY_CLUE: '사건 기록',
   EVIDENCE_UNLOCK: '사건자료 해금',
   PHOTO_UNLOCK: '사진 자료 해금',
   MEMO_UNLOCK: '메모 해금',

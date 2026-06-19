@@ -44,13 +44,13 @@ defineEmits(['navigate', 'arrive', 'open-puzzle', 'close-puzzle', 'start-deducti
 
 const roleLabel = (type) => ({
   START: '시작 장소',
-  KEYWORD_1: '관련자 미션',
-  KEYWORD_2: '핵심 단서 미션',
-  KEYWORD_3: '장소 미션',
-  FINAL_DESTINATION: '최종 목적지',
-  ANSWER_HINT: '핵심 단서 미션',
-  DESTINATION_HINT: '장소 미션',
-  STORY: '스토리 단서',
+  KEYWORD_1: '조사 미션',
+  KEYWORD_2: '조사 미션',
+  KEYWORD_3: '조사 미션',
+  FINAL_DESTINATION: '최종 장소',
+  ANSWER_HINT: '조사 미션',
+  DESTINATION_HINT: '조사 미션',
+  STORY: '사건 기록',
   FINAL_CANDIDATE: '조사 지점'
 }[type] || '조사 지점');
 </script>
@@ -62,9 +62,7 @@ const roleLabel = (type) => ({
 h2 { margin: 3px 0 0; color: #fff; font-size: 1.15rem; }
 .role { margin: 0; font-size: .74rem; font-weight: 900; }
 .role.START { color: #60a5fa; }
-.role.KEYWORD_1, .role.ANSWER_HINT { color: #fb923c; }
-.role.KEYWORD_2 { color: #22d3ee; }
-.role.KEYWORD_3, .role.DESTINATION_HINT { color: #a3e635; }
+.role.KEYWORD_1, .role.ANSWER_HINT, .role.KEYWORD_2, .role.KEYWORD_3, .role.DESTINATION_HINT { color: #fb923c; }
 .role.FINAL_DESTINATION { color: #e5e7eb; }
 .role.STORY { color: #4ade80; }
 .role.FINAL_CANDIDATE { color: #cbd5e1; }

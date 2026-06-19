@@ -76,6 +76,12 @@ public class CaseFileResponse {
     @Data
     @Builder
     public static class ClueSummary {
+        private List<String> culpritClues;
+        private List<String> weaponClues;
+        private List<String> motiveClues;
+        private List<String> methodClues;
+
+        // Legacy fields kept for existing clients and saved progress.
         private List<String> relatedPersonClues;
         private List<String> coreClues;
         private List<String> answerClues;

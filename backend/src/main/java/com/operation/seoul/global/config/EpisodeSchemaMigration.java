@@ -1,23 +1,36 @@
 package com.operation.seoul.global.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
 @Order(2)
 @RequiredArgsConstructor
+@Slf4j
 public class EpisodeSchemaMigration implements ApplicationRunner {
     private static final String SAMPLE_TITLE = "EP.01 The Lens That Lit the Silence";
+    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
     private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
+
+    @Value("${episode.migration.legacy-place-hints.enabled:false}")
+    private boolean legacyPlaceHintMigrationEnabled;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -28,6 +41,164 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         createCaseFileTables();
         addCaseFileColumns();
         seedSampleEpisode();
+        if (legacyPlaceHintMigrationEnabled) {
+            migrateLegacyDestinationHints();
+        } else {
+            logLegacyDestinationHintSummary();
+        }
+    }
+
+    private void logLegacyDestinationHintSummary() {
+        long spotCount = countLegacyRows("""
+                select count(*) from mission_spots
+                where marker_type in ('DESTINATION_HINT', 'FINAL_CANDIDATE')
+                   or clue_role in ('DESTINATION_HINT', 'STORY_CONTEXT')
+                   or public_marker_type in ('DESTINATION_HINT', 'FINAL_CANDIDATE')
+                """);
+        long evidenceCount = countLegacyRows("""
+                select count(*) from case_evidences
+                where type = 'DESTINATION_CLUE' or related_clue_type = 'DESTINATION_CLUE'
+                """);
+        long progressCount = countLegacyRows("""
+                select count(*) from user_episode_progress
+                where collected_destination_clues is not null
+                  and trim(collected_destination_clues) not in ('', '[]')
+                """);
+        if (spotCount + evidenceCount + progressCount > 0) {
+            log.warn(
+                    "legacy_place_hint_migration pending spots={} evidences={} progressRows={} enable with episode.migration.legacy-place-hints.enabled=true after backup",
+                    spotCount,
+                    evidenceCount,
+                    progressCount
+            );
+        }
+    }
+
+    private long countLegacyRows(String sql) {
+        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        return count == null ? 0 : count;
+    }
+
+    private void migrateLegacyDestinationHints() {
+        Set<Long> legacyEpisodeIds = new LinkedHashSet<>(jdbcTemplate.queryForList("""
+                select distinct episode_id
+                from mission_spots
+                where marker_type in ('DESTINATION_HINT', 'FINAL_CANDIDATE')
+                   or clue_role in ('DESTINATION_HINT', 'STORY_CONTEXT')
+                   or public_marker_type in ('DESTINATION_HINT', 'FINAL_CANDIDATE')
+                """, Long.class));
+        legacyEpisodeIds.addAll(jdbcTemplate.queryForList("""
+                select distinct episode_id
+                from case_evidences
+                where type = 'DESTINATION_CLUE' or related_clue_type = 'DESTINATION_CLUE'
+                """, Long.class));
+
+        backupLegacyDestinationHintRows(legacyEpisodeIds);
+
+        jdbcTemplate.update("""
+                update mission_spots
+                set marker_type = case when is_final_place = true then 'FINAL' else 'ANSWER_HINT' end,
+                    clue_role = case when is_final_place = true then 'FINAL_PLACE' else 'ANSWER_HINT' end,
+                    public_marker_type = case when marker_type = 'START' then 'START' else 'ANSWER_HINT' end,
+                    updated_at = current_timestamp
+                where marker_type in ('DESTINATION_HINT', 'FINAL_CANDIDATE')
+                   or clue_role in ('DESTINATION_HINT', 'STORY_CONTEXT')
+                   or public_marker_type in ('DESTINATION_HINT', 'FINAL_CANDIDATE')
+                """);
+        jdbcTemplate.update("""
+                update case_evidences
+                set type = case when type = 'DESTINATION_CLUE' then 'EVIDENCE' else type end,
+                    related_clue_type = case when related_clue_type = 'DESTINATION_CLUE' then 'ANSWER_CLUE' else related_clue_type end
+                where type = 'DESTINATION_CLUE' or related_clue_type = 'DESTINATION_CLUE'
+                """);
+        jdbcTemplate.update("""
+                update puzzles
+                set reward_payload = replace(
+                        replace(reward_payload, '"type":"DESTINATION_CLUE"', '"type":"ANSWER_CLUE"'),
+                        '"slotId":"FINAL_DESTINATION"',
+                        '"slotId":"ANSWER_CLUE"'
+                    ),
+                    updated_at = current_timestamp
+                where reward_payload like '%DESTINATION_CLUE%'
+                   or reward_payload like '%FINAL_DESTINATION%'
+                """);
+
+        migrateCollectedDestinationClues();
+        if (!legacyEpisodeIds.isEmpty()) {
+            String placeholders = legacyEpisodeIds.stream().map(id -> "?").collect(Collectors.joining(","));
+            List<Object> args = new ArrayList<>(legacyEpisodeIds);
+            jdbcTemplate.update(
+                    "update episodes set status='DRAFT', updated_at=current_timestamp where id in (" + placeholders + ")",
+                    args.toArray()
+            );
+        }
+    }
+
+    private void backupLegacyDestinationHintRows(Set<Long> legacyEpisodeIds) {
+        jdbcTemplate.execute("create table if not exists backup_legacy_place_hint_episodes like episodes");
+        jdbcTemplate.execute("create table if not exists backup_legacy_place_hint_spots like mission_spots");
+        jdbcTemplate.execute("create table if not exists backup_legacy_place_hint_puzzles like puzzles");
+        jdbcTemplate.execute("create table if not exists backup_legacy_place_hint_evidences like case_evidences");
+        jdbcTemplate.execute("create table if not exists backup_legacy_place_hint_progress like user_episode_progress");
+
+        if (!legacyEpisodeIds.isEmpty()) {
+            String ids = legacyEpisodeIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+            jdbcTemplate.update("insert ignore into backup_legacy_place_hint_episodes select * from episodes where id in (" + ids + ")");
+            jdbcTemplate.update("insert ignore into backup_legacy_place_hint_spots select * from mission_spots where episode_id in (" + ids + ")");
+            jdbcTemplate.update("""
+                    insert ignore into backup_legacy_place_hint_puzzles
+                    select p.* from puzzles p
+                    join mission_spots s on s.id = p.mission_spot_id
+                    where s.episode_id in (""" + ids + ")");
+            jdbcTemplate.update("insert ignore into backup_legacy_place_hint_evidences select * from case_evidences where episode_id in (" + ids + ")");
+            jdbcTemplate.update("insert ignore into backup_legacy_place_hint_progress select * from user_episode_progress where episode_id in (" + ids + ")");
+        }
+    }
+
+    private void migrateCollectedDestinationClues() {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                select id, collected_answer_clues, collected_destination_clues
+                from user_episode_progress
+                where collected_destination_clues is not null
+                  and trim(collected_destination_clues) not in ('', '[]')
+                """);
+        for (Map<String, Object> row : rows) {
+            List<String> merged = new ArrayList<>(readStringList(row.get("collected_answer_clues")));
+            for (String clue : readStringList(row.get("collected_destination_clues"))) {
+                String normalized = clue == null ? "" : clue.trim();
+                if (normalized.isBlank()) {
+                    continue;
+                }
+                String migrated = normalized.contains("::") ? normalized : "ANSWER_CLUE::" + normalized;
+                if (!merged.contains(migrated)) {
+                    merged.add(migrated);
+                }
+            }
+            jdbcTemplate.update(
+                    "update user_episode_progress set collected_answer_clues=?, collected_destination_clues='[]' where id=?",
+                    writeStringList(merged),
+                    row.get("id")
+            );
+        }
+    }
+
+    private List<String> readStringList(Object value) {
+        if (value == null || value.toString().isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(value.toString(), STRING_LIST);
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    private String writeStringList(List<String> values) {
+        try {
+            return objectMapper.writeValueAsString(values);
+        } catch (Exception e) {
+            return "[]";
+        }
     }
 
     private void migrateUsers() {
@@ -370,10 +541,10 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                 spot(episodeId, "Jeongdong First Methodist Church", "46 Jeongdong-gil, Jung-gu, Seoul", 37.566637, 126.972559, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "The window grid hides an initial-sound clue.", false),
                 spot(episodeId, "Pai Chai Hall Museum", "19 Seosomun-ro 11-gil, Jung-gu, Seoul", 37.564815, 126.972420, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "The archive years narrow down the code.", false),
                 spot(episodeId, "SeMA Seosomun Main Building", "61 Deoksugung-gil, Jung-gu, Seoul", 37.564104, 126.973747, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "Light and shadow reveal the direction of the reflection.", false),
-                spot(episodeId, "Jeongdong Theater", "43 Jeongdong-gil, Jung-gu, Seoul", 37.565840, 126.972007, "DESTINATION_HINT", "DESTINATION_HINT", "DESTINATION_HINT", "A stage record points to the red-brick destination.", false),
-                spot(episodeId, "Ewha Hakdang Historic Marker", "26 Jeongdong-gil, Jung-gu, Seoul", 37.565055, 126.971380, "DESTINATION_HINT", "DESTINATION_HINT", "DESTINATION_HINT", "The last door clue is hidden near the old school marker.", false),
-                spot(episodeId, "SeMA Front Yard", "61 Deoksugung-gil, Jung-gu, Seoul", 37.564010, 126.973780, "FINAL_CANDIDATE", "STORY_CONTEXT", "FINAL_CANDIDATE", "This location tests whether the team followed the wrong final trail.", false),
-                spot(episodeId, "Jungmyeongjeon Hall", "41-11 Jeongdong-gil, Jung-gu, Seoul", 37.566289, 126.971856, "FINAL", "FINAL_PLACE", "FINAL_CANDIDATE", "The final deduction opens where the red-brick record ends.", true)
+                spot(episodeId, "Jeongdong Theater", "43 Jeongdong-gil, Jung-gu, Seoul", 37.565840, 126.972007, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "A stage record adds a distinct fact to the case timeline.", false),
+                spot(episodeId, "Ewha Hakdang Historic Marker", "26 Jeongdong-gil, Jung-gu, Seoul", 37.565055, 126.971380, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "A document fragment adds a distinct fact to the case timeline.", false),
+                spot(episodeId, "SeMA Front Yard", "61 Deoksugung-gil, Jung-gu, Seoul", 37.564010, 126.973780, "ANSWER_HINT", "ANSWER_HINT", "ANSWER_HINT", "This location provides another independent case fact.", false),
+                spot(episodeId, "Jungmyeongjeon Hall", "41-11 Jeongdong-gil, Jung-gu, Seoul", 37.566289, 126.971856, "FINAL", "FINAL_PLACE", "ANSWER_HINT", "The final deduction opens after all investigation locations are complete.", true)
         );
         spots.forEach(values -> jdbcTemplate.update("""
                 insert into mission_spots (episode_id, place_name, address, latitude, longitude, marker_type, clue_role,
@@ -406,10 +577,10 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
             insertEvidence(episodeId, "Post-it with a Crack Mark", "POST_IT", "A note warns that the puzzle is not the dead person, but the disappearing object.", spotIds.get("Jeongdong-gil Stone Wall"), null, "ANSWER_CLUE", true, 2);
             insertEvidence(episodeId, "Broken Lens Memo", "MEMO", "A small memo describes a strong reflection from a cracked lens piece.", spotIds.get("Pai Chai Hall Museum"), suspectIds.get("Vanished Photographer's Assistant"), "ANSWER_CLUE", false, 3);
             insertEvidence(episodeId, "Camera Mount Repair Log", "DOCUMENT", "The repair log shows the mount was deliberately twisted before the incident.", spotIds.get("Jeongdong First Methodist Church"), suspectIds.get("Vanished Photographer's Assistant"), "ANSWER_CLUE", false, 4);
-            insertEvidence(episodeId, "Witness Statement", "NOTE", "A witness saw the red-umbrella man carrying the final photo envelope.", spotIds.get("Jeongdong Theater"), suspectIds.get("Witness with a Red Umbrella"), "DESTINATION_CLUE", false, 5);
+            insertEvidence(episodeId, "Witness Statement", "NOTE", "A witness saw the red-umbrella man carrying the final photo envelope.", spotIds.get("Jeongdong Theater"), suspectIds.get("Witness with a Red Umbrella"), "ANSWER_CLUE", false, 5);
             insertEvidence(episodeId, "Red Umbrella Record", "SUSPECT_CLUE", "The umbrella was a signal, not the murder weapon.", spotIds.get("Jungmyeongjeon Hall"), suspectIds.get("Witness with a Red Umbrella"), "STORY_CLUE", false, 6);
             insertEvidence(episodeId, "Reflection Direction Memo", "MEMO", "The reflection direction connects the camera trace to the left-side shadow.", spotIds.get("SeMA Seosomun Main Building"), null, "ANSWER_CLUE", false, 7);
-            insertEvidence(episodeId, "Last Door Photo Card", "PHOTO", "The photo back says: red brick, last door, not the museum yard.", spotIds.get("Ewha Hakdang Historic Marker"), suspectIds.get("Black-Coat Archivist"), "DESTINATION_CLUE", false, 8);
+            insertEvidence(episodeId, "Last Door Photo Card", "PHOTO", "The photo back records a route inconsistency that weakens one statement.", spotIds.get("Ewha Hakdang Historic Marker"), suspectIds.get("Black-Coat Archivist"), "ANSWER_CLUE", false, 8);
         }
         if (count("episode_partner_rewards", episodeId) == 0) {
             jdbcTemplate.update("""
@@ -427,8 +598,8 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         payload(episodeId, "Jeongdong First Methodist Church", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"lens\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Camera Mount Repair Log") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("Vanished Photographer's Assistant") + "}]}");
         payload(episodeId, "Pai Chai Hall Museum", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"archive year\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Broken Lens Memo") + "}]}");
         payload(episodeId, "SeMA Seosomun Main Building", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"value\":\"reflection\"},{\"type\":\"MEMO_UNLOCK\",\"value\":\"The reflection direction connects the camera trace to the left-side shadow.\",\"targetId\":" + evidence.get("Reflection Direction Memo") + "}]}");
-        payload(episodeId, "Jeongdong Theater", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"red brick record\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Witness Statement") + "}]}");
-        payload(episodeId, "Ewha Hakdang Historic Marker", "{\"rewards\":[{\"type\":\"DESTINATION_CLUE\",\"value\":\"last door\"},{\"type\":\"PHOTO_UNLOCK\",\"targetId\":" + evidence.get("Last Door Photo Card") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("Black-Coat Archivist") + "}]}");
+        payload(episodeId, "Jeongdong Theater", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"slotId\":\"CULPRIT\",\"value\":\"the witness had access to the photo envelope\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Witness Statement") + "}]}");
+        payload(episodeId, "Ewha Hakdang Historic Marker", "{\"rewards\":[{\"type\":\"ANSWER_CLUE\",\"slotId\":\"METHOD\",\"value\":\"the recorded route contradicts one statement\"},{\"type\":\"PHOTO_UNLOCK\",\"targetId\":" + evidence.get("Last Door Photo Card") + "},{\"type\":\"SUSPECT_UNLOCK\",\"targetId\":" + suspect.get("Black-Coat Archivist") + "}]}");
         payload(episodeId, "Jungmyeongjeon Hall", "{\"rewards\":[{\"type\":\"STORY_CLUE\",\"value\":\"The red-brick route ends at the final record hall.\"},{\"type\":\"EVIDENCE_UNLOCK\",\"targetId\":" + evidence.get("Red Umbrella Record") + "},{\"type\":\"SUSPECT_UPDATE\",\"targetId\":" + suspect.get("Witness with a Red Umbrella") + "}]}");
     }
 

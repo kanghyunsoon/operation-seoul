@@ -17,6 +17,7 @@ public class AiEpisodePlanResponse {
 
     private List<AnswerSlotPlan> answerSlots;
     private List<AnswerKeyword> finalAnswerKeywords;
+    private List<AnswerKeyword> finalAnswerKeywordItems;
     private FinalAnswers finalAnswers;
 
     private String finalQuestionGuide;
@@ -48,6 +49,7 @@ public class AiEpisodePlanResponse {
         private String slotId;
         private String label;
         private String type;
+        private String displayType;
         private String keyword;
         private String personName;
         private String personRole;
@@ -67,6 +69,12 @@ public class AiEpisodePlanResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class FinalAnswers {
+        private String culprit;
+        private String weapon;
+        private String motive;
+        private String method;
+
+        // Legacy fields kept temporarily for older admin drafts and UI payloads.
         private String relatedPerson;
         private String coreClue;
         private String finalLocation;

@@ -2,28 +2,18 @@
   <aside class="clue-board" :class="{ open }">
     <header>
       <div>
-        <p>CLUE BOARD</p>
-        <h2>수집한 단서</h2>
+        <p>DEDUCTION BOARD</p>
+        <h2>수집한 추리 단서</h2>
       </div>
       <button type="button" @click="$emit('close')">닫기</button>
     </header>
 
-    <section>
-      <h3>관계자 힌트 <span>{{ relatedPersonClues.length }}/3</span></h3>
-      <ul><li v-for="clue in displayClues(relatedPersonClues)" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!relatedPersonClues.length" class="empty">관계자를 좁혀 줄 단서가 아직 없습니다.</p>
-    </section>
+    <p class="guide">8개의 서로 다른 정보를 종합해 범인, 흉기, 동기, 방법을 추리하세요. 정답 값은 단서에 직접 표시되지 않습니다.</p>
 
-    <section>
-      <h3>핵심 단서 힌트 <span>{{ coreClues.length }}/3</span></h3>
-      <ul><li v-for="clue in displayClues(coreClues)" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!coreClues.length" class="empty">핵심 단서의 형태를 좁혀 줄 단서가 아직 없습니다.</p>
-    </section>
-
-    <section>
-      <h3>장소 힌트 <span>{{ board?.destinationClueCount || 0 }}/3</span></h3>
-      <ul><li v-for="clue in displayClues(board?.destinationClues)" :key="clue">{{ clue }}</li></ul>
-      <p v-if="!(board?.destinationClues || []).length" class="empty">최종 목적지를 열기 위한 장소 힌트가 아직 없습니다.</p>
+    <section v-for="slot in clueSlots" :key="slot.id" :class="`slot-${slot.id.toLowerCase()}`">
+      <h3>{{ slot.label }} <span>{{ slot.clues.length }}</span></h3>
+      <ul><li v-for="clue in slot.clues" :key="clue">{{ clue }}</li></ul>
+      <p v-if="!slot.clues.length" class="empty">{{ slot.empty }}</p>
     </section>
 
     <section>
@@ -39,36 +29,40 @@ import { computed } from 'vue';
 const props = defineProps({ board: { type: Object, default: null }, open: { type: Boolean, default: false } });
 defineEmits(['close']);
 
-const relatedPersonClues = computed(() => {
-  const explicit = props.board?.relatedPersonClues || [];
-  if (explicit.length) return explicit;
-  return legacyAnswerClues().filter((_, index) => index % 2 === 0);
+const clueSlots = computed(() => {
+  const fallback = displayClues(props.board?.answerClues);
+  return [
+    slot('CULPRIT', '범인 추리', props.board?.culpritClues, fallback, 0, '범인의 접근 권한과 알리바이를 좁힐 단서가 아직 없습니다.'),
+    slot('WEAPON', '흉기 추리', props.board?.weaponClues, fallback, 1, '범행에 사용된 물질이나 도구를 좁힐 단서가 아직 없습니다.'),
+    slot('MOTIVE', '동기 추리', props.board?.motiveClues, fallback, 2, '범행 동기와 이익 관계를 좁힐 단서가 아직 없습니다.'),
+    slot('METHOD', '방법 추리', props.board?.methodClues, fallback, 3, '범행이 실행된 수법을 좁힐 단서가 아직 없습니다.')
+  ];
 });
 
-const coreClues = computed(() => {
-  const explicit = props.board?.coreClues || [];
-  if (explicit.length) return explicit;
-  return legacyAnswerClues().filter((_, index) => index % 2 === 1);
-});
-
-function legacyAnswerClues() {
-  return props.board?.answerClues || [];
+function slot(id, label, explicit, fallback, offset, empty) {
+  const clues = displayClues(explicit);
+  return { id, label, clues: clues.length ? clues : fallback.filter((_, index) => index % 4 === offset), empty };
 }
 
 function displayClues(clues = []) {
-  return (clues || []).map((clue) => String(clue || '').trim()).filter(Boolean);
+  return [...new Set((clues || []).map((clue) => String(clue || '').trim()).filter(Boolean))];
 }
 </script>
 
 <style scoped>
-.clue-board { position: fixed; inset: auto 0 0 0; z-index: 45; max-height: 78vh; transform: translateY(105%); transition: transform .28s ease; box-sizing: border-box; width: min(100%, 430px); margin: 0 auto; padding: 18px; border-radius: 22px 22px 0 0; background: #f8f1df; color: #24180d; box-shadow: 0 -18px 45px rgba(0,0,0,.35); overflow: auto; }
+.clue-board { position: fixed; inset: auto 0 0 0; z-index: 45; max-height: 82vh; transform: translateY(105%); transition: transform .28s ease; box-sizing: border-box; width: min(100%, 430px); margin: 0 auto; padding: 18px; border-radius: 22px 22px 0 0; background: #f8f1df; color: #24180d; box-shadow: 0 -18px 45px rgba(0,0,0,.35); overflow: auto; }
 .clue-board.open { transform: translateY(0); }
 header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border-bottom: 2px solid rgba(36,24,13,.2); padding-bottom: 12px; }
 p { margin: 0; }
 header p { font-size: .72rem; font-weight: 900; letter-spacing: .12em; color: #9a3412; }
 h2 { margin: 2px 0 0; font-size: 1.25rem; }
 button { border: 1px solid rgba(36,24,13,.25); border-radius: 999px; background: transparent; padding: 7px 10px; font-weight: 800; }
-section { margin-top: 16px; padding: 13px; border: 1px solid rgba(36,24,13,.16); border-radius: 14px; background: rgba(255,255,255,.42); }
+.guide { margin-top: 12px; color: #57534e; font-size: .82rem; line-height: 1.5; }
+section { margin-top: 12px; padding: 13px; border: 1px solid rgba(36,24,13,.16); border-left: 5px solid #78716c; border-radius: 14px; background: rgba(255,255,255,.42); }
+.slot-culprit { border-left-color: #b91c1c; }
+.slot-weapon { border-left-color: #1d4ed8; }
+.slot-motive { border-left-color: #a16207; }
+.slot-method { border-left-color: #047857; }
 h3 { display: flex; justify-content: space-between; margin: 0 0 8px; font-size: .95rem; }
 span { color: #9a3412; }
 ul { display: grid; gap: 7px; margin: 0; padding-left: 18px; }

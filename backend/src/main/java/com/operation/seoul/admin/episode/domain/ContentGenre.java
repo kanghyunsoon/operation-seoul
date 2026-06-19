@@ -4,7 +4,8 @@ import java.util.Arrays;
 import java.util.List;
 
 public enum ContentGenre {
-    MURDER_MYSTERY("살인 미스터리"),
+    CRIME_MYSTERY("범죄 미스터리"),
+    MURDER_MYSTERY("범죄 미스터리"),
     MISSING_CASE("실종 사건"),
     TREASURE_HUNT("보물찾기"),
     CODE_BREAKING("암호 해독");
@@ -29,22 +30,10 @@ public enum ContentGenre {
     }
 
     public static ContentGenre fromIdOrName(String id, String name) {
-        if (id != null) {
-            String normalizedId = id.trim();
-            for (ContentGenre genre : values()) {
-                if (genre.name().equalsIgnoreCase(normalizedId)) {
-                    return genre;
-                }
-            }
-        }
-        if (name != null) {
-            String normalizedName = name.trim();
-            for (ContentGenre genre : values()) {
-                if (genre.displayName.equals(normalizedName)) {
-                    return genre;
-                }
-            }
-        }
-        return null;
+        return Arrays.stream(values())
+                .filter(genre -> genre.name().equalsIgnoreCase(id == null ? "" : id.trim())
+                        || genre.displayName.equals(name == null ? "" : name.trim()))
+                .findFirst()
+                .orElse(null);
     }
 }

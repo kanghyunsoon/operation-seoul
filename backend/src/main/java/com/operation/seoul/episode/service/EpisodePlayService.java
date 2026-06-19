@@ -95,7 +95,7 @@ public class EpisodePlayService {
         }
         String normalized = value.trim();
         if (normalized.equalsIgnoreCase("walking route review required") || normalized.equalsIgnoreCase("review required")) {
-            return "도보 동선 확인 필요";
+            return "?꾨낫 ?숈꽑 ?뺤씤 ?꾩슂";
         }
         return normalized.replaceAll("(?i)\\babout\\b\\s*", "약 ");
     }
@@ -201,17 +201,11 @@ public class EpisodePlayService {
         if (progress.getFinalArrivedSpotId() != null || "FINAL_READY".equals(progress.getStatus()) || "CLEARED".equals(progress.getStatus())) {
             return true;
         }
-        List<MissionSpot> locationKeywordSpots = spots.stream()
+        List<MissionSpot> investigationSpots = spots.stream()
                 .filter(spot -> !Boolean.TRUE.equals(spot.getFinalPlace()))
-                .filter(this::isLocationKeywordSpot)
+                .filter(spot -> !"START".equals(normalize(spot.getMarkerType())))
                 .toList();
-        if (locationKeywordSpots.isEmpty()) {
-            locationKeywordSpots = spots.stream()
-                    .filter(spot -> !Boolean.TRUE.equals(spot.getFinalPlace()))
-                    .filter(spot -> !"START".equals(normalize(spot.getMarkerType())))
-                    .toList();
-        }
-        return !locationKeywordSpots.isEmpty() && locationKeywordSpots.stream().allMatch(spot -> completed.contains(spot.getId()));
+        return !investigationSpots.isEmpty() && investigationSpots.stream().allMatch(spot -> completed.contains(spot.getId()));
     }
 
     private String displayMarkerType(MissionSpot spot) {
@@ -244,7 +238,7 @@ public class EpisodePlayService {
         UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
         boolean adminBypass = user != null && user.isAdmin();
         if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled && !adminBypass) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "이 서버에서는 개발용 도착 판정이 비활성화되어 있습니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "???쒕쾭?먯꽌??媛쒕컻???꾩갑 ?먯젙??鍮꾪솢?깊솕?섏뼱 ?덉뒿?덈떎.");
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
         requireCoordinatesUnlessDevMode(request, devMode);
@@ -258,7 +252,7 @@ public class EpisodePlayService {
                     .canOpenPuzzle(false)
                     .isActualFinalArrived(false)
                     .canStartDeduction(false)
-                    .message("도착 반경 밖입니다. 장소에 더 가까이 이동해 주세요.")
+                    .message("?꾩갑 諛섍꼍 諛뽰엯?덈떎. ?μ냼????媛源뚯씠 ?대룞??二쇱꽭??")
                     .build();
         }
 
@@ -271,10 +265,10 @@ public class EpisodePlayService {
         episodeRepository.updateProgress(progress);
 
         String message = actualFinal
-                ? "조사 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다."
+                ? "議곗궗 ?μ냼媛 ?뺤씤?섏뿀?듬땲?? 理쒖쥌 異붾━瑜??쒖옉?????덉?留? 遺議깊븳 ?⑥꽌???먯닔???곹뼢??以????덉뒿?덈떎."
                 : ("DESTINATION_HINT".equals(spot.getPublicMarkerType())
-                    ? "장소 단서와 대조할 조사 지점입니다. 미션 메모과 단서 보드를 다시 확인해 주세요."
-                    : "도착이 확인되었습니다. 현장 퍼즐을 열 수 있습니다.");
+                    ? "?μ냼 ?⑥꽌? ?議고븷 議곗궗 吏?먯엯?덈떎. 誘몄뀡 硫붾え怨??⑥꽌 蹂대뱶瑜??ㅼ떆 ?뺤씤??二쇱꽭??"
+                    : "?꾩갑???뺤씤?섏뿀?듬땲?? ?꾩옣 ?쇱쫹???????덉뒿?덈떎.");
 
         return ArriveResponse.builder()
                 .arrived(true)
@@ -291,11 +285,11 @@ public class EpisodePlayService {
         MissionSpot finalSpot = episodeRepository.findSpotsByEpisodeId(episodeId).stream()
                 .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "조사 장소 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "議곗궗 ?μ냼 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎."));
         UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
         boolean adminBypass = user != null && user.isAdmin();
         if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled && !adminBypass) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "이 서버에서는 개발용 도착 판정이 비활성화되어 있습니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "???쒕쾭?먯꽌??媛쒕컻???꾩갑 ?먯젙??鍮꾪솢?깊솕?섏뼱 ?덉뒿?덈떎.");
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
         requireCoordinatesUnlessDevMode(request, devMode);
@@ -308,7 +302,7 @@ public class EpisodePlayService {
                     .canOpenPuzzle(false)
                     .isActualFinalArrived(false)
                     .canStartDeduction(false)
-                    .message("현재 위치에서는 최종 추리를 시작할 수 없습니다. 단서 보드와 미션 메모을 다시 확인해 주세요.")
+                    .message("?꾩옱 ?꾩튂?먯꽌??理쒖쥌 異붾━瑜??쒖옉?????놁뒿?덈떎. ?⑥꽌 蹂대뱶? 誘몄뀡 硫붾え???ㅼ떆 ?뺤씤??二쇱꽭??")
                     .build();
         }
         progress.setFinalArrivedSpotId(finalSpot.getId());
@@ -320,7 +314,7 @@ public class EpisodePlayService {
                 .canOpenPuzzle(false)
                 .isActualFinalArrived(true)
                 .canStartDeduction(true)
-                .message("조사 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다.")
+                .message("議곗궗 ?μ냼媛 ?뺤씤?섏뿀?듬땲?? 理쒖쥌 異붾━瑜??쒖옉?????덉?留? 遺議깊븳 ?⑥꽌???먯닔???곹뼢??以????덉뒿?덈떎.")
                 .build();
     }
 
@@ -328,11 +322,11 @@ public class EpisodePlayService {
         MissionSpot spot = requireSpot(spotId, null);
         UserEpisodeProgress progress = requireProgress(user.getId(), spot.getEpisodeId());
         if (!readLongList(progress.getVisitedSpotIds()).contains(spotId)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "퍼즐을 열기 전에 해당 장소에 도착해야 합니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "?쇱쫹???닿린 ?꾩뿉 ?대떦 ?μ냼???꾩갑?댁빞 ?⑸땲??");
         }
         Puzzle puzzle = episodeRepository.findPuzzleBySpotId(spotId);
         if (puzzle == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "퍼즐을 찾을 수 없습니다.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "?쇱쫹??李얠쓣 ???놁뒿?덈떎.");
         }
         return PuzzleResponse.builder()
                 .puzzleId(puzzle.getId())
@@ -409,11 +403,11 @@ public class EpisodePlayService {
         Map<String, Object> interaction = new LinkedHashMap<>();
         interaction.put("version", 1);
         interaction.put("type", "PATTERN_LOCK");
-        interaction.put("title", "단서 장치 · 패턴 잠금");
-        interaction.put("prompt", "아래 미션을 해결하여 단서를 얻으세요.");
-        interaction.put("missionDescription", "잠깐 점등되는 노드 순서를 기억하고 그대로 입력한 뒤 결과를 제출하세요.");
-        interaction.put("storyHook", "아래 미션을 해결하여 단서를 얻으세요.");
-        interaction.put("basis", sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "사건 단서")));
+        interaction.put("title", "?⑥꽌 ?μ튂 쨌 ?⑦꽩 ?좉툑");
+        interaction.put("prompt", "?꾨옒 誘몄뀡???닿껐?섏뿬 ?⑥꽌瑜??살쑝?몄슂.");
+        interaction.put("missionDescription", "?좉퉸 ?먮벑?섎뒗 ?몃뱶 ?쒖꽌瑜?湲곗뼲?섍퀬 洹몃?濡??낅젰????寃곌낵瑜??쒖텧?섏꽭??");
+        interaction.put("storyHook", "?꾨옒 誘몄뀡???닿껐?섏뿬 ?⑥꽌瑜??살쑝?몄슂.");
+        interaction.put("basis", sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "?ш굔 ?⑥꽌")));
         interaction.put("localSolution", localSolution);
         interaction.put("timeLimitSeconds", 60);
         interaction.put("config", config);
@@ -421,12 +415,12 @@ public class EpisodePlayService {
     }
 
     private String fallbackMinigameSolution(Puzzle puzzle) {
-        String source = sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), fallbackText(puzzle.getQuestionText(), "단서장치")));
+        String source = sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), fallbackText(puzzle.getQuestionText(), "?⑥꽌?μ튂")));
         String compact = source.replaceAll("\\s+", "");
         if (compact.length() > 8) {
             compact = compact.substring(0, 8);
         }
-        return compact.isBlank() ? "단서장치" : compact;
+        return compact.isBlank() ? "?⑥꽌?μ튂" : compact;
     }
 
     private List<String> rotatedCharacters(String value) {
@@ -435,15 +429,15 @@ public class EpisodePlayService {
                 .filter(text -> !text.isBlank())
                 .toList());
         if (characters.size() < 2) {
-            characters.add("단");
-            characters.add("서");
+            characters.add("단서");
+            characters.add("단서");
         }
         Collections.rotate(characters, Math.max(1, characters.size() / 2));
         return characters;
     }
 
     private List<Integer> fallbackPatternNodes(String value) {
-        int seed = Math.abs(fallbackText(value, "단서장치").hashCode());
+        int seed = Math.abs(fallbackText(value, "단서배치").hashCode());
         List<Integer> nodes = new ArrayList<>();
         for (int divisor : List.of(1, 3, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41)) {
             int node = (seed / divisor) % 9;
@@ -472,13 +466,13 @@ public class EpisodePlayService {
         }
         return value
                 .replace("KakaoLocal:CE7", "카페/커피 휴식 지점")
-                .replace("KakaoLocal:FD6", "음식점/식당 상권")
+                .replace("KakaoLocal:FD6", "음식점 지점")
                 .replace("KakaoLocal:CT1", "문화시설/전시 지점")
-                .replace("KakaoLocal:AT4", "관광명소/명소 지점")
+                .replace("KakaoLocal:AT4", "관광명소 지점")
                 .replace("CE7", "카페/커피 휴식 지점")
-                .replace("FD6", "음식점/식당 상권")
+                .replace("FD6", "음식점 지점")
                 .replace("CT1", "문화시설/전시 지점")
-                .replace("AT4", "관광명소/명소 지점");
+                .replace("AT4", "관광명소 지점");
     }
 
     private boolean isPuzzleAnswerAccepted(Puzzle puzzle, String submittedAnswer, int expectedRetryVariant) {
@@ -493,12 +487,12 @@ public class EpisodePlayService {
     public PuzzleSubmitResponse submitPuzzle(Long puzzleId, PuzzleSubmitRequest request, User user) {
         Puzzle puzzle = episodeRepository.findPuzzleById(puzzleId);
         if (puzzle == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "퍼즐을 찾을 수 없습니다.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "?쇱쫹??李얠쓣 ???놁뒿?덈떎.");
         }
         MissionSpot spot = requireSpot(puzzle.getMissionSpotId(), null);
         UserEpisodeProgress progress = requireProgress(user.getId(), spot.getEpisodeId());
         if (!readLongList(progress.getVisitedSpotIds()).contains(spot.getId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "퍼즐을 풀기 전에 해당 장소에 도착해야 합니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "?쇱쫹???湲??꾩뿉 ?대떦 ?μ냼???꾩갑?댁빞 ?⑸땲??");
         }
 
         puzzleAttemptGuard.enforce(user.getId(), puzzle.getId());
@@ -518,7 +512,7 @@ public class EpisodePlayService {
             );
             return PuzzleSubmitResponse.builder()
                     .correct(false)
-                    .message("정답이 아닙니다. 같은 미션의 다른 문제로 다시 시도해 주세요.")
+                    .message("?뺣떟???꾨떃?덈떎. 媛숈? 誘몄뀡???ㅻⅨ 臾몄젣濡??ㅼ떆 ?쒕룄??二쇱꽭??")
                     .retryInteraction(puzzleInteraction(puzzle, retryVariant))
                     .clueBoard(buildClueBoard(progress))
                     .build();
@@ -547,8 +541,8 @@ public class EpisodePlayService {
                 .unlockedMemoIds(rewardResult.memoIds())
                 .newlyUnlockedItems(rewardResult.items())
                 .message(rewardResult.caseFileUpdated()
-                        ? "정답입니다. 단서와 사건자료가 미션 메모에 추가되었습니다."
-                        : "정답입니다. 단서가 단서 보드에 저장되었습니다.")
+                        ? "?뺣떟?낅땲?? ?⑥꽌? ?ш굔?먮즺媛 誘몄뀡 硫붾え??異붽??섏뿀?듬땲??"
+                        : "?뺣떟?낅땲?? ?⑥꽌媛 ?⑥꽌 蹂대뱶????λ릺?덉뒿?덈떎.")
                 .clueBoard(buildClueBoard(progress))
                 .build();
     }
@@ -562,14 +556,14 @@ public class EpisodePlayService {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (!"IN_PROGRESS".equals(progress.getStatus()) && !"FINAL_READY".equals(progress.getStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "INVALID_PROGRESS", "현재 진행 상태에서는 최종 추리를 시작할 수 없습니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "INVALID_PROGRESS", "?꾩옱 吏꾪뻾 ?곹깭?먯꽌??理쒖쥌 異붾━瑜??쒖옉?????놁뒿?덈떎.");
         }
         MissionSpot finalSpot = episodeRepository.findSpotsByEpisodeId(episodeId).stream()
                 .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "조사 장소를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "議곗궗 ?μ냼瑜?李얠쓣 ???놁뒿?덈떎."));
         if (!finalSpot.getId().equals(progress.getFinalArrivedSpotId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "최종 추리를 시작하기 전에 조사 장소를 확인해야 합니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "理쒖쥌 異붾━瑜??쒖옉?섍린 ?꾩뿉 議곗궗 ?μ냼瑜??뺤씤?댁빞 ?⑸땲??");
         }
 
         FinalDeductionSession session = episodeRepository.findOpenDeductionSession(user.getId(), episodeId);
@@ -582,8 +576,8 @@ public class EpisodePlayService {
         }
         List<String> clues = allClues(progress);
         String message = clues.size() < 3
-                ? "단서가 부족합니다. 더 정확한 질문을 위해 관련자/핵심 단서 미션을 더 조사해 주세요."
-                : "최종 추리 채팅이 시작되었습니다.";
+                ? "?⑥꽌媛 遺議깊빀?덈떎. ???뺥솗??吏덈Ц???꾪빐 愿?⑥옄/?듭떖 ?⑥꽌 誘몄뀡????議곗궗??二쇱꽭??"
+                : "理쒖쥌 異붾━ 梨꾪똿???쒖옉?섏뿀?듬땲??";
         return DeductionStartResponse.builder()
                 .sessionId(session.getId())
                 .maxQuestionCount(maxQuestions(episode))
@@ -600,12 +594,12 @@ public class EpisodePlayService {
         int maxQuestions = maxQuestions(episode);
         int current = value(session.getQuestionCount());
         if (current >= maxQuestions) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_LIMIT_EXCEEDED", "사용 가능한 질문 횟수를 모두 사용했습니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_LIMIT_EXCEEDED", "?ъ슜 媛?ν븳 吏덈Ц ?잛닔瑜?紐⑤몢 ?ъ슜?덉뒿?덈떎.");
         }
         UserEpisodeProgress progress = requireProgress(user.getId(), session.getEpisodeId());
         String question = request.getQuestion() == null ? "" : request.getQuestion().trim();
         if (question.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "질문을 입력해 주세요.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "吏덈Ц???낅젰??二쇱꽭??");
         }
 
         DeductionAnswer answer = sanitizeDeductionAnswer(episode, answerDeductionQuestion(episode, progress, question));
@@ -647,7 +641,7 @@ public class EpisodePlayService {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (progress.getFinalArrivedSpotId() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "최종 정답을 제출하기 전에 조사 장소를 확인해야 합니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "理쒖쥌 ?뺣떟???쒖텧?섍린 ?꾩뿉 議곗궗 ?μ냼瑜??뺤씤?댁빞 ?⑸땲??");
         }
         FinalDeductionSession session = request.getSessionId() == null ? null : requireSession(request.getSessionId(), user);
         boolean correct = isFinalAnswerCorrect(episode, request.getFinalAnswer());
@@ -663,7 +657,7 @@ public class EpisodePlayService {
                     .correct(false)
                     .status(progress.getStatus())
                     .score(progress.getScore())
-                    .message("정답이 아닙니다. 단서 보드와 질문 기록을 다시 확인해 주세요.")
+                    .message("?뺣떟???꾨떃?덈떎. ?⑥꽌 蹂대뱶? 吏덈Ц 湲곕줉???ㅼ떆 ?뺤씤??二쇱꽭??")
                     .build();
         }
 
@@ -681,18 +675,23 @@ public class EpisodePlayService {
                 .correct(true)
                 .status("CLEARED")
                 .score(progress.getScore())
-                .message("사건을 해결했습니다. 클리어 리포트를 확인할 수 있습니다.")
+                .message("?ш굔???닿껐?덉뒿?덈떎. ?대━??由ы룷?몃? ?뺤씤?????덉뒿?덈떎.")
                 .build();
     }
     public ClearReportResponse getClearReport(Long episodeId, User user) {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (!"CLEARED".equals(progress.getStatus()) || progress.getClearedAt() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "CLEAR_REQUIRED", "클리어 리포트는 에피소드 클리어 후에만 확인할 수 있습니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "CLEAR_REQUIRED", "?대━??由ы룷?몃뒗 ?먰뵾?뚮뱶 ?대━???꾩뿉留??뺤씤?????덉뒿?덈떎.");
         }
         List<Long> visitedSpotIds = readLongList(progress.getVisitedSpotIds());
         List<Long> completedSpotIds = readLongList(progress.getCompletedSpotIds());
-        List<String> answerClues = readStringList(progress.getCollectedAnswerClues()).stream().map(this::clueValueWithoutSlot).toList();
+        List<String> rawAnswerClues = readStringList(progress.getCollectedAnswerClues());
+        List<String> culpritClues = typedClues(rawAnswerClues, "CULPRIT", false);
+        List<String> weaponClues = typedClues(rawAnswerClues, "WEAPON", false);
+        List<String> motiveClues = typedClues(rawAnswerClues, "MOTIVE", false);
+        List<String> methodClues = typedClues(rawAnswerClues, "METHOD", false);
+        List<String> answerClues = rawAnswerClues.stream().map(this::clueValueWithoutSlot).toList();
         List<String> destinationClues = readStringList(progress.getCollectedDestinationClues()).stream().map(this::clueValueWithoutSlot).toList();
         List<String> storyClues = readStringList(progress.getCollectedStoryClues()).stream().map(this::clueValueWithoutSlot).toList();
         MissionSpot finalArrivedSpot = progress.getFinalArrivedSpotId() == null ? null : episodeRepository.findSpotById(progress.getFinalArrivedSpotId());
@@ -720,6 +719,10 @@ public class EpisodePlayService {
                 .deductionQuestionCount(value(progress.getDeductionQuestionCount()))
                 .wrongAnswerCount(value(progress.getWrongAnswerCount()))
                 .finalGuessCount(value(progress.getFinalGuessCount()))
+                .culpritClues(culpritClues)
+                .weaponClues(weaponClues)
+                .motiveClues(motiveClues)
+                .methodClues(methodClues)
                 .answerClues(answerClues)
                 .destinationClues(destinationClues)
                 .storyClues(storyClues)
@@ -733,7 +736,7 @@ public class EpisodePlayService {
     private Episode requireEpisode(Long episodeId) {
         Episode episode = episodeRepository.findEpisodeById(episodeId);
         if (episode == null || !"PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "에피소드를 찾을 수 없습니다.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "?먰뵾?뚮뱶瑜?李얠쓣 ???놁뒿?덈떎.");
         }
         return episode;
     }
@@ -741,7 +744,7 @@ public class EpisodePlayService {
     private MissionSpot requireSpot(Long spotId, Long episodeId) {
         MissionSpot spot = episodeRepository.findSpotById(spotId);
         if (spot == null || (episodeId != null && !episodeId.equals(spot.getEpisodeId()))) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "조사 지점을 찾을 수 없습니다.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "議곗궗 吏?먯쓣 李얠쓣 ???놁뒿?덈떎.");
         }
         requireEpisode(spot.getEpisodeId());
         return spot;
@@ -754,7 +757,7 @@ public class EpisodePlayService {
     private UserEpisodeProgress requireProgress(Long userId, Long episodeId) {
         UserEpisodeProgress progress = findProgress(userId, episodeId);
         if (progress == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "EPISODE_NOT_STARTED", "먼저 에피소드를 시작해 주세요.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "EPISODE_NOT_STARTED", "癒쇱? ?먰뵾?뚮뱶瑜??쒖옉??二쇱꽭??");
         }
         return progress;
     }
@@ -783,10 +786,10 @@ public class EpisodePlayService {
     private FinalDeductionSession requireSession(Long sessionId, User user) {
         FinalDeductionSession session = episodeRepository.findDeductionSession(sessionId);
         if (session == null || !user.getId().equals(session.getUserId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "DEDUCTION_SESSION_NOT_FOUND", "최종 추리 세션을 찾을 수 없습니다.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEDUCTION_SESSION_NOT_FOUND", "理쒖쥌 異붾━ ?몄뀡??李얠쓣 ???놁뒿?덈떎.");
         }
         if (!"OPEN".equals(session.getStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_SESSION_CLOSED", "이 최종 추리 세션은 종료되었습니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_SESSION_CLOSED", "??理쒖쥌 異붾━ ?몄뀡? 醫낅즺?섏뿀?듬땲??");
         }
         return session;
     }
@@ -797,6 +800,10 @@ public class EpisodePlayService {
                 .filter(evidence -> unlockedEvidenceIds.contains(evidence.getId()))
                 .toList();
         List<String> rawAnswer = readStringList(progress.getCollectedAnswerClues()).stream().map(this::sanitizeCategoryCodes).toList();
+        List<String> culprit = typedClues(rawAnswer, "CULPRIT", false);
+        List<String> weapon = typedClues(rawAnswer, "WEAPON", false);
+        List<String> motive = typedClues(rawAnswer, "MOTIVE", false);
+        List<String> method = typedClues(rawAnswer, "METHOD", false);
         List<String> relatedPerson = evidenceClues(unlockedEvidences, "SUSPECT_CLUE");
         if (relatedPerson.isEmpty()) {
             relatedPerson = typedClues(rawAnswer, "RELATED_PERSON", true);
@@ -805,7 +812,13 @@ public class EpisodePlayService {
         if (core.isEmpty()) {
             core = typedClues(rawAnswer, "ANSWER_CLUE", false);
         }
-        List<String> answer = Stream.concat(relatedPerson.stream(), core.stream()).toList();
+        List<String> caseTruth = Stream.of("CULPRIT", "WEAPON", "MOTIVE", "METHOD")
+                .flatMap(slot -> typedClues(rawAnswer, slot, false).stream())
+                .toList();
+        if (!caseTruth.isEmpty()) {
+            core = Stream.concat(core.stream(), caseTruth.stream()).distinct().toList();
+        }
+        List<String> answer = Stream.concat(relatedPerson.stream(), core.stream()).distinct().toList();
         List<String> destination = evidenceClues(unlockedEvidences, "DESTINATION_CLUE");
         if (destination.isEmpty()) {
             destination = readStringList(progress.getCollectedDestinationClues()).stream()
@@ -822,6 +835,10 @@ public class EpisodePlayService {
         }
         return ClueBoardResponse.builder()
                 .episodeId(progress.getEpisodeId())
+                .culpritClues(culprit)
+                .weaponClues(weapon)
+                .motiveClues(motive)
+                .methodClues(method)
                 .relatedPersonClues(relatedPerson)
                 .coreClues(core)
                 .answerClues(answer)
@@ -871,7 +888,7 @@ public class EpisodePlayService {
         if ("ANSWER_HINT".equals(spot.getClueRole())) {
             progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), typedClueValue(inferAnswerSlot(spot, clean), clean)));
         } else if ("DESTINATION_HINT".equals(spot.getClueRole()) || "FINAL_PLACE".equals(spot.getClueRole())) {
-            progress.setCollectedDestinationClues(addString(progress.getCollectedDestinationClues(), typedClueValue("FINAL_DESTINATION", clean)));
+            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), typedClueValue(inferAnswerSlot(spot, clean), clean)));
         } else {
             progress.setCollectedStoryClues(addString(progress.getCollectedStoryClues(), clean));
         }
@@ -895,7 +912,7 @@ public class EpisodePlayService {
                         String slotId = normalizeRewardSlot(reward.path("slotId").asText(""));
                         String rawType = reward.path("type").asText("");
                         String type = isClueReward(rawType) ? rewardTypeForSpot(spot, rawType, slotId) : rawType;
-                        if (isClueReward(type)) {
+                        if (isClueReward(type) && slotId.isBlank()) {
                             slotId = slotIdForRewardType(type);
                         }
                         String value = sanitizeCategoryCodes(reward.path("value").asText(""));
@@ -945,7 +962,7 @@ public class EpisodePlayService {
         return switch (type) {
             case "ANSWER_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue(slotId.isBlank() ? inferAnswerSlot(spot, value) : slotId, value), progress::setCollectedAnswerClues);
             case "SUSPECT_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue("RELATED_PERSON", value), progress::setCollectedAnswerClues);
-            case "DESTINATION_CLUE" -> addStringReward(progress.getCollectedDestinationClues(), typedClueValue("FINAL_DESTINATION", value), progress::setCollectedDestinationClues);
+            case "DESTINATION_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue(slotId.isBlank() ? inferAnswerSlot(spot, value) : slotId, value), progress::setCollectedAnswerClues);
             case "STORY_CLUE" -> addStringReward(progress.getCollectedStoryClues(), value, progress::setCollectedStoryClues);
             case "EVIDENCE_UNLOCK", "PHOTO_UNLOCK" -> targetId != null && addLongReward(progress.getUnlockedEvidenceIds(), targetId, progress::setUnlockedEvidenceIds);
             case "MEMO_UNLOCK" -> applyMemoUnlock(progress, value, targetId);
@@ -968,7 +985,7 @@ public class EpisodePlayService {
             return value;
         }
         String clean = sanitizeCategoryCodes(fallbackText(value, "").trim());
-        return clean.isBlank() ? "공개 글자: " + revealed : clean + "\n공개 글자: " + revealed;
+        return clean.isBlank() ? "怨듦컻 湲?? " + revealed : clean + "\n怨듦컻 湲?? " + revealed;
     }
 
     private String rewardTypeForSpot(MissionSpot spot) {
@@ -979,7 +996,7 @@ public class EpisodePlayService {
         String role = spot == null ? "" : spot.getClueRole();
         return switch (role) {
             case "ANSWER_HINT" -> "RELATED_PERSON".equals(normalizeRewardSlot(slotId)) || "SUSPECT_CLUE".equals(requestedType) ? "SUSPECT_CLUE" : "ANSWER_CLUE";
-            case "DESTINATION_HINT", "FINAL_PLACE" -> "DESTINATION_CLUE";
+            case "DESTINATION_HINT", "FINAL_PLACE" -> "ANSWER_CLUE";
             default -> "STORY_CLUE";
         };
     }
@@ -999,7 +1016,7 @@ public class EpisodePlayService {
 
     private boolean isLegacyClueForSlot(String value, int index, String slotId, boolean includeLegacyRelated) {
         if ("RELATED_PERSON".equals(slotId)) {
-            return includeLegacyRelated && (index % 2 == 0 || containsAny(value, "관련자", "관계자", "용의자", "진술", "알리바이", "목격", "전달자", "기록자"));
+            return includeLegacyRelated && (index % 2 == 0 || containsAny(value, "관계자", "용의자", "진술", "알리바이", "목격"));
         }
         if ("ANSWER_CLUE".equals(slotId)) {
             return !isLegacyClueForSlot(value, index, "RELATED_PERSON", true);
@@ -1009,21 +1026,20 @@ public class EpisodePlayService {
 
     private String inferAnswerSlot(MissionSpot spot, String clue) {
         String marker = normalize(spot == null ? null : spot.getPublicMarkerType());
-        if ("KEYWORD_1".equals(marker)) {
-            return "RELATED_PERSON";
-        }
-        if ("KEYWORD_2".equals(marker)) {
-            return "ANSWER_CLUE";
-        }
-        return containsAny(clue, "관련자", "관계자", "용의자", "진술", "알리바이", "목격", "전달자", "기록자")
-                ? "RELATED_PERSON"
-                : "ANSWER_CLUE";
+        if ("KEYWORD_1".equals(marker)) return "CULPRIT";
+        if ("KEYWORD_2".equals(marker)) return "WEAPON";
+        int order = spot == null || spot.getId() == null ? normalize(clue).hashCode() : spot.getId().intValue();
+        return switch (Math.floorMod(order, 4)) {
+            case 0 -> "CULPRIT";
+            case 1 -> "WEAPON";
+            case 2 -> "MOTIVE";
+            default -> "METHOD";
+        };
     }
-
     private String normalizeRewardSlot(String value) {
         String normalized = normalize(value);
         return switch (normalized) {
-            case "RELATED_PERSON", "ANSWER_CLUE", "FINAL_DESTINATION" -> normalized;
+            case "CULPRIT", "WEAPON", "MOTIVE", "METHOD", "RELATED_PERSON", "ANSWER_CLUE", "FINAL_DESTINATION" -> normalized;
             default -> "";
         };
     }
@@ -1039,7 +1055,13 @@ public class EpisodePlayService {
     }
 
     private boolean hasAnyClueSlot(String value) {
-        return value != null && (value.startsWith("RELATED_PERSON::") || value.startsWith("ANSWER_CLUE::") || value.startsWith("FINAL_DESTINATION::"));
+        return value != null && (value.startsWith("CULPRIT::")
+                || value.startsWith("WEAPON::")
+                || value.startsWith("MOTIVE::")
+                || value.startsWith("METHOD::")
+                || value.startsWith("RELATED_PERSON::")
+                || value.startsWith("ANSWER_CLUE::")
+                || value.startsWith("FINAL_DESTINATION::"));
     }
 
     private String clueValueWithoutSlot(String value) {
@@ -1075,7 +1097,7 @@ public class EpisodePlayService {
         return switch (type) {
             case "SUSPECT_CLUE" -> "RELATED_PERSON";
             case "ANSWER_CLUE" -> "ANSWER_CLUE";
-            case "DESTINATION_CLUE" -> "FINAL_DESTINATION";
+            case "DESTINATION_CLUE" -> "ANSWER_CLUE";
             default -> "";
         };
     }
@@ -1126,40 +1148,28 @@ public class EpisodePlayService {
     private DeductionAnswer answerDeductionQuestion(Episode episode, UserEpisodeProgress progress, String question) {
         String normalizedQuestion = normalizeAnswer(question);
         if (acceptedFinalAnswers(episode).stream().anyMatch(normalizedQuestion::contains)) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 정답을 직접 노출할 수 있어 답변할 수 없습니다.");
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "정답값을 직접 확인하는 질문에는 답할 수 없습니다. 수집한 단서를 조합해 추론하세요.");
         }
-        if (containsAny(normalizedQuestion,
-                "finalplace", "actualplace", "answerplace", "destination", "where",
-                "최종장소", "실제장소", "정답장소", "목적지", "장소", "위치", "어디")) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 조사 장소를 직접 노출할 수 있어 답변할 수 없습니다.");
-        }
-        if (containsAny(normalizedQuestion,
-                "answer", "killer", "weapon", "tellme", "who", "what",
-                "정답", "범인", "흉기", "무기", "알려줘", "누구", "무엇", "뭐")) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "그 질문은 정답을 직접 노출할 수 있어 답변할 수 없습니다.");
+        if (containsAny(normalizedQuestion, "finalplace", "actualplace", "answerplace", "destination", "where", "정답장소", "장소정답")) {
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "최종 장소는 정답 추리 대상이 아닙니다. 조사 단서를 모두 완료하면 자동 공개됩니다.");
         }
         if (allClues(progress).size() < 2) {
-            return new DeductionAnswer("INSUFFICIENT_CLUE", "단서가 부족합니다. 먼저 관련자/핵심 단서 미션을 더 조사해 주세요.");
+            return new DeductionAnswer("INSUFFICIENT_CLUE", "단서가 부족합니다. 먼저 조사 장소의 사건 단서를 더 수집하세요.");
         }
-        if (containsAny(normalizedQuestion,
-                "lens", "glass", "photo", "camera", "reflection", "fragment",
-                "렌즈", "유리", "사진", "카메라", "반사", "조각")) {
-            return new DeductionAnswer("RELATED", "관련 있습니다. 핵심 단서 힌트들과 함께 비교해 보세요.");
+        if (containsAny(normalizedQuestion, "culprit", "범인", "용의자", "알리바이", "지문")) {
+            return new DeductionAnswer("RELATED", "범인 추론과 관련 있습니다. 알리바이, 접근 권한, 지문 단서를 함께 비교하세요.");
         }
-        if (containsAny(normalizedQuestion,
-                "film", "album", "lastword", "redwall",
-                "필름", "앨범", "마지막말", "붉은벽")) {
-            return new DeductionAnswer("PARTIAL", "부분적으로 맞습니다. 방향은 맞지만 최종 정답은 더 구체적인 물건입니다.");
+        if (containsAny(normalizedQuestion, "weapon", "흉기", "독", "캡슐", "약")) {
+            return new DeductionAnswer("PARTIAL", "흉기 추론과 관련 있습니다. 도구 자체와 사용 방법을 분리해 확인하세요.");
         }
-        if (containsAny(normalizedQuestion, "metal", "gun", "knife", "금속", "총", "칼", "나이프")) {
-            return new DeductionAnswer("NO", "아닙니다. 수집한 단서와 직접 맞물리지는 않습니다.");
+        if (containsAny(normalizedQuestion, "motive", "동기", "해고", "분쟁", "상속")) {
+            return new DeductionAnswer("RELATED", "동기 추론과 관련 있습니다. 이익을 얻는 사람과 실제 실행 가능성을 분리해 보세요.");
         }
         if (question.length() < 6) {
-            return new DeductionAnswer("AMBIGUOUS", "질문이 모호합니다. 용의자, 동기, 증거 중 하나를 더 구체적으로 물어봐 주세요.");
+            return new DeductionAnswer("AMBIGUOUS", "질문이 모호합니다. 범인, 흉기, 동기, 방법 중 하나를 구체적으로 물어보세요.");
         }
-        return new DeductionAnswer("AMBIGUOUS", "질문이 모호합니다. 어떤 수집 단서와 연결되는지 더 구체적으로 물어봐 주세요.");
+        return new DeductionAnswer("AMBIGUOUS", "어떤 단서와 연결되는지 더 구체적으로 질문해 주세요.");
     }
-
     private DeductionAnswer sanitizeDeductionAnswer(Episode episode, DeductionAnswer answer) {
         String type = ALLOWED_DEDUCTION_ANSWER_TYPES.contains(answer.type()) ? answer.type() : "AMBIGUOUS";
         String text = localizeDeductionAnswer(type, answer.text());
@@ -1167,9 +1177,9 @@ public class EpisodePlayService {
         boolean revealsAnswer = acceptedFinalAnswers(episode).stream()
                 .filter(value -> !value.isBlank())
                 .anyMatch(normalizedText::contains);
-        boolean revealsFinalPlace = containsAny(normalizedText, "finalplace", "actualplace", "answerplace", "최종장소", "실제장소", "정답장소");
+        boolean revealsFinalPlace = containsAny(normalizedText, "finalplace", "actualplace", "answerplace", "理쒖쥌?μ냼", "?ㅼ젣?μ냼", "?뺣떟?μ냼");
         if (revealsAnswer || revealsFinalPlace) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "정답이나 조사 지점을 직접 노출할 수 있어 답변할 수 없습니다.");
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "?뺣떟?대굹 議곗궗 吏?먯쓣 吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.");
         }
         return new DeductionAnswer(type, text);
     }
@@ -1182,35 +1192,35 @@ public class EpisodePlayService {
         String normalized = value.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
             case "that question would reveal the answer directly, so i cannot answer it." ->
-                    "그 질문은 정답을 직접 노출할 수 있어 답변할 수 없습니다.";
+                    "洹?吏덈Ц? ?뺣떟??吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.";
             case "that question would reveal the investigation site directly, so i cannot answer it." ->
-                    "그 질문은 조사 장소를 직접 노출할 수 있어 답변할 수 없습니다.";
+                    "洹?吏덈Ц? 議곗궗 ?μ냼瑜?吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.";
             case "that question would reveal the answer or investigation site directly, so i cannot answer it." ->
-                    "정답이나 조사 지점을 직접 노출할 수 있어 답변할 수 없습니다.";
+                    "?뺣떟?대굹 議곗궗 吏?먯쓣 吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.";
             case "not enough clues. investigate more answer-hint sites first." ->
-                    "단서가 부족합니다. 먼저 관련자/핵심 단서 미션을 더 조사해 주세요.";
+                    "?⑥꽌媛 遺議깊빀?덈떎. 癒쇱? 愿?⑥옄/?듭떖 ?⑥꽌 誘몄뀡????議곗궗??二쇱꽭??";
             case "related. compare it with the answer-hint clues." ->
-                    "관련 있습니다. 핵심 단서 힌트들과 함께 비교해 보세요.";
+                    "愿???덉뒿?덈떎. ?듭떖 ?⑥꽌 ?뚰듃?ㅺ낵 ?④퍡 鍮꾧탳??蹂댁꽭??";
             case "partially correct. the direction is right, but the final answer is a more specific object." ->
-                    "부분적으로 맞습니다. 방향은 맞지만 최종 정답은 더 구체적인 물건입니다.";
+                    "遺遺꾩쟻?쇰줈 留욎뒿?덈떎. 諛⑺뼢? 留욎?留?理쒖쥌 ?뺣떟? ??援ъ껜?곸씤 臾쇨굔?낅땲??";
             case "no. it does not directly match the collected clues." ->
-                    "아닙니다. 수집한 단서와 직접 맞물리지는 않습니다.";
+                    "?꾨떃?덈떎. ?섏쭛???⑥꽌? 吏곸젒 留욌Ъ由ъ????딆뒿?덈떎.";
             case "the question is ambiguous. ask again about a suspect, motive, or evidence." ->
-                    "질문이 모호합니다. 용의자, 동기, 증거 중 하나를 더 구체적으로 물어봐 주세요.";
+                    "吏덈Ц??紐⑦샇?⑸땲?? ?⑹쓽?? ?숆린, 利앷굅 以??섎굹瑜???援ъ껜?곸쑝濡?臾쇱뼱遊?二쇱꽭??";
             case "the question is ambiguous. ask more specifically which collected clue it connects to." ->
-                    "질문이 모호합니다. 어떤 수집 단서와 연결되는지 더 구체적으로 물어봐 주세요.";
+                    "吏덈Ц??紐⑦샇?⑸땲?? ?대뼡 ?섏쭛 ?⑥꽌? ?곌껐?섎뒗吏 ??援ъ껜?곸쑝濡?臾쇱뼱遊?二쇱꽭??";
             default -> isEnglishSentence(value) ? fallbackDeductionAnswer(type) : value;
         };
     }
 
     private String fallbackDeductionAnswer(String type) {
         return switch (type) {
-            case "YES", "RELATED" -> "관련 있습니다. 수집한 단서와 함께 비교해 보세요.";
-            case "NO", "NOT_RELATED" -> "아닙니다. 수집한 단서와 직접 맞물리지는 않습니다.";
-            case "PARTIAL" -> "부분적으로 맞습니다. 방향은 맞지만 더 구체적인 단서가 필요합니다.";
-            case "INSUFFICIENT_CLUE" -> "단서가 부족합니다. 먼저 관련자/핵심 단서 미션을 더 조사해 주세요.";
-            case "REFUSED_DIRECT_REVEAL" -> "정답이나 조사 지점을 직접 노출할 수 있어 답변할 수 없습니다.";
-            default -> "질문이 모호합니다. 어떤 수집 단서와 연결되는지 더 구체적으로 물어봐 주세요.";
+            case "YES", "RELATED" -> "愿???덉뒿?덈떎. ?섏쭛???⑥꽌? ?④퍡 鍮꾧탳??蹂댁꽭??";
+            case "NO", "NOT_RELATED" -> "?꾨떃?덈떎. ?섏쭛???⑥꽌? 吏곸젒 留욌Ъ由ъ????딆뒿?덈떎.";
+            case "PARTIAL" -> "遺遺꾩쟻?쇰줈 留욎뒿?덈떎. 諛⑺뼢? 留욎?留???援ъ껜?곸씤 ?⑥꽌媛 ?꾩슂?⑸땲??";
+            case "INSUFFICIENT_CLUE" -> "?⑥꽌媛 遺議깊빀?덈떎. 癒쇱? 愿?⑥옄/?듭떖 ?⑥꽌 誘몄뀡????議곗궗??二쇱꽭??";
+            case "REFUSED_DIRECT_REVEAL" -> "?뺣떟?대굹 議곗궗 吏?먯쓣 吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.";
+            default -> "吏덈Ц??紐⑦샇?⑸땲?? ?대뼡 ?섏쭛 ?⑥꽌? ?곌껐?섎뒗吏 ??援ъ껜?곸쑝濡?臾쇱뼱遊?二쇱꽭??";
         };
     }
 
@@ -1306,7 +1316,7 @@ public class EpisodePlayService {
 
     private void requireCoordinatesUnlessDevMode(ArriveRequest request, boolean devMode) {
         if (!devMode && (request == null || request.getUserLat() == null || request.getUserLng() == null)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_REQUIRED", "현재 위치 좌표가 필요합니다.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_REQUIRED", "?꾩옱 ?꾩튂 醫뚰몴媛 ?꾩슂?⑸땲??");
         }
     }
 
@@ -1360,3 +1370,6 @@ public class EpisodePlayService {
     }
 
 }
+
+
+

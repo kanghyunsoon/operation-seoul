@@ -1,5 +1,6 @@
 package com.operation.seoul.admin.episode.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -11,6 +12,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AiEpisodeDraftResponse {
     private String generatorType;
     private String message;
@@ -23,6 +25,7 @@ public class AiEpisodeDraftResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class EpisodeDraft {
         private String episodeTitle;
         private String subtitle;
@@ -32,6 +35,7 @@ public class AiEpisodeDraftResponse {
         private String missionDescription;
         private String selectedGenre;
         private List<String> finalAnswerKeywords;
+        private List<AnswerKeywordItem> finalAnswerKeywordItems;
         private FinalAnswers finalAnswers;
         private String finalAnswerType;
         private String finalAnswer;
@@ -51,6 +55,7 @@ public class AiEpisodeDraftResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MissionDraft {
         private Integer order;
         private String placeName;
@@ -81,6 +86,9 @@ public class AiEpisodeDraftResponse {
         private String rewardClue;
         private String rewardClueSlotId;     // WEAPON, CULPRIT, CASE_LOCATION 등
         private String rewardClueLabel;      // 범행도구 단서, 범인 단서 등
+        private String targetKeywordType;    // CULPRIT, WEAPON, MOTIVE, METHOD
+        private String targetKeywordDisplayType;
+        private String unlockCondition;      // FINAL: ALL_INVESTIGATION_MISSIONS_CLEARED
         private List<String> supportsKeywordSlots;
         private EvidenceDesign evidenceDesign;
 
@@ -93,6 +101,25 @@ public class AiEpisodeDraftResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AnswerKeywordItem {
+        private String slotId;
+        private String type;
+        private String displayType;
+        private String label;
+        private String keyword;
+        private String value;
+        private String personName;
+        private String personRole;
+        private String role;
+        private List<String> aliases;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class EvidenceDesign {
         private String artifactType;
         private String visibleDetail;
@@ -105,7 +132,14 @@ public class AiEpisodeDraftResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class FinalAnswers {
+        private String culprit;
+        private String weapon;
+        private String motive;
+        private String method;
+
+        // Legacy fields kept temporarily for older admin drafts and UI payloads.
         private String relatedPerson;
         private String coreClue;
         private String finalLocation;
@@ -115,6 +149,7 @@ public class AiEpisodeDraftResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SuspectDraft {
         private String alias;
         private String displayName;
@@ -130,6 +165,7 @@ public class AiEpisodeDraftResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class EvidenceDraft {
         private String title;
         private String type;

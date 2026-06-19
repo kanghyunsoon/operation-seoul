@@ -27,13 +27,16 @@ public class AiEpisodeDraftRequest {
     private PuzzlePolicyInput puzzlePolicy;
 
     private List<PlaceInput> places;
+    private List<MissionInput> missions;
+    private PlaceInput finalSpot;
 
     @Data
     public static class AnswerKeywordInput {
-        private String slotId;      // RELATED_PERSON, ANSWER_CLUE, FINAL_DESTINATION 등
-        private String label;       // 관련자, 단서, 장소
-        private String type;        // PERSON, OBJECT, PLACE 등
-        private String keyword;     // PERSON은 인물 이름, OBJECT/PLACE는 물건명/장소명
+        private String slotId;      // CULPRIT, WEAPON, MOTIVE, METHOD
+        private String label;       // 범인, 흉기, 동기, 방법
+        private String type;        // CULPRIT, WEAPON, MOTIVE, METHOD 또는 PERSON/TEXT 호환값
+        private String displayType; // 범인, 흉기, 동기, 방법
+        private String keyword;     // 최종 정답 값
         private String personName;  // PERSON 타입의 가상 인물 이름
         private String personRole;  // PERSON 타입의 직업/역할
         private String role;        // personRole 호환 필드
@@ -49,6 +52,12 @@ public class AiEpisodeDraftRequest {
 
     @Data
     public static class FinalAnswersInput {
+        private String culprit;
+        private String weapon;
+        private String motive;
+        private String method;
+
+        // Legacy fields kept temporarily for older admin drafts and UI payloads.
         private String relatedPerson;
         private String coreClue;
         private String finalLocation;
@@ -115,5 +124,19 @@ public class AiEpisodeDraftRequest {
         private String dataQuality;       // STRONG, NORMAL, WEAK, REVIEW_REQUIRED
         private List<String> usablePuzzleSources;
         private List<String> verificationNotes;
+    }
+
+    @Data
+    public static class MissionInput {
+        private Integer order;
+        private String placeName;
+        private String markerType;
+        private String publicMarkerType;
+        private String clueRole;
+        private Boolean finalPlace;
+        private String targetKeywordType;
+        private String targetKeywordDisplayType;
+        private String unlockCondition;
+        private List<String> supportsKeywordSlots;
     }
 }
