@@ -19,6 +19,7 @@ import com.operation.seoul.admin.episode.dto.AdminSuspectUpdateRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftResponse;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftSaveRequest;
+import com.operation.seoul.admin.episode.dto.AiEpisodeDraftValidationResponse;
 import com.operation.seoul.admin.episode.repository.AdminEpisodeRepository;
 import com.operation.seoul.casefile.domain.CaseEvidence;
 import com.operation.seoul.casefile.domain.CaseSuspect;
@@ -53,6 +54,31 @@ public class AdminEpisodeService {
     private static final Set<String> PUBLIC_MARKER_TYPES = Set.of("START", "ANSWER_HINT", "DESTINATION_HINT");
     private static final Set<String> CLUE_ROLES = Set.of("START", "ANSWER_HINT", "DESTINATION_HINT", "FINAL_PLACE");
     private static final Set<String> PUZZLE_TYPES = Set.of("OBSERVATION", "NUMBER_LOCK", "INITIAL_SOUND", "PATTERN", "STORY_COMBINATION");
+    private static final Map<String, String> PUZZLE_TYPE_ALIASES = Map.ofEntries(
+            Map.entry("OBSERVATION", "OBSERVATION"),
+            Map.entry("\uad00\ucc30\ud615", "OBSERVATION"),
+            Map.entry("\uad00\ucc30", "OBSERVATION"),
+            Map.entry("NUMBER_LOCK", "NUMBER_LOCK"),
+            Map.entry("NUMBER", "NUMBER_LOCK"),
+            Map.entry("NUMERIC", "NUMBER_LOCK"),
+            Map.entry("\uc22b\uc790 \uc554\ud638", "NUMBER_LOCK"),
+            Map.entry("\uc22b\uc790\uc554\ud638", "NUMBER_LOCK"),
+            Map.entry("\uc22b\uc790", "NUMBER_LOCK"),
+            Map.entry("INITIAL_SOUND", "INITIAL_SOUND"),
+            Map.entry("INITIAL", "INITIAL_SOUND"),
+            Map.entry("CHOSUNG", "INITIAL_SOUND"),
+            Map.entry("\ucd08\uc131", "INITIAL_SOUND"),
+            Map.entry("\uc5b8\uc5b4", "INITIAL_SOUND"),
+            Map.entry("PATTERN", "PATTERN"),
+            Map.entry("\ud328\ud134", "PATTERN"),
+            Map.entry("\ud328\ud134 \ucd94\ub860", "PATTERN"),
+            Map.entry("STORY_COMBINATION", "STORY_COMBINATION"),
+            Map.entry("STORY", "STORY_COMBINATION"),
+            Map.entry("COMBINATION", "STORY_COMBINATION"),
+            Map.entry("\uc2a4\ud1a0\ub9ac", "STORY_COMBINATION"),
+            Map.entry("\uc2a4\ud1a0\ub9ac \uc870\ud569", "STORY_COMBINATION"),
+            Map.entry("\uc2a4\ud1a0\ub9ac\uc870\ud569", "STORY_COMBINATION")
+    );
     private static final Set<String> ANSWER_FORMATS = Set.of("TEXT", "NUMBER", "CHOICE", "CODE");
     private static final Set<String> REWARD_TYPES = Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "SUSPECT_CLUE", "MEMO_UNLOCK", "EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "SUSPECT_UNLOCK", "SUSPECT_UPDATE");
     private static final Set<String> EVIDENCE_TYPES = Set.of("PHOTO", "MEMO", "NOTE", "DOCUMENT", "EVIDENCE", "SUSPECT_CLUE", "POST_IT", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE");
@@ -179,6 +205,7 @@ public class AdminEpisodeService {
             throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "Review required.");
         }
         AdminEpisodeProgressStats stats = safeStats(episodeId);
+        List<AdminEpisodeDetailResponse.FinalAnswerKeywordItem> finalAnswerKeywordItems = restoreFinalAnswerKeywordItems(episode);
         return AdminEpisodeDetailResponse.builder()
                 .id(episode.getId())
                 .title(episode.getTitle())
@@ -193,6 +220,10 @@ public class AdminEpisodeService {
                 .finalAnswerType(episode.getFinalAnswerType())
                 .finalAnswer(episode.getFinalAnswer())
                 .finalAnswerAliases(episode.getFinalAnswerAliases())
+                .finalAnswerKeywords(finalAnswerKeywordItems.stream()
+                        .map(AdminEpisodeDetailResponse.FinalAnswerKeywordItem::getValue)
+                        .toList())
+                .finalAnswerKeywordItems(finalAnswerKeywordItems)
                 .finalQuestion(episode.getFinalQuestion())
                 .finalTruthSummary(episode.getFinalTruthSummary())
                 .actualHistorySummary(episode.getActualHistorySummary())
@@ -892,6 +923,7 @@ public class AdminEpisodeService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "FINAL_PLACE_REQUIRED", "Review required.");
         }
         requireFinalAnswerFields(draft);
+        validateHumanReadableDraftTextForSave(draft);
         String title = resolveDraftTitle(draft, missions);
 
         Episode episode = new Episode();
@@ -950,7 +982,7 @@ public class AdminEpisodeService {
             }
             Puzzle puzzle = new Puzzle();
             puzzle.setMissionSpotId(spot.getId());
-            puzzle.setPuzzleType(validateValue(blank(mission.getPuzzleType(), "OBSERVATION"), PUZZLE_TYPES, "INVALID_PUZZLE_TYPE", "Unsupported puzzleType."));
+            puzzle.setPuzzleType(normalizePuzzleTypeForSave(mission.getPuzzleType(), order));
             puzzle.setQuestionText(blank(sanitizeCategoryCodes(mission.getQuestionText()), "Review required."));
             puzzle.setAnswer(blank(sanitizeCategoryCodes(mission.getAnswer()), "현장단서"));
             puzzle.setAnswerFormat(validateValue(blank(mission.getAnswerFormat(), "TEXT"), ANSWER_FORMATS, "INVALID_ANSWER_FORMAT", "Unsupported answerFormat."));
@@ -2931,6 +2963,68 @@ public class AdminEpisodeService {
         return values;
     }
 
+    private List<AdminEpisodeDetailResponse.FinalAnswerKeywordItem> restoreFinalAnswerKeywordItems(Episode episode) {
+        List<String> values = parseKeywordContract(episode == null ? null : episode.getFinalAnswerAliases());
+        if (values.isEmpty() && episode != null && !missing(episode.getFinalAnswer())) {
+            values = java.util.Arrays.stream(episode.getFinalAnswer().split("[,/|]"))
+                    .map(String::trim)
+                    .filter(value -> !value.isBlank())
+                    .limit(4)
+                    .toList();
+        }
+        if (values.size() < 4) {
+            return List.of();
+        }
+        List<String> types = List.of("CULPRIT", "WEAPON", "MOTIVE", "METHOD");
+        List<String> labels = List.of("\ubc94\uc778", "\ud749\uae30", "\ub3d9\uae30", "\ubc29\ubc95");
+        List<AdminEpisodeDetailResponse.FinalAnswerKeywordItem> items = new ArrayList<>();
+        for (int i = 0; i < types.size(); i++) {
+            items.add(AdminEpisodeDetailResponse.FinalAnswerKeywordItem.builder()
+                    .type(types.get(i))
+                    .displayType(labels.get(i))
+                    .value(values.get(i))
+                    .aliases(List.of())
+                    .build());
+        }
+        return items;
+    }
+
+    private List<String> parseKeywordContract(String aliases) {
+        if (aliases == null || aliases.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(aliases.split(","))
+                .map(String::trim)
+                .filter(value -> value.startsWith("KW:"))
+                .findFirst()
+                .map(value -> value.substring(3))
+                .map(value -> java.util.Arrays.stream(value.split("\\|"))
+                        .map(String::trim)
+                        .filter(item -> !item.isBlank())
+                        .toList())
+                .orElse(List.of());
+    }
+
+    private String normalizePuzzleTypeForSave(String value, int order) {
+        String normalized = blank(value, "OBSERVATION").trim();
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        if (PUZZLE_TYPES.contains(upper)) {
+            return upper;
+        }
+        String alias = PUZZLE_TYPE_ALIASES.get(normalized);
+        if (alias == null) {
+            alias = PUZZLE_TYPE_ALIASES.get(upper);
+        }
+        if (alias != null) {
+            return alias;
+        }
+        throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_PUZZLE_TYPE",
+                "Unsupported puzzleType. order=" + order + ", puzzleType=" + normalized
+        );
+    }
+
     private String joinLines(List<String> values) {
         if (values == null) {
             return null;
@@ -2999,16 +3093,40 @@ public class AdminEpisodeService {
     }
 
     private void requireFinalAnswerFields(AiEpisodeDraftResponse.EpisodeDraft draft) {
-        if (draft.getFinalAnswers() == null
-                || missing(draft.getFinalAnswers().getRelatedPerson())
-                || missing(draft.getFinalAnswers().getCoreClue())
-                || missing(draft.getFinalAnswers().getFinalLocation())) {
+        AiEpisodeDraftResponse.FinalAnswers answers = draft.getFinalAnswers();
+        boolean hasCrimeMysterySlots = answers != null
+                && !missing(answers.getCulprit())
+                && !missing(answers.getWeapon())
+                && !missing(answers.getMotive())
+                && !missing(answers.getMethod());
+        boolean hasLegacySlots = answers != null
+                && !missing(answers.getRelatedPerson())
+                && !missing(answers.getCoreClue())
+                && !missing(answers.getFinalLocation());
+        if (!hasCrimeMysterySlots && !hasLegacySlots) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_FINAL_ANSWER_FIELDS",
-                    "finalAnswers는 relatedPerson, coreClue, finalLocation을 모두 포함해야 합니다."
+                    "finalAnswers must include CULPRIT/WEAPON/MOTIVE/METHOD values."
             );
         }
+    }
+    private void validateHumanReadableDraftTextForSave(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        List<AiEpisodeDraftValidationResponse.Finding> findings = AiDraftTextQualityValidator.findings(draft);
+        if (findings.isEmpty()) {
+            return;
+        }
+        String fields = findings.stream()
+                .map(AiEpisodeDraftValidationResponse.Finding::getFieldPath)
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .limit(12)
+                .collect(Collectors.joining(", "));
+        String message = "\u0041\u0049 \uc0dd\uc131 \uacb0\uacfc\uc5d0 \uae68\uc9c4 \ud55c\uae00 \ub610\ub294 \uc778\ucf54\ub529 \uc624\ub958 \ubb38\uc790\uac00 \ud3ec\ud568\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc0dd\uc131\ud574 \uc8fc\uc138\uc694.";
+        if (!fields.isBlank()) {
+            message += " (" + fields + ")";
+        }
+        throw new ApiException(HttpStatus.BAD_REQUEST, "MOJIBAKE_TEXT_DETECTED", message);
     }
 
     private List<String> publishChecklist() {

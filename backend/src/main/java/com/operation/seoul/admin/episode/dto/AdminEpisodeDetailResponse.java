@@ -21,6 +21,8 @@ public class AdminEpisodeDetailResponse {
     private String finalAnswerType;
     private String finalAnswer;
     private String finalAnswerAliases;
+    private List<String> finalAnswerKeywords;
+    private List<FinalAnswerKeywordItem> finalAnswerKeywordItems;
     private String finalQuestion;
     private String finalTruthSummary;
     private String actualHistorySummary;
@@ -36,6 +38,15 @@ public class AdminEpisodeDetailResponse {
     private List<Suspect> suspects;
     private List<Evidence> evidences;
     private List<PartnerReward> partnerRewards;
+
+    @Data
+    @Builder
+    public static class FinalAnswerKeywordItem {
+        private String type;
+        private String displayType;
+        private String value;
+        private List<String> aliases;
+    }
 
     @Data
     @Builder

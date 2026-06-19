@@ -34,8 +34,8 @@
 
       <div class="metric-grid">
         <article><strong>{{ report.completedSpotCount || 0 }}/{{ report.totalSpotCount || 0 }}</strong><span>조사 완료 장소</span></article>
-        <article><strong>{{ report.answerClueCount || 0 }}</strong><span>핵심 단서</span></article>
-        <article><strong>{{ report.destinationClueCount || 0 }}</strong><span>목적지 단서</span></article>
+        <article><strong>{{ report.answerClueCount || 0 }}</strong><span>수집한 추리 단서</span></article>
+        <article><strong>4</strong><span>도출한 사건 진실</span></article>
         <article><strong>{{ report.deductionQuestionCount || 0 }}</strong><span>최종 추리 질문</span></article>
         <article><strong>{{ report.wrongAnswerCount || 0 }}</strong><span>오답</span></article>
         <article><strong>{{ report.unlockedEvidenceIds?.length || 0 }}</strong><span>해금 자료</span></article>
@@ -59,13 +59,9 @@
 
       <article class="paper-block">
         <h2>수집한 단서</h2>
-        <div class="clue-section">
-          <h3>핵심 단서</h3>
-          <div class="chips"><span v-for="clue in report.answerClues || []" :key="`a-${clue}`">{{ clue }}</span><em v-if="!(report.answerClues || []).length">없음</em></div>
-        </div>
-        <div class="clue-section">
-          <h3>목적지 단서</h3>
-          <div class="chips"><span v-for="clue in report.destinationClues || []" :key="`d-${clue}`">{{ clue }}</span><em v-if="!(report.destinationClues || []).length">없음</em></div>
+        <div v-for="slot in deductionSlots" :key="slot.id" class="clue-section">
+          <h3>{{ slot.label }} 추리</h3>
+          <div class="chips"><span v-for="clue in slot.clues" :key="`${slot.id}-${clue}`">{{ clue }}</span><em v-if="!slot.clues.length">분류된 단서 없음</em></div>
         </div>
         <div class="clue-section">
           <h3>스토리 단서</h3>
@@ -111,9 +107,27 @@ const errorMessage = ref('');
 const motifSection = computed(() => sectionText(report.value?.actualHistorySummary, '1. 모티브 공개', '2. 실제 사건 해설'));
 const historySection = computed(() => sectionText(report.value?.actualHistorySummary, '2. 실제 사건 해설'));
 const mappingSection = computed(() => sectionText(report.value?.finalTruthSummary, '3. 픽션과 역사의 매칭 (디브리핑)'));
+const deductionSlots = computed(() => {
+  const fallback = uniqueClues(report.value?.answerClues);
+  return [
+    reportSlot('CULPRIT', '범인', report.value?.culpritClues, fallback, 0),
+    reportSlot('WEAPON', '흉기', report.value?.weaponClues, fallback, 1),
+    reportSlot('MOTIVE', '동기', report.value?.motiveClues, fallback, 2),
+    reportSlot('METHOD', '방법', report.value?.methodClues, fallback, 3)
+  ];
+});
+
+function reportSlot(id, label, explicit, fallback, offset) {
+  const clues = uniqueClues(explicit);
+  return { id, label, clues: clues.length ? clues : fallback.filter((_, index) => index % 4 === offset) };
+}
+
+function uniqueClues(values = []) {
+  return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
+}
 const motifDisclosure = computed(() => {
   if (motifSection.value) return motifSection.value;
-  const finalPlace = report.value?.finalArrivedSpotName || '최종 목적지';
+  const finalPlace = report.value?.finalArrivedSpotName || '최종 장소';
   return `이 임무는 실제 [${finalPlace}]에서 있었던 [역사적 사건/인물]을 모티브로 제작되었습니다.`;
 });
 const historyExplanationParagraphs = computed(() => {

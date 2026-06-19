@@ -44,6 +44,26 @@
       <section class="dossier">
         <div class="section-head">
           <div>
+            <p class="section-label">추리 현황</p>
+            <h3>네 가지 사건 진실</h3>
+            <p class="section-help">수집한 정보는 정답을 직접 보여주지 않습니다. 각 축의 단서를 교차 검증해 하나의 사건 진실로 수렴시키세요.</p>
+          </div>
+        </div>
+        <div class="deduction-grid">
+          <article v-for="slot in deductionSlots" :key="slot.id" :class="`deduction-${slot.id.toLowerCase()}`">
+            <strong>{{ slot.label }}</strong>
+            <span>{{ slot.clues.length }}개 단서</span>
+            <ul v-if="slot.clues.length">
+              <li v-for="clue in slot.clues" :key="clue">{{ clue }}</li>
+            </ul>
+            <p v-else>아직 분류된 단서가 없습니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="dossier">
+        <div class="section-head">
+          <div>
             <p class="section-label">용의자 파일</p>
             <h3>{{ caseFile.progressSummary.unlockedSuspectCount }}/{{ caseFile.progressSummary.totalSuspectCount }}명 확인</h3>
             <p class="section-help">용의자는 반드시 범인이 아니라, 문서와 단서의 흐름을 왜곡했을 수 있는 관계자입니다. 관계, 의심 포인트, 알리바이를 증거 카드와 대조하세요.</p>
@@ -75,7 +95,7 @@
           <div>
             <p class="section-label">증거 / 메모 / 사진 카드</p>
             <h3>{{ caseFile.progressSummary.unlockedEvidenceCount }}/{{ caseFile.progressSummary.totalEvidenceCount }}개 해금</h3>
-            <p class="section-help">각 카드는 관계자 힌트, 핵심 단서 힌트, 장소 힌트 중 하나를 좁히는 근거입니다. 해금 순서와 관계자 정보를 함께 보면 최종 추리 난도가 내려갑니다.</p>
+            <p class="section-help">각 카드는 범인, 흉기, 동기, 방법을 좁히는 사건 근거입니다. 해금 순서와 용의자의 알리바이를 함께 대조하세요.</p>
           </div>
         </div>
         <div class="evidence-grid">
@@ -148,6 +168,16 @@ const overviewStoryClues = computed(() => {
     .filter((clue, index, list) => list.findIndex((item) => normalizeText(item) === normalizeText(clue)) === index)
     .filter((clue) => !evidenceTexts.has(normalizeText(clue)));
 });
+const deductionSlots = computed(() => {
+  const summary = caseFile.value?.clueSummary || {};
+  const fallback = uniqueClues(summary.answerClues);
+  return [
+    deductionSlot('CULPRIT', '범인', summary.culpritClues, fallback, 0),
+    deductionSlot('WEAPON', '흉기', summary.weaponClues, fallback, 1),
+    deductionSlot('MOTIVE', '동기', summary.motiveClues, fallback, 2),
+    deductionSlot('METHOD', '방법', summary.methodClues, fallback, 3)
+  ];
+});
 onMounted(loadCaseFile);
 
 async function loadCaseFile() {
@@ -163,8 +193,17 @@ async function loadCaseFile() {
 }
 
 const statusLabel = (status) => ({ NOT_STARTED: '시작 전', IN_PROGRESS: '조사 중', FINAL_READY: '최종 추리 가능', CLEARED: '클리어 완료', FAILED: '실패' }[status] || status);
-const clueTypeLabel = (type) => ({ ANSWER_CLUE: '핵심 단서 힌트', DESTINATION_CLUE: '장소 힌트', STORY_CLUE: '장소 힌트', SUSPECT_CLUE: '관계자 힌트' }[type] || type);
-const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '관계자 힌트', POST_IT: '포스트잇', ANSWER_CLUE: '핵심 단서 힌트', DESTINATION_CLUE: '장소 힌트', STORY_CLUE: '장소 힌트' }[type] || type);
+const clueTypeLabel = (type) => ({ ANSWER_CLUE: '추리 단서', DESTINATION_CLUE: '사건 단서', STORY_CLUE: '사건 기록', SUSPECT_CLUE: '용의자 단서' }[type] || type);
+const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '용의자 단서', POST_IT: '포스트잇', ANSWER_CLUE: '추리 단서', DESTINATION_CLUE: '사건 단서', STORY_CLUE: '사건 기록' }[type] || type);
+
+function deductionSlot(id, label, explicit, fallback, offset) {
+  const clues = uniqueClues(explicit);
+  return { id, label, clues: clues.length ? clues : fallback.filter((_, index) => index % 4 === offset) };
+}
+
+function uniqueClues(values = []) {
+  return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
+}
 
 function normalizeText(value) {
   return String(value || '').replace(/\s+/g, '').toLowerCase();
@@ -228,6 +267,16 @@ blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; back
 .goal, .team, .resume { color: #fde68a; }
 .section-head { display: flex; align-items: end; justify-content: space-between; gap: 10px; padding: 18px 18px 0; }
 .section-help { margin: 6px 0 0; color: #cbd5e1; font-size: .84rem; line-height: 1.55; }
+.deduction-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 18px; }
+.deduction-grid article { padding: 14px; border: 1px solid rgba(148,163,184,.2); border-top: 4px solid #64748b; border-radius: 15px; background: rgba(2,6,23,.3); }
+.deduction-grid article.deduction-culprit { border-top-color: #ef4444; }
+.deduction-grid article.deduction-weapon { border-top-color: #3b82f6; }
+.deduction-grid article.deduction-motive { border-top-color: #f59e0b; }
+.deduction-grid article.deduction-method { border-top-color: #10b981; }
+.deduction-grid article > span { float: right; color: #94a3b8; font-size: .76rem; }
+.deduction-grid ul { display: grid; gap: 6px; margin: 12px 0 0; padding-left: 18px; color: #dbeafe; }
+.deduction-grid li { line-height: 1.45; }
+.deduction-grid article p { margin: 12px 0 0; color: #64748b; font-size: .82rem; }
 .card-grid, .evidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; padding: 14px 18px 18px; }
 .clue-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 14px 18px 18px; }
 .clue-summary-grid article { display: grid; align-content: start; gap: 7px; min-height: 118px; border: 1px solid rgba(148,163,184,.2); border-radius: 14px; padding: 12px; background: rgba(2,6,23,.28); }
