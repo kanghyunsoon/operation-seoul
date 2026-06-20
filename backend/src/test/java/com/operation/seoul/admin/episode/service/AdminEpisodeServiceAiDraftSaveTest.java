@@ -57,7 +57,8 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 new ObjectMapper(),
                 mock(TourApiService.class),
                 mock(OperationAreaResolver.class),
-                mock(KakaoLocalCandidateService.class)
+                mock(KakaoLocalCandidateService.class),
+                mock(ExternalPlaceResearchService.class)
         );
         AiEpisodeDraftSaveRequest request = saveRequest();
 
@@ -70,6 +71,7 @@ class AdminEpisodeServiceAiDraftSaveTest {
         assertSavedFinalAnswerAliases(saved);
         assertSavedFinalAnswerKeywordItems(saved);
         assertSavedMissionStructure(saved);
+        assertSavedCaseMaterials(saved);
         assertEquals("ALL_INVESTIGATION_MISSIONS_CLEARED", finalMission(request.getDraft()).getUnlockCondition());
     }
 
@@ -83,7 +85,8 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 new ObjectMapper(),
                 mock(TourApiService.class),
                 mock(OperationAreaResolver.class),
-                mock(KakaoLocalCandidateService.class)
+                mock(KakaoLocalCandidateService.class),
+                mock(ExternalPlaceResearchService.class)
         );
         AiEpisodeDraftSaveRequest request = saveRequest();
         request.getDraft().getMissions().get(1).setPuzzleType("숫자 암호");
@@ -108,7 +111,8 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 new ObjectMapper(),
                 mock(TourApiService.class),
                 mock(OperationAreaResolver.class),
-                mock(KakaoLocalCandidateService.class)
+                mock(KakaoLocalCandidateService.class),
+                mock(ExternalPlaceResearchService.class)
         );
         AiEpisodeDraftSaveRequest request = saveRequest();
         request.getDraft().setEpisodeTitle("조선 후기, 속초의 그림자 譏硫え ???");
@@ -155,7 +159,7 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 .maxDeductionQuestions(20)
                 .missions(missions())
                 .suspects(suspects())
-                .evidences(List.of())
+                .evidences(evidences())
                 .build();
     }
 
@@ -284,6 +288,19 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 .build();
     }
 
+    private List<AiEpisodeDraftResponse.EvidenceDraft> evidences() {
+        List<AiEpisodeDraftResponse.EvidenceDraft> evidences = new ArrayList<>();
+        for (int order = 2; order <= 9; order++) {
+            evidences.add(AiEpisodeDraftResponse.EvidenceDraft.builder()
+                    .title(order + "번 조사 증거")
+                    .type("STORY_CLUE")
+                    .textSummary(order + "번 조사 지점의 기록은 접근 권한, 시간표, 진술 차이를 분리해 보여준다.")
+                    .sourceMissionOrder(order)
+                    .build());
+        }
+        return evidences;
+    }
+
     private void assertFinalAnswerKeywordItems(List<AiEpisodeDraftResponse.AnswerKeywordItem> items) {
         assertEquals(4, items.size());
         for (int i = 0; i < ANSWER_TYPES.size(); i++) {
@@ -332,6 +349,34 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 .filter(spot -> "START".equals(spot.getMarkerType()) || Boolean.TRUE.equals(spot.getFinalPlace()))
                 .map(AdminEpisodeDetailResponse.Spot::getStoryText)
                 .forEach(this::assertNoAnswerLeak);
+        AdminEpisodeDetailResponse.Spot finalSpot = saved.getSpots().stream()
+                .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("FINAL", finalSpot.getMarkerType());
+        assertEquals("ANSWER_HINT", finalSpot.getPublicMarkerType());
+        assertEquals("FINAL_PLACE", finalSpot.getClueRole());
+        assertNotNull(finalSpot.getPuzzle());
+        assertNoAnswerLeak(finalSpot.getPuzzle().getRewardClue());
+        assertNoForbiddenPlaceHint(finalSpot.getPuzzle().getRewardPayload());
+    }
+
+    private void assertSavedCaseMaterials(AdminEpisodeDetailResponse saved) {
+        assertEquals(3, saved.getSuspects().size());
+        assertTrue(saved.getSuspects().stream().anyMatch(suspect -> ANSWER_VALUES.get(0).equals(suspect.getDisplayName())));
+        saved.getSuspects().forEach(suspect -> {
+            assertTrue(Boolean.TRUE.equals(suspect.getUnlockedByDefault()));
+            assertFalse(suspect.getAlibiSummary().isBlank());
+            assertFalse(suspect.getSuspiciousPoint().isBlank());
+        });
+
+        assertEquals(8, saved.getEvidences().size());
+        saved.getEvidences().forEach(evidence -> {
+            assertNotNull(evidence.getSourceSpotId());
+            assertFalse(evidence.getTextSummary().isBlank());
+            assertNoAnswerLeak(evidence.getTextSummary());
+            assertNoForbiddenPlaceHint(evidence.getTextSummary());
+        });
     }
 
     private AiEpisodeDraftResponse.MissionDraft finalMission(AiEpisodeDraftResponse.EpisodeDraft draft) {

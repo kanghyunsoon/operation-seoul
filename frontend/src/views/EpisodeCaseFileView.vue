@@ -193,8 +193,8 @@ async function loadCaseFile() {
 }
 
 const statusLabel = (status) => ({ NOT_STARTED: '시작 전', IN_PROGRESS: '조사 중', FINAL_READY: '최종 추리 가능', CLEARED: '클리어 완료', FAILED: '실패' }[status] || status);
-const clueTypeLabel = (type) => ({ ANSWER_CLUE: '추리 단서', DESTINATION_CLUE: '사건 단서', STORY_CLUE: '사건 기록', SUSPECT_CLUE: '용의자 단서' }[type] || type);
-const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '용의자 단서', POST_IT: '포스트잇', ANSWER_CLUE: '추리 단서', DESTINATION_CLUE: '사건 단서', STORY_CLUE: '사건 기록' }[type] || type);
+const clueTypeLabel = (type) => ({ ANSWER_CLUE: '추리 단서', DESTINATION_CLUE: '사건 기록', STORY_CLUE: '사건 기록', SUSPECT_CLUE: '용의자 단서' }[type] || type);
+const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '용의자 단서', POST_IT: '포스트잇', ANSWER_CLUE: '추리 단서', DESTINATION_CLUE: '사건 기록', STORY_CLUE: '사건 기록' }[type] || type);
 
 function deductionSlot(id, label, explicit, fallback, offset) {
   const clues = uniqueClues(explicit);

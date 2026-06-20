@@ -234,7 +234,7 @@
                 검수필요 초안 · 문제/정답/힌트를 확정해야 합니다
               </div>
               <p>{{ spot.storyText }}</p>
-              <p class="internal" v-if="spot.finalPlace">내부 실제 최종 장소입니다. 공개 API에는 노출되지 않습니다.</p>
+              <p class="internal" v-if="spot.finalPlace">내부 최종 정답 입력 장소입니다. 조사 8개 완료 전에는 공개되지 않습니다.</p>
               <details v-if="spot.puzzle">
                 <summary>퍼즐/정답/reward_payload</summary>
                 <div class="edit-grid">
@@ -260,7 +260,7 @@
                     </select>
                   </label>
                   <label>도착 반경<input v-model.number="spot.arrivalRadius" type="number" min="10" /></label>
-                  <label class="check"><input v-model="spot.finalPlace" type="checkbox" /> 실제 최종 장소</label>
+                  <label class="check"><input v-model="spot.finalPlace" type="checkbox" /> 내부 최종 정답 입력 장소</label>
                   <label class="wide">주소<input v-model.trim="spot.address" type="text" /></label>
                   <label>위도<input v-model.number="spot.latitude" type="number" step="0.000001" /></label>
                   <label>경도<input v-model.number="spot.longitude" type="number" step="0.000001" /></label>
@@ -778,7 +778,7 @@
                       </select>
                     </label>
                     <label>도착 반경<input v-model.number="mission.arrivalRadius" type="number" min="10" /></label>
-                    <label class="check"><input v-model="mission.finalPlace" type="checkbox" @change="mission.markerType = mission.finalPlace ? 'FINAL' : 'ANSWER_HINT'; syncDraftMissionRole(mission)" /> 실제 최종 장소</label>
+                    <label class="check"><input v-model="mission.finalPlace" type="checkbox" @change="mission.markerType = mission.finalPlace ? 'FINAL' : 'ANSWER_HINT'; syncDraftMissionRole(mission)" /> 내부 최종 정답 입력 장소</label>
                     <label v-if="!mission.finalPlace && mission.markerType !== 'START'">담당 정답 슬롯<input :value="missionTargetLabel(mission)" type="text" readonly /></label>
                     <label v-if="mission.finalPlace">공개 조건<input :value="mission.unlockCondition || 'ALL_INVESTIGATION_MISSIONS_CLEARED'" type="text" readonly /></label>
                     <label class="wide">사건 문구<textarea v-model="mission.storyText" rows="2"></textarea></label>
@@ -1751,7 +1751,12 @@ async function enrichSelectedSiteData() {
         visibleElements: enriched.places[index]?.visibleElements || candidate.visibleElements,
         numbers: enriched.places[index]?.numbers || candidate.numbers,
         keywords: enriched.places[index]?.keywords || candidate.keywords,
-        adminMemo: enriched.places[index]?.adminMemo || candidate.adminMemo
+        adminMemo: enriched.places[index]?.adminMemo || candidate.adminMemo,
+        usablePuzzleSources: enriched.places[index]?.usablePuzzleSources || candidate.usablePuzzleSources,
+        verificationNotes: enriched.places[index]?.verificationNotes || candidate.verificationNotes,
+        externalResearchNotes: enriched.places[index]?.externalResearchNotes || candidate.externalResearchNotes,
+        referenceUrls: enriched.places[index]?.referenceUrls || candidate.referenceUrls,
+        researchSourceSummary: enriched.places[index]?.researchSourceSummary || candidate.researchSourceSummary
       }));
     }
     draftResult.value = null;
@@ -1980,16 +1985,16 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
   if (!draft.finalTruthSummary || isWeakText(draft.finalTruthSummary)) {
     draft.finalTruthSummary = `3. 픽션과 역사의 매칭 (디브리핑)
 스토리 속 [${motif.object}] -> 실제 역사 속 [장소에 남은 기록과 기억]: 최종 단서가 하나의 역사적 기억으로 수렴하도록 만든 상징 장치입니다.
-스토리 속 [현장 지령] -> 실제 역사 속 [최종 목적지의 역사적 맥락]: 장소에 남은 사건의 흔적을 동선과 퍼즐로 바꾼 장치입니다.
+스토리 속 [현장 지령] -> 실제 역사 속 [최종 장소의 역사적 맥락]: 장소에 남은 기록과 분위기를 사건 배경 모티브로 바꾼 장치입니다.
 스토리 속 [암호 카드] -> 실제 역사 속 [기록과 증언]: 플레이어가 단서를 대조하도록 실제 자료 해석 과정을 은유했습니다.
 스토리 속 [조력자/용의자 진술] -> 실제 역사 속 [관련 인물과 이해관계]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 차용했습니다.`;
   }
   if (!draft.actualHistorySummary || isWeakText(draft.actualHistorySummary)) {
     draft.actualHistorySummary = `1. 모티브 공개
-이 임무는 실제 장소에 남은 역사적 기억과 주변 동선의 분위기를 모티브로 제작되었습니다.
+이 임무는 장소에 남은 역사적 기억과 주변 동선의 분위기를 배경 모티브로 제작되었습니다.
 
-2. 실제 사건 해설
-이 에피소드는 실제 장소의 역사·문화적 분위기와 주변 동선을 상징적인 요원 임무로 각색한 픽션 사건입니다. 플레이어는 장소의 기록, 관찰 요소, 이동 흔적을 조합해 사건의 배경과 의미를 해석하게 됩니다.`;
+2. 역사·문화 해설
+이 에피소드는 장소의 역사·문화적 분위기와 주변 동선을 상징적인 요원 임무로 각색한 픽션 사건입니다. 플레이어는 장소의 기록, 관찰 요소, 이동 흔적을 조합해 사건의 배경과 의미를 해석하게 됩니다.`;
   }
   draft.deductionSecretFacts = Array.isArray(draft.deductionSecretFacts) && draft.deductionSecretFacts.length
     ? draft.deductionSecretFacts
@@ -2351,16 +2356,16 @@ function safeFictionSynopsis(draft) {
         ? '붓 자국, 찢어진 초안, 작업 시간 기록'
         : '남겨진 물건, 시간 기록, 이동 방향';
 
-  if (genre === '살인 미스터리') {
-    return `${firstPlace}에서 단순 사고로 보기 어려운 사건 흔적이 발견되었습니다. ${secondPlace}을 포함한 각 장소는 당시의 행동과 진술을 대조하기 위해 조사해야 합니다. ${clueTypes}을 비교해 잘못된 추측을 제외하고, 관련자의 역할과 사용된 핵심 단서, 사건이 이어진 최종 장소를 밝혀내세요.`;
+  if (genre === '살인 미스터리' || genre === '범죄 미스터리') {
+    return `${firstPlace}에서 단순 사고로 보기 어려운 사건 흔적이 발견되었습니다. ${secondPlace}을 포함한 각 장소는 당시의 행동과 진술을 대조하기 위해 조사해야 합니다. ${clueTypes}을 비교해 잘못된 추측을 제외하고, 범인과 흉기, 동기, 방법을 도출하세요. 최종 장소는 조사 미션 8개 완료 후 자동 공개됩니다.`;
   }
   if (genre === '보물찾기') {
-    return `${firstPlace}에서 발견된 기록은 숨겨진 물건을 직접 가리키지 않고 여러 장소에 보관 단서를 나누어 남기고 있습니다. ${secondPlace}을 포함한 각 장소에서 ${clueTypes}을 모아 기록의 순서와 해금 조건을 복원해야 합니다. 어떤 물건이 숨겨졌는지, 그것을 확인하는 조건과 최종 장소가 어디인지 추리하세요.`;
+    return `${firstPlace}에서 발견된 기록은 핵심 물건을 직접 가리키지 않고 여러 장소에 단서를 나누어 남기고 있습니다. ${secondPlace}을 포함한 각 장소에서 ${clueTypes}을 모아 기록의 순서와 해금 조건을 복원해야 합니다. 장소가 아니라 사건의 정답 항목을 추리하세요.`;
   }
   if (genre === '암호 해독') {
-    return `${firstPlace}에서 시작된 사건의 핵심은 용의자 추적이 아니라 장소마다 달라지는 글자와 숫자의 배열입니다. ${secondPlace}을 포함한 각 장소에서 ${clueTypes}을 확인하고 반복되는 규칙을 비교해야 합니다. 여러 장소의 정보를 조합해 암호의 의미와 정보가 확인되는 최종 장소를 밝혀내세요.`;
+    return `${firstPlace}에서 시작된 사건의 핵심은 장소마다 달라지는 글자와 숫자의 배열입니다. ${secondPlace}을 포함한 각 장소에서 ${clueTypes}을 확인하고 반복되는 규칙을 비교해야 합니다. 여러 단서를 조합해 암호가 가리키는 사건의 정답 항목을 도출하세요.`;
   }
-  return `사건 관계자의 흔적은 ${firstPlace} 한 곳에서 끝나지 않고 ${secondPlace}을 포함한 여러 장소에 흩어져 있습니다. 각 장소는 실제 이동 경로와 사라진 이유를 복원하는 데 필요한 서로 다른 기록을 보관하고 있습니다. ${clueTypes}을 비교해 겉보기 순서와 실제 동선을 구분하고, 관련자의 역할과 핵심 단서, 마지막 행방이 이어지는 최종 장소를 추리하세요.`;
+  return `사건 관계자의 흔적은 ${firstPlace} 한 곳에서 끝나지 않고 ${secondPlace}을 포함한 여러 장소에 흩어져 있습니다. 각 장소는 행동과 진술을 대조하는 데 필요한 서로 다른 기록을 보관하고 있습니다. ${clueTypes}을 비교해 겉보기 순서와 실제 동선을 구분하고, 범인과 흉기, 동기, 방법을 도출하세요.`;
 }
 
 function containsKeywordLeak(text, keywords) {
@@ -2451,7 +2456,6 @@ function puzzleTypeForSource(source, role, index) {
   const numbers = Array.isArray(source.numbers) ? source.numbers.filter(Boolean) : [];
   if (numbers.length) return 'NUMBER_LOCK';
   if (String(role).includes('ANSWER')) return index % 2 === 0 ? 'OBSERVATION' : 'INITIAL_SOUND';
-  if (String(role).includes('DESTINATION')) return 'PATTERN';
   if (String(role).includes('FINAL')) return 'STORY_COMBINATION';
   return 'OBSERVATION';
 }
@@ -2488,10 +2492,9 @@ function rewardClueForRole(role, index) {
     : motif.object.includes('문서')
       ? ['붉은 인장', '접힌 흔적', '사라진 서명', '봉인 끈']
       : ['검은 봉투', '젖은 모서리', '지워진 이름', '접힌 증언'];
-  const destinationClues = ['낮은 담장', '조용한 문', '굽은 골목'];
   const storyClues = ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표'];
   if (String(role).includes('ANSWER')) return answerClues[index % answerClues.length];
-  if (String(role).includes('DESTINATION') || String(role).includes('FINAL')) return destinationClues[index % destinationClues.length];
+  if (String(role).includes('FINAL')) return '조사 미션 8개 완료 시 자동 공개';
   if (String(role).includes('START')) return '첫 기록';
   return storyClues[index % storyClues.length];
 }
@@ -2507,8 +2510,8 @@ function storyTextForMission(mission, role, keyword) {
   if (String(role).includes('ANSWER')) {
     return `${mission.placeName}에는 ${motif.object}의 정체를 좁히는 물성 단서가 숨어 있다. 현장 메모의 ${keyword}를 사건파일의 증거 카드와 대조하라.`;
   }
-  if (String(role).includes('DESTINATION')) {
-    return `${mission.placeName}의 주변 분위기는 마지막으로 향할 장소를 직접 말하지 않고 좁혀 준다. 장소명보다 문, 벽, 길의 느낌을 장소 단서와 비교하라.`;
+  if (String(role).includes('__DISABLED_DESTINATION_HINT__')) {
+    return `${mission.placeName}의 주변 분위기는 사건 배경 모티브로만 사용된다. 장소명보다 현장 기록과 인물 진술을 비교하라.`;
   }
   return `${mission.placeName}은 용의자의 진술을 흔드는 배경 단서다. 이곳에서 얻은 메모는 누가 거짓말을 했는지 판단하는 보조 자료가 된다.`;
 }
@@ -2517,7 +2520,7 @@ function sanitizeFinalPlaceStory(storyText) {
   const value = String(storyText || '').trim();
   const forbidden = ['최종 장소', '최종장소', '최종 목적지', '최종목적지', '정답 장소', '정답장소', '최종 추리', '마지막 장소'];
   if (!value || forbidden.some((word) => value.includes(word))) {
-    return '이곳에는 여러 동선이 겹친 흔적이 남아 있다. 현장에서는 주변 분위기와 사건 메모만 확인하고, 단서 보드의 장소 단서와 조용히 비교하라.';
+    return '이곳은 조사 미션 8개 완료 후 자동 공개되는 최종 정답 입력 장소입니다. 현장에서는 수집한 사건 단서를 정리하고 범인, 흉기, 동기, 방법을 최종 확인하세요.';
   }
   return value;
 }
@@ -2560,7 +2563,7 @@ function hintsForMission(mission, keyword) {
 
 function evidenceTypeForRole(role) {
   if (String(role).includes('ANSWER')) return 'ANSWER_CLUE';
-  if (String(role).includes('DESTINATION') || String(role).includes('FINAL')) return 'ANSWER_CLUE';
+  if (String(role).includes('FINAL')) return 'STORY_CLUE';
   if (String(role).includes('START')) return 'PHOTO';
   return 'STORY_CLUE';
 }
@@ -2568,10 +2571,9 @@ function evidenceTypeForRole(role) {
 function evidenceSummaryForMission(mission) {
   const clue = mission.rewardClue || '미확인 단서';
   const place = mission.placeName || '조사 지점';
-  if (mission.finalPlace) return '여러 목적지 단서가 겹치는 장소의 분위기 카드입니다. 실제 최종 장소 여부는 플레이 중 직접 판단해야 합니다.';
+  if (mission.finalPlace) return '조사 미션 8개 완료 후 자동 공개되는 최종 정답 입력 장소 안내 카드입니다. 장소 자체는 추리 정답이 아닙니다.';
   const role = mission.clueRole || mission.markerType || '';
   if (String(role).includes('ANSWER')) return `${place}에서 얻는 '${clue}' 단서는 최종 정답의 형태를 좁히는 증거입니다. 장소명 글자 추출이 아니라 현장 메모와 연결해 해석하세요.`;
-  if (String(role).includes('DESTINATION')) return `${place}에서 얻는 '${clue}' 단서는 마지막으로 향해야 할 장소의 분위기와 방향을 좁히는 자료입니다.`;
   if (String(role).includes('START')) return `${place}에서 사건파일을 개봉하며 첫 조사 목표와 단서 분류 기준을 확인합니다.`;
   return `${place}에서 확인한 배경 단서입니다. 범행 동기와 용의자 관계를 해석하는 보조 자료로 사용하세요.`;
 }
@@ -2589,7 +2591,6 @@ function missionRoleLabel(mission) {
   const role = String(mission?.clueRole || mission?.markerType || '');
   if (role.includes('START')) return '시작 장소';
   if (role.includes('ANSWER')) return '조사 미션';
-  if (role.includes('DESTINATION')) return '조사 미션';
   if (role.includes('STORY')) return '스토리 단서';
   return '조사 후보';
 }
@@ -3460,6 +3461,11 @@ function applyCandidatesToDraft(showMessage = true) {
       numbers: [],
       keywords: defaultKeywordsForCandidate(candidate, index),
       adminMemo: `${candidate.source || '장소 후보'} 기반입니다. 실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
+      usablePuzzleSources: candidate.usablePuzzleSources || [],
+      verificationNotes: candidate.verificationNotes || [],
+      externalResearchNotes: candidate.externalResearchNotes || [],
+      referenceUrls: candidate.referenceUrls || [],
+      researchSourceSummary: candidate.researchSourceSummary || '',
       role,
       publicMarkerType: publicMarkerForCandidate(index, role, orderedCandidates.length),
       targetKeywordType,

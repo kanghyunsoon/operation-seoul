@@ -128,7 +128,7 @@ function uniqueClues(values = []) {
 const motifDisclosure = computed(() => {
   if (motifSection.value) return motifSection.value;
   const finalPlace = report.value?.finalArrivedSpotName || '최종 장소';
-  return `이 임무는 실제 [${finalPlace}]에서 있었던 [역사적 사건/인물]을 모티브로 제작되었습니다.`;
+  return `이 임무는 [${finalPlace}]의 역사적 기록과 문화적 분위기를 배경 모티브로 제작되었습니다.`;
 });
 const historyExplanationParagraphs = computed(() => {
   const paragraphs = splitBlocks(historySection.value || report.value?.actualHistorySummary)

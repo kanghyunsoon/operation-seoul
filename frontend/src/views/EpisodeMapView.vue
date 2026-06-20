@@ -146,7 +146,7 @@ const rewardPopup = ref({
 const devArrival = import.meta.env.VITE_DEV_ARRIVAL === 'true';
 const kakaoMapKey = import.meta.env.VITE_KAKAO_MAP_KEY || '';
 const tmapAppKey = import.meta.env.VITE_TMAP_APP_KEY || '';
-const markerTypes = ['START', 'KEYWORD_1', 'KEYWORD_2', 'KEYWORD_3', 'FINAL_DESTINATION'];
+const markerTypes = ['START', 'ANSWER_HINT', 'FINAL'];
 
 let kakaoMap = null;
 let overlays = [];
@@ -298,8 +298,8 @@ async function arriveAtSpot(spot) {
     const position = await getPosition(spot);
     const result = await episodeApi.arrive(episodeId, spot.spotId, { userLat: position.lat, userLng: position.lng, devMode: devArrival });
     arrivalResults.value = { ...arrivalResults.value, [spot.spotId]: result };
-    const wrongFinalCandidate = ['FINAL_CANDIDATE', 'FINAL_DESTINATION'].includes(spot.publicMarkerType) && result.arrived && !result.canStartDeduction;
-    setStatus(wrongFinalCandidate ? '이 장소에서는 최종 추리를 시작할 수 없습니다. 키워드 미션 진행 상태를 다시 확인해 주세요.' : result.message, result.arrived ? 'success' : 'info');
+    const lockedFinalPlace = isFinalPlaceMarker(spot) && result.arrived && !result.canStartDeduction;
+    setStatus(lockedFinalPlace ? '최종 장소는 조사 미션 8개 완료 후 자동 공개됩니다. 먼저 남은 조사 단서를 완료해 주세요.' : result.message, result.arrived ? 'success' : 'info');
     const shouldOpenPuzzle = Boolean(result.arrived && result.canOpenPuzzle);
     await loadAll();
     if (shouldOpenPuzzle) {
@@ -600,15 +600,19 @@ const markerLabel = (type) => ({
   KEYWORD_1: '조사 미션',
   KEYWORD_2: '조사 미션',
   KEYWORD_3: '조사 미션',
-  FINAL_DESTINATION: '최종 장소',
+  FINAL: '최종 정답 입력 장소',
+  FINAL_DESTINATION: '최종 정답 입력 장소',
+  ANSWER_HINT: '조사 미션',
+  DESTINATION_HINT: '조사 미션',
 }[type] || '조사 미션');
 
-const shortLabel = (type) => ({ START: 'S', KEYWORD_1: '1', KEYWORD_2: '2', KEYWORD_3: '3', FINAL_DESTINATION: 'F', ANSWER_HINT: 'I', DESTINATION_HINT: 'I', STORY: 'R', FINAL_CANDIDATE: 'F' }[type] || '•');
+const shortLabel = (type) => ({ START: 'S', KEYWORD_1: 'I', KEYWORD_2: 'I', KEYWORD_3: 'I', FINAL: 'F', FINAL_DESTINATION: 'F', ANSWER_HINT: 'I', DESTINATION_HINT: 'I', STORY: 'R', FINAL_CANDIDATE: 'I' }[type] || '•');
+const isFinalPlaceMarker = (spot) => Boolean(spot?.finalPlace || spot?.publicMarkerType === 'FINAL' || spot?.publicMarkerType === 'FINAL_DESTINATION');
 
 const rewardTypeLabel = (type) => ({
   SUSPECT_CLUE: '용의자 단서',
   ANSWER_CLUE: '추리 단서',
-  DESTINATION_CLUE: '사건 단서',
+  DESTINATION_CLUE: '사건 기록',
   STORY_CLUE: '사건 기록',
   EVIDENCE_UNLOCK: '사건자료 해금',
   PHOTO_UNLOCK: '사진 자료 해금',
@@ -618,7 +622,7 @@ const rewardTypeLabel = (type) => ({
 }[type] || type);
 
 const hintTypeLabel = (types = []) => {
-  const type = (types || []).find((value) => ['SUSPECT_CLUE', 'ANSWER_CLUE', 'DESTINATION_CLUE', 'STORY_CLUE'].includes(value));
+  const type = (types || []).find((value) => ['SUSPECT_CLUE', 'ANSWER_CLUE', 'STORY_CLUE'].includes(value));
   return rewardTypeLabel(type) || '';
 };
 
@@ -648,6 +652,8 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .legend .KEYWORD_1 { color: #fb923c; }
 .legend .KEYWORD_2 { color: #22d3ee; }
 .legend .KEYWORD_3 { color: #a3e635; }
+.legend .ANSWER_HINT { color: #fb923c; }
+.legend .FINAL { color: #e5e7eb; }
 .legend .FINAL_DESTINATION { color: #e5e7eb; }
 .legend .STORY { color: #4ade80; }
 .legend .FINAL_CANDIDATE { color: #cbd5e1; }
@@ -665,6 +671,8 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .spot-list-item.KEYWORD_1 span { background: #ea580c; }
 .spot-list-item.KEYWORD_2 span { background: #0891b2; }
 .spot-list-item.KEYWORD_3 span { background: #65a30d; }
+.spot-list-item.ANSWER_HINT span { background: #ea580c; }
+.spot-list-item.FINAL span { background: #020617; border: 1px solid rgba(255,255,255,.7); }
 .spot-list-item.FINAL_DESTINATION span { background: #020617; border: 1px solid rgba(255,255,255,.7); }
 .spot-list-item.STORY span { background: #15803d; }
 .spot-list-item.FINAL_CANDIDATE span { background: #1f2937; }
@@ -677,6 +685,8 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 :deep(.case-marker.KEYWORD_1) { background: #ea580c; }
 :deep(.case-marker.KEYWORD_2) { background: #0891b2; }
 :deep(.case-marker.KEYWORD_3) { background: #65a30d; }
+:deep(.case-marker.ANSWER_HINT) { background: #ea580c; }
+:deep(.case-marker.FINAL) { background: #020617; border-color: rgba(255,255,255,.88); box-shadow: 0 0 0 4px rgba(0,0,0,.36), 0 14px 24px rgba(0,0,0,.44); }
 :deep(.case-marker.FINAL_DESTINATION) { background: #020617; border-color: rgba(255,255,255,.88); box-shadow: 0 0 0 4px rgba(0,0,0,.36), 0 14px 24px rgba(0,0,0,.44); }
 :deep(.case-marker.STORY) { background: #15803d; }
 :deep(.case-marker.FINAL_CANDIDATE) { background: #1f2937; }

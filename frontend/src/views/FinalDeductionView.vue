@@ -28,7 +28,7 @@
 
       <section v-if="!startData.sessionId" class="blocked">
         <strong>최종 추리 조건 미충족</strong>
-        <p>실제 최종 장소에 도착해야 최종 추리 채팅과 정답 제출을 시작할 수 있습니다.</p>
+        <p>조사 미션 8개 완료 후 자동 공개된 최종 정답 입력 장소에 도착해야 최종 추리 채팅과 정답 제출을 시작할 수 있습니다.</p>
         <p>이 장소에서는 최종 추리를 시작할 수 없습니다. 8개의 조사 미션 완료 여부를 다시 확인해 주세요.</p>
         <div>
           <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">지도로 돌아가기</button>
