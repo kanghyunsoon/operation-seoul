@@ -124,6 +124,9 @@ public class AiEpisodeDraftRequest {
         private String dataQuality;       // STRONG, NORMAL, WEAK, REVIEW_REQUIRED
         private List<String> usablePuzzleSources;
         private List<String> verificationNotes;
+        private List<String> externalResearchNotes;
+        private List<String> referenceUrls;
+        private String researchSourceSummary;
     }
 
     @Data

@@ -1,0 +1,35 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :resolveMainClassName UP-TO-DATE
+
+> Task :bootRun
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-06-21T01:36:34.676+09:00  INFO 21256 --- [           main] c.o.seoul.OperationSeoulApplication      : Starting OperationSeoulApplication using Java 17.0.15 with PID 21256 (C:\Users\khsoo\Desktop\operation-seoul\backend\build\classes\java\main started by ÁýÄÄ in C:\Users\khsoo\Desktop\operation-seoul\backend)
+2026-06-21T01:36:34.682+09:00  INFO 21256 --- [           main] c.o.seoul.OperationSeoulApplication      : No active profile set, falling back to 1 default profile: "local"
+2026-06-21T01:36:36.211+09:00  INFO 21256 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 18080 (http)
+2026-06-21T01:36:36.223+09:00  INFO 21256 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-21T01:36:36.223+09:00  INFO 21256 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-06-21T01:36:36.278+09:00  INFO 21256 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1547 ms
+2026-06-21T01:36:36.395+09:00  INFO 21256 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-21T01:36:36.673+09:00  INFO 21256 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@664db2ca
+2026-06-21T01:36:36.675+09:00  INFO 21256 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-21T01:36:37.451+09:00  INFO 21256 --- [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name userDetailsService
+2026-06-21T01:36:37.958+09:00  INFO 21256 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-06-21T01:36:38.028+09:00  INFO 21256 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 18080 (http) with context path '/'
+2026-06-21T01:36:38.038+09:00  INFO 21256 --- [           main] c.o.seoul.OperationSeoulApplication      : Started OperationSeoulApplication in 3.752 seconds (process running for 4.089)
+2026-06-21T01:36:38.172+09:00  WARN 21256 --- [           main] c.o.s.g.config.EpisodeSchemaMigration    : legacy_place_hint_migration pending spots=1 evidences=1 progressRows=0 enable with episode.migration.legacy-place-hints.enabled=true after backup
+2026-06-21T01:36:43.424+09:00  INFO 21256 --- [io-18080-exec-3] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-21T01:36:43.424+09:00  INFO 21256 --- [io-18080-exec-3] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-21T01:36:43.425+09:00  INFO 21256 --- [io-18080-exec-3] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-06-21T01:37:03.321+09:00  INFO 21256 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/gemini status=200 durationMs=19893 remoteAddress=0:0:0:0:0:0:0:1

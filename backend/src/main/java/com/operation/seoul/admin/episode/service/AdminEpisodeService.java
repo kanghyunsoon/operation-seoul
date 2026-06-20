@@ -50,9 +50,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminEpisodeService {
     private static final Set<String> EPISODE_STATUSES = Set.of("DRAFT", "PUBLISHED", "ARCHIVED");
-    private static final Set<String> MARKER_TYPES = Set.of("START", "ANSWER_HINT", "DESTINATION_HINT", "FINAL");
-    private static final Set<String> PUBLIC_MARKER_TYPES = Set.of("START", "ANSWER_HINT", "DESTINATION_HINT");
-    private static final Set<String> CLUE_ROLES = Set.of("START", "ANSWER_HINT", "DESTINATION_HINT", "FINAL_PLACE");
+    private static final Set<String> MARKER_TYPES = Set.of("START", "ANSWER_HINT", "FINAL");
+    private static final Set<String> PUBLIC_MARKER_TYPES = Set.of("START", "ANSWER_HINT");
+    private static final Set<String> CLUE_ROLES = Set.of("START", "ANSWER_HINT", "FINAL_PLACE");
     private static final Set<String> PUZZLE_TYPES = Set.of("OBSERVATION", "NUMBER_LOCK", "INITIAL_SOUND", "PATTERN", "STORY_COMBINATION");
     private static final Map<String, String> PUZZLE_TYPE_ALIASES = Map.ofEntries(
             Map.entry("OBSERVATION", "OBSERVATION"),
@@ -80,8 +80,8 @@ public class AdminEpisodeService {
             Map.entry("\uc2a4\ud1a0\ub9ac\uc870\ud569", "STORY_COMBINATION")
     );
     private static final Set<String> ANSWER_FORMATS = Set.of("TEXT", "NUMBER", "CHOICE", "CODE");
-    private static final Set<String> REWARD_TYPES = Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "SUSPECT_CLUE", "MEMO_UNLOCK", "EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "SUSPECT_UNLOCK", "SUSPECT_UPDATE");
-    private static final Set<String> EVIDENCE_TYPES = Set.of("PHOTO", "MEMO", "NOTE", "DOCUMENT", "EVIDENCE", "SUSPECT_CLUE", "POST_IT", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE");
+    private static final Set<String> REWARD_TYPES = Set.of("ANSWER_CLUE", "STORY_CLUE", "SUSPECT_CLUE", "MEMO_UNLOCK", "EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "SUSPECT_UNLOCK", "SUSPECT_UPDATE");
+    private static final Set<String> EVIDENCE_TYPES = Set.of("PHOTO", "MEMO", "NOTE", "DOCUMENT", "EVIDENCE", "SUSPECT_CLUE", "POST_IT", "ANSWER_CLUE", "STORY_CLUE");
     private static final Set<String> PARTNER_REWARD_TYPES = Set.of("COUPON", "GIFT_CARD", "LOCAL_CURRENCY", "CAFE_DISCOUNT", "STAMP");
     private static final String IMAGE_PROMPT_TEXT_BAN_SUFFIX =
             "no readable text, no Korean letters, no numbers, no labels, no handwriting, no sign text, no legible document text";
@@ -119,6 +119,7 @@ public class AdminEpisodeService {
     private final TourApiService tourApiService;
     private final OperationAreaResolver operationAreaResolver;
     private final KakaoLocalCandidateService kakaoLocalCandidateService;
+    private final ExternalPlaceResearchService externalPlaceResearchService;
 
     public List<AdminEpisodeListResponse> getEpisodes() {
         return adminEpisodeRepository.findAllEpisodes().stream()
@@ -191,11 +192,24 @@ public class AdminEpisodeService {
         enriched.setTheme(request.getTheme());
         enriched.setTargetAudience(request.getTargetAudience());
         enriched.setPlayTime(request.getPlayTime());
+        enriched.setSelectedGenreId(request.getSelectedGenreId());
+        enriched.setSelectedGenreName(request.getSelectedGenreName());
+        enriched.setFinalAnswerKeywords(request.getFinalAnswerKeywords());
+        enriched.setFinalAnswerKeywordItems(request.getFinalAnswerKeywordItems());
+        enriched.setFinalAnswers(request.getFinalAnswers());
+        enriched.setGenreCatalog(request.getGenreCatalog());
+        enriched.setMissionPolicy(request.getMissionPolicy());
+        enriched.setPuzzlePolicy(request.getPuzzlePolicy());
+        enriched.setMissions(request.getMissions());
         List<AiEpisodeDraftRequest.PlaceInput> places = new ArrayList<>();
         for (AiEpisodeDraftRequest.PlaceInput place : request.getPlaces()) {
             places.add(enrichPlace(place));
         }
         enriched.setPlaces(places);
+        if (request.getFinalSpot() != null) {
+            int finalSpotIndex = matchingPlaceIndex(request.getPlaces(), request.getFinalSpot());
+            enriched.setFinalSpot(finalSpotIndex >= 0 ? places.get(finalSpotIndex) : enrichPlace(request.getFinalSpot()));
+        }
         return enriched;
     }
 
@@ -253,7 +267,7 @@ public class AdminEpisodeService {
                 .spotCount(spots.size())
                 .startCount(spots.stream().filter(spot -> "START".equals(spot.getMarkerType())).count())
                 .answerHintCount(spots.stream().filter(spot -> "ANSWER_HINT".equals(spot.getMarkerType())).count())
-                .destinationHintCount(spots.stream().filter(spot -> "DESTINATION_HINT".equals(spot.getMarkerType())).count())
+                .destinationHintCount(0)
                 .finalPlaceCount(spots.stream().filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace())).count())
                 .finalCandidateCount(spots.stream().filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace())).count())
                 .puzzleCount(adminEpisodeRepository.countPuzzles(episodeId))
@@ -336,7 +350,7 @@ public class AdminEpisodeService {
         if (Boolean.TRUE.equals(spot.getFinalPlace())) {
             spot.setMarkerType("FINAL");
             spot.setClueRole("FINAL_PLACE");
-            spot.setPublicMarkerType("DESTINATION_HINT");
+            spot.setPublicMarkerType("ANSWER_HINT");
         }
         adminEpisodeRepository.updateSpot(spot);
         return getEpisode(episodeId);
@@ -366,7 +380,7 @@ public class AdminEpisodeService {
         if (Boolean.TRUE.equals(spot.getFinalPlace())) {
             spot.setMarkerType("FINAL");
             spot.setClueRole("FINAL_PLACE");
-            spot.setPublicMarkerType("DESTINATION_HINT");
+            spot.setPublicMarkerType("ANSWER_HINT");
         }
         adminEpisodeRepository.insertSpot(spot);
 
@@ -584,7 +598,7 @@ public class AdminEpisodeService {
                     Long targetId = reward.hasNonNull("targetId") ? reward.path("targetId").asLong() : null;
                     if (!REWARD_TYPES.contains(type)) errors.add("rewards[" + i + "].type is unsupported: " + type);
                     String targetLabel = null;
-                    if (Set.of("ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE", "SUSPECT_CLUE").contains(type) && value.isBlank()) errors.add("rewards[" + i + "] " + type + " requires value.");
+                    if (Set.of("ANSWER_CLUE", "STORY_CLUE", "SUSPECT_CLUE").contains(type) && value.isBlank()) errors.add("rewards[" + i + "] " + type + " requires value.");
                     if ("MEMO_UNLOCK".equals(type) && targetId == null && value.isBlank()) errors.add("rewards[" + i + "] MEMO_UNLOCK requires targetId or value.");
                     if (Set.of("EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "MEMO_UNLOCK").contains(type) && targetId != null) targetLabel = validateEvidenceTarget(episodeId, targetId, i, errors);
                     if (Set.of("SUSPECT_UNLOCK", "SUSPECT_UPDATE").contains(type)) targetLabel = validateSuspectTarget(episodeId, targetId, i, errors);
@@ -643,9 +657,10 @@ public class AdminEpisodeService {
                 .selectedGenre(objective.genre())
                 .finalAnswerKeywords(objective.keywords())
                 .finalAnswers(AiEpisodeDraftResponse.FinalAnswers.builder()
-                        .relatedPerson(objective.keywords().get(0))
-                        .coreClue(objective.keywords().get(1))
-                        .finalLocation(objective.keywords().get(2))
+                        .culprit(objective.keywords().get(0))
+                        .weapon(objective.keywords().get(1))
+                        .motive(objective.keywords().get(2))
+                        .method(objective.keywords().get(3))
                         .build())
                 .finalAnswerType(objective.answerType())
                 .finalAnswer(objective.finalAnswer())
@@ -713,6 +728,9 @@ public class AdminEpisodeService {
 
 
     private DraftObjective draftObjective(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        if (request != null) {
+            return crimeMysteryDraftObjective(request, places);
+        }
         ContentGenre selectedGenre = ContentGenre.fromIdOrName(
                 request.getSelectedGenreId(),
                 request.getSelectedGenreName()
@@ -739,6 +757,25 @@ public class AdminEpisodeService {
                 keywords,
                 List.of(finalAnswer.replace(" ", ""), "KW:" + String.join("|", keywords)),
                 "관련자, 핵심 단서, 최종 장소를 종합하면 어떤 결론인가?",
+                ruleBasedMissionDescription(genre, places)
+        );
+    }
+
+    private DraftObjective crimeMysteryDraftObjective(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        String genre = ContentGenre.CRIME_MYSTERY.displayName();
+        String culprit = finalAnswerValue(request, "CULPRIT", "강수진");
+        String weapon = finalAnswerValue(request, "WEAPON", "독성 캡슐");
+        String motive = finalAnswerValue(request, "MOTIVE", "해고 통보에 대한 복수");
+        String method = finalAnswerValue(request, "METHOD", "피해자의 약을 독성 캡슐로 바꿔치기");
+        List<String> keywords = List.of(culprit, weapon, motive, method);
+        String finalAnswer = "범인: " + culprit + " / 흉기: " + weapon + " / 동기: " + motive + " / 방법: " + method;
+        return new DraftObjective(
+                genre,
+                "CASE_TRUTH",
+                finalAnswer,
+                keywords,
+                List.of("KW:" + String.join("|", keywords)),
+                "범인, 흉기, 동기, 방법을 각각 입력하세요.",
                 ruleBasedMissionDescription(genre, places)
         );
     }
@@ -1272,7 +1309,7 @@ public class AdminEpisodeService {
         }
         String role = blank(mission.getClueRole(), "");
         return switch (role) {
-            case "DESTINATION_HINT", "FINAL_PLACE" -> "DESTINATION_CLUE";
+            case "FINAL_PLACE" -> "STORY_CLUE";
             case "ANSWER_HINT" -> "RELATED_PERSON".equals(normalizeSlotId(mission.getRewardClueSlotId())) ? "SUSPECT_CLUE" : "ANSWER_CLUE";
             default -> "STORY_CLUE";
         };
@@ -1285,9 +1322,6 @@ public class AdminEpisodeService {
         String evidenceType = evidenceTypeForMission(mission);
         if ("SUSPECT_CLUE".equals(evidenceType)) {
             return "SUSPECT_CLUE";
-        }
-        if ("DESTINATION_CLUE".equals(evidenceType)) {
-            return "DESTINATION_CLUE";
         }
         if ("STORY_CLUE".equals(evidenceType)) {
             return "STORY_CLUE";
@@ -1307,7 +1341,7 @@ public class AdminEpisodeService {
     private String normalizeSlotId(String value) {
         String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
-            case "RELATED_PERSON", "ANSWER_CLUE", "FINAL_DESTINATION" -> normalized;
+            case "RELATED_PERSON", "ANSWER_CLUE" -> normalized;
             default -> "";
         };
     }
@@ -1468,7 +1502,6 @@ public class AdminEpisodeService {
         return switch (clueType) {
             case "SUSPECT_CLUE" -> "RELATED_PERSON";
             case "ANSWER_CLUE" -> "ANSWER_CLUE";
-            case "DESTINATION_CLUE" -> "FINAL_DESTINATION";
             default -> "";
         };
     }
@@ -2334,14 +2367,12 @@ public class AdminEpisodeService {
         else if (!containsCompact(episode.getDeductionForbiddenReveals(), episode.getFinalAnswer())) errors.add("Forbidden reveals must include the final answer.");
         if (episode.getMaxDeductionQuestions() == null || episode.getMaxDeductionQuestions() < 1) errors.add("Max deduction questions must be at least 1.");
         List<MissionSpot> spots = adminEpisodeRepository.findSpots(episode.getId());
-        if (spots.size() < 7 || spots.size() > 9) errors.add("Published episodes require 7 to 9 spots.");
+        if (spots.size() != 10) errors.add("Published episodes require exactly 10 spots.");
         long startCount = spots.stream().filter(spot -> "START".equals(spot.getMarkerType())).count();
         long answerHintCount = spots.stream().filter(spot -> "ANSWER_HINT".equals(spot.getMarkerType())).count();
-        long destinationHintCount = spots.stream().filter(spot -> "DESTINATION_HINT".equals(spot.getMarkerType())).count();
         long finalPlaceCount = spots.stream().filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace())).count();
         if (startCount != 1) errors.add("Exactly one START spot is required.");
-        if (answerHintCount < 4) errors.add("At least four ANSWER_HINT spots are required.");
-        if (destinationHintCount < 3) errors.add("At least three DESTINATION_HINT spots are required.");
+        if (answerHintCount != 8) errors.add("Exactly eight ANSWER_HINT investigation spots are required.");
         if (finalPlaceCount != 1) errors.add("Exactly one internal final place is required.");
         for (MissionSpot spot : spots) {
             if (missing(spot.getPlaceName()) || spot.getLatitude() == null || spot.getLongitude() == null) errors.add("Every spot needs a name and coordinates.");
@@ -2472,6 +2503,13 @@ public class AdminEpisodeService {
 
     private AiEpisodeDraftRequest.PlaceInput enrichPlace(AiEpisodeDraftRequest.PlaceInput source) {
         List<AdminPlaceCandidateResponse> rankedNearby = rankedNearbyCandidates(source);
+        ExternalPlaceResearchService.ResearchResult externalResearch = externalPlaceResearchService.research(source);
+        if (externalResearch == null) {
+            externalResearch = ExternalPlaceResearchService.ResearchResult.empty();
+        }
+        if (externalResearch.isEmpty()) {
+            externalResearch = siteContextResearch(source, rankedNearby);
+        }
         AiEpisodeDraftRequest.PlaceInput target = new AiEpisodeDraftRequest.PlaceInput();
         target.setName(source.getName());
         target.setAddress(source.getAddress());
@@ -2485,7 +2523,80 @@ public class AdminEpisodeService {
         target.setRole(source.getRole());
         target.setPublicMarkerType(source.getPublicMarkerType());
         target.setArrivalRadius(source.getArrivalRadius());
+        target.setExternalResearchNotes(mergeDistinct(source.getExternalResearchNotes(), externalResearch.notes()));
+        target.setReferenceUrls(mergeDistinct(source.getReferenceUrls(), externalResearch.referenceUrls()));
+        target.setResearchSourceSummary(firstNonBlank(source.getResearchSourceSummary(), externalResearch.summary()));
         return target;
+    }
+
+    private ExternalPlaceResearchService.ResearchResult siteContextResearch(
+            AiEpisodeDraftRequest.PlaceInput source,
+            List<AdminPlaceCandidateResponse> rankedNearby) {
+        List<String> notes = new ArrayList<>();
+        List<String> parts = new ArrayList<>();
+        if (!missing(source.getName())) {
+            parts.add("name=" + source.getName().trim());
+        }
+        if (!missing(source.getAddress())) {
+            parts.add("address=" + source.getAddress().trim());
+        }
+        if (!missing(source.getDescription())) {
+            parts.add("description=" + source.getDescription().trim());
+        }
+        if (!missing(source.getAdminMemo())) {
+            parts.add("memo=" + source.getAdminMemo().trim());
+        }
+        String nearby = rankedNearby == null ? "" : rankedNearby.stream()
+                .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
+                .limit(3)
+                .map(AdminPlaceCandidateResponse::getTitle)
+                .collect(Collectors.joining(", "));
+        if (!nearby.isBlank()) {
+            parts.add("nearby=" + nearby);
+        }
+        if (!parts.isEmpty()) {
+            notes.add("Selected place context: " + String.join(" / ", parts));
+        }
+        return new ExternalPlaceResearchService.ResearchResult(
+                notes,
+                List.of(),
+                notes.isEmpty() ? null : "Selected place context used because no direct external reference page matched.");
+    }
+
+    private int matchingPlaceIndex(List<AiEpisodeDraftRequest.PlaceInput> places, AiEpisodeDraftRequest.PlaceInput target) {
+        if (places == null || target == null) {
+            return -1;
+        }
+        for (int i = 0; i < places.size(); i++) {
+            if (samePlaceInput(places.get(i), target)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean samePlaceInput(AiEpisodeDraftRequest.PlaceInput left, AiEpisodeDraftRequest.PlaceInput right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        if (!missing(left.getPlaceId()) && left.getPlaceId().equals(right.getPlaceId())) {
+            return true;
+        }
+        return sameText(left.getName(), right.getName())
+                && sameText(left.getAddress(), right.getAddress())
+                && sameCoordinate(left.getLatitude(), right.getLatitude())
+                && sameCoordinate(left.getLongitude(), right.getLongitude());
+    }
+
+    private boolean sameText(String left, String right) {
+        return blank(left, "").equalsIgnoreCase(blank(right, ""));
+    }
+
+    private boolean sameCoordinate(Double left, Double right) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        return Math.abs(left - right) < 0.000001;
     }
 
     private List<AdminPlaceCandidateResponse> rankedNearbyCandidates(AiEpisodeDraftRequest.PlaceInput place) {
@@ -2693,20 +2804,19 @@ public class AdminEpisodeService {
 
     private String normalizeRole(String role, int index, int total) {
         String normalized = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
-        if (List.of("START", "ANSWER_HINT", "DESTINATION_HINT", "FINAL").contains(normalized)) {
+        if (List.of("START", "ANSWER_HINT", "FINAL").contains(normalized)) {
             return normalized;
         }
         if (index == 0) return "START";
         if (index >= total - 1) return "FINAL";
-        if (index >= total - 4) return "DESTINATION_HINT";
         return "ANSWER_HINT";
     }
 
     private String publicMarkerType(String requested, boolean finalPlace, String markerType) {
         if (finalPlace) {
-            return "DESTINATION_HINT";
+            return "ANSWER_HINT";
         }
-        String fallback = "FINAL".equals(markerType) ? "DESTINATION_HINT" : markerType;
+        String fallback = "FINAL".equals(markerType) ? "ANSWER_HINT" : markerType;
         String value = blank(requested, fallback);
         return validateValue(value, PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType must not expose FINAL.");
     }
@@ -2714,7 +2824,6 @@ public class AdminEpisodeService {
     private String toClueRole(String markerType) {
         return switch (markerType) {
             case "START" -> "START";
-            case "DESTINATION_HINT" -> "DESTINATION_HINT";
             case "FINAL" -> "FINAL_PLACE";
             default -> "ANSWER_HINT";
         };
@@ -2857,7 +2966,7 @@ public class AdminEpisodeService {
     private String buildRewardClue(String role, int index) {
         return switch (role) {
             case "ANSWER_HINT" -> List.of("젖은 손잡이", "낮은 좌석", "끊긴 끈", "구겨진 영수증").get(Math.min(Math.max(index - 1, 0), 3));
-            case "DESTINATION_HINT", "FINAL" -> index % 2 == 0 ? "안쪽 계단" : "닫힌 출입문";
+            case "FINAL" -> "Final spot unlocks after all investigation missions are complete.";
             case "START" -> "사건 시작 단서";
             default -> "사건 단서";
         };
@@ -2923,7 +3032,7 @@ public class AdminEpisodeService {
         return switch (normalizeType(type)) {
             case "PHOTO" -> "/generated-case-card-photo.svg";
             case "MEMO", "POST_IT" -> "/generated-case-card-memo.svg";
-            case "DOCUMENT", "EVIDENCE", "ANSWER_CLUE", "DESTINATION_CLUE", "STORY_CLUE" -> "/generated-case-card-document.svg";
+            case "DOCUMENT", "EVIDENCE", "ANSWER_CLUE", "STORY_CLUE" -> "/generated-case-card-document.svg";
             case "SUSPECT_CLUE" -> "/generated-case-card-suspect.svg";
             default -> "/generated-case-card-note.svg";
         };
@@ -2935,6 +3044,10 @@ public class AdminEpisodeService {
 
     private String blank(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return first != null && !first.isBlank() ? first.trim() : blank(second, null);
     }
 
     private String join(List<String> values) {

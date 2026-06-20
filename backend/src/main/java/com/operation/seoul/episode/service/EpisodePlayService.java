@@ -150,7 +150,7 @@ public class EpisodePlayService {
             }
             String displayMarkerType;
             if (finalPlace) {
-                displayMarkerType = "FINAL_DESTINATION";
+                displayMarkerType = "FINAL";
             } else if (isAnswerKeywordSpot(spot)) {
                 displayMarkerType = answerKeywordIndex % 2 == 0 ? "KEYWORD_1" : "KEYWORD_2";
                 answerKeywordIndex++;
@@ -163,7 +163,7 @@ public class EpisodePlayService {
                 ? spots.stream()
                         .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
                         .findFirst()
-                        .map(spot -> toSpotMarker(spot, "FINAL_DESTINATION", visited, completed))
+                        .map(spot -> toSpotMarker(spot, "FINAL", visited, completed))
                         .orElse(null)
                 : null;
 
@@ -188,6 +188,7 @@ public class EpisodePlayService {
                 .latitude(spot.getLatitude())
                 .longitude(spot.getLongitude())
                 .publicMarkerType(publicMarkerType)
+                .finalPlace(Boolean.TRUE.equals(spot.getFinalPlace()))
                 .storyText(sanitizeCategoryCodes(spot.getStoryText()))
                 .visited(visited.contains(spot.getId()))
                 .completed(completed.contains(spot.getId()))
@@ -225,7 +226,7 @@ public class EpisodePlayService {
     }
 
     private boolean isLocationKeywordSpot(MissionSpot spot) {
-        return "DESTINATION_HINT".equals(normalize(spot.getClueRole())) || "DESTINATION_HINT".equals(normalize(spot.getMarkerType()));
+        return false;
     }
 
     private String normalize(String value) {
@@ -996,7 +997,8 @@ public class EpisodePlayService {
         String role = spot == null ? "" : spot.getClueRole();
         return switch (role) {
             case "ANSWER_HINT" -> "RELATED_PERSON".equals(normalizeRewardSlot(slotId)) || "SUSPECT_CLUE".equals(requestedType) ? "SUSPECT_CLUE" : "ANSWER_CLUE";
-            case "DESTINATION_HINT", "FINAL_PLACE" -> "ANSWER_CLUE";
+            case "DESTINATION_HINT" -> "ANSWER_CLUE";
+            case "FINAL_PLACE" -> "STORY_CLUE";
             default -> "STORY_CLUE";
         };
     }
@@ -1039,7 +1041,7 @@ public class EpisodePlayService {
     private String normalizeRewardSlot(String value) {
         String normalized = normalize(value);
         return switch (normalized) {
-            case "CULPRIT", "WEAPON", "MOTIVE", "METHOD", "RELATED_PERSON", "ANSWER_CLUE", "FINAL_DESTINATION" -> normalized;
+            case "CULPRIT", "WEAPON", "MOTIVE", "METHOD", "RELATED_PERSON", "ANSWER_CLUE" -> normalized;
             default -> "";
         };
     }
@@ -1061,7 +1063,7 @@ public class EpisodePlayService {
                 || value.startsWith("METHOD::")
                 || value.startsWith("RELATED_PERSON::")
                 || value.startsWith("ANSWER_CLUE::")
-                || value.startsWith("FINAL_DESTINATION::"));
+                );
     }
 
     private String clueValueWithoutSlot(String value) {
@@ -1241,14 +1243,12 @@ public class EpisodePlayService {
     private int calculateScore(UserEpisodeProgress progress) {
         int score = 1000;
         int answerClues = readStringList(progress.getCollectedAnswerClues()).size();
-        int destinationClues = readStringList(progress.getCollectedDestinationClues()).size();
         int storyClues = readStringList(progress.getCollectedStoryClues()).size();
         if (answerClues >= 4) score += 200;
-        if (destinationClues >= 2) score += 150;
         if (storyClues > 0) score += 50;
         score -= value(progress.getDeductionQuestionCount()) * 10;
         score -= value(progress.getWrongAnswerCount()) * 50;
-        if (answerClues + destinationClues + storyClues < 4) score -= 200;
+        if (answerClues + storyClues < 4) score -= 200;
         return Math.max(100, score);
     }
 
