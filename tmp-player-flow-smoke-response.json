@@ -1,7 +1,7 @@
 {
   "valid": true,
-  "email": "player-smoke-1782055045386-8374@example.com",
-  "episodeId": 152,
+  "email": "player-smoke-1782070157549-22861@example.com",
+  "episodeId": 163,
   "initialFinalDestinationUnlocked": false,
   "initialVisibleSpotCount": 9,
   "lockedFinalArriveCode": "FINAL_DESTINATION_LOCKED",
@@ -11,7 +11,7 @@
   "unlockedVisibleSpotCount": 10,
   "finalArrived": true,
   "canStartDeduction": true,
-  "deductionSessionId": 19,
+  "deductionSessionId": 41,
   "finalAnswerCorrect": true,
   "finalAnswerStatus": "CLEARED",
   "clearReportStatus": "CLEARED",
