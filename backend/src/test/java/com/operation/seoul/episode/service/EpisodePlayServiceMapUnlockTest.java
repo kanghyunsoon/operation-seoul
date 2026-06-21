@@ -6,9 +6,11 @@ import com.operation.seoul.casefile.repository.CaseFileRepository;
 import com.operation.seoul.episode.domain.Episode;
 import com.operation.seoul.episode.domain.MissionSpot;
 import com.operation.seoul.episode.domain.UserEpisodeProgress;
+import com.operation.seoul.episode.dto.ArriveRequest;
 import com.operation.seoul.episode.dto.EpisodeMapResponse;
 import com.operation.seoul.episode.repository.EpisodeRepository;
 import com.operation.seoul.favorite.repository.EpisodeFavoriteRepository;
+import com.operation.seoul.global.exception.ApiException;
 import com.operation.seoul.location.service.OperationAreaResolver;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -62,6 +65,36 @@ class EpisodePlayServiceMapUnlockTest {
         assertEquals("FINAL", finalMarker.getPublicMarkerType());
     }
 
+    @Test
+    void blocksFinalArriveUntilAllInvestigationSpotsAreCompleted() {
+        mockMapState(progressWithCompleted(List.of(2L, 3L, 4L)));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.arriveFinalPlace(1L, arriveAtFinal(), user()));
+
+        assertEquals("FINAL_DESTINATION_LOCKED", exception.getCode());
+    }
+
+    @Test
+    void blocksDirectFinalSpotArriveUntilAllInvestigationSpotsAreCompleted() {
+        mockMapState(progressWithCompleted(List.of(2L, 3L, 4L)));
+        when(episodeRepository.findSpotById(10L)).thenReturn(spots().get(9));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.arrive(1L, 10L, arriveAtFinal(), user()));
+
+        assertEquals("FINAL_DESTINATION_LOCKED", exception.getCode());
+    }
+
+    @Test
+    void allowsFinalArriveAfterEightInvestigationSpotsAreCompleted() {
+        mockMapState(progressWithCompleted(List.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L)));
+
+        var response = service.arriveFinalPlace(1L, arriveAtFinal(), user());
+
+        assertTrue(response.isArrived());
+        assertTrue(response.isActualFinalArrived());
+        assertTrue(response.isCanStartDeduction());
+    }
+
     private void mockMapState(UserEpisodeProgress progress) {
         when(episodeRepository.findEpisodeById(1L)).thenReturn(episode());
         when(episodeRepository.findProgress(7L, 1L)).thenReturn(progress);
@@ -98,6 +131,13 @@ class EpisodePlayServiceMapUnlockTest {
         progress.setUnlockedEvidenceIds("[]");
         progress.setStatus("IN_PROGRESS");
         return progress;
+    }
+
+    private ArriveRequest arriveAtFinal() {
+        ArriveRequest request = new ArriveRequest();
+        request.setUserLat(37.51);
+        request.setUserLng(127.01);
+        return request;
     }
 
     private List<MissionSpot> spots() {

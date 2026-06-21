@@ -246,7 +246,7 @@ public class AdminEpisodeController {
     @PostMapping("/ai-draft/gemini")
     public ResponseEntity<ApiResponse<AiEpisodeDraftResponse>> createGeminiDraft(@RequestBody AiEpisodeDraftRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(
-                "Gemini 에피소드 초안을 생성했습니다. 관리자 검수가 필요합니다.",
+                "범죄 미스터리 에피소드 초안을 생성했습니다.",
                 adminEpisodeGeminiService.createGeminiDraft(request)
         ));
     }

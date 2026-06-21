@@ -355,7 +355,7 @@ class AdminEpisodeGeminiServiceTest {
                 "찻잔 바닥의 잔류 성분에서 일반 음료와 다른 독성 물질이 검출되었다.",
                 "현장 쓰레기통에서 독성 물질을 옮기는 데 쓰인 작은 유리 도구 조각이 발견되었다.",
                 "사망 직전 작성된 계약 문서에는 특정 직원을 배제하는 조항이 추가되어 있었다.",
-                "피해자와 가까운 직원이 최근 손실과 갈등 때문에 강한 불만을 드러냈다는 메시지가 남아 있었다.",
+                "사건 당사자 간에 주고받은 격앙된 내용의 메시지 기록이 발견되었습니다.",
                 "피해자가 매일 확인하던 서류 봉투는 사건 당일 같은 시간에 교체된 흔적이 있었다.",
                 "봉투 교체 시간과 잠금장치 해제 시간이 같은 업무 경로 위에서 이어진다."
         );
@@ -378,6 +378,31 @@ class AdminEpisodeGeminiServiceTest {
         assertEquals(distinctClues, investigationMissions(response.getDraft()).stream()
                 .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
                 .toList());
+    }
+
+    @Test
+    void buildDraftResponseRejectsCulpritClueThatExcludesAllSuspects() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        investigationMissions(draft).get(0)
+                .setRewardClue("현장에서 발견된 지문 중 피해자의 것과 일치하지 않는 하나의 추가 지문이 용의자 세 명의 것과 모두 다르다는 사실이 밝혀졌다.");
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        assertTrue(response.getPublishable());
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_INVESTIGATION_CLUES_CULPRIT_OUTSIDE_SUSPECTS"));
+        assertFalse(investigationMissions(response.getDraft()).stream()
+                .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
+                .anyMatch(clue -> clue != null && clue.contains("용의자 세 명의 것과 모두 다르")));
     }
 
     @Test
@@ -423,8 +448,38 @@ class AdminEpisodeGeminiServiceTest {
                 .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
                 .toList();
         assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("Alice") || clue.contains("Bob") || clue.contains("Carol")));
-        assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("첫 번째 용의자")));
-        assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("두 번째 용의자")));
+        assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("첫 번째 용의자") || clue.contains("두 번째 용의자") || clue.contains("세 번째 용의자")));
+        assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("기록 속 인물")));
+        assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("문서에 언급된 인물")));
+    }
+
+    @Test
+    void buildDraftResponseRewritesGenericSpecificSuspectReferences() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        investigationMissions(draft).get(0)
+                .setRewardClue("CCTV 기록상 특정 용의자의 출입 기록 일부가 누락되었다.");
+        draft.getEvidences().get(0)
+                .setTextSummary("사건 당일 특정 용의자가 사무실에 있었던 기록이 남아 있다.");
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        assertTrue(response.getPublishable());
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REWROTE_GENERIC_SUSPECT_REFERENCES"));
+        assertFalse(response.getDraft().getMissions().stream()
+                .anyMatch(mission -> mission.getRewardClue() != null && mission.getRewardClue().contains("특정 용의자")));
+        assertFalse(response.getDraft().getEvidences().stream()
+                .anyMatch(evidence -> evidence.getTextSummary() != null && evidence.getTextSummary().contains("특정 용의자")));
+        assertTrue(response.getDraft().getMissions().stream()
+                .anyMatch(mission -> mission.getRewardClue() != null && mission.getRewardClue().contains("기록 속 인물")));
     }
 
     @Test

@@ -259,6 +259,9 @@ public class EpisodePlayService {
 
         addLong(progress, "visited", spotId);
         boolean actualFinal = Boolean.TRUE.equals(spot.getFinalPlace());
+        if (actualFinal && !adminBypass && !isFinalDestinationUnlocked(episodeRepository.findSpotsByEpisodeId(episodeId), readLongList(progress.getCompletedSpotIds()), progress)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_DESTINATION_LOCKED", "조사 미션 8개를 모두 완료한 뒤 최종 장소에 도착할 수 있습니다.");
+        }
         if (actualFinal) {
             progress.setFinalArrivedSpotId(spotId);
             progress.setStatus("FINAL_READY");
@@ -294,6 +297,9 @@ public class EpisodePlayService {
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
         requireCoordinatesUnlessDevMode(request, devMode);
+        if (!adminBypass && !isFinalDestinationUnlocked(episodeRepository.findSpotsByEpisodeId(episodeId), readLongList(progress.getCompletedSpotIds()), progress)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_DESTINATION_LOCKED", "조사 미션 8개를 모두 완료한 뒤 최종 장소에 도착할 수 있습니다.");
+        }
         double distance = devMode ? 0.0 : calculateDistanceMeters(request.getUserLat(), request.getUserLng(), finalSpot.getLatitude(), finalSpot.getLongitude());
         boolean arrived = devMode || distance <= safeRadius(finalSpot.getArrivalRadius());
         if (!arrived) {
@@ -910,7 +916,10 @@ public class EpisodePlayService {
                 JsonNode rewards = objectMapper.readTree(puzzle.getRewardPayload()).path("rewards");
                 if (rewards.isArray()) {
                     for (JsonNode reward : rewards) {
-                        String slotId = normalizeRewardSlot(reward.path("slotId").asText(""));
+                        String slotId = normalizeRewardSlot(reward.path("targetKeywordType").asText(""));
+                        if (slotId.isBlank()) {
+                            slotId = normalizeRewardSlot(reward.path("slotId").asText(""));
+                        }
                         String rawType = reward.path("type").asText("");
                         String type = isClueReward(rawType) ? rewardTypeForSpot(spot, rawType, slotId) : rawType;
                         if (isClueReward(type) && slotId.isBlank()) {

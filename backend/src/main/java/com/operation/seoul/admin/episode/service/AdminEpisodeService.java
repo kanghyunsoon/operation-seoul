@@ -44,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @SuppressWarnings("SpellCheckingInspection")
 @Service
@@ -56,28 +57,28 @@ public class AdminEpisodeService {
     private static final Set<String> PUZZLE_TYPES = Set.of("OBSERVATION", "NUMBER_LOCK", "INITIAL_SOUND", "PATTERN", "STORY_COMBINATION");
     private static final Map<String, String> PUZZLE_TYPE_ALIASES = Map.ofEntries(
             Map.entry("OBSERVATION", "OBSERVATION"),
-            Map.entry("\uad00\ucc30\ud615", "OBSERVATION"),
-            Map.entry("\uad00\ucc30", "OBSERVATION"),
+            Map.entry("관찰형", "OBSERVATION"),
+            Map.entry("관찰", "OBSERVATION"),
             Map.entry("NUMBER_LOCK", "NUMBER_LOCK"),
             Map.entry("NUMBER", "NUMBER_LOCK"),
             Map.entry("NUMERIC", "NUMBER_LOCK"),
-            Map.entry("\uc22b\uc790 \uc554\ud638", "NUMBER_LOCK"),
-            Map.entry("\uc22b\uc790\uc554\ud638", "NUMBER_LOCK"),
-            Map.entry("\uc22b\uc790", "NUMBER_LOCK"),
+            Map.entry("숫자 암호", "NUMBER_LOCK"),
+            Map.entry("숫자암호", "NUMBER_LOCK"),
+            Map.entry("숫자", "NUMBER_LOCK"),
             Map.entry("INITIAL_SOUND", "INITIAL_SOUND"),
             Map.entry("INITIAL", "INITIAL_SOUND"),
             Map.entry("CHOSUNG", "INITIAL_SOUND"),
-            Map.entry("\ucd08\uc131", "INITIAL_SOUND"),
-            Map.entry("\uc5b8\uc5b4", "INITIAL_SOUND"),
+            Map.entry("초성", "INITIAL_SOUND"),
+            Map.entry("언어", "INITIAL_SOUND"),
             Map.entry("PATTERN", "PATTERN"),
-            Map.entry("\ud328\ud134", "PATTERN"),
-            Map.entry("\ud328\ud134 \ucd94\ub860", "PATTERN"),
+            Map.entry("패턴", "PATTERN"),
+            Map.entry("패턴 추론", "PATTERN"),
             Map.entry("STORY_COMBINATION", "STORY_COMBINATION"),
             Map.entry("STORY", "STORY_COMBINATION"),
             Map.entry("COMBINATION", "STORY_COMBINATION"),
-            Map.entry("\uc2a4\ud1a0\ub9ac", "STORY_COMBINATION"),
-            Map.entry("\uc2a4\ud1a0\ub9ac \uc870\ud569", "STORY_COMBINATION"),
-            Map.entry("\uc2a4\ud1a0\ub9ac\uc870\ud569", "STORY_COMBINATION")
+            Map.entry("스토리", "STORY_COMBINATION"),
+            Map.entry("스토리 조합", "STORY_COMBINATION"),
+            Map.entry("스토리조합", "STORY_COMBINATION")
     );
     private static final Set<String> ANSWER_FORMATS = Set.of("TEXT", "NUMBER", "CHOICE", "CODE");
     private static final Set<String> REWARD_TYPES = Set.of("ANSWER_CLUE", "STORY_CLUE", "SUSPECT_CLUE", "MEMO_UNLOCK", "EVIDENCE_UNLOCK", "PHOTO_UNLOCK", "SUSPECT_UNLOCK", "SUSPECT_UPDATE");
@@ -979,8 +980,10 @@ public class AdminEpisodeService {
         episode.setFinalQuestion(blank(draft.getFinalQuestion(), "Review required."));
         episode.setFinalTruthSummary(draft.getFinalTruthSummary());
         episode.setActualHistorySummary(draft.getActualHistorySummary());
-        episode.setDeductionSecretFacts(joinLines(draft.getDeductionSecretFacts()));
-        episode.setDeductionForbiddenReveals(joinLines(draft.getDeductionForbiddenReveals()));
+        String deductionSecretFacts = joinLines(draft.getDeductionSecretFacts());
+        String deductionForbiddenReveals = joinLines(draft.getDeductionForbiddenReveals());
+        episode.setDeductionSecretFacts(missing(deductionSecretFacts) ? defaultDeductionSecretFacts(draft) : deductionSecretFacts);
+        episode.setDeductionForbiddenReveals(completeDeductionForbiddenReveals(draft, deductionForbiddenReveals));
         episode.setMaxDeductionQuestions(draft.getMaxDeductionQuestions() == null ? 20 : draft.getMaxDeductionQuestions());
         episode.setRecommendedPlayers("2~4명");
         episode.setTeamRoleGuide("Review required.");
@@ -1221,6 +1224,7 @@ public class AdminEpisodeService {
             AiEpisodeDraftResponse.MissionDraft mission = missionByOrder.get(draft.getSourceMissionOrder());
             String evidenceType = evidenceTypeForMission(mission);
             String textSummary = cardBodyOnly(draft.getTextSummary(), forbiddenDraftPlaceNamesFromMissions(missions));
+            textSummary = rewriteGenericSuspectReference(textSummary, mission == null ? null : mission.getTargetKeywordType());
             String normalizedSummary = compact(textSummary);
             if (missing(textSummary) || usedSummaries.contains(normalizedSummary)) {
                 textSummary = typedEvidenceSummary(mission, evidenceType, index);
@@ -1655,15 +1659,14 @@ public class AdminEpisodeService {
             return;
         }
         List<RedactionRule> rules = draftPlayerFacingRedactionRules(draft);
-        if (rules.isEmpty()) {
-            return;
-        }
+        Map<Integer, String> targetByOrder = draftMissionTargets(draft);
         if (draft.getMissions() != null) {
             for (AiEpisodeDraftResponse.MissionDraft mission : draft.getMissions()) {
                 if (mission == null) {
                     continue;
                 }
-                mission.setRewardClue(applyRedactionRules(mission.getRewardClue(), rules));
+                String rewardClue = applyRedactionRules(mission.getRewardClue(), rules);
+                mission.setRewardClue(rewriteGenericSuspectReference(rewardClue, mission.getTargetKeywordType()));
                 if (mission.getHints() != null) {
                     mission.setHints(mission.getHints().stream()
                             .map(hint -> applyRedactionRules(hint, rules))
@@ -1677,9 +1680,48 @@ public class AdminEpisodeService {
                     continue;
                 }
                 evidence.setTitle(applyRedactionRules(evidence.getTitle(), rules));
-                evidence.setTextSummary(applyRedactionRules(evidence.getTextSummary(), rules));
+                String textSummary = applyRedactionRules(evidence.getTextSummary(), rules);
+                evidence.setTextSummary(rewriteGenericSuspectReference(textSummary, targetByOrder.get(evidence.getSourceMissionOrder())));
             }
         }
+    }
+
+    private Map<Integer, String> draftMissionTargets(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        Map<Integer, String> result = new LinkedHashMap<>();
+        if (draft == null || draft.getMissions() == null) {
+            return result;
+        }
+        for (AiEpisodeDraftResponse.MissionDraft mission : draft.getMissions()) {
+            if (mission == null || mission.getOrder() == null || missing(mission.getTargetKeywordType())) {
+                continue;
+            }
+            result.put(mission.getOrder(), mission.getTargetKeywordType());
+        }
+        return result;
+    }
+
+    private String rewriteGenericSuspectReference(String text, String targetKeywordType) {
+        if (missing(text)) {
+            return text;
+        }
+        String replacement = genericSuspectReference(targetKeywordType);
+        String result = text
+                .replace("특정 용의자", replacement)
+                .replace("용의자 중 한 명", replacement)
+                .replace("용의자 중 하나", replacement)
+                .replace("해당 용의자", replacement)
+                .replace("해고 통보를 받은 용의자", replacement);
+        return normalizePersonReferenceParticles(result);
+    }
+
+    private String genericSuspectReference(String targetKeywordType) {
+        return switch (normalizeType(targetKeywordType)) {
+            case "CULPRIT" -> "기록 속 인물";
+            case "WEAPON" -> "물증과 연결된 인물";
+            case "MOTIVE" -> "이해관계가 드러난 인물";
+            case "METHOD" -> "동선이 겹친 인물";
+            default -> "관련 인물";
+        };
     }
 
     private List<RedactionRule> draftPlayerFacingRedactionRules(AiEpisodeDraftResponse.EpisodeDraft draft) {
@@ -1688,7 +1730,7 @@ public class AdminEpisodeService {
         for (int i = 0; i < suspects.size(); i++) {
             AiEpisodeDraftResponse.SuspectDraft suspect = suspects.get(i);
             if (suspect != null && !missing(suspect.getDisplayName())) {
-                rules.add(new RedactionRule(suspect.getDisplayName(), suspectReference(i)));
+                rules.add(new RedactionRule(suspect.getDisplayName(), suspectReference()));
             }
         }
         Map<String, String> answers = finalAnswerValueMap(draft);
@@ -1752,21 +1794,29 @@ public class AdminEpisodeService {
         result = result.replace(value + "의", replacement + "의");
         result = result.replace(value + "와", replacement + "와");
         result = result.replace(value + "과", replacement + "과");
-        return result.replace(value, replacement);
+        return normalizePersonReferenceParticles(result.replace(value, replacement));
     }
 
-    private String suspectReference(int index) {
-        return switch (index) {
-            case 0 -> "첫 번째 용의자";
-            case 1 -> "두 번째 용의자";
-            case 2 -> "세 번째 용의자";
-            default -> "해당 용의자";
-        };
+    private String normalizePersonReferenceParticles(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        return text
+                .replace("관련 인물가", "관련 인물이")
+                .replace("기록 속 인물가", "기록 속 인물이")
+                .replace("물증과 연결된 인물가", "물증과 연결된 인물이")
+                .replace("이해관계가 드러난 인물가", "이해관계가 드러난 인물이")
+                .replace("동선이 겹친 인물가", "동선이 겹친 인물이")
+                .replace("문서에 언급된 인물가", "문서에 언급된 인물이");
+    }
+
+    private String suspectReference() {
+        return "관련 인물";
     }
 
     private String indirectAnswerReference(String slot) {
         return switch (normalizeType(slot)) {
-            case "CULPRIT" -> "해당 용의자";
+            case "CULPRIT" -> "기록 속 인물";
             case "WEAPON" -> "해당 물증";
             case "MOTIVE" -> "해당 동기";
             case "METHOD" -> "해당 실행 방식";
@@ -2518,7 +2568,7 @@ public class AdminEpisodeService {
             if (puzzle == null) { errors.add("Puzzle is missing: " + spot.getPlaceName()); continue; }
             if (missing(puzzle.getQuestionText())) errors.add("Puzzle question is missing: " + spot.getPlaceName());
             if (missing(puzzle.getAnswer())) errors.add("Puzzle answer is missing: " + spot.getPlaceName());
-            if (missing(puzzle.getRewardClue())) errors.add("Reward clue is missing: " + spot.getPlaceName());
+            if (!"START".equals(spot.getMarkerType()) && missing(puzzle.getRewardClue())) errors.add("Reward clue is missing: " + spot.getPlaceName());
             if (same(puzzle.getAnswer(), puzzle.getRewardClue())) errors.add("Puzzle answer and reward clue must differ: " + spot.getPlaceName());
             if (adminEpisodeRepository.findHints(puzzle.getId()).size() < 3) errors.add("Three puzzle hints are required: " + spot.getPlaceName());
             if (containsCompact(puzzle.getQuestionText(), episode.getFinalAnswer())) errors.add("Puzzle question exposes final answer: " + spot.getPlaceName());
@@ -2531,7 +2581,7 @@ public class AdminEpisodeService {
                 errors.add("Suspect image prompt or external portrait URL is required: " + suspect.getDisplayName());
             }
         }
-        if (evidences.size() < Math.max(1, spots.size() - 1)) errors.add("Evidence cards should cover the route.");
+        if (evidences.size() < Math.max(1, (int) answerHintCount)) errors.add("Evidence cards should cover the investigation route.");
         for (CaseEvidence evidence : evidences) {
             if (missing(evidence.getImagePrompt()) && !validExternalImageUrl(evidence.getImageUrl())) {
                 errors.add("Evidence image prompt or external image URL is required: " + evidence.getTitle());
@@ -3225,7 +3275,7 @@ public class AdminEpisodeService {
             return List.of();
         }
         List<String> types = List.of("CULPRIT", "WEAPON", "MOTIVE", "METHOD");
-        List<String> labels = List.of("\ubc94\uc778", "\ud749\uae30", "\ub3d9\uae30", "\ubc29\ubc95");
+        List<String> labels = List.of("범인", "흉기", "동기", "방법");
         List<AdminEpisodeDetailResponse.FinalAnswerKeywordItem> items = new ArrayList<>();
         for (int i = 0; i < types.size(); i++) {
             items.add(AdminEpisodeDetailResponse.FinalAnswerKeywordItem.builder()
@@ -3279,6 +3329,38 @@ public class AdminEpisodeService {
             return null;
         }
         return values.stream().filter(value -> value != null && !value.isBlank()).map(String::trim).collect(Collectors.joining("\n"));
+    }
+
+    private String defaultDeductionSecretFacts(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        return Stream.of(
+                        draft.getFinalTruthSummary(),
+                        draft.getFinalAnswer()
+                )
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String defaultDeductionForbiddenReveals(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        List<String> values = new ArrayList<>();
+        if (!missing(draft.getFinalAnswer())) values.add(draft.getFinalAnswer().trim());
+        values.addAll(withKeywordContract(draft.getFinalAnswerAliases(), draft.getFinalAnswerKeywords()));
+        if (draft.getFinalAnswerKeywordItems() != null) {
+            draft.getFinalAnswerKeywordItems().stream()
+                    .map(item -> blank(item.getValue(), item.getKeyword()))
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .forEach(values::add);
+        }
+        return values.stream().filter(value -> value != null && !value.isBlank()).distinct().collect(Collectors.joining("\n"));
+    }
+
+    private String completeDeductionForbiddenReveals(AiEpisodeDraftResponse.EpisodeDraft draft, String current) {
+        String result = missing(current) ? defaultDeductionForbiddenReveals(draft) : current.trim();
+        if (!missing(draft.getFinalAnswer()) && !containsCompact(result, draft.getFinalAnswer())) {
+            result = missing(result) ? draft.getFinalAnswer().trim() : result + "\n" + draft.getFinalAnswer().trim();
+        }
+        return result;
     }
 
     private String jsonEscape(String value) {
@@ -3371,7 +3453,7 @@ public class AdminEpisodeService {
                 .distinct()
                 .limit(12)
                 .collect(Collectors.joining(", "));
-        String message = "\u0041\u0049 \uc0dd\uc131 \uacb0\uacfc\uc5d0 \uae68\uc9c4 \ud55c\uae00 \ub610\ub294 \uc778\ucf54\ub529 \uc624\ub958 \ubb38\uc790\uac00 \ud3ec\ud568\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc0dd\uc131\ud574 \uc8fc\uc138\uc694.";
+        String message = "AI 생성 결과에 깨진 한글 또는 인코딩 오류 문자가 포함되어 있습니다. 다시 생성해 주세요.";
         if (!fields.isBlank()) {
             message += " (" + fields + ")";
         }
