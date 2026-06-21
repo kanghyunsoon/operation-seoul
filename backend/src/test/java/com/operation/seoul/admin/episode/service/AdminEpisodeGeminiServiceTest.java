@@ -216,10 +216,11 @@ class AdminEpisodeGeminiServiceTest {
         Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
                 "applyDeterministicCrimeMysteryGuardrail",
                 AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class
+                AiEpisodeDraftRequest.class,
+                List.class
         );
         method.setAccessible(true);
-        method.invoke(service, draft, source);
+        method.invoke(service, draft, source, new ArrayList<String>());
 
         AiEpisodeDraftValidationRequest request = new AiEpisodeDraftValidationRequest();
         request.setDraft(draft);
@@ -263,10 +264,11 @@ class AdminEpisodeGeminiServiceTest {
         Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
                 "applyDeterministicCrimeMysteryGuardrail",
                 AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class
+                AiEpisodeDraftRequest.class,
+                List.class
         );
         method.setAccessible(true);
-        method.invoke(service, draft, source);
+        method.invoke(service, draft, source, new ArrayList<String>());
 
         AiEpisodeDraftValidationRequest afterRequest = new AiEpisodeDraftValidationRequest();
         afterRequest.setDraft(draft);
@@ -303,7 +305,8 @@ class AdminEpisodeGeminiServiceTest {
         AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
 
         assertTrue(response.getPublishable());
-        assertTrue(response.getValidationWarnings().isEmpty());
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY"));
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
         assertEquals("범죄 미스터리", response.getDraft().getGenre());
         assertEquals(4, response.getDraft().getFinalAnswerKeywordItems().size());
         assertEquals(10, response.getDraft().getMissions().size());
@@ -332,8 +335,96 @@ class AdminEpisodeGeminiServiceTest {
         AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
 
         assertTrue(response.getPublishable());
-        assertTrue(response.getValidationWarnings().isEmpty());
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES"));
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
         assertNoInvestigationRewardClueLeaksFinalAnswerValues(response.getDraft());
+        assertTrue(response.getDraft().getMissions().stream()
+                .anyMatch(mission -> mission.getRewardClue() != null
+                        && mission.getRewardClue().contains("화상회의")
+                        && mission.getRewardClue().contains("CCTV 공백")));
+    }
+
+    @Test
+    void buildDraftResponsePreservesValidDistinctGeminiClues() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        List<String> distinctClues = List.of(
+                "출입 기록에는 사건 시간대에 개인 기록 보관실에 접근한 사람이 한 명만 남아 있었다.",
+                "피해자의 책상 서랍 손잡이에서 일정표 관리 권한을 가진 사람의 지문 흔적이 확인되었다.",
+                "찻잔 바닥의 잔류 성분에서 일반 음료와 다른 독성 물질이 검출되었다.",
+                "현장 쓰레기통에서 독성 물질을 옮기는 데 쓰인 작은 유리 도구 조각이 발견되었다.",
+                "사망 직전 작성된 계약 문서에는 특정 직원을 배제하는 조항이 추가되어 있었다.",
+                "피해자와 가까운 직원이 최근 손실과 갈등 때문에 강한 불만을 드러냈다는 메시지가 남아 있었다.",
+                "피해자가 매일 확인하던 서류 봉투는 사건 당일 같은 시간에 교체된 흔적이 있었다.",
+                "봉투 교체 시간과 잠금장치 해제 시간이 같은 업무 경로 위에서 이어진다."
+        );
+        List<AiEpisodeDraftResponse.MissionDraft> investigation = investigationMissions(draft);
+        for (int i = 0; i < investigation.size(); i++) {
+            investigation.get(i).setRewardClue(distinctClues.get(i));
+        }
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        assertTrue(response.getPublishable());
+        assertTrue(response.getValidationWarnings().isEmpty());
+        assertEquals(distinctClues, investigationMissions(response.getDraft()).stream()
+                .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
+                .toList());
+    }
+
+    @Test
+    void buildDraftResponseRedactsSuspectNamesWithoutReplacingValidClues() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getFinalAnswers().setCulprit("Alice");
+        source.getFinalAnswerKeywordItems().get(0).setKeyword("Alice");
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        draft.setSuspects(List.of(
+                suspect("Alice", "event log confirms partial alibi", "office access remains suspicious"),
+                suspect("Bob", "call log confirms partial alibi", "financial benefit remains suspicious"),
+                suspect("Carol", "CCTV confirms partial alibi", "missing time remains suspicious")
+        ));
+        applyApprovedContract(draft, source);
+        List<String> clues = List.of(
+                "Alice CCTV 기록에는 사건 직전 서재 접근 동선이 남아 있었다.",
+                "Bob CCTV 기록은 사건 시간 동안 외부 이동이 유지되었음을 보여준다.",
+                "약통 안 캡슐 일부에서 일반 수면제와 다른 독성 물질이 검출되었다.",
+                "독성 물질은 음식이나 음료가 아니라 캡슐 내부 흔적에서만 확인되었다.",
+                "Alice에게 보낸 해고 통보 메일과 강한 불만을 드러낸 답장이 발견되었다.",
+                "Bob은 피해자 사망 시 재정적 이득을 얻을 수 있었다는 계약 기록이 있다.",
+                "피해자의 매일 복용 시간과 약통 접근 시간이 같은 동선에 묶인다.",
+                "약병 보관 서랍의 열림 기록과 캡슐 교체 시간이 겹친다."
+        );
+        List<AiEpisodeDraftResponse.MissionDraft> investigation = investigationMissions(draft);
+        for (int i = 0; i < investigation.size(); i++) {
+            investigation.get(i).setRewardClue(clues.get(i));
+        }
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        assertTrue(response.getPublishable());
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES"));
+        assertFalse(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
+        List<String> redactedClues = investigationMissions(response.getDraft()).stream()
+                .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
+                .toList();
+        assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("Alice") || clue.contains("Bob") || clue.contains("Carol")));
+        assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("첫 번째 용의자")));
+        assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("두 번째 용의자")));
     }
 
     @Test
@@ -419,10 +510,11 @@ class AdminEpisodeGeminiServiceTest {
         Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
                 "applyDeterministicCrimeMysteryGuardrail",
                 AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class
+                AiEpisodeDraftRequest.class,
+                List.class
         );
         method.setAccessible(true);
-        method.invoke(service, draft, source);
+        method.invoke(service, draft, source, new ArrayList<String>());
 
         AiEpisodeDraftValidationRequest afterRequest = new AiEpisodeDraftValidationRequest();
         afterRequest.setDraft(draft);

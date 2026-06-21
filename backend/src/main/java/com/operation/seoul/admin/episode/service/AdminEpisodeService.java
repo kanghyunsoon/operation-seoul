@@ -1479,6 +1479,15 @@ public class AdminEpisodeService {
             if (!slotId.isBlank()) {
                 clueReward.put("slotId", slotId);
             }
+            if (!missing(mission.getTargetKeywordType())) {
+                clueReward.put("targetKeywordType", normalizeType(mission.getTargetKeywordType()));
+            }
+            if (mission.getSupportsKeywordSlots() != null && !mission.getSupportsKeywordSlots().isEmpty()) {
+                clueReward.put("supportsKeywordSlots", mission.getSupportsKeywordSlots().stream()
+                        .filter(slot -> !missing(slot))
+                        .map(this::normalizeType)
+                        .toList());
+            }
             if (shouldAttachAnswerLetterReveal(slotId, clueType) && coreKeyword != null && !coreKeyword.isBlank()) {
                 clueReward.put("letterReveal", distributedLetterReveal(coreKeyword, answerClueRevealIndex));
                 answerClueRevealIndex++;
@@ -1597,6 +1606,7 @@ public class AdminEpisodeService {
         if (draft == null) {
             return;
         }
+        redactDraftPlayerFacingSecrets(draft);
         List<String> forbidden = forbiddenDraftPlaceNames(draft);
         if (draft.getMissions() != null) {
             for (int i = 0; i < draft.getMissions().size(); i++) {
@@ -1639,6 +1649,132 @@ public class AdminEpisodeService {
             }
         }
     }
+
+    private void redactDraftPlayerFacingSecrets(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        if (draft == null) {
+            return;
+        }
+        List<RedactionRule> rules = draftPlayerFacingRedactionRules(draft);
+        if (rules.isEmpty()) {
+            return;
+        }
+        if (draft.getMissions() != null) {
+            for (AiEpisodeDraftResponse.MissionDraft mission : draft.getMissions()) {
+                if (mission == null) {
+                    continue;
+                }
+                mission.setRewardClue(applyRedactionRules(mission.getRewardClue(), rules));
+                if (mission.getHints() != null) {
+                    mission.setHints(mission.getHints().stream()
+                            .map(hint -> applyRedactionRules(hint, rules))
+                            .toList());
+                }
+            }
+        }
+        if (draft.getEvidences() != null) {
+            for (AiEpisodeDraftResponse.EvidenceDraft evidence : draft.getEvidences()) {
+                if (evidence == null) {
+                    continue;
+                }
+                evidence.setTitle(applyRedactionRules(evidence.getTitle(), rules));
+                evidence.setTextSummary(applyRedactionRules(evidence.getTextSummary(), rules));
+            }
+        }
+    }
+
+    private List<RedactionRule> draftPlayerFacingRedactionRules(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        List<RedactionRule> rules = new ArrayList<>();
+        List<AiEpisodeDraftResponse.SuspectDraft> suspects = draft.getSuspects() == null ? List.of() : draft.getSuspects();
+        for (int i = 0; i < suspects.size(); i++) {
+            AiEpisodeDraftResponse.SuspectDraft suspect = suspects.get(i);
+            if (suspect != null && !missing(suspect.getDisplayName())) {
+                rules.add(new RedactionRule(suspect.getDisplayName(), suspectReference(i)));
+            }
+        }
+        Map<String, String> answers = finalAnswerValueMap(draft);
+        for (Map.Entry<String, String> entry : answers.entrySet()) {
+            if (!missing(entry.getValue())) {
+                rules.add(new RedactionRule(entry.getValue(), indirectAnswerReference(entry.getKey())));
+            }
+        }
+        return rules;
+    }
+
+    private Map<String, String> finalAnswerValueMap(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (draft.getFinalAnswerKeywordItems() != null) {
+            for (AiEpisodeDraftResponse.AnswerKeywordItem item : draft.getFinalAnswerKeywordItems()) {
+                if (item == null) continue;
+                String type = normalizeType(blank(item.getType(), item.getSlotId()));
+                String value = blank(item.getValue(), item.getKeyword());
+                if (!missing(type) && !missing(value)) values.put(type, value);
+            }
+        }
+        AiEpisodeDraftResponse.FinalAnswers answers = draft.getFinalAnswers();
+        if (answers != null) {
+            putIfMissing(values, "CULPRIT", answers.getCulprit());
+            putIfMissing(values, "WEAPON", answers.getWeapon());
+            putIfMissing(values, "MOTIVE", answers.getMotive());
+            putIfMissing(values, "METHOD", answers.getMethod());
+        }
+        return values;
+    }
+
+    private void putIfMissing(Map<String, String> values, String key, String value) {
+        if (!values.containsKey(key) && !missing(value)) {
+            values.put(key, value);
+        }
+    }
+
+    private String applyRedactionRules(String text, List<RedactionRule> rules) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        String result = text;
+        for (RedactionRule rule : rules) {
+            result = redactExactValue(result, rule.value(), rule.replacement());
+        }
+        return result;
+    }
+
+    private String redactExactValue(String text, String value, String replacement) {
+        if (missing(value) || text == null || text.isBlank()) {
+            return text;
+        }
+        String result = text.replace("용의자 " + value, replacement);
+        result = result.replace(value + "은", replacement + "는");
+        result = result.replace(value + "는", replacement + "는");
+        result = result.replace(value + "이", replacement + "가");
+        result = result.replace(value + "가", replacement + "가");
+        result = result.replace(value + "을", replacement + "을");
+        result = result.replace(value + "를", replacement + "를");
+        result = result.replace(value + "에게", replacement + "에게");
+        result = result.replace(value + "의", replacement + "의");
+        result = result.replace(value + "와", replacement + "와");
+        result = result.replace(value + "과", replacement + "과");
+        return result.replace(value, replacement);
+    }
+
+    private String suspectReference(int index) {
+        return switch (index) {
+            case 0 -> "첫 번째 용의자";
+            case 1 -> "두 번째 용의자";
+            case 2 -> "세 번째 용의자";
+            default -> "해당 용의자";
+        };
+    }
+
+    private String indirectAnswerReference(String slot) {
+        return switch (normalizeType(slot)) {
+            case "CULPRIT" -> "해당 용의자";
+            case "WEAPON" -> "해당 물증";
+            case "MOTIVE" -> "해당 동기";
+            case "METHOD" -> "해당 실행 방식";
+            default -> "해당 단서";
+        };
+    }
+
+    private record RedactionRule(String value, String replacement) {}
 
     private List<String> forbiddenDraftPlaceNames(AiEpisodeDraftResponse.EpisodeDraft draft) {
         if (draft == null || draft.getMissions() == null) {

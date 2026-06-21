@@ -418,3 +418,51 @@ finalAnswer = "강수진이 해고 통보에 대한 복수로 피해자의 매�
 - 외부 API 키가 없으면 TourAPI, Kakao Local, Gemini 관련 기능은 실패합니다.
 - `application.properties`에 비밀값을 직접 쓰지 말고 환경변수로 주입하는 것이 안전합니다.
 - 기존 변경사항이 많은 프로젝트이므로 수정 전 `git status`로 작업 중 파일을 확인하는 것이 좋습니다.
+
+## 18. Gemini smoke validation workflow
+
+Gemini draft API can return 500 or rate-limit errors if it is called repeatedly. Do not use repeated calls as a debugging loop.
+
+Before calling Gemini:
+
+```powershell
+cd backend
+.\gradlew.bat test --tests "com.operation.seoul.admin.episode.service.AdminEpisodeGeminiServiceTest" --tests "com.operation.seoul.admin.episode.service.AdminEpisodeServiceAiDraftSaveTest" --tests "com.operation.seoul.episode.service.EpisodePlayServiceMapUnlockTest"
+
+cd ..
+node --check scripts/validate-ai-draft.mjs
+node --check scripts/smoke-gemini-draft.mjs
+```
+
+Run one Gemini draft smoke call:
+
+```powershell
+node scripts/smoke-gemini-draft.mjs
+```
+
+The script saves a successful HTTP response to `tmp-gemini-draft-response.json` and then runs local validation automatically.
+
+If local validation fails:
+
+1. Do not call Gemini again immediately.
+2. Read the `issues` list printed by `scripts/validate-ai-draft.mjs`.
+3. Fix `AdminEpisodeGeminiService` prompt, deterministic guardrail, validation, or save logic.
+4. Run backend tests and local validation again.
+5. Only then run one more Gemini smoke call.
+
+Manual validation of a saved response:
+
+```powershell
+node scripts/validate-ai-draft.mjs tmp-gemini-draft-response.json
+```
+
+The response is valid only when these conditions pass:
+
+- Genre is crime mystery.
+- Final answer slots are exactly `CULPRIT`, `WEAPON`, `MOTIVE`, `METHOD`.
+- There are exactly 3 suspects.
+- There are exactly 10 missions: 1 start, 8 investigation, 1 final.
+- The final mission unlock condition is `ALL_INVESTIGATION_MISSIONS_CLEARED`.
+- There are exactly 8 evidence cards.
+- No place-hint or destination-guessing terms are present.
+- Investigation clues do not directly reveal final answer values.

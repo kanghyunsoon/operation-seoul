@@ -1,0 +1,35 @@
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :resolveMainClassName
+
+> Task :bootRun
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-06-21T18:26:23.358+09:00  INFO 9896 --- [           main] c.o.seoul.OperationSeoulApplication      : Starting OperationSeoulApplication using Java 17.0.15 with PID 9896 (C:\Users\khsoo\Desktop\operation-seoul\backend\build\classes\java\main started by ÁýÄÄ in C:\Users\khsoo\Desktop\operation-seoul\backend)
+2026-06-21T18:26:23.363+09:00  INFO 9896 --- [           main] c.o.seoul.OperationSeoulApplication      : The following 1 profile is active: "local"
+2026-06-21T18:26:24.724+09:00  INFO 9896 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 18080 (http)
+2026-06-21T18:26:24.737+09:00  INFO 9896 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-21T18:26:24.737+09:00  INFO 9896 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-06-21T18:26:24.794+09:00  INFO 9896 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1391 ms
+2026-06-21T18:26:24.915+09:00  INFO 9896 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-21T18:26:25.176+09:00  INFO 9896 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@401317a0
+2026-06-21T18:26:25.178+09:00  INFO 9896 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-21T18:26:25.897+09:00  INFO 9896 --- [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name userDetailsService
+2026-06-21T18:26:26.386+09:00  INFO 9896 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-06-21T18:26:26.453+09:00  INFO 9896 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 18080 (http) with context path '/'
+2026-06-21T18:26:26.463+09:00  INFO 9896 --- [           main] c.o.seoul.OperationSeoulApplication      : Started OperationSeoulApplication in 3.486 seconds (process running for 3.832)
+2026-06-21T18:26:26.592+09:00  WARN 9896 --- [           main] c.o.s.g.config.EpisodeSchemaMigration    : legacy_place_hint_migration pending spots=1 evidences=1 progressRows=0 enable with episode.migration.legacy-place-hints.enabled=true after backup
+2026-06-21T18:26:47.217+09:00  INFO 9896 --- [io-18080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-21T18:26:47.218+09:00  INFO 9896 --- [io-18080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-21T18:26:47.219+09:00  INFO 9896 --- [io-18080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-06-21T18:26:47.352+09:00  INFO 9896 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/actuator/health status=200 durationMs=129 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-21T18:27:01.272+09:00  INFO 9896 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/save status=200 durationMs=590 remoteAddress=0:0:0:0:0:0:0:1

@@ -235,6 +235,9 @@
               </div>
               <p>{{ spot.storyText }}</p>
               <p class="internal" v-if="spot.finalPlace">내부 최종 정답 입력 장소입니다. 조사 8개 완료 전에는 공개되지 않습니다.</p>
+              <p v-if="!spot.finalPlace && savedSpotTargetLabel(spot)" class="internal">
+                저장된 정답 슬롯: {{ savedSpotTargetLabel(spot) }}
+              </p>
               <details v-if="spot.puzzle">
                 <summary>퍼즐/정답/reward_payload</summary>
                 <div class="edit-grid">
@@ -2601,6 +2604,33 @@ function missionTargetLabel(mission) {
   const slotId = normalizeAnswerSlotId(mission?.targetKeywordType);
   if (!slotId) return '담당 슬롯 미정';
   return `${slotId} / ${mission.targetKeywordDisplayType || fixedAnswerLabels[slotId]}`;
+}
+
+function savedSpotTargetLabel(spot) {
+  const reward = firstSavedAnswerReward(spot);
+  const slotId = normalizeAnswerSlotId(reward?.targetKeywordType);
+  if (!slotId) return '';
+  const supports = Array.isArray(reward?.supportsKeywordSlots)
+    ? reward.supportsKeywordSlots.map(normalizeAnswerSlotId).filter(Boolean)
+    : [];
+  const supportsText = supports.length ? ` / supports ${supports.join(', ')}` : '';
+  return `${slotId} / ${fixedAnswerLabels[slotId] || slotId}${supportsText}`;
+}
+
+function firstSavedAnswerReward(spot) {
+  const payload = parseRewardPayload(spot?.puzzle?.rewardPayload);
+  const rewards = Array.isArray(payload.rewards) ? payload.rewards : [];
+  return rewards.find((reward) => reward?.type === 'ANSWER_CLUE') || null;
+}
+
+function parseRewardPayload(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
 }
 
 function puzzleTypeLabel(type) {

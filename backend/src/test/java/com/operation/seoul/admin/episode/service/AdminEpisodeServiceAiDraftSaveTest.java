@@ -61,6 +61,8 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 mock(ExternalPlaceResearchService.class)
         );
         AiEpisodeDraftSaveRequest request = saveRequest();
+        request.getDraft().getMissions().get(1).setRewardClue(ANSWER_VALUES.get(0) + "의 출입 기록과 " + ANSWER_VALUES.get(1) + " 흔적이 함께 발견되었다.");
+        request.getDraft().getEvidences().get(0).setTextSummary(ANSWER_VALUES.get(0) + "의 지문과 " + ANSWER_VALUES.get(1) + " 분석 결과가 기록되어 있다.");
 
         AdminEpisodeDetailResponse saved = assertDoesNotThrow(() -> service.saveAiDraft(request));
 
@@ -345,6 +347,7 @@ class AdminEpisodeServiceAiDraftSaveTest {
             assertNoForbiddenPlaceHint(spot.getMarkerType());
             assertNoForbiddenPlaceHint(spot.getPuzzle().getRewardPayload());
         }
+        assertSavedInvestigationRewardPayloadSlots(investigation);
         saved.getSpots().stream()
                 .filter(spot -> "START".equals(spot.getMarkerType()) || Boolean.TRUE.equals(spot.getFinalPlace()))
                 .map(AdminEpisodeDetailResponse.Spot::getStoryText)
@@ -359,6 +362,28 @@ class AdminEpisodeServiceAiDraftSaveTest {
         assertNotNull(finalSpot.getPuzzle());
         assertNoAnswerLeak(finalSpot.getPuzzle().getRewardClue());
         assertNoForbiddenPlaceHint(finalSpot.getPuzzle().getRewardPayload());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertSavedInvestigationRewardPayloadSlots(List<AdminEpisodeDetailResponse.Spot> investigation) {
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        ANSWER_TYPES.forEach(type -> counts.put(type, 0));
+        for (AdminEpisodeDetailResponse.Spot spot : investigation) {
+            Map<String, Object> payload = assertDoesNotThrow(() -> mapper.readValue(spot.getPuzzle().getRewardPayload(), Map.class));
+            List<Map<String, Object>> rewards = (List<Map<String, Object>>) payload.get("rewards");
+            assertNotNull(rewards);
+            assertFalse(rewards.isEmpty());
+            Map<String, Object> clueReward = rewards.get(0);
+            assertEquals("ANSWER_CLUE", clueReward.get("type"));
+            assertEquals("ANSWER_CLUE", clueReward.get("slotId"));
+            String target = String.valueOf(clueReward.get("targetKeywordType"));
+            assertTrue(counts.containsKey(target), "unexpected targetKeywordType: " + target);
+            counts.computeIfPresent(target, (key, count) -> count + 1);
+            List<String> supports = (List<String>) clueReward.get("supportsKeywordSlots");
+            assertEquals(List.of(target), supports);
+        }
+        ANSWER_TYPES.forEach(type -> assertEquals(2, counts.get(type), "saved clue slot count mismatch: " + type));
     }
 
     private void assertSavedCaseMaterials(AdminEpisodeDetailResponse saved) {
