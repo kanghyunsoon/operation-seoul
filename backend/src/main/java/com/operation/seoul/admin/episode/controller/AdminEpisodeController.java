@@ -33,7 +33,7 @@ public class AdminEpisodeController {
     public ResponseEntity<ApiResponse<List<AdminPlaceCandidateResponse>>> getPlaceCandidates(
             @RequestParam(value = "areaCode", defaultValue = "seoul") String areaCode
     ) {
-        return ResponseEntity.ok(ApiResponse.ok("TourAPI 장소 후보 목록입니다.", adminEpisodeService.getPlaceCandidates(areaCode)));
+        return ResponseEntity.ok(ApiResponse.ok("공공 장소 후보 목록입니다.", adminEpisodeService.getPlaceCandidates(areaCode)));
     }
 
     @GetMapping("/place-candidates/nearby")

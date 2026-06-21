@@ -111,7 +111,7 @@
                 <strong>사건자료 카드</strong>
                 <ul>
                   <li v-for="evidence in selected.evidences || []" :key="`preview-evidence-${evidence.evidenceId}`">
-                    <span>{{ evidence.type }}</span>
+                    <span>{{ evidenceTypeLabel(evidence.type) }}</span>
                     {{ evidence.title }}
                     <em>{{ evidence.unlockedByDefault ? '기본 공개' : '퍼즐 보상 해금' }}</em>
                   </li>
@@ -141,7 +141,7 @@
               <summary>에피소드 핵심 정보 수정</summary>
               <div class="publish-rules">
                 <strong>공개 전 필수 조건</strong>
-                <p>장소 10개가 필요합니다. START 1개, 조사 미션 8개, FINAL 1개와 모든 퍼즐/힌트/reward_payload가 필요합니다.</p>
+                <p>장소 10개가 필요합니다. 시작 장소 1개, 조사 미션 8개, 최종 장소 1개와 모든 퍼즐/힌트/보상 설정이 필요합니다.</p>
                 <div class="publish-actions">
                   <button type="button" class="ghost-btn" @click="checkPublishReadiness">공개 준비도 점검</button>
                   <button type="button" class="publish-btn" :disabled="!publishReadiness?.ready || selected?.status === 'PUBLISHED'" @click="publishEpisode">
@@ -228,7 +228,7 @@
             <article v-for="spot in selected.spots || []" :key="spot.spotId" class="spot-card" :class="{ final: spot.finalPlace, 'review-required': isReviewRequiredSpot(spot) }">
               <div class="spot-head">
                 <strong>{{ spot.placeName }}</strong>
-                <span>{{ spot.publicMarkerType }} / {{ spot.clueRole }}</span>
+                <span>{{ markerPreviewLabel(spot.publicMarkerType) }} / {{ clueRoleLabel(spot.clueRole) }}</span>
               </div>
               <div v-if="isReviewRequiredSpot(spot)" class="review-required-badge">
                 보강필요 초안 · 문제/정답/힌트를 확정해야 합니다
@@ -352,7 +352,7 @@
             </article>
             <article v-for="evidence in selected.evidences || []" :key="`e-${evidence.evidenceId}`">
               <strong>{{ evidence.title }}</strong>
-              <p>{{ evidence.type }} · spot {{ evidence.sourceSpotId || '-' }}</p>
+                  <p>{{ evidenceTypeLabel(evidence.type) }} · 출처 장소 {{ evidence.sourceSpotId || '-' }}</p>
               <span>{{ evidence.unlockedByDefault ? '기본 해금' : 'reward_payload 해금' }}</span>
               <details class="card-editor">
                 <summary>증거/메모/사진 수정</summary>
@@ -515,14 +515,14 @@
             <p v-else>초안을 확인한 뒤 DRAFT 저장을 누르면 새 에피소드가 생성되고 상단 상세 패널이 해당 에피소드로 전환됩니다.</p>
             <ul v-if="draftValidation?.findings?.length">
               <li v-for="finding in draftValidation.findings.slice(0, 6)" :key="`top-${finding.code}-${finding.missionOrder}-${finding.message}`">
-                <b>{{ finding.severity }}</b>
+                <b>{{ validationSeverityLabel(finding.severity) }}</b>
                 <span>{{ finding.code }}</span>
-                <em v-if="finding.missionOrder">spot {{ finding.missionOrder }}</em>
+                <em v-if="finding.missionOrder">미션 {{ finding.missionOrder }}</em>
                 {{ finding.message }}
               </li>
             </ul>
             <ul v-else-if="draftWarningSummary.length">
-              <li v-for="warning in draftWarningSummary" :key="warning">{{ warning }}</li>
+              <li v-for="warning in draftWarningSummary" :key="warning">{{ warningLabel(warning) }}</li>
             </ul>
             <small v-if="draftValidation?.findings?.length > 6">나머지 이슈는 아래 전체 검증 결과에서 확인하세요.</small>
           </div>
@@ -533,11 +533,11 @@
             </article>
             <article>
               <strong>예비 초안</strong>
-              <span>Gemini 키가 없거나 호출 실패 시 쓰는 안전 fallback입니다. AI가 아니라 입력값 기반 템플릿입니다.</span>
+              <span>Gemini 키가 없거나 호출 실패 시 쓰는 안전 예비 초안입니다. AI가 아니라 입력값 기반 템플릿입니다.</span>
             </article>
             <article>
               <strong>검증 정책</strong>
-              <span>ERROR가 있어도 DRAFT 저장은 가능하게 두고, PUBLISHED 전 readiness에서 실제 차단합니다. AI 검증은 보조 검수로 사용합니다.</span>
+              <span>오류가 있어도 DRAFT 저장은 가능하게 두고, 공개 전 준비도 점검에서 실제 차단합니다. AI 검증은 보조 검수로 사용합니다.</span>
             </article>
             <article>
               <strong>이미지 카드</strong>
@@ -729,7 +729,7 @@
             </details>
             <details open class="draft-edit-block">
               <summary>조사 미션 초안</summary>
-              <p class="draft-section-help">조사 미션 8개는 범인/흉기/동기/방법 단서를 각각 2개씩 담당합니다. 최종 장소는 조사 8개 완료 시 자동 공개되는 최종 정답 입력 장소이며 추리 대상이 아닙니다.</p>
+              <p class="draft-section-help">조사 미션 8개는 하나의 사건 진실로 수렴하는 증거 체인입니다. 내부적으로는 범인/흉기/동기/방법 추리를 모두 지원하지만, 최종 장소는 추리 대상이 아니며 조사 8개 완료 시 자동 공개됩니다.</p>
               <div class="payload-actions compact">
                 <button type="button" class="ghost-btn" @click="regenerateAllMissionsSafely">전체 미션 안전 재구성</button>
                 <button type="button" class="ghost-btn" @click="normalizeDraftBeforeSave(draftResult.draft, true)">저장 전 자동 보정</button>
@@ -745,10 +745,10 @@
                   </summary>
                   <p class="draft-card-preview">{{ mission.storyText || '스토리 문구를 입력하세요.' }}</p>
                   <div class="draft-mission-tags">
-                    <span>{{ mission.publicMarkerType }}</span>
-                    <span>{{ mission.clueRole }}</span>
-                    <span v-if="!mission.finalPlace && mission.markerType !== 'START'">{{ mission.targetKeywordType }} / {{ mission.targetKeywordDisplayType || fixedAnswerLabels[mission.targetKeywordType] }}</span>
-                    <span v-if="mission.finalPlace">ALL_INVESTIGATION_MISSIONS_CLEARED</span>
+                    <span>{{ markerPreviewLabel(mission.publicMarkerType) }}</span>
+                    <span>{{ clueRoleLabel(mission.clueRole) }}</span>
+                    <span v-if="!mission.finalPlace && mission.markerType !== 'START'">{{ missionTargetLabel(mission) }}</span>
+                    <span v-if="mission.finalPlace">조사 미션 8개 완료 후 자동 공개</span>
                     <span>보상: {{ mission.rewardClue || '미정' }}</span>
                   </div>
                   <div class="payload-actions compact">
@@ -783,7 +783,7 @@
                     <label>도착 반경<input v-model.number="mission.arrivalRadius" type="number" min="10" /></label>
                     <label class="check"><input v-model="mission.finalPlace" type="checkbox" @change="mission.markerType = mission.finalPlace ? 'FINAL' : 'ANSWER_HINT'; syncDraftMissionRole(mission)" /> 내부 최종 정답 입력 장소</label>
                     <label v-if="!mission.finalPlace && mission.markerType !== 'START'">담당 정답 슬롯<input :value="missionTargetLabel(mission)" type="text" readonly /></label>
-                    <label v-if="mission.finalPlace">공개 조건<input :value="mission.unlockCondition || 'ALL_INVESTIGATION_MISSIONS_CLEARED'" type="text" readonly /></label>
+                    <label v-if="mission.finalPlace">공개 조건<input :value="unlockConditionLabel(mission.unlockCondition)" type="text" readonly /></label>
                     <label class="wide">사건 문구<textarea v-model="mission.storyText" rows="2"></textarea></label>
                     <label>퍼즐 유형
                       <select v-model="mission.puzzleType">
@@ -857,7 +857,7 @@
                   <summary class="draft-card-summary">
                     <span>
                       <strong>{{ evidence.title || '사건자료' }}</strong>
-                      <small>{{ evidence.type || 'EVIDENCE' }}</small>
+                      <small>{{ evidenceTypeLabel(evidence.type) }}</small>
                     </span>
                     <em>편집</em>
                   </summary>
@@ -901,9 +901,9 @@
             <p>{{ draftValidation.summary }}</p>
             <ul v-if="draftValidation.findings?.length">
               <li v-for="finding in draftValidation.findings" :key="`${finding.code}-${finding.missionOrder}-${finding.message}`">
-                <b>{{ finding.severity }}</b>
+                <b>{{ validationSeverityLabel(finding.severity) }}</b>
                 <span>{{ finding.code }}</span>
-                <em v-if="finding.missionOrder">spot {{ finding.missionOrder }}</em>
+                <em v-if="finding.missionOrder">미션 {{ finding.missionOrder }}</em>
                 {{ finding.message }}
               </li>
             </ul>
@@ -1166,6 +1166,34 @@ const draftWarningSummary = computed(() => {
   }
   return [...summary, ...others.slice(0, 4)];
 });
+
+function validationSeverityLabel(severity) {
+  const labels = {
+    ERROR: '오류',
+    WARN: '주의',
+    INFO: '정보'
+  };
+  return labels[String(severity || '').toUpperCase()] || severity || '정보';
+}
+
+function warningLabel(warning) {
+  const labels = {
+    GUARDRAIL_REPAIRED_SUSPECTS: '용의자 카드가 범죄 미스터리 구조에 맞게 자동 보정되었습니다.',
+    GUARDRAIL_REPAIRED_SYNOPSIS_SUSPECTS: '사건 개요가 용의자 카드 3명과 일치하도록 자동 보정되었습니다.',
+    GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES: '조사 단서에서 용의자 이름 직접 노출을 간접 표현으로 바꿨습니다.',
+    GUARDRAIL_REWROTE_GENERIC_SUSPECT_REFERENCES: '반복적이거나 약한 용의자 표현을 추리 가능한 간접 표현으로 바꿨습니다.',
+    GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES: '조사 단서에서 최종 정답 직접 노출을 제거했습니다.',
+    GUARDRAIL_REPAIRED_INVESTIGATION_CLUES: '조사 단서 8개가 정답 슬롯 구조에 맞도록 자동 보정되었습니다.',
+    GUARDRAIL_REPAIRED_EVIDENCES: '증거 카드가 조사 미션 8개와 연결되도록 자동 보정되었습니다.',
+    GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY: '최종 진실 요약이 범인, 흉기, 동기, 방법을 모두 설명하도록 보정되었습니다.',
+    GUARDRAIL_INVESTIGATION_CLUES_SLOT_RELEVANCE: '일부 조사 단서의 정답 슬롯 관련성이 약해 자동 보정되었습니다.',
+    GUARDRAIL_INVESTIGATION_CLUES_DIRECT_ANSWER_LEAK: '일부 조사 단서가 정답을 직접 노출해 자동 보정되었습니다.',
+    GUARDRAIL_INVESTIGATION_CLUES_GENERIC: '일부 조사 단서가 너무 일반적이라 구체적인 사건 단서로 보정되었습니다.',
+    GUARDRAIL_INVESTIGATION_CLUES_DUPLICATE: '중복된 조사 단서가 서로 다른 정보로 보정되었습니다.'
+  };
+  return labels[String(warning || '')] || String(warning || '');
+}
+
 const draftValidationSummary = computed(() => {
   if (!draftValidation.value) return '';
   if (draftValidation.value.valid) {
@@ -1239,8 +1267,36 @@ function goUserCaseFile() {
 function markerPreviewLabel(type) {
   return {
     START: '시작',
-    ANSWER_HINT: '조사'
+    ANSWER_HINT: '조사',
+    FINAL: '최종 장소',
+    FINAL_CANDIDATE: '최종 후보'
   }[type] || type;
+}
+
+function clueRoleLabel(type) {
+  return {
+    START: '시작',
+    ANSWER_HINT: '조사 단서',
+    FINAL_PLACE: '최종 장소',
+    STORY_CLUE: '스토리 단서'
+  }[type] || type || '역할 미정';
+}
+
+function unlockConditionLabel(value) {
+  return {
+    ALL_INVESTIGATION_MISSIONS_CLEARED: '조사 미션 8개 완료 후 자동 공개'
+  }[value] || '조사 미션 8개 완료 후 자동 공개';
+}
+
+function evidenceTypeLabel(type) {
+  return {
+    STORY_CLUE: '사건 단서',
+    NOTE: '기록',
+    PHOTO: '사진',
+    DOCUMENT: '문서',
+    AUDIO: '음성',
+    VIDEO: '영상'
+  }[type] || type || '증거';
 }
 
 function hydrateEpisodeForm(episode) {
@@ -1696,9 +1752,9 @@ async function validatePayload(spot) {
   try {
     const validation = await adminEpisodeApi.validateRewardPayload(selectedEpisodeId.value, spot.puzzle.rewardPayload);
     payloadValidation.value = { ...payloadValidation.value, [spot.puzzle.puzzleId]: validation };
-    setMessage(validation.valid ? 'reward_payload가 유효합니다.' : 'reward_payload에 오류가 있습니다.', validation.valid ? 'success' : 'error');
+    setMessage(validation.valid ? '보상 설정이 유효합니다.' : '보상 설정에 오류가 있습니다.', validation.valid ? 'success' : 'error');
   } catch (error) {
-    setMessage(error.userMessage || 'reward_payload를 검증할 수 없습니다.', 'error');
+    setMessage(error.userMessage || '보상 설정을 검증할 수 없습니다.', 'error');
   }
 }
 

@@ -28,7 +28,28 @@ const WEAK_GENERIC_SUSPECT_TERMS = [
   '용의자 중 한 명',
   '용의자 중 하나',
   '해당 용의자',
-  '해고 통보를 받은 용의자'
+  '해고 통보를 받은 용의자',
+  '용의자의 재직 기록',
+  '용의자의 개인 소지품',
+  '용의자가 피해자에게',
+  '용의자가 피해자의',
+  '용의자의 동선',
+  '문서에 언급된 인물 사이에',
+  '문서에 언급된 인물는',
+  '문서에 언급된 인물이',
+  '문서에 언급된 인물의',
+  '관련 인물가',
+  '관련 인물는',
+  '사건 기록 속 인물가',
+  '사건 기록 속 인물는',
+  '기록 속 인물가',
+  '기록 속 인물는',
+  '물증과 연결된 인물가',
+  '물증과 연결된 인물는',
+  '이해관계가 드러난 인물가',
+  '이해관계가 드러난 인물는',
+  '동선이 겹친 인물가',
+  '동선이 겹친 인물는'
 ];
 
 function unwrap(payload) {
@@ -132,6 +153,33 @@ function validateSuspects(draft, issues) {
     }
     if (!normalize(suspect.suspiciousPoint)) {
       addIssue(issues, 'ERROR', 'SUSPECT_POINT_EMPTY', 'Suspect suspiciousPoint is required.', `draft.suspects[${index}]`);
+    }
+  });
+}
+
+function validateSynopsisQuality(draft, issues) {
+  const synopsis = normalize(draft.fictionSynopsis);
+  if (synopsis.length < 80) {
+    addIssue(issues, 'ERROR', 'SYNOPSIS_TOO_SHORT', 'fictionSynopsis must contain a concrete case overview.', 'draft.fictionSynopsis');
+  }
+
+  const requiredTerms = [
+    ['사망', '숨진', '발견'],
+    ['독', '독극물', '약', '캡슐', '사인'],
+    ['외부 침입', '잠겨', '밀실', '침입 흔적'],
+    ['세 명', '3명', '용의자', '만이 있었다', '만 있었다', '유일']
+  ];
+  requiredTerms.forEach((terms, index) => {
+    if (!terms.some((term) => synopsis.includes(term))) {
+      addIssue(issues, 'ERROR', 'SYNOPSIS_CASE_ELEMENT_MISSING', `fictionSynopsis is missing required case element group ${index + 1}.`, 'draft.fictionSynopsis');
+    }
+  });
+
+  const suspects = draft.suspects || [];
+  suspects.forEach((suspect, index) => {
+    const name = normalize(suspect?.displayName);
+    if (name && !synopsis.includes(name)) {
+      addIssue(issues, 'ERROR', 'SYNOPSIS_SUSPECT_MISMATCH', `fictionSynopsis does not mention suspect "${name}".`, `draft.suspects[${index}].displayName`);
     }
   });
 }
@@ -245,6 +293,7 @@ export function validateDraft(payload) {
   }
   validateFinalAnswers(draft, issues);
   validateSuspects(draft, issues);
+  validateSynopsisQuality(draft, issues);
   validateMissions(draft, issues);
   validateEvidence(draft, issues);
   validateForbiddenText(draft, issues);

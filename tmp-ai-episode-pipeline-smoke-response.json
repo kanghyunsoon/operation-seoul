@@ -1,35 +1,35 @@
 {
   "valid": true,
-  "startedAt": "2026-06-21T15:17:24.409Z",
-  "finishedAt": "2026-06-21T15:17:27.001Z",
+  "startedAt": "2026-06-21T19:29:16.330Z",
+  "finishedAt": "2026-06-21T19:29:19.087Z",
   "outputPath": "tmp-ai-episode-pipeline-smoke-response.json",
   "steps": [
     {
       "name": "saveDraft",
       "description": "Save existing Gemini draft response",
       "code": 0,
-      "durationMs": 579,
+      "durationMs": 860,
       "error": null
     },
     {
       "name": "adminUiData",
       "description": "Verify admin episode detail and readiness data",
       "code": 0,
-      "durationMs": 202,
+      "durationMs": 184,
       "error": null
     },
     {
       "name": "playerFlow",
       "description": "Verify publish, play, final unlock, and clear flow",
       "code": 0,
-      "durationMs": 998,
+      "durationMs": 930,
       "error": null
     },
     {
       "name": "playerContentQuality",
       "description": "Verify player-facing text quality and answer leak guardrails",
       "code": 0,
-      "durationMs": 811,
+      "durationMs": 780,
       "error": null
     }
   ],

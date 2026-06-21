@@ -671,7 +671,7 @@ class AdminEpisodeGeminiServiceTest {
                 .subtitle("허구 사건 초안")
                 .genre("범죄 미스터리")
                 .selectedGenre("범죄 미스터리")
-                .fictionSynopsis("문화적 배경과 장소의 분위기를 모티브로 구성한 사건입니다.")
+                .fictionSynopsis("한태준이 행사 전날 잠긴 집무실에서 숨진 채 발견되었다. 사인은 독성 캡슐과 연결된 중독으로 추정되며 외부 침입 흔적은 없었다. 사건 시간대에 의미 있는 접근 권한을 가진 인물은 강수진, 박도윤, 이재민 세 명뿐이었다.")
                 .missionDescription("8개 조사 단서로 네 개 정답 슬롯을 판단합니다.")
                 .finalQuestion("범인, 흉기, 동기, 방법을 입력하세요.")
                 .finalTruthSummary("강수진이 독성 캡슐을 사용했고, 비밀 계약 은폐를 위해 약병 바꿔치기를 실행했습니다.")

@@ -162,7 +162,7 @@ public class AdminEpisodeService {
                 if (lat == null || lng == null || !operationAreaResolver.isInsideAreaCode(normalizedAreaCode, lat, lng)) {
                     continue;
                 }
-                String title = blank(place.get("title"), "Review required.");
+                String title = blank(place.get("title"), "장소명 확인 필요");
                 String address = place.get("address");
                 String key = (title + "|" + address + "|" + lat + "|" + lng).toLowerCase(Locale.ROOT);
                 unique.putIfAbsent(key, AdminPlaceCandidateResponse.builder()
@@ -172,7 +172,7 @@ public class AdminEpisodeService {
                         .longitude(lng)
                         .areaCode(normalizedAreaCode)
                         .source(place.getOrDefault("source", "TourAPI"))
-                        .description(place.getOrDefault("overview", "Review required."))
+                        .description(place.getOrDefault("overview", "장소 설명 확인 필요"))
                         .contentId(place.get("contentId"))
                         .build());
             }
@@ -185,7 +185,7 @@ public class AdminEpisodeService {
 
     public AiEpisodeDraftRequest enrichSiteData(AiEpisodeDraftRequest request) {
         if (request == null || request.getPlaces() == null || request.getPlaces().isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SITE_ENRICHMENT_INPUT", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SITE_ENRICHMENT_INPUT", "현장 근거를 보강할 장소 입력이 필요합니다.");
         }
         AiEpisodeDraftRequest enriched = new AiEpisodeDraftRequest();
         enriched.setArea(request.getArea());
@@ -217,7 +217,7 @@ public class AdminEpisodeService {
     public AdminEpisodeDetailResponse getEpisode(Long episodeId) {
         Episode episode = adminEpisodeRepository.findEpisode(episodeId);
         if (episode == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "Review required.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "에피소드를 찾을 수 없습니다.");
         }
         AdminEpisodeProgressStats stats = safeStats(episodeId);
         List<AdminEpisodeDetailResponse.FinalAnswerKeywordItem> finalAnswerKeywordItems = restoreFinalAnswerKeywordItems(episode);
@@ -280,7 +280,7 @@ public class AdminEpisodeService {
             return AdminEpisodePublishReadinessResponse.builder()
                     .ready(true)
                     .status(episode.getStatus())
-                    .message("Ready to publish. AI/site-data verification gates passed.")
+                    .message("공개 준비가 완료되었습니다. AI 초안 구조와 장소/미션 검증 조건을 통과했습니다.")
                     .summary(summary)
                     .blockingIssues(List.of())
                     .checklist(publishChecklist())
@@ -292,7 +292,7 @@ public class AdminEpisodeService {
             return AdminEpisodePublishReadinessResponse.builder()
                     .ready(false)
                     .status(episode.getStatus())
-                    .message("Fix blocking issues before publishing.")
+                    .message("공개 전 차단 이슈를 먼저 수정해야 합니다.")
                     .summary(summary)
                     .blockingIssues(extractBlockingIssues(e.getMessage()))
                     .checklist(publishChecklist())
@@ -322,7 +322,7 @@ public class AdminEpisodeService {
         episode.setRecommendedPlayers(text(request.getRecommendedPlayers(), episode.getRecommendedPlayers()));
         episode.setTeamRoleGuide(text(request.getTeamRoleGuide(), episode.getTeamRoleGuide()));
         episode.setNoticeText(text(request.getNoticeText(), episode.getNoticeText()));
-        episode.setStatus(validateValue(text(request.getStatus(), episode.getStatus()), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "Review required."));
+        episode.setStatus(validateValue(text(request.getStatus(), episode.getStatus()), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "상태는 DRAFT, PUBLISHED, ARCHIVED 중 하나여야 합니다."));
         if ("PUBLISHED".equals(episode.getStatus())) {
             validatePublishReadiness(episode);
         }
@@ -335,7 +335,7 @@ public class AdminEpisodeService {
         MissionSpot spot = adminEpisodeRepository.findSpots(episodeId).stream()
                 .filter(item -> spotId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "Review required."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "장소를 찾을 수 없습니다."));
         spot.setPlaceName(text(request.getPlaceName(), spot.getPlaceName()));
         spot.setAddress(text(request.getAddress(), spot.getAddress()));
         spot.setLatitude(request.getLatitude() == null ? spot.getLatitude() : request.getLatitude());
@@ -362,18 +362,18 @@ public class AdminEpisodeService {
         requireEditableEpisode(episodeId);
         List<MissionSpot> spots = adminEpisodeRepository.findSpots(episodeId);
         if (spots.size() >= 9) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "TOO_MANY_SPOTS", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "TOO_MANY_SPOTS", "장소를 더 추가할 수 없습니다.");
         }
         MissionSpot spot = new MissionSpot();
         spot.setEpisodeId(episodeId);
-        spot.setPlaceName(text(request.getPlaceName(), "Review required."));
+        spot.setPlaceName(text(request.getPlaceName(), "장소명 확인 필요"));
         spot.setAddress(text(request.getAddress(), ""));
         spot.setLatitude(request.getLatitude() == null ? 37.5665 : request.getLatitude());
         spot.setLongitude(request.getLongitude() == null ? 126.9780 : request.getLongitude());
-        spot.setMarkerType(validateValue(text(request.getMarkerType(), "ANSWER_HINT"), MARKER_TYPES, "INVALID_MARKER_TYPE", "Unsupported markerType."));
-        spot.setClueRole(validateValue(text(request.getClueRole(), toClueRole(spot.getMarkerType())), CLUE_ROLES, "INVALID_CLUE_ROLE", "Unsupported clueRole."));
-        spot.setPublicMarkerType(validateValue(text(request.getPublicMarkerType(), spot.getMarkerType()), PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "publicMarkerType must not expose FINAL."));
-        spot.setStoryText(text(request.getStoryText(), "Review required."));
+        spot.setMarkerType(validateValue(text(request.getMarkerType(), "ANSWER_HINT"), MARKER_TYPES, "INVALID_MARKER_TYPE", "지원하지 않는 내부 마커입니다."));
+        spot.setClueRole(validateValue(text(request.getClueRole(), toClueRole(spot.getMarkerType())), CLUE_ROLES, "INVALID_CLUE_ROLE", "지원하지 않는 단서 역할입니다."));
+        spot.setPublicMarkerType(validateValue(text(request.getPublicMarkerType(), spot.getMarkerType()), PUBLIC_MARKER_TYPES, "INVALID_PUBLIC_MARKER_TYPE", "공개 마커는 최종 장소를 직접 노출하면 안 됩니다."));
+        spot.setStoryText(text(request.getStoryText(), "사건 문구 확인 필요"));
         spot.setArrivalRadius(request.getArrivalRadius() == null ? 50.0 : Math.max(10.0, request.getArrivalRadius()));
         spot.setFieldVerified(Boolean.TRUE.equals(request.getFieldVerified()));
         spot.setFieldVerificationNote(text(request.getFieldVerificationNote(), null));
@@ -388,16 +388,16 @@ public class AdminEpisodeService {
         Puzzle puzzle = new Puzzle();
         puzzle.setMissionSpotId(spot.getId());
         puzzle.setPuzzleType("OBSERVATION");
-        puzzle.setQuestionText("Review required.");
+        puzzle.setQuestionText("문제 확인 필요");
         puzzle.setAnswer("관리자검수");
         puzzle.setAnswerFormat("TEXT");
-        puzzle.setRewardClue("Review required.");
-        puzzle.setRewardPayload("Reward payload requires admin review.");
+        puzzle.setRewardClue("보상 단서 확인 필요");
+        puzzle.setRewardPayload("보상 payload 확인 필요");
         puzzle.setDifficulty("NORMAL");
         adminEpisodeRepository.insertPuzzle(puzzle);
-        adminEpisodeRepository.insertHint(puzzle.getId(), 1, "Review required.");
-        adminEpisodeRepository.insertHint(puzzle.getId(), 2, "Review required.");
-        adminEpisodeRepository.insertHint(puzzle.getId(), 3, "Review required.");
+        adminEpisodeRepository.insertHint(puzzle.getId(), 1, "힌트 1 확인 필요");
+        adminEpisodeRepository.insertHint(puzzle.getId(), 2, "힌트 2 확인 필요");
+        adminEpisodeRepository.insertHint(puzzle.getId(), 3, "힌트 3 확인 필요");
         return getEpisode(episodeId);
     }
 
@@ -406,7 +406,7 @@ public class AdminEpisodeService {
         requireEditableEpisode(episodeId);
         boolean exists = adminEpisodeRepository.findSpots(episodeId).stream().anyMatch(spot -> spotId.equals(spot.getId()));
         if (!exists) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "Review required.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "장소를 찾을 수 없습니다.");
         }
         adminEpisodeRepository.detachEvidencesBySpotId(spotId);
         adminEpisodeRepository.deleteHintsBySpotId(spotId);
@@ -419,14 +419,14 @@ public class AdminEpisodeService {
         requireEpisode(episodeId);
         Puzzle puzzle = adminEpisodeRepository.findPuzzle(puzzleId);
         if (puzzle == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "Puzzle not found.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "퍼즐을 찾을 수 없습니다.");
         }
         boolean belongsToEpisode = adminEpisodeRepository.findSpots(episodeId).stream()
                 .anyMatch(spot -> spot.getId().equals(puzzle.getMissionSpotId()));
         if (!belongsToEpisode) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "Review required.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "해당 에피소드의 퍼즐이 아닙니다.");
         }
-        puzzle.setPuzzleType(validateValue(text(request.getPuzzleType(), puzzle.getPuzzleType()), PUZZLE_TYPES, "INVALID_PUZZLE_TYPE", "Unsupported puzzleType."));
+        puzzle.setPuzzleType(validateValue(text(request.getPuzzleType(), puzzle.getPuzzleType()), PUZZLE_TYPES, "INVALID_PUZZLE_TYPE", "지원하지 않는 퍼즐 유형입니다."));
         puzzle.setQuestionText(text(request.getQuestionText(), puzzle.getQuestionText()));
         puzzle.setAnswer(text(request.getAnswer(), puzzle.getAnswer()));
         puzzle.setAnswerFormat(validateValue(text(request.getAnswerFormat(), puzzle.getAnswerFormat()), ANSWER_FORMATS, "INVALID_ANSWER_FORMAT", "Unsupported answerFormat."));
@@ -463,7 +463,7 @@ public class AdminEpisodeService {
         CaseSuspect suspect = adminEpisodeRepository.findSuspects(episodeId).stream()
                 .filter(item -> suspectId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "Review required."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "??? ??? ?? ? ????."));
         suspect.setDisplayName(text(request.getDisplayName(), suspect.getDisplayName()));
         suspect.setAlias(text(request.getAlias(), suspect.getAlias()));
         suspect.setShortDescription(text(request.getShortDescription(), suspect.getShortDescription()));
@@ -483,14 +483,14 @@ public class AdminEpisodeService {
         int nextOrder = adminEpisodeRepository.countSuspects(episodeId) + 1;
         CaseSuspect suspect = new CaseSuspect();
         suspect.setEpisodeId(episodeId);
-        suspect.setAlias(text(request.getAlias(), "Review required." + nextOrder));
+        suspect.setAlias(text(request.getAlias(), "???" + nextOrder));
         suspect.setDisplayName(text(request.getDisplayName(), "임시 용의자"));
-        suspect.setShortDescription(text(request.getShortDescription(), "Review required."));
+        suspect.setShortDescription(text(request.getShortDescription(), "?? ?? ?? ??"));
         suspect.setPortraitImageUrl(text(request.getPortraitImageUrl(), null));
         suspect.setImagePrompt(ensureKoreanPersonPrompt(text(request.getImagePrompt(), null)));
-        suspect.setRelationToVictim(text(request.getRelationToVictim(), "Review required."));
-        suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), "Review required."));
-        suspect.setAlibiSummary(text(request.getAlibiSummary(), "Review required."));
+        suspect.setRelationToVictim(text(request.getRelationToVictim(), "????? ?? ?? ??"));
+        suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), "?? ??? ?? ??"));
+        suspect.setAlibiSummary(text(request.getAlibiSummary(), "???? ?? ??"));
         suspect.setUnlockedByDefault(true);
         suspect.setDisplayOrder(request.getDisplayOrder() == null ? nextOrder : request.getDisplayOrder());
         adminEpisodeRepository.insertSuspect(suspect);
@@ -501,7 +501,7 @@ public class AdminEpisodeService {
         requireEditableEpisode(episodeId);
         boolean exists = adminEpisodeRepository.findSuspects(episodeId).stream().anyMatch(suspect -> suspectId.equals(suspect.getId()));
         if (!exists) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "Review required.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "??? ??? ?? ? ????.");
         }
         adminEpisodeRepository.detachEvidencesBySuspectId(suspectId);
         adminEpisodeRepository.deleteSuspect(suspectId);
@@ -513,9 +513,9 @@ public class AdminEpisodeService {
         CaseEvidence evidence = adminEpisodeRepository.findEvidences(episodeId).stream()
                 .filter(item -> evidenceId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "Review required."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "?? ??? ?? ? ????."));
         evidence.setTitle(text(request.getTitle(), evidence.getTitle()));
-        evidence.setType(validateValue(text(request.getType(), evidence.getType()), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Review required."));
+        evidence.setType(validateValue(text(request.getType(), evidence.getType()), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "???? ?? ?? ?????."));
         evidence.setImageUrl(text(request.getImageUrl(), evidence.getImageUrl()));
         evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(request.getImagePrompt(), evidence.getImagePrompt())));
         evidence.setTextSummary(text(request.getTextSummary(), evidence.getTextSummary()));
@@ -533,11 +533,11 @@ public class AdminEpisodeService {
         int nextOrder = adminEpisodeRepository.countEvidences(episodeId) + 1;
         CaseEvidence evidence = new CaseEvidence();
         evidence.setEpisodeId(episodeId);
-        evidence.setTitle(text(request.getTitle(), "Review required."));
-        evidence.setType(validateValue(text(request.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "Review required."));
+        evidence.setTitle(text(request.getTitle(), "?? ?? ?? ??"));
+        evidence.setType(validateValue(text(request.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "???? ?? ?? ?????."));
         evidence.setImageUrl(text(request.getImageUrl(), null));
         evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(request.getImagePrompt(), null)));
-        evidence.setTextSummary(text(request.getTextSummary(), "Review required."));
+        evidence.setTextSummary(text(request.getTextSummary(), "?? ?? ?? ??"));
         evidence.setSourceSpotId(validateOptionalSpot(episodeId, request.getSourceSpotId(), null));
         evidence.setRelatedSuspectId(validateOptionalSuspect(episodeId, request.getRelatedSuspectId(), null));
         evidence.setRelatedClueType(text(request.getRelatedClueType(), evidence.getType()));
@@ -551,7 +551,7 @@ public class AdminEpisodeService {
         requireEditableEpisode(episodeId);
         boolean exists = adminEpisodeRepository.findEvidences(episodeId).stream().anyMatch(evidence -> evidenceId.equals(evidence.getId()));
         if (!exists) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "Review required.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "?? ??? ?? ? ????.");
         }
         adminEpisodeRepository.deleteEvidence(evidenceId);
         return getEpisode(episodeId);
@@ -562,15 +562,15 @@ public class AdminEpisodeService {
         EpisodePartnerReward reward = adminEpisodeRepository.findPartnerRewards(episodeId).stream()
                 .filter(item -> rewardId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PARTNER_REWARD_NOT_FOUND", "Review required."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PARTNER_REWARD_NOT_FOUND", "?? ???? ?? ? ????."));
         reward.setTitle(text(request.getTitle(), reward.getTitle()));
         reward.setDescription(text(request.getDescription(), reward.getDescription()));
-        reward.setRewardType(validateValue(text(request.getRewardType(), reward.getRewardType()), PARTNER_REWARD_TYPES, "INVALID_REWARD_TYPE", "Review required."));
+        reward.setRewardType(validateValue(text(request.getRewardType(), reward.getRewardType()), PARTNER_REWARD_TYPES, "INVALID_REWARD_TYPE", "???? ?? ??? ?????."));
         reward.setPartnerName(text(request.getPartnerName(), reward.getPartnerName()));
         reward.setLocationName(text(request.getLocationName(), reward.getLocationName()));
         reward.setLatitude(request.getLatitude() == null ? reward.getLatitude() : request.getLatitude());
         reward.setLongitude(request.getLongitude() == null ? reward.getLongitude() : request.getLongitude());
-        reward.setStatus(validateValue(text(request.getStatus(), reward.getStatus()), PARTNER_REWARD_STATUSES, "INVALID_REWARD_STATUS", "Review required."));
+        reward.setStatus(validateValue(text(request.getStatus(), reward.getStatus()), PARTNER_REWARD_STATUSES, "INVALID_REWARD_STATUS", "???? ?? ??? ?????."));
         adminEpisodeRepository.updatePartnerReward(reward);
         return getEpisode(episodeId);
     }
@@ -588,7 +588,7 @@ public class AdminEpisodeService {
             JsonNode root = objectMapper.readTree(payload);
             JsonNode rewards = root.path("rewards");
             if (!rewards.isArray()) {
-                errors.add("reward_payload.rewards must be an array.");
+                errors.add("reward_payload? rewards? ????? ???.");
             } else if (rewards.isEmpty()) {
                 warnings.add("rewards array is empty.");
             } else {
@@ -607,7 +607,7 @@ public class AdminEpisodeService {
                 }
             }
         } catch (Exception e) {
-            errors.add("reward_payload must be valid JSON.");
+            errors.add("reward_payload? ??? JSON??? ???.");
         }
         return AdminRewardPayloadValidationResponse.builder().valid(errors.isEmpty()).errors(errors).warnings(warnings).rewards(rewardItems).build();
     }
@@ -679,7 +679,7 @@ public class AdminEpisodeService {
                         이 임무는 실제 장소에 남은 역사적 기억과 주변 동선의 분위기를 모티브로 제작되었습니다.
 
                         2. 실제 사건 해설
-                        이 초안은 규칙 기반 안전 fallback입니다. 플레이어는 장소의 기록, 관찰 요소, 이동 흔적을 조합해 사건의 배경과 의미를 해석하게 됩니다.
+                        이 초안은 규칙 기반 예비 초안입니다. 플레이어는 장소의 기록, 관찰 요소, 이동 흔적을 조합해 사건의 배경과 의미를 해석하게 됩니다.
                         """.trim())
                 .deductionSecretFacts(List.of(
                         "최종 정답은 시놉시스가 요구한 해결 조건을 모두 포함해야 한다.",
@@ -949,16 +949,16 @@ public class AdminEpisodeService {
     public AdminEpisodeDetailResponse saveAiDraft(AiEpisodeDraftSaveRequest request) {
         AiEpisodeDraftResponse.EpisodeDraft draft = request == null ? null : request.getDraft();
         if (draft == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DRAFT", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DRAFT", "저장할 AI 초안이 필요합니다.");
         }
         sanitizeDraftPlayerTextForSave(draft);
         List<AiEpisodeDraftResponse.MissionDraft> missions = draft.getMissions() == null ? List.of() : draft.getMissions();
         if (missions.size() < 6) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "NOT_ENOUGH_MISSIONS", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "NOT_ENOUGH_MISSIONS", "AI 초안에는 충분한 미션이 필요합니다.");
         }
         long finalCount = missions.stream().filter(mission -> Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equals(mission.getMarkerType())).count();
         if (finalCount < 1) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "FINAL_PLACE_REQUIRED", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "FINAL_PLACE_REQUIRED", "조사 8개 완료 후 공개될 최종 장소가 필요합니다.");
         }
         requireFinalAnswerFields(draft);
         validateHumanReadableDraftTextForSave(draft);
@@ -966,8 +966,8 @@ public class AdminEpisodeService {
 
         Episode episode = new Episode();
         episode.setTitle(title);
-        episode.setSubtitle(blank(draft.getSubtitle(), "AI draft case file"));
-        episode.setEra(blank(draft.getEra(), "Review required"));
+        episode.setSubtitle(blank(draft.getSubtitle(), "AI 사건파일 초안"));
+        episode.setEra(blank(draft.getEra(), "시대 확인 필요"));
         episode.setGenre(requireAllowedGenre(draft.getGenre()));
         episode.setDifficulty("NORMAL");
         episode.setEstimatedTime("90~120분");
@@ -977,7 +977,7 @@ public class AdminEpisodeService {
         episode.setFinalAnswerType(blank(draft.getFinalAnswerType(), "EVIDENCE"));
         episode.setFinalAnswer(blank(draft.getFinalAnswer(), "검수필요"));
         episode.setFinalAnswerAliases(join(withKeywordContract(draft.getFinalAnswerAliases(), draft.getFinalAnswerKeywords())));
-        episode.setFinalQuestion(blank(draft.getFinalQuestion(), "Review required."));
+        episode.setFinalQuestion(blank(draft.getFinalQuestion(), "최종 질문 확인 필요"));
         episode.setFinalTruthSummary(draft.getFinalTruthSummary());
         episode.setActualHistorySummary(draft.getActualHistorySummary());
         String deductionSecretFacts = joinLines(draft.getDeductionSecretFacts());
@@ -986,11 +986,11 @@ public class AdminEpisodeService {
         episode.setDeductionForbiddenReveals(completeDeductionForbiddenReveals(draft, deductionForbiddenReveals));
         episode.setMaxDeductionQuestions(draft.getMaxDeductionQuestions() == null ? 20 : draft.getMaxDeductionQuestions());
         episode.setRecommendedPlayers("2~4명");
-        episode.setTeamRoleGuide("Review required.");
-        episode.setNoticeText("Review required.");
-        episode.setStatus(validateValue(text(request.getStatus(), "DRAFT"), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "Review required."));
+        episode.setTeamRoleGuide("지도, 사건파일, 퍼즐, 기록 역할로 나누어 진행하세요.");
+        episode.setNoticeText("공개 전 현장 검수와 스포일러 검수를 완료하세요.");
+        episode.setStatus(validateValue(text(request.getStatus(), "DRAFT"), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "상태는 DRAFT, PUBLISHED, ARCHIVED 중 하나여야 합니다."));
         if ("PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "DRAFT_REVIEW_REQUIRED", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DRAFT_REVIEW_REQUIRED", "AI 초안은 먼저 DRAFT로 저장한 뒤 공개 준비도를 점검해야 합니다.");
         }
         adminEpisodeRepository.insertEpisode(episode);
 
@@ -1000,7 +1000,7 @@ public class AdminEpisodeService {
             AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);
             MissionSpot spot = new MissionSpot();
             spot.setEpisodeId(episode.getId());
-            spot.setPlaceName(blank(mission.getPlaceName(), "Review required." + (i + 1)));
+            spot.setPlaceName(blank(mission.getPlaceName(), "??? ?? ?? " + (i + 1)));
             spot.setAddress(mission.getAddress());
             spot.setLatitude(mission.getLatitude() == null ? 37.5665 + (i * 0.001) : mission.getLatitude());
             spot.setLongitude(mission.getLongitude() == null ? 126.9780 + (i * 0.001) : mission.getLongitude());
@@ -1023,7 +1023,7 @@ public class AdminEpisodeService {
             Puzzle puzzle = new Puzzle();
             puzzle.setMissionSpotId(spot.getId());
             puzzle.setPuzzleType(normalizePuzzleTypeForSave(mission.getPuzzleType(), order));
-            puzzle.setQuestionText(blank(sanitizeCategoryCodes(mission.getQuestionText()), "Review required."));
+            puzzle.setQuestionText(blank(sanitizeCategoryCodes(mission.getQuestionText()), "?? ?? ??"));
             puzzle.setAnswer(blank(sanitizeCategoryCodes(mission.getAnswer()), "현장단서"));
             puzzle.setAnswerFormat(validateValue(blank(mission.getAnswerFormat(), "TEXT"), ANSWER_FORMATS, "INVALID_ANSWER_FORMAT", "Unsupported answerFormat."));
             puzzle.setRewardClue(sanitizeCategoryCodes(rewardClueForSave(mission, i)));
@@ -1658,18 +1658,18 @@ public class AdminEpisodeService {
         if (draft == null) {
             return;
         }
-        List<RedactionRule> rules = draftPlayerFacingRedactionRules(draft);
         Map<Integer, String> targetByOrder = draftMissionTargets(draft);
         if (draft.getMissions() != null) {
             for (AiEpisodeDraftResponse.MissionDraft mission : draft.getMissions()) {
                 if (mission == null) {
                     continue;
                 }
-                String rewardClue = applyRedactionRules(mission.getRewardClue(), rules);
+                List<RedactionRule> missionRules = draftPlayerFacingRedactionRules(draft, mission.getTargetKeywordType());
+                String rewardClue = applyRedactionRules(mission.getRewardClue(), missionRules);
                 mission.setRewardClue(rewriteGenericSuspectReference(rewardClue, mission.getTargetKeywordType()));
                 if (mission.getHints() != null) {
                     mission.setHints(mission.getHints().stream()
-                            .map(hint -> applyRedactionRules(hint, rules))
+                            .map(hint -> applyRedactionRules(hint, missionRules))
                             .toList());
                 }
             }
@@ -1679,9 +1679,11 @@ public class AdminEpisodeService {
                 if (evidence == null) {
                     continue;
                 }
-                evidence.setTitle(applyRedactionRules(evidence.getTitle(), rules));
-                String textSummary = applyRedactionRules(evidence.getTextSummary(), rules);
-                evidence.setTextSummary(rewriteGenericSuspectReference(textSummary, targetByOrder.get(evidence.getSourceMissionOrder())));
+                String targetKeywordType = targetByOrder.get(evidence.getSourceMissionOrder());
+                List<RedactionRule> evidenceRules = draftPlayerFacingRedactionRules(draft, targetKeywordType);
+                evidence.setTitle(applyRedactionRules(evidence.getTitle(), evidenceRules));
+                String textSummary = applyRedactionRules(evidence.getTextSummary(), evidenceRules);
+                evidence.setTextSummary(rewriteGenericSuspectReference(textSummary, targetKeywordType));
             }
         }
     }
@@ -1710,8 +1712,17 @@ public class AdminEpisodeService {
                 .replace("용의자 중 한 명", replacement)
                 .replace("용의자 중 하나", replacement)
                 .replace("해당 용의자", replacement)
-                .replace("해고 통보를 받은 용의자", replacement);
-        return normalizePersonReferenceParticles(result);
+                .replace("해고 통보를 받은 용의자", replacement)
+                .replace("용의자의 재직 기록", replacement + "의 재직 기록")
+                .replace("용의자의 개인 소지품", replacement + "의 개인 소지품")
+                .replace("용의자가 피해자에게", replacement + "가 피해자에게")
+                .replace("용의자가 피해자의", replacement + "가 피해자의")
+                .replace("용의자의 동선", replacement + "의 동선")
+                .replace("문서에 언급된 인물 사이에", replacement + " 사이에")
+                .replace("문서에 언급된 인물는", replacement + "은")
+                .replace("문서에 언급된 인물이", replacement + "이")
+                .replace("문서에 언급된 인물의", replacement + "의");
+        return naturalizeRedactedSuspectReferences(normalizePersonReferenceParticles(result));
     }
 
     private String genericSuspectReference(String targetKeywordType) {
@@ -1720,17 +1731,17 @@ public class AdminEpisodeService {
             case "WEAPON" -> "물증과 연결된 인물";
             case "MOTIVE" -> "이해관계가 드러난 인물";
             case "METHOD" -> "동선이 겹친 인물";
-            default -> "관련 인물";
+            default -> "사건 기록 속 인물";
         };
     }
 
-    private List<RedactionRule> draftPlayerFacingRedactionRules(AiEpisodeDraftResponse.EpisodeDraft draft) {
+    private List<RedactionRule> draftPlayerFacingRedactionRules(AiEpisodeDraftResponse.EpisodeDraft draft, String targetKeywordType) {
         List<RedactionRule> rules = new ArrayList<>();
         List<AiEpisodeDraftResponse.SuspectDraft> suspects = draft.getSuspects() == null ? List.of() : draft.getSuspects();
         for (int i = 0; i < suspects.size(); i++) {
             AiEpisodeDraftResponse.SuspectDraft suspect = suspects.get(i);
             if (suspect != null && !missing(suspect.getDisplayName())) {
-                rules.add(new RedactionRule(suspect.getDisplayName(), suspectReference()));
+                rules.add(new RedactionRule(suspect.getDisplayName(), suspectReference(targetKeywordType)));
             }
         }
         Map<String, String> answers = finalAnswerValueMap(draft);
@@ -1794,7 +1805,7 @@ public class AdminEpisodeService {
         result = result.replace(value + "의", replacement + "의");
         result = result.replace(value + "와", replacement + "와");
         result = result.replace(value + "과", replacement + "과");
-        return normalizePersonReferenceParticles(result.replace(value, replacement));
+        return naturalizeRedactedSuspectReferences(normalizePersonReferenceParticles(result.replace(value, replacement)));
     }
 
     private String normalizePersonReferenceParticles(String text) {
@@ -1804,14 +1815,50 @@ public class AdminEpisodeService {
         return text
                 .replace("관련 인물가", "관련 인물이")
                 .replace("기록 속 인물가", "기록 속 인물이")
+                .replace("기록 속 인물는", "기록 속 인물은")
                 .replace("물증과 연결된 인물가", "물증과 연결된 인물이")
+                .replace("물증과 연결된 인물는", "물증과 연결된 인물은")
                 .replace("이해관계가 드러난 인물가", "이해관계가 드러난 인물이")
+                .replace("이해관계가 드러난 인물는", "이해관계가 드러난 인물은")
                 .replace("동선이 겹친 인물가", "동선이 겹친 인물이")
-                .replace("문서에 언급된 인물가", "문서에 언급된 인물이");
+                .replace("동선이 겹친 인물는", "동선이 겹친 인물은")
+                .replace("문서에 언급된 인물가", "문서에 언급된 인물이")
+                .replace("문서에 언급된 인물는", "문서에 언급된 인물은")
+                .replace("관련 인물가", "관련 인물이")
+                .replace("관련 인물는", "관련 인물은")
+                .replace("사건 기록 속 인물가", "사건 기록 속 인물이")
+                .replace("사건 기록 속 인물는", "사건 기록 속 인물은");
     }
 
-    private String suspectReference() {
-        return "관련 인물";
+    private String naturalizeRedactedSuspectReferences(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        return text
+                .replace("CCTV에는 기록 속 인물이", "CCTV에는 동일 인물이")
+                .replace("집 외부 CCTV에는 기록 속 인물이", "집 외부 CCTV에는 동일 인물이")
+                .replace("'기록 속 인물,", "'메모의 대상자,")
+                .replace("기록 속 인물이 박 회장에 대해", "메모의 대상자가 박 회장에 대해")
+                .replace("기록 속 인물이 피해자에 대해", "메모의 대상자가 피해자에 대해")
+                .replace("기록 속 인물은", "메모의 대상자는")
+                .replace("기록 속 인물이", "메모의 대상자가")
+                .replace("이해관계가 드러난 인물이 박 회장에게 보낸 문자", "문자 발신자가 박 회장에게 보낸 문자")
+                .replace("이해관계가 드러난 인물이 피해자에게 보낸 문자", "문자 발신자가 피해자에게 보낸 문자")
+                .replace("유언장에 따르면, 이해관계가 드러난 인물은", "유언장에 따르면, 해당 당사자는")
+                .replace("이해관계가 드러난 인물은", "해당 당사자는")
+                .replace("이해관계가 드러난 인물이", "문서상 이해관계자가")
+                .replace("동선이 겹친 인물이 사용한 것으로 추정되는 특정 화학 물질에 대한 온라인 구매 기록", "동선 기록과 연결된 계정에서 특정 화학 물질을 온라인으로 구매한 기록")
+                .replace("동선이 겹친 인물이", "동선 기록과 연결된 인물이");
+    }
+
+    private String suspectReference(String targetKeywordType) {
+        return switch (normalizeType(targetKeywordType)) {
+            case "CULPRIT" -> "기록 속 인물";
+            case "WEAPON" -> "물증과 연결된 인물";
+            case "MOTIVE" -> "이해관계가 드러난 인물";
+            case "METHOD" -> "동선이 겹친 인물";
+            default -> "사건 기록 속 인물";
+        };
     }
 
     private String indirectAnswerReference(String slot) {
@@ -2477,7 +2524,7 @@ public class AdminEpisodeService {
         EpisodePartnerReward reward = new EpisodePartnerReward();
         reward.setEpisodeId(episodeId);
         reward.setTitle("지역 리워드 준비 중");
-        reward.setDescription("Review required.");
+        reward.setDescription("미션 완료 후 운영 리워드를 확인할 수 있습니다.");
         reward.setRewardType("STAMP");
         reward.setPartnerName("Operation Korea");
         reward.setLocationName("검수 예정 지점");
@@ -2487,7 +2534,7 @@ public class AdminEpisodeService {
 
     private String validateEvidenceTarget(Long episodeId, Long targetId, int index, List<String> errors) {
         if (targetId == null) {
-            errors.add("rewards[" + index + "] targetId is required.");
+            errors.add("보상 " + index + "번에는 대상 ID가 필요합니다.");
             return null;
         }
         return adminEpisodeRepository.findEvidences(episodeId).stream()
@@ -2495,7 +2542,7 @@ public class AdminEpisodeService {
                 .findFirst()
                 .map(CaseEvidence::getTitle)
                 .orElseGet(() -> {
-                    errors.add("rewards[" + index + "] targetId=" + targetId + " evidence card not found.");
+                    errors.add("보상 " + index + "번이 연결한 증거 카드를 찾을 수 없습니다. targetId=" + targetId);
                     return null;
                 });
     }
@@ -2503,7 +2550,7 @@ public class AdminEpisodeService {
 
     private String validateSuspectTarget(Long episodeId, Long targetId, int index, List<String> errors) {
         if (targetId == null) {
-            errors.add("rewards[" + index + "] targetId is required.");
+            errors.add("보상 " + index + "번에는 대상 ID가 필요합니다.");
             return null;
         }
         return adminEpisodeRepository.findSuspects(episodeId).stream()
@@ -2511,7 +2558,7 @@ public class AdminEpisodeService {
                 .findFirst()
                 .map(CaseSuspect::getDisplayName)
                 .orElseGet(() -> {
-                    errors.add("rewards[" + index + "] targetId=" + targetId + " suspect card not found.");
+                    errors.add("보상 " + index + "번이 연결한 용의자 카드를 찾을 수 없습니다. targetId=" + targetId);
                     return null;
                 });
     }
@@ -2524,7 +2571,7 @@ public class AdminEpisodeService {
         }
         boolean exists = adminEpisodeRepository.findSpots(episodeId).stream().anyMatch(spot -> id.equals(spot.getId()));
         if (!exists) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SOURCE_SPOT", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SOURCE_SPOT", "출처 장소를 찾을 수 없습니다.");
         }
         return id;
     }
@@ -2536,58 +2583,58 @@ public class AdminEpisodeService {
         }
         boolean exists = adminEpisodeRepository.findSuspects(episodeId).stream().anyMatch(suspect -> id.equals(suspect.getId()));
         if (!exists) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RELATED_SUSPECT", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RELATED_SUSPECT", "관련 용의자 카드를 찾을 수 없습니다.");
         }
         return id;
     }
 
     private void validatePublishReadiness(Episode episode) {
         List<String> errors = new ArrayList<>();
-        if (missing(episode.getFictionSynopsis())) errors.add("Fiction synopsis is required.");
-        if (missing(episode.getFinalAnswerType())) errors.add("Final answer type is required.");
-        if (missing(episode.getFinalAnswer())) errors.add("Final answer is required.");
-        if (missing(episode.getFinalQuestion())) errors.add("Final question is required.");
-        if (missing(episode.getFinalTruthSummary())) errors.add("Private truth summary is required.");
-        if (missing(episode.getDeductionSecretFacts())) errors.add("Deduction secret facts are required.");
-        if (missing(episode.getDeductionForbiddenReveals())) errors.add("Forbidden reveal terms are required.");
-        else if (!containsCompact(episode.getDeductionForbiddenReveals(), episode.getFinalAnswer())) errors.add("Forbidden reveals must include the final answer.");
-        if (episode.getMaxDeductionQuestions() == null || episode.getMaxDeductionQuestions() < 1) errors.add("Max deduction questions must be at least 1.");
+        if (missing(episode.getFictionSynopsis())) errors.add("허구 사건 개요가 필요합니다.");
+        if (missing(episode.getFinalAnswerType())) errors.add("최종 정답 유형이 필요합니다.");
+        if (missing(episode.getFinalAnswer())) errors.add("최종 정답이 필요합니다.");
+        if (missing(episode.getFinalQuestion())) errors.add("최종 질문이 필요합니다.");
+        if (missing(episode.getFinalTruthSummary())) errors.add("관리자용 최종 진실 요약이 필요합니다.");
+        if (missing(episode.getDeductionSecretFacts())) errors.add("추리 세션용 내부 사실이 필요합니다.");
+        if (missing(episode.getDeductionForbiddenReveals())) errors.add("정답 노출 금지어가 필요합니다.");
+        else if (!containsCompact(episode.getDeductionForbiddenReveals(), episode.getFinalAnswer())) errors.add("정답 노출 금지어에는 최종 정답 전체가 포함되어야 합니다.");
+        if (episode.getMaxDeductionQuestions() == null || episode.getMaxDeductionQuestions() < 1) errors.add("추리 질문 제한은 1 이상이어야 합니다.");
         List<MissionSpot> spots = adminEpisodeRepository.findSpots(episode.getId());
-        if (spots.size() != 10) errors.add("Published episodes require exactly 10 spots.");
+        if (spots.size() != 10) errors.add("공개 에피소드는 장소가 정확히 10개여야 합니다.");
         long startCount = spots.stream().filter(spot -> "START".equals(spot.getMarkerType())).count();
         long answerHintCount = spots.stream().filter(spot -> "ANSWER_HINT".equals(spot.getMarkerType())).count();
         long finalPlaceCount = spots.stream().filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace())).count();
-        if (startCount != 1) errors.add("Exactly one START spot is required.");
-        if (answerHintCount != 8) errors.add("Exactly eight ANSWER_HINT investigation spots are required.");
-        if (finalPlaceCount != 1) errors.add("Exactly one internal final place is required.");
+        if (startCount != 1) errors.add("시작 장소는 정확히 1개여야 합니다.");
+        if (answerHintCount != 8) errors.add("조사 장소는 정확히 8개여야 합니다.");
+        if (finalPlaceCount != 1) errors.add("내부 최종 장소는 정확히 1개여야 합니다.");
         for (MissionSpot spot : spots) {
-            if (missing(spot.getPlaceName()) || spot.getLatitude() == null || spot.getLongitude() == null) errors.add("Every spot needs a name and coordinates.");
-            if (spot.getArrivalRadius() == null || spot.getArrivalRadius() < 10) errors.add("Arrival radius must be at least 10m: " + spot.getPlaceName());
-            if (same(episode.getFinalAnswer(), spot.getPlaceName())) errors.add("Final answer must not equal a real place name: " + spot.getPlaceName());
+            if (missing(spot.getPlaceName()) || spot.getLatitude() == null || spot.getLongitude() == null) errors.add("모든 장소에는 장소명과 좌표가 필요합니다.");
+            if (spot.getArrivalRadius() == null || spot.getArrivalRadius() < 10) errors.add("도착 반경은 10m 이상이어야 합니다: " + spot.getPlaceName());
+            if (same(episode.getFinalAnswer(), spot.getPlaceName())) errors.add("최종 정답은 실제 장소명과 같으면 안 됩니다: " + spot.getPlaceName());
             Puzzle puzzle = adminEpisodeRepository.findPuzzleBySpotId(spot.getId());
-            if (puzzle == null) { errors.add("Puzzle is missing: " + spot.getPlaceName()); continue; }
-            if (missing(puzzle.getQuestionText())) errors.add("Puzzle question is missing: " + spot.getPlaceName());
-            if (missing(puzzle.getAnswer())) errors.add("Puzzle answer is missing: " + spot.getPlaceName());
-            if (!"START".equals(spot.getMarkerType()) && missing(puzzle.getRewardClue())) errors.add("Reward clue is missing: " + spot.getPlaceName());
-            if (same(puzzle.getAnswer(), puzzle.getRewardClue())) errors.add("Puzzle answer and reward clue must differ: " + spot.getPlaceName());
-            if (adminEpisodeRepository.findHints(puzzle.getId()).size() < 3) errors.add("Three puzzle hints are required: " + spot.getPlaceName());
-            if (containsCompact(puzzle.getQuestionText(), episode.getFinalAnswer())) errors.add("Puzzle question exposes final answer: " + spot.getPlaceName());
+            if (puzzle == null) { errors.add("퍼즐이 없는 장소가 있습니다: " + spot.getPlaceName()); continue; }
+            if (missing(puzzle.getQuestionText())) errors.add("퍼즐 문제가 비어 있습니다: " + spot.getPlaceName());
+            if (missing(puzzle.getAnswer())) errors.add("퍼즐 정답이 비어 있습니다: " + spot.getPlaceName());
+            if (!"START".equals(spot.getMarkerType()) && missing(puzzle.getRewardClue())) errors.add("보상 단서가 비어 있습니다: " + spot.getPlaceName());
+            if (same(puzzle.getAnswer(), puzzle.getRewardClue())) errors.add("퍼즐 정답과 보상 단서는 달라야 합니다: " + spot.getPlaceName());
+            if (adminEpisodeRepository.findHints(puzzle.getId()).size() < 3) errors.add("퍼즐 힌트는 3개가 필요합니다: " + spot.getPlaceName());
+            if (containsCompact(puzzle.getQuestionText(), episode.getFinalAnswer())) errors.add("퍼즐 문제가 최종 정답을 노출합니다: " + spot.getPlaceName());
         }
         List<CaseSuspect> suspects = adminEpisodeRepository.findSuspects(episode.getId());
         List<CaseEvidence> evidences = adminEpisodeRepository.findEvidences(episode.getId());
-        if (suspects.size() < 3) errors.add("At least three suspect cards are required.");
+        if (suspects.size() < 3) errors.add("용의자 카드는 최소 3개가 필요합니다.");
         for (CaseSuspect suspect : suspects) {
             if (missing(suspect.getImagePrompt()) && !validExternalImageUrl(suspect.getPortraitImageUrl())) {
-                errors.add("Suspect image prompt or external portrait URL is required: " + suspect.getDisplayName());
+                errors.add("용의자 이미지 프롬프트 또는 외부 초상 URL이 필요합니다: " + suspect.getDisplayName());
             }
         }
-        if (evidences.size() < Math.max(1, (int) answerHintCount)) errors.add("Evidence cards should cover the investigation route.");
+        if (evidences.size() < Math.max(1, (int) answerHintCount)) errors.add("증거 카드는 조사 경로를 모두 커버해야 합니다.");
         for (CaseEvidence evidence : evidences) {
             if (missing(evidence.getImagePrompt()) && !validExternalImageUrl(evidence.getImageUrl())) {
-                errors.add("Evidence image prompt or external image URL is required: " + evidence.getTitle());
+                errors.add("증거 이미지 프롬프트 또는 외부 이미지 URL이 필요합니다: " + evidence.getTitle());
             }
         }
-        if (!errors.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "EPISODE_PUBLISH_NOT_READY", "Cannot publish: " + String.join(" / ", errors));
+        if (!errors.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "EPISODE_PUBLISH_NOT_READY", "공개할 수 없습니다: " + String.join(" / ", errors));
     }
 
     private boolean validExternalImageUrl(String value) {
@@ -2624,7 +2671,7 @@ public class AdminEpisodeService {
         Episode episode = new Episode();
         episode.setTitle(title);
         episode.setSubtitle(blank(safeRequest.getSubtitle(), "Admin draft"));
-        episode.setEra(blank(safeRequest.getEra(), "Review required"));
+        episode.setEra(blank(safeRequest.getEra(), "?? ?? ??"));
         episode.setGenre(requireAllowedGenre(blank(safeRequest.getGenre(), ContentGenre.MISSING_CASE.displayName())));
         episode.setDifficulty(blank(safeRequest.getDifficulty(), "NORMAL"));
         episode.setEstimatedTime(blank(safeRequest.getEstimatedTime(), "90~120분"));
@@ -2635,15 +2682,15 @@ public class AdminEpisodeService {
         episode.setFinalAnswer(blank(safeRequest.getFinalAnswer(), "review-required"));
         episode.setFinalAnswerAliases(safeRequest.getFinalAnswerAliases());
         episode.setFinalQuestion(blank(safeRequest.getFinalQuestion(), "Enter the final question."));
-        episode.setFinalTruthSummary(blank(safeRequest.getFinalTruthSummary(), "Enter the private truth summary."));
+        episode.setFinalTruthSummary(blank(safeRequest.getFinalTruthSummary(), "관리자용 최종 진실 요약을 입력하세요."));
         episode.setActualHistorySummary(safeRequest.getActualHistorySummary());
-        episode.setDeductionSecretFacts(blank(safeRequest.getDeductionSecretFacts(), "Enter internal facts for deduction."));
-        episode.setDeductionForbiddenReveals(blank(safeRequest.getDeductionForbiddenReveals(), "Do not reveal the final answer or actual final place."));
+        episode.setDeductionSecretFacts(blank(safeRequest.getDeductionSecretFacts(), "추리 세션에서 사용할 내부 사실을 입력하세요."));
+        episode.setDeductionForbiddenReveals(blank(safeRequest.getDeductionForbiddenReveals(), "최종 정답과 실제 최종 장소를 직접 노출하지 마세요."));
         episode.setMaxDeductionQuestions(safeRequest.getMaxDeductionQuestions() == null ? 20 : safeRequest.getMaxDeductionQuestions());
         episode.setRecommendedPlayers(blank(safeRequest.getRecommendedPlayers(), "2~4명"));
         episode.setTeamRoleGuide(blank(safeRequest.getTeamRoleGuide(), "지도, 사건파일, 퍼즐, 기록 역할로 나누어 진행하세요."));
         episode.setNoticeText(blank(safeRequest.getNoticeText(), "공개 전 현장 검수를 완료하세요."));
-        episode.setStatus(validateValue(text(safeRequest.getStatus(), "DRAFT"), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "Status must be DRAFT, PUBLISHED, or ARCHIVED."));
+        episode.setStatus(validateValue(text(safeRequest.getStatus(), "DRAFT"), EPISODE_STATUSES, "INVALID_EPISODE_STATUS", "상태는 DRAFT, PUBLISHED, ARCHIVED 중 하나여야 합니다."));
         if ("PUBLISHED".equals(episode.getStatus())) validatePublishReadiness(episode);
         adminEpisodeRepository.insertEpisode(episode);
         return getEpisode(episode.getId());
@@ -2656,7 +2703,7 @@ public class AdminEpisodeService {
     public void deleteEpisode(Long episodeId) {
         Episode episode = requireEpisode(episodeId);
         if ("PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PUBLISHED_EPISODE_DELETE_BLOCKED", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PUBLISHED_EPISODE_DELETE_BLOCKED", "공개 중인 에피소드는 먼저 ARCHIVED로 변경한 뒤 삭제하세요.");
         }
         adminEpisodeRepository.deleteEpisode(episodeId);
     }
@@ -2664,7 +2711,7 @@ public class AdminEpisodeService {
     private Episode requireEpisode(Long episodeId) {
         Episode episode = adminEpisodeRepository.findEpisode(episodeId);
         if (episode == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "Review required.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "에피소드를 찾을 수 없습니다.");
         }
         return episode;
     }
@@ -2672,7 +2719,7 @@ public class AdminEpisodeService {
     private void requireEditableEpisode(Long episodeId) {
         Episode episode = requireEpisode(episodeId);
         if ("PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PUBLISHED_EPISODE_LOCKED", "Review required.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PUBLISHED_EPISODE_LOCKED", "공개 중인 에피소드는 직접 수정할 수 없습니다. 먼저 DRAFT 또는 ARCHIVED 상태로 변경하세요.");
         }
     }
     private String text(String value, String fallback) {
@@ -3152,7 +3199,7 @@ public class AdminEpisodeService {
     private String buildRewardClue(String role, int index) {
         return switch (role) {
             case "ANSWER_HINT" -> List.of("젖은 손잡이", "낮은 좌석", "끊긴 끈", "구겨진 영수증").get(Math.min(Math.max(index - 1, 0), 3));
-            case "FINAL" -> "Final spot unlocks after all investigation missions are complete.";
+            case "FINAL" -> "모든 조사 미션 완료 후 자동 공개";
             case "START" -> "사건 시작 단서";
             default -> "사건 단서";
         };
@@ -3462,12 +3509,12 @@ public class AdminEpisodeService {
 
     private List<String> publishChecklist() {
         return List.of(
-                "Confirm coordinates and arrival radius from selected place data or admin GPS QA.",
-                "Confirm every puzzle uses provided candidate data, admin memo, AI/site enrichment, or generated fiction-safe clues.",
-                "Confirm the final place is not exposed by publicMarkerType.",
-                "Confirm the final answer is not a real place, real person, or real event.",
-                "Confirm hidden history notes are not overexposed during gameplay.",
-                "Keep reward coupons PLANNED or DISABLED unless they are real benefits."
+                "선택 장소 데이터 또는 운영 GPS 확인값 기준으로 좌표와 도착 반경을 확인하세요.",
+                "모든 퍼즐이 후보 장소 데이터, 운영 메모, 현장 근거 보강, 또는 허구 사건 단서를 사용하고 있는지 확인하세요.",
+                "최종 장소가 publicMarkerType으로 직접 노출되지 않는지 확인하세요.",
+                "최종 정답이 실제 장소, 실존 인물, 실제 사건이 아닌지 확인하세요.",
+                "역사/문화 해설이 플레이 중 과도하게 먼저 노출되지 않는지 확인하세요.",
+                "실제 제공 혜택이 아닌 보상 쿠폰은 PLANNED 또는 DISABLED 상태로 유지하세요."
         );
     }
 

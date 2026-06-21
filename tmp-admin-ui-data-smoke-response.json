@@ -1,7 +1,7 @@
 {
   "valid": true,
-  "episodeId": 152,
-  "title": "폐허 속의 진실",
+  "episodeId": 163,
+  "title": "시간의 틈새 56719",
   "status": "DRAFT",
   "readinessReady": true,
   "spotCount": 10,
@@ -15,41 +15,41 @@
   },
   "labels": [
     {
-      "spotId": 1096,
+      "spotId": 1206,
       "label": "범인"
     },
     {
-      "spotId": 1097,
+      "spotId": 1207,
       "label": "범인"
     },
     {
-      "spotId": 1098,
+      "spotId": 1208,
       "label": "흉기"
     },
     {
-      "spotId": 1099,
+      "spotId": 1209,
       "label": "흉기"
     },
     {
-      "spotId": 1100,
+      "spotId": 1210,
       "label": "동기"
     },
     {
-      "spotId": 1101,
+      "spotId": 1211,
       "label": "동기"
     },
     {
-      "spotId": 1102,
+      "spotId": 1212,
       "label": "방법"
     },
     {
-      "spotId": 1103,
+      "spotId": 1213,
       "label": "방법"
     }
   ],
   "final": [
     {
-      "spotId": 1104,
+      "spotId": 1214,
       "markerType": "FINAL",
       "publicMarkerType": "ANSWER_HINT",
       "clueRole": "FINAL_PLACE",
