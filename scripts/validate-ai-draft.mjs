@@ -23,6 +23,13 @@ const IMMERSION_BREAKING_TERMS = [
   '관리자 검수',
   '검수가 필요'
 ];
+const WEAK_GENERIC_SUSPECT_TERMS = [
+  '특정 용의자',
+  '용의자 중 한 명',
+  '용의자 중 하나',
+  '해당 용의자',
+  '해고 통보를 받은 용의자'
+];
 
 function unwrap(payload) {
   const body = payload?.data || payload;
@@ -218,6 +225,17 @@ function validateAnswerLeaks(draft, issues) {
   }
 }
 
+function validateConcreteInvestigationClues(draft, issues) {
+  for (const mission of draft.missions || []) {
+    if (mission.finalPlace === true || mission.markerType === 'FINAL' || mission.markerType === 'START') continue;
+    const clue = normalize(mission.rewardClue);
+    const weakTerm = WEAK_GENERIC_SUSPECT_TERMS.find((term) => clue.includes(term));
+    if (weakTerm) {
+      addIssue(issues, 'ERROR', 'WEAK_GENERIC_SUSPECT_REFERENCE', `Investigation rewardClue contains weak generic suspect reference "${weakTerm}".`, `draft.missions[${mission.order}].rewardClue`);
+    }
+  }
+}
+
 export function validateDraft(payload) {
   const { body, draft } = unwrap(payload);
   const issues = [];
@@ -231,6 +249,7 @@ export function validateDraft(payload) {
   validateEvidence(draft, issues);
   validateForbiddenText(draft, issues);
   validateAnswerLeaks(draft, issues);
+  validateConcreteInvestigationClues(draft, issues);
   return { body, draft, issues };
 }
 

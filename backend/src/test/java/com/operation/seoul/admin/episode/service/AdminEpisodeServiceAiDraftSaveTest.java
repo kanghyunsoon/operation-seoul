@@ -3,6 +3,7 @@ package com.operation.seoul.admin.episode.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.admin.episode.domain.AdminEpisodeProgressStats;
 import com.operation.seoul.admin.episode.dto.AdminEpisodeDetailResponse;
+import com.operation.seoul.admin.episode.dto.AdminEpisodeUpdateRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftResponse;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftSaveRequest;
@@ -42,6 +43,7 @@ class AdminEpisodeServiceAiDraftSaveTest {
 
     private static final List<String> ANSWER_TYPES = List.of("CULPRIT", "WEAPON", "MOTIVE", "METHOD");
     private static final List<String> ANSWER_VALUES = List.of("윤서진", "복제 출입증", "보복 심리", "출입 기록 바꿔치기");
+    private static final List<String> SUSPECT_NAMES = List.of("기록 담당자", "전시 보조원", "외부 협력자");
     private static final List<String> FORBIDDEN_PLACE_HINT_TOKENS = List.of(
             "DESTINATION_HINT", "DESTINATION_CLUE", "FINAL_DESTINATION", "PLACE_HINT",
             "장소 힌트", "장소 정답", "장소 추리", "장소명을 추출", "주소 숫자", "최종 장소를 찾아라"
@@ -61,8 +63,10 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 mock(ExternalPlaceResearchService.class)
         );
         AiEpisodeDraftSaveRequest request = saveRequest();
-        request.getDraft().getMissions().get(1).setRewardClue(ANSWER_VALUES.get(0) + "의 출입 기록과 " + ANSWER_VALUES.get(1) + " 흔적이 함께 발견되었다.");
-        request.getDraft().getEvidences().get(0).setTextSummary(ANSWER_VALUES.get(0) + "의 지문과 " + ANSWER_VALUES.get(1) + " 분석 결과가 기록되어 있다.");
+        request.getDraft().getMissions().get(1).setRewardClue("기록 담당자의 출입 기록과 " + ANSWER_VALUES.get(1) + " 흔적이 함께 발견되었다.");
+        request.getDraft().getMissions().get(2).setRewardClue("CCTV 기록상 특정 용의자의 출입 기록 일부가 누락되었다.");
+        request.getDraft().getEvidences().get(0).setTextSummary("전시 보조원의 지문과 " + ANSWER_VALUES.get(1) + " 분석 결과가 기록되어 있다.");
+        request.getDraft().getEvidences().get(1).setTextSummary("사건 당일 특정 용의자가 사무실에 있었던 기록이 남아 있다.");
 
         AdminEpisodeDetailResponse saved = assertDoesNotThrow(() -> service.saveAiDraft(request));
 
@@ -75,6 +79,13 @@ class AdminEpisodeServiceAiDraftSaveTest {
         assertSavedMissionStructure(saved);
         assertSavedCaseMaterials(saved);
         assertEquals("ALL_INVESTIGATION_MISSIONS_CLEARED", finalMission(request.getDraft()).getUnlockCondition());
+        assertFalse(saved.getDeductionSecretFacts().isBlank());
+        assertFalse(saved.getDeductionForbiddenReveals().isBlank());
+
+        AdminEpisodeUpdateRequest publishRequest = new AdminEpisodeUpdateRequest();
+        publishRequest.setStatus("PUBLISHED");
+        AdminEpisodeDetailResponse published = assertDoesNotThrow(() -> service.updateEpisode(saved.getId(), publishRequest));
+        assertEquals("PUBLISHED", published.getStatus());
     }
 
     @Test
@@ -344,6 +355,9 @@ class AdminEpisodeServiceAiDraftSaveTest {
             assertNotNull(spot.getPuzzle());
             assertFalse(spot.getPuzzle().getRewardClue().isBlank());
             assertNoAnswerLeak(spot.getPuzzle().getRewardClue());
+            assertNoSuspectNameLeak(spot.getPuzzle().getRewardClue());
+            assertNoOrdinalSuspectReference(spot.getPuzzle().getRewardClue());
+            assertNoGenericSpecificSuspectReference(spot.getPuzzle().getRewardClue());
             assertNoForbiddenPlaceHint(spot.getMarkerType());
             assertNoForbiddenPlaceHint(spot.getPuzzle().getRewardPayload());
         }
@@ -400,6 +414,9 @@ class AdminEpisodeServiceAiDraftSaveTest {
             assertNotNull(evidence.getSourceSpotId());
             assertFalse(evidence.getTextSummary().isBlank());
             assertNoAnswerLeak(evidence.getTextSummary());
+            assertNoSuspectNameLeak(evidence.getTextSummary());
+            assertNoOrdinalSuspectReference(evidence.getTextSummary());
+            assertNoGenericSpecificSuspectReference(evidence.getTextSummary());
             assertNoForbiddenPlaceHint(evidence.getTextSummary());
         });
     }
@@ -415,6 +432,25 @@ class AdminEpisodeServiceAiDraftSaveTest {
         for (String value : ANSWER_VALUES) {
             assertFalse(compact(text).contains(compact(value)), "direct answer leak: " + value);
         }
+    }
+
+    private void assertNoSuspectNameLeak(String text) {
+        for (String value : SUSPECT_NAMES) {
+            assertFalse(compact(text).contains(compact(value)), "direct suspect name leak: " + value);
+        }
+    }
+
+    private void assertNoOrdinalSuspectReference(String text) {
+        assertFalse(text.contains("첫 번째 용의자"), "ordinal suspect reference remains");
+        assertFalse(text.contains("두 번째 용의자"), "ordinal suspect reference remains");
+        assertFalse(text.contains("세 번째 용의자"), "ordinal suspect reference remains");
+    }
+
+    private void assertNoGenericSpecificSuspectReference(String text) {
+        assertFalse(text.contains("특정 용의자"), "generic suspect reference remains");
+        assertFalse(text.contains("관련 인물가"), "invalid Korean particle remains");
+        assertFalse(text.contains("기록 속 인물가"), "invalid Korean particle remains");
+        assertFalse(text.contains("문서에 언급된 인물가"), "invalid Korean particle remains");
     }
 
     private void assertNoForbiddenPlaceHint(String text) {

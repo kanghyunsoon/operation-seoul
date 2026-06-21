@@ -231,7 +231,7 @@
                 <span>{{ spot.publicMarkerType }} / {{ spot.clueRole }}</span>
               </div>
               <div v-if="isReviewRequiredSpot(spot)" class="review-required-badge">
-                검수필요 초안 · 문제/정답/힌트를 확정해야 합니다
+                보강필요 초안 · 문제/정답/힌트를 확정해야 합니다
               </div>
               <p>{{ spot.storyText }}</p>
               <p class="internal" v-if="spot.finalPlace">내부 최종 정답 입력 장소입니다. 조사 8개 완료 전에는 공개되지 않습니다.</p>
@@ -466,7 +466,7 @@
             </div>
             <div class="payload-actions action-bar">
               <button type="button" class="ghost-btn" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'enrich' }" @click="enrichSelectedSiteData">
-                {{ activeAction === 'enrich' ? '현장 근거 보강 중...' : 'RAG 현장근거 보강' }}
+                {{ activeAction === 'enrich' ? '현장 근거 보강 중...' : '현장 근거 보강' }}
               </button>
               <button type="button" class="primary-action" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'gemini' }" @click="generateGeminiDraft">
                 {{ activeAction === 'gemini' ? 'Gemini 작성 중...' : 'Gemini로 전체 초안 작성' }}
@@ -573,7 +573,7 @@
           <section class="creation-flow">
             <article :class="{ done: candidateLoaded }">
               <b>1</b>
-              <strong>TourAPI 기준 장소</strong>
+              <strong>공공 장소 후보</strong>
               <span>사건의 중심 관광지를 선택합니다.</span>
             </article>
             <article :class="{ done: nearbyLoaded }">
@@ -595,7 +595,7 @@
 
           <section class="candidate-panel">
             <div class="section-title">
-              <h3>1. TourAPI 기준 장소</h3>
+              <h3>1. 공공 장소 후보</h3>
               <div class="payload-actions">
                 <select v-model="candidateAreaCode">
                   <option value="seoul">서울</option>
@@ -609,16 +609,16 @@
                   <option value="gyeongnam">경남권</option>
                   <option value="jeju">제주</option>
                 </select>
-                <button type="button" @click="loadPlaceCandidates">TourAPI 기준 장소 불러오기</button>
+                <button type="button" @click="loadPlaceCandidates">공공 장소 후보 불러오기</button>
               </div>
             </div>
-            <p class="candidate-help">TourAPI 기준 장소는 허구 사건의 배경으로만 사용합니다. 최종 장소는 추리 대상이 아니라 조사 미션 8개 완료 시 자동 공개되는 최종 정답 입력 장소입니다.</p>
+            <p class="candidate-help">공공 장소 후보는 허구 사건의 배경으로만 사용합니다. 최종 장소는 추리 대상이 아니라 조사 미션 8개 완료 시 자동 공개되는 최종 정답 입력 장소입니다.</p>
             <div class="ops-notice">
               <strong>운영 설정 확인</strong>
-              <p>TourAPI와 Kakao Local 후보 조회에는 백엔드 API 키가 필요합니다. 키가 없으면 수동 후보를 추가해서도 초안을 만들 수 있습니다.</p>
+              <p>공공 장소와 주변 후보 조회에는 백엔드 API 키가 필요합니다. 키가 없으면 수동 후보를 추가해서도 초안을 만들 수 있습니다.</p>
             </div>
-            <p v-if="candidateLoading" class="empty">TourAPI 후보를 불러오는 중입니다.</p>
-            <p v-else-if="candidateLoaded && !placeCandidates.length" class="empty">TourAPI 후보가 없습니다. API 키, 지역 설정을 확인하거나 수동 후보를 사용하세요.</p>
+            <p v-if="candidateLoading" class="empty">공공 장소 후보를 불러오는 중입니다.</p>
+            <p v-else-if="candidateLoaded && !placeCandidates.length" class="empty">공공 장소 후보가 없습니다. API 키, 지역 설정을 확인하거나 수동 후보를 사용하세요.</p>
             <div class="candidate-grid">
               <article v-for="candidate in placeCandidates" :key="candidateKey(candidate)" class="candidate-card" :class="{ selected: anchorCandidate && candidateKey(anchorCandidate) === candidateKey(candidate) }">
                 <strong>{{ candidate.title }}</strong>
@@ -686,7 +686,7 @@
                   <b>{{ index + 1 }}</b>
                   <strong>{{ candidate.title }}</strong>
                   <span :class="roleForCandidate(index)">{{ roleLabel(roleForCandidate(index)) }}</span>
-                  <em v-if="isAnchorCandidate(candidate)">TourAPI 기준 장소</em>
+                  <em v-if="isAnchorCandidate(candidate)">공공 장소 후보</em>
                 </li>
               </ol>
               <p>최종 장소는 조사 미션 8개 완료 시 자동 공개되는 최종 정답 입력 장소입니다. 최종 장소 자체는 추리 대상이 아닙니다.</p>
@@ -1071,16 +1071,16 @@ const selectedCandidateStatus = computed(() => {
 });
 const routeIdentitySummary = computed(() => {
   const count = effectiveSelectedSpotCount.value;
-  if (!count) return 'TourAPI 기준 장소를 먼저 고르면 Kakao Local 후보로 추천 루트를 구성합니다.';
+  if (!count) return '공공 장소 후보를 먼저 고르면 주변 후보로 추천 루트를 구성합니다.';
   const localCount = effectiveSelectedSpots.value.filter((candidate) => isLocalBusinessCandidate(candidate)).length;
   return `총 ${count}개 장소 · 골목상권/휴식 후보 ${localCount}개 · 기준 장소 주변 동선으로 구성`;
 });
 const caseBuilderNext = computed(() => {
   if (!candidateLoaded.value) {
     return {
-      title: '1단계: TourAPI 기준 장소를 불러오세요.',
+      title: '1단계: 공공 장소 후보를 불러오세요.',
       description: '사건의 중심이 되는 관광지를 먼저 선택해야 주변 골목상권 후보를 추천할 수 있습니다.',
-      button: 'TourAPI 기준 장소 불러오기',
+      button: '공공 장소 후보 불러오기',
       action: 'loadTourApi',
       disabled: false
     };
@@ -1088,7 +1088,7 @@ const caseBuilderNext = computed(() => {
   if (!anchorCandidate.value) {
     return {
       title: '2단계: 사건의 기준 장소를 선택하세요.',
-      description: 'TourAPI 장소 카드에서 주변 후보 찾기를 누르면 그 장소가 내부 최종 장소 후보가 되고 주변 후보가 추천됩니다.',
+      description: '공공 장소 카드에서 주변 후보 찾기를 누르면 그 장소가 내부 최종 장소 후보가 되고 주변 후보가 추천됩니다.',
       button: '기준 장소 선택 필요',
       action: 'selectAnchor',
       disabled: true
@@ -1117,7 +1117,7 @@ const caseBuilderNext = computed(() => {
       return {
         title: '5단계: 현장근거를 먼저 보강하세요.',
         description: 'Kakao 주변 후보와 관리자 메모를 바탕으로 각 장소의 키워드와 검수 범위를 좁힙니다.',
-        button: 'RAG 현장근거 보강',
+        button: '현장 근거 보강',
         action: 'enrich',
         disabled: false
       };
@@ -1125,7 +1125,7 @@ const caseBuilderNext = computed(() => {
     if (!draftPlan.value) {
       return {
         title: '6단계: AI 장르와 최종 정답 키워드를 먼저 확정하세요.',
-        description: '선택한 TourAPI 장소와 역사·문화 근거에 맞춰 장르와 정답 필수 키워드를 먼저 제안받습니다.',
+        description: '선택한 장소와 역사·문화 근거에 맞춰 장르와 정답 필수 키워드를 먼저 제안받습니다.',
         button: '장르/정답 키워드 생성',
         action: 'plan',
         disabled: false
@@ -1162,7 +1162,7 @@ const draftWarningSummary = computed(() => {
   const others = warnings.filter((warning) => !placeholderWarnings.includes(warning));
   const summary = [];
   if (placeholderWarnings.length) {
-    summary.push(`현장 근거가 부족한 미션 ${placeholderWarnings.length}개는 현장 보강 필요 상태입니다. RAG 보강 또는 관리자 현장 메모로 확인 범위를 좁힌 뒤 공개 전 문제를 확정하세요.`);
+    summary.push(`현장 근거가 부족한 미션 ${placeholderWarnings.length}개는 현장 보강 필요 상태입니다. 현장 근거 보강 또는 운영 메모로 확인 범위를 좁힌 뒤 공개 전 문제를 확정하세요.`);
   }
   return [...summary, ...others.slice(0, 4)];
 });
@@ -1518,7 +1518,7 @@ async function addSpot() {
       markerType: 'ANSWER_HINT',
       publicMarkerType: 'ANSWER_HINT',
       clueRole: 'ANSWER_HINT',
-      storyText: '관리자 검수용 새 조사 장소입니다.',
+      storyText: '운영 확인용 새 조사 장소입니다.',
       arrivalRadius: 50,
       finalPlace: false
     });
@@ -1648,7 +1648,7 @@ async function addEvidence() {
     selected.value = await adminEpisodeApi.createEvidence(selectedEpisodeId.value, {
       title: '새 사건 자료',
       type: 'NOTE',
-      textSummary: '관리자 검수용 사건 자료입니다.',
+      textSummary: '운영 확인용 사건 자료입니다.',
       unlockedByDefault: false
     });
     hydrateEpisodeForm(selected.value);
@@ -2535,7 +2535,7 @@ function questionForMission(mission, source, keyword) {
     return `관리자 메모에 기록된 숫자 중 사건 기록과 연결된 숫자를 입력하라. 이 숫자는 '${clue}' 단서를 해금한다.`;
   }
   if (mission.puzzleType === 'INITIAL_SOUND') {
-    return `사건 메모에 남은 초성 단서가 가리키는 키워드를 입력하라. 장소명 글자 추출이 아니라 관리자 검수 키워드를 기준으로 한다.`;
+    return `사건 메모에 남은 초성 단서가 가리키는 키워드를 입력하라. 장소 이름을 정답으로 쓰지 말고 운영 확인 키워드를 기준으로 한다.`;
   }
   if (mission.puzzleType === 'PATTERN') {
     return `이 장소의 분위기와 장소 단서를 비교해 단서 보드에 붙일 키워드를 입력하라.`;
@@ -2558,7 +2558,7 @@ function hintsForMission(mission, keyword) {
     return ['장소에 남은 숫자나 기록 순서를 먼저 확인하세요.', '사건 시간표나 이동 순서와 연결되는 숫자 하나만 사용합니다.', '정답은 현재 미션의 기록 안에서 확인할 수 있는 숫자 후보 중 하나입니다.'];
   }
   return [
-    '장소명 글자를 뽑지 말고 현재 장소의 관찰 요소를 먼저 확인하세요.',
+    '장소 이름을 정답으로 쓰지 말고 현재 장소의 관찰 요소를 먼저 확인하세요.',
     `이 문제는 ${keyword}와 연결된 사건 카드의 의미를 찾는 문제입니다.`,
     '단서 보드에 붙일 단어를 고른다고 생각하면 됩니다.'
   ];
@@ -2576,7 +2576,7 @@ function evidenceSummaryForMission(mission) {
   const place = mission.placeName || '조사 지점';
   if (mission.finalPlace) return '조사 미션 8개 완료 후 자동 공개되는 최종 정답 입력 장소 안내 카드입니다. 장소 자체는 추리 정답이 아닙니다.';
   const role = mission.clueRole || mission.markerType || '';
-  if (String(role).includes('ANSWER')) return `${place}에서 얻는 '${clue}' 단서는 최종 정답의 형태를 좁히는 증거입니다. 장소명 글자 추출이 아니라 현장 메모와 연결해 해석하세요.`;
+  if (String(role).includes('ANSWER')) return `${place}에서 얻는 '${clue}' 단서는 최종 정답의 형태를 좁히는 증거입니다. 장소 이름을 정답으로 쓰지 말고 현장 메모와 연결해 해석하세요.`;
   if (String(role).includes('START')) return `${place}에서 사건파일을 개봉하며 첫 조사 목표와 단서 분류 기준을 확인합니다.`;
   return `${place}에서 확인한 배경 단서입니다. 범행 동기와 용의자 관계를 해석하는 보조 자료로 사용하세요.`;
 }
@@ -2603,7 +2603,7 @@ function missionTargetLabel(mission) {
   if (mission?.markerType === 'START' || mission?.clueRole === 'START') return '사건 시작';
   const slotId = normalizeAnswerSlotId(mission?.targetKeywordType);
   if (!slotId) return '담당 슬롯 미정';
-  return `${slotId} / ${mission.targetKeywordDisplayType || fixedAnswerLabels[slotId]}`;
+  return mission.targetKeywordDisplayType || fixedAnswerLabels[slotId] || slotId;
 }
 
 function savedSpotTargetLabel(spot) {
@@ -2613,8 +2613,12 @@ function savedSpotTargetLabel(spot) {
   const supports = Array.isArray(reward?.supportsKeywordSlots)
     ? reward.supportsKeywordSlots.map(normalizeAnswerSlotId).filter(Boolean)
     : [];
-  const supportsText = supports.length ? ` / supports ${supports.join(', ')}` : '';
-  return `${slotId} / ${fixedAnswerLabels[slotId] || slotId}${supportsText}`;
+  const slotLabel = fixedAnswerLabels[slotId] || slotId;
+  const supportsText = supports
+    .filter((support) => support !== slotId)
+    .map((support) => fixedAnswerLabels[support] || support)
+    .join(', ');
+  return supportsText ? `${slotLabel} / 보조 ${supportsText}` : slotLabel;
 }
 
 function firstSavedAnswerReward(spot) {
@@ -2779,7 +2783,7 @@ function strengthenCaseMaterials(draft) {
 function isWeakText(value) {
   const text = String(value || '').trim();
   if (!text) return true;
-  return ['AI 초안', 'placeholder', '검수', '운영 공개 전', '관리자 검수', '사건 현장 스케치', '조사 시작 단서 카드', '초안입니다', '알리바이'].some((word) => text.includes(word));
+  return ['AI 초안', 'placeholder', '검수', '운영 공개 전', '운영 확인', '사건 현장 스케치', '조사 시작 단서 카드', '초안입니다', '알리바이'].some((word) => text.includes(word));
 }
 
 function isWeakImageUrl(value) {
@@ -3176,11 +3180,11 @@ async function loadPlaceCandidates() {
     const candidates = await adminEpisodeApi.getPlaceCandidates(candidateAreaCode.value);
     placeCandidates.value = candidates.map(normalizeCandidate);
     candidateLoaded.value = true;
-    setMessage(placeCandidates.value.length ? 'TourAPI 장소 후보를 불러왔습니다.' : 'TourAPI 장소 후보가 없습니다.', placeCandidates.value.length ? 'success' : 'error');
+    setMessage(placeCandidates.value.length ? '공공 장소 후보를 불러왔습니다.' : '공공 장소 후보가 없습니다.', placeCandidates.value.length ? 'success' : 'error');
   } catch (error) {
     placeCandidates.value = [];
     candidateLoaded.value = true;
-    setMessage(error.userMessage || 'TourAPI 장소 후보를 불러올 수 없습니다.', 'error');
+    setMessage(error.userMessage || '공공 장소 후보를 불러올 수 없습니다.', 'error');
   } finally {
     candidateLoading.value = false;
   }
@@ -3207,7 +3211,7 @@ async function loadNearbyCandidates(candidate) {
     const normalizedNearby = nearby.map(normalizeCandidate).filter(hasCandidateCoordinate);
     const anchorKey = candidateKey(normalizedAnchor);
     nearbyCandidates.value = [
-      { ...normalizedAnchor, source: 'TourAPI 기준 장소', description: normalizedAnchor.description || 'TourAPI 기준 장소입니다.' },
+      { ...normalizedAnchor, source: '공공 장소 후보', description: normalizedAnchor.description || '공공 장소 후보입니다.' },
       ...normalizedNearby.filter((item) => candidateKey(item) !== anchorKey)
     ];
     selectedCandidates.value = buildRecommendedRouteCandidates(normalizedAnchor, nearbyCandidates.value);
@@ -3385,7 +3389,7 @@ function rerollRecommendedRoute() {
 
 function replaceSelectedCandidate(candidate) {
   if (isAnchorCandidate(candidate)) {
-    setMessage('TourAPI 기준 장소는 내부 최종 장소라 이 단계에서 교체할 수 없습니다.', 'error');
+    setMessage('공공 장소 후보는 내부 최종 장소라 이 단계에서 교체할 수 없습니다.', 'error');
     return;
   }
   const oldKey = candidateKey(candidate);
@@ -3414,7 +3418,7 @@ function toggleCandidate(candidate) {
   const normalizedCandidate = normalizeCandidate(candidate);
   const key = candidateKey(normalizedCandidate);
   if (anchorCandidate.value && candidateKey(anchorCandidate.value) === key) {
-    setMessage('TourAPI 기준 장소는 항상 포함됩니다. 기준 장소를 바꾸려면 1단계에서 다른 장소를 선택하세요.', 'error');
+    setMessage('공공 장소 후보는 항상 포함됩니다. 기준 장소를 바꾸려면 1단계에서 다른 장소를 선택하세요.', 'error');
     return;
   }
   if (isCandidateSelected(candidate)) {

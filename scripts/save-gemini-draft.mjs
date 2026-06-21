@@ -10,6 +10,14 @@ const sourceInputPath = process.env.SOURCE_INPUT_PATH || 'tmp-enrich-response-18
 const outputPath = process.env.OUTPUT_PATH || 'tmp-gemini-draft-save-response.json';
 const errorOutputPath = process.env.ERROR_OUTPUT_PATH || 'tmp-gemini-draft-save-error.json';
 const REQUIRED_SLOTS = ['CULPRIT', 'WEAPON', 'MOTIVE', 'METHOD'];
+const FORBIDDEN_ORDINAL_SUSPECT_REFS = ['첫 번째 용의자', '두 번째 용의자', '세 번째 용의자'];
+const FORBIDDEN_GENERIC_SUSPECT_REFS = [
+  '특정 용의자',
+  '용의자 중 한 명',
+  '용의자 중 하나',
+  '해당 용의자',
+  '해고 통보를 받은 용의자'
+];
 
 function base64Url(input) {
   return Buffer.from(input)
@@ -91,6 +99,18 @@ function validateSavedEpisode(saved) {
 
   for (const slot of REQUIRED_SLOTS) {
     if (slotCounts[slot] !== 2) issues.push(`${slot} must be saved exactly twice, got ${slotCounts[slot]}`);
+  }
+  const serialized = JSON.stringify(saved);
+  if (serialized.includes(String.fromCharCode(0xFFFD))) {
+    issues.push('saved response contains Unicode replacement characters.');
+  }
+  for (const ref of FORBIDDEN_ORDINAL_SUSPECT_REFS) {
+    if (serialized.includes(ref)) issues.push(`saved response contains ordinal suspect reference: ${ref}`);
+  }
+  for (const ref of FORBIDDEN_GENERIC_SUSPECT_REFS) {
+    if (serialized.includes(ref)) {
+      issues.push(`saved response contains weak generic suspect reference: ${ref}`);
+    }
   }
 
   return {

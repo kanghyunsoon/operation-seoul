@@ -1,0 +1,61 @@
+{
+  "valid": true,
+  "episodeId": 152,
+  "title": "폐허 속의 진실",
+  "status": "DRAFT",
+  "readinessReady": true,
+  "spotCount": 10,
+  "investigationCount": 8,
+  "finalCount": 1,
+  "slotCounts": {
+    "CULPRIT": 2,
+    "WEAPON": 2,
+    "MOTIVE": 2,
+    "METHOD": 2
+  },
+  "labels": [
+    {
+      "spotId": 1096,
+      "label": "범인"
+    },
+    {
+      "spotId": 1097,
+      "label": "범인"
+    },
+    {
+      "spotId": 1098,
+      "label": "흉기"
+    },
+    {
+      "spotId": 1099,
+      "label": "흉기"
+    },
+    {
+      "spotId": 1100,
+      "label": "동기"
+    },
+    {
+      "spotId": 1101,
+      "label": "동기"
+    },
+    {
+      "spotId": 1102,
+      "label": "방법"
+    },
+    {
+      "spotId": 1103,
+      "label": "방법"
+    }
+  ],
+  "final": [
+    {
+      "spotId": 1104,
+      "markerType": "FINAL",
+      "publicMarkerType": "ANSWER_HINT",
+      "clueRole": "FINAL_PLACE",
+      "finalPlace": true,
+      "rewardClue": "조사 미션 8개 완료 시 자동 공개"
+    }
+  ],
+  "issues": []
+}

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { buildValidationSummary } from './validate-ai-draft.mjs';
 
 // This script intentionally makes one draft-generation request.
@@ -12,6 +12,8 @@ const inputPath = process.env.INPUT_PATH || 'tmp-enrich-response-18080.json';
 const outputPath = process.env.OUTPUT_PATH || 'tmp-gemini-draft-response.json';
 const errorOutputPath = process.env.ERROR_OUTPUT_PATH || 'tmp-gemini-draft-error.json';
 const debugCluePath = process.env.DEBUG_CLUE_PATH || 'backend/build/ai-draft-debug/latest-pre-guardrail-investigation-clues.json';
+const retryCooldownMs = Number(process.env.GEMINI_RETRY_COOLDOWN_MS || 10 * 60 * 1000);
+const forceGeminiCall = process.env.FORCE_GEMINI_CALL === 'true';
 
 function base64Url(input) {
   return Buffer.from(input)
@@ -43,6 +45,26 @@ function signJwt(email) {
 const enriched = JSON.parse(await readFile(inputPath, 'utf8'));
 const payload = enriched.data || enriched;
 await rm(debugCluePath, { force: true });
+
+if (!forceGeminiCall && retryCooldownMs > 0) {
+  try {
+    const [errorText, errorStat] = await Promise.all([
+      readFile(errorOutputPath, 'utf8'),
+      stat(errorOutputPath)
+    ]);
+    const recent = Date.now() - errorStat.mtimeMs < retryCooldownMs;
+    const retryableGeminiFailure = errorText.includes('GEMINI_REQUEST_FAILED') &&
+      (errorText.includes('status=503') || errorText.includes('status=429'));
+    if (recent && retryableGeminiFailure) {
+      const remainingSeconds = Math.ceil((retryCooldownMs - (Date.now() - errorStat.mtimeMs)) / 1000);
+      console.error(`Recent Gemini upstream failure found in ${errorOutputPath}.`);
+      console.error(`Skip this call for ${remainingSeconds}s unless FORCE_GEMINI_CALL=true is set.`);
+      process.exit(1);
+    }
+  } catch {
+    // No prior failure file; proceed with the single requested generation call.
+  }
+}
 
 const response = await fetch(`${apiBaseUrl}/v1/admin/episodes/ai-draft/gemini`, {
   method: 'POST',

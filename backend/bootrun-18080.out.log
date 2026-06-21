@@ -1,7 +1,7 @@
 > Task :compileJava UP-TO-DATE
 > Task :processResources UP-TO-DATE
 > Task :classes UP-TO-DATE
-> Task :resolveMainClassName
+> Task :resolveMainClassName UP-TO-DATE
 
 > Task :bootRun
 
@@ -14,22 +14,123 @@
 
  :: Spring Boot ::                (v4.0.5)
 
-2026-06-21T18:26:23.358+09:00  INFO 9896 --- [           main] c.o.seoul.OperationSeoulApplication      : Starting OperationSeoulApplication using Java 17.0.15 with PID 9896 (C:\Users\khsoo\Desktop\operation-seoul\backend\build\classes\java\main started by 집컴 in C:\Users\khsoo\Desktop\operation-seoul\backend)
-2026-06-21T18:26:23.363+09:00  INFO 9896 --- [           main] c.o.seoul.OperationSeoulApplication      : The following 1 profile is active: "local"
-2026-06-21T18:26:24.724+09:00  INFO 9896 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 18080 (http)
-2026-06-21T18:26:24.737+09:00  INFO 9896 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-06-21T18:26:24.737+09:00  INFO 9896 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.20]
-2026-06-21T18:26:24.794+09:00  INFO 9896 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1391 ms
-2026-06-21T18:26:24.915+09:00  INFO 9896 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-06-21T18:26:25.176+09:00  INFO 9896 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@401317a0
-2026-06-21T18:26:25.178+09:00  INFO 9896 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-2026-06-21T18:26:25.897+09:00  INFO 9896 --- [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name userDetailsService
-2026-06-21T18:26:26.386+09:00  INFO 9896 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
-2026-06-21T18:26:26.453+09:00  INFO 9896 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 18080 (http) with context path '/'
-2026-06-21T18:26:26.463+09:00  INFO 9896 --- [           main] c.o.seoul.OperationSeoulApplication      : Started OperationSeoulApplication in 3.486 seconds (process running for 3.832)
-2026-06-21T18:26:26.592+09:00  WARN 9896 --- [           main] c.o.s.g.config.EpisodeSchemaMigration    : legacy_place_hint_migration pending spots=1 evidences=1 progressRows=0 enable with episode.migration.legacy-place-hints.enabled=true after backup
-2026-06-21T18:26:47.217+09:00  INFO 9896 --- [io-18080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
-2026-06-21T18:26:47.218+09:00  INFO 9896 --- [io-18080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
-2026-06-21T18:26:47.219+09:00  INFO 9896 --- [io-18080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
-2026-06-21T18:26:47.352+09:00  INFO 9896 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/actuator/health status=200 durationMs=129 remoteAddress=0:0:0:0:0:0:0:1
-2026-06-21T18:27:01.272+09:00  INFO 9896 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/save status=200 durationMs=590 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:16:19.854+09:00  INFO 17600 --- [           main] c.o.seoul.OperationSeoulApplication      : Starting OperationSeoulApplication using Java 17.0.15 with PID 17600 (C:\Users\khsoo\Desktop\operation-seoul\backend\build\classes\java\main started by 집컴 in C:\Users\khsoo\Desktop\operation-seoul\backend)
+2026-06-22T00:16:19.858+09:00  INFO 17600 --- [           main] c.o.seoul.OperationSeoulApplication      : No active profile set, falling back to 1 default profile: "local"
+2026-06-22T00:16:21.189+09:00  INFO 17600 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 18080 (http)
+2026-06-22T00:16:21.201+09:00  INFO 17600 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-22T00:16:21.202+09:00  INFO 17600 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-06-22T00:16:21.256+09:00  INFO 17600 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1355 ms
+2026-06-22T00:16:21.369+09:00  INFO 17600 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-22T00:16:21.621+09:00  INFO 17600 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@1aedf08d
+2026-06-22T00:16:21.622+09:00  INFO 17600 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-22T00:16:22.333+09:00  INFO 17600 --- [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name userDetailsService
+2026-06-22T00:16:22.800+09:00  INFO 17600 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-06-22T00:16:22.868+09:00  INFO 17600 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 18080 (http) with context path '/'
+2026-06-22T00:16:22.878+09:00  INFO 17600 --- [           main] c.o.seoul.OperationSeoulApplication      : Started OperationSeoulApplication in 3.403 seconds (process running for 3.734)
+2026-06-22T00:16:23.008+09:00  WARN 17600 --- [           main] c.o.s.g.config.EpisodeSchemaMigration    : legacy_place_hint_migration pending spots=1 evidences=1 progressRows=0 enable with episode.migration.legacy-place-hints.enabled=true after backup
+2026-06-22T00:16:45.678+09:00  INFO 17600 --- [io-18080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-22T00:16:45.679+09:00  INFO 17600 --- [io-18080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-22T00:16:45.680+09:00  INFO 17600 --- [io-18080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-06-22T00:16:45.810+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/actuator/health status=200 durationMs=127 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:17.349+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/gemini status=200 durationMs=21059 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:24.939+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/save status=200 durationMs=428 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.124+09:00  INFO 17600 --- [io-18080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/152 status=200 durationMs=41 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.178+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/152/publish-readiness status=200 durationMs=44 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.380+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=PUT path=/api/v1/admin/episodes/152 status=200 durationMs=86 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.475+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/auth/register status=200 durationMs=85 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.562+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/auth/login status=200 durationMs=85 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.585+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/start status=200 durationMs=21 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.602+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/map status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.675+09:00  WARN 17600 --- [io-18080-exec-6] c.o.s.g.e.GlobalExceptionHandler         : api_rejected code=FINAL_DESTINATION_LOCKED status=403 method=POST path=/api/v1/episodes/152/final-arrive
+2026-06-22T00:17:25.677+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/final-arrive status=403 durationMs=72 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.690+09:00  WARN 17600 --- [io-18080-exec-7] c.o.s.g.e.GlobalExceptionHandler         : api_rejected code=FINAL_DESTINATION_LOCKED status=403 method=POST path=/api/v1/episodes/152/spots/1104/arrive
+2026-06-22T00:17:25.691+09:00  INFO 17600 --- [io-18080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1104/arrive status=403 durationMs=12 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.710+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1096/arrive status=200 durationMs=17 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.729+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1096/puzzle status=200 durationMs=17 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.759+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=51 episodeId=152 puzzleId=1092 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:25.772+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1092/submit status=200 durationMs=41 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.789+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1097/arrive status=200 durationMs=15 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.802+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1097/puzzle status=200 durationMs=12 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.817+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=51 episodeId=152 puzzleId=1093 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:25.823+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1093/submit status=200 durationMs=19 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.839+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1098/arrive status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.851+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1098/puzzle status=200 durationMs=10 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.863+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=51 episodeId=152 puzzleId=1094 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:25.870+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1094/submit status=200 durationMs=18 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.886+09:00  INFO 17600 --- [io-18080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1099/arrive status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.900+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1099/puzzle status=200 durationMs=13 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.913+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=51 episodeId=152 puzzleId=1095 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:25.918+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1095/submit status=200 durationMs=17 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.937+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1100/arrive status=200 durationMs=18 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.949+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1100/puzzle status=200 durationMs=10 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.962+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=51 episodeId=152 puzzleId=1096 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:25.968+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1096/submit status=200 durationMs=17 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.983+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1101/arrive status=200 durationMs=13 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:25.994+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1101/puzzle status=200 durationMs=9 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.005+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=51 episodeId=152 puzzleId=1097 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.011+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1097/submit status=200 durationMs=16 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.025+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1102/arrive status=200 durationMs=12 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.035+09:00  INFO 17600 --- [io-18080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1102/puzzle status=200 durationMs=9 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.046+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=51 episodeId=152 puzzleId=1098 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.052+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1098/submit status=200 durationMs=15 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.067+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1103/arrive status=200 durationMs=13 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.078+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1103/puzzle status=200 durationMs=9 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.091+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=51 episodeId=152 puzzleId=1099 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.097+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1099/submit status=200 durationMs=17 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.106+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/map status=200 durationMs=8 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.123+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/final-arrive status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.138+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/deduction/start status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.164+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/final-answer status=200 durationMs=25 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.177+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clear-report status=200 durationMs=11 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.337+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=PUT path=/api/v1/admin/episodes/152 status=200 durationMs=52 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.427+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/auth/register status=200 durationMs=79 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.508+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/auth/login status=200 durationMs=79 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.517+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152 status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.531+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/start status=200 durationMs=12 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.541+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/map status=200 durationMs=8 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.549+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.562+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1096/arrive status=200 durationMs=11 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.571+09:00  INFO 17600 --- [io-18080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1096/puzzle status=200 durationMs=8 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.583+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=52 episodeId=152 puzzleId=1092 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.588+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1092/submit status=200 durationMs=15 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.597+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.610+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1097/arrive status=200 durationMs=11 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.619+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1097/puzzle status=200 durationMs=8 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.629+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=52 episodeId=152 puzzleId=1093 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.634+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1093/submit status=200 durationMs=13 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.643+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.657+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1098/arrive status=200 durationMs=12 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.665+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1098/puzzle status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.675+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=52 episodeId=152 puzzleId=1094 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.680+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1094/submit status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.690+09:00  INFO 17600 --- [io-18080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=8 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.704+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1099/arrive status=200 durationMs=12 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.712+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1099/puzzle status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.722+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=52 episodeId=152 puzzleId=1095 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.727+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1095/submit status=200 durationMs=13 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.737+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=8 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.749+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1100/arrive status=200 durationMs=11 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.758+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1100/puzzle status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.768+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=52 episodeId=152 puzzleId=1096 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.773+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1096/submit status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.781+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.794+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1101/arrive status=200 durationMs=12 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.804+09:00  INFO 17600 --- [io-18080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1101/puzzle status=200 durationMs=8 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.816+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=52 episodeId=152 puzzleId=1097 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.822+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1097/submit status=200 durationMs=16 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.829+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=6 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.843+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1102/arrive status=200 durationMs=11 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.851+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1102/puzzle status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.861+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=52 episodeId=152 puzzleId=1098 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.867+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1098/submit status=200 durationMs=13 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.874+09:00  INFO 17600 --- [io-18080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=6 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.888+09:00  INFO 17600 --- [io-18080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/spots/1103/arrive status=200 durationMs=12 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.897+09:00  INFO 17600 --- [io-18080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/1103/puzzle status=200 durationMs=7 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.908+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.e.service.EpisodePlayService       : puzzle_submission outcome=correct userId=52 episodeId=152 puzzleId=1099 rewardTypes=[ANSWER_CLUE, EVIDENCE_UNLOCK]
+2026-06-22T00:17:26.914+09:00  INFO 17600 --- [io-18080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/puzzles/1099/submit status=200 durationMs=16 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.926+09:00  INFO 17600 --- [io-18080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clue-board status=200 durationMs=10 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.933+09:00  INFO 17600 --- [io-18080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/map status=200 durationMs=6 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.946+09:00  INFO 17600 --- [io-18080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/final-arrive status=200 durationMs=11 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.958+09:00  INFO 17600 --- [o-18080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/deduction/start status=200 durationMs=11 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.975+09:00  INFO 17600 --- [io-18080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/152/final-answer status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T00:17:26.982+09:00  INFO 17600 --- [io-18080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/152/clear-report status=200 durationMs=6 remoteAddress=0:0:0:0:0:0:0:1

@@ -80,7 +80,7 @@ const missionDescription = computed(() => {
 
 const safeHints = computed(() => {
   const hints = (props.puzzle?.hints || []).filter(Boolean);
-  return hints.length ? hints : ['현장 메모와 사건자료 제목을 먼저 비교하세요.', '장소명 글자 추출이 아니라 단서의 의미를 보세요.', '정답은 미션 메모에 붙일 짧은 단어입니다.'];
+  return hints.length ? hints : ['현장 메모와 사건자료 제목을 먼저 비교하세요.', '장소 이름이 아니라 단서의 의미를 보세요.', '정답은 미션 메모에 붙일 짧은 단어입니다.'];
 });
 const puzzleGuide = computed(() => {
   if (hasInteraction.value) return '미니게임을 진행한 뒤 제출하세요. 정답 여부는 제출 시 서버가 판정합니다.';
