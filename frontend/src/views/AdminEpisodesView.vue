@@ -875,7 +875,7 @@
                       <option value="STORY_CLUE">STORY_CLUE</option>
                     </select>
                   </label>
-                  <label>출처 미션<input v-model.number="evidence.sourceMissionOrder" type="number" min="1" /></label>
+                  <label>출처 미션<input v-model.number="evidence.sourceMissionOrder" type="number" min="2" max="9" /></label>
                   <div class="wide evidence-preview-box">
                     <img v-if="evidence.imageUrl" class="draft-evidence-image" :src="evidence.imageUrl" alt="사건자료 이미지 미리보기" />
                     <textarea v-model="evidence.imagePrompt" rows="5" placeholder="외부 이미지 AI에 넣을 증거/힌트 카드별 프롬프트"></textarea>
@@ -2128,6 +2128,10 @@ function refreshMissionEvidenceCard(mission, showMessage = true) {
   draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
   const type = evidenceTypeForRole(mission.clueRole || mission.markerType);
   const order = Number(mission.order || 1);
+  if (!Number.isFinite(order) || order < 2 || order > 9 || mission.finalPlace || mission.markerType === 'START' || mission.markerType === 'FINAL') {
+    draft.evidences = draft.evidences.filter((item) => Number(item.sourceMissionOrder) !== order);
+    return;
+  }
   let evidence = draft.evidences.find((item) => Number(item.sourceMissionOrder) === order);
   if (!evidence) {
     evidence = { sourceMissionOrder: order };
@@ -2239,10 +2243,10 @@ function finalQuestionForMotif(motif) {
 
 function inferFinalObjective(draft, motif) {
   const answers = draft?.finalAnswers || {};
-  const culprit = normalizeAnswerKeywordValue(answers.culprit) || '강수진';
-  const weapon = normalizeAnswerKeywordValue(answers.weapon) || '독이 섞인 수면제 캡슐';
-  const motive = normalizeAnswerKeywordValue(answers.motive) || '해고 통보에 대한 복수';
-  const method = normalizeAnswerKeywordValue(answers.method) || '피해자의 복용 약을 독성 캡슐로 바꿔치기';
+  const culprit = normalizeAnswerKeywordValue(answers.culprit);
+  const weapon = normalizeAnswerKeywordValue(answers.weapon);
+  const motive = normalizeAnswerKeywordValue(answers.motive);
+  const method = normalizeAnswerKeywordValue(answers.method);
   const finalAnswer = `범인: ${culprit} / 흉기: ${weapon} / 동기: ${motive} / 방법: ${method}`;
   return {
     answerType: 'CASE_TRUTH',
@@ -2322,10 +2326,6 @@ function normalizeAnswerKeywordValue(keyword) {
     .replaceAll(/^(잊혀진|숨겨진|감춰진|가려진|봉인된|사라진|오래된|비밀스러운)\s+/g, '')
     .replaceAll(/\s+(진실|비밀|단서)$/g, '')
     .trim();
-  if (compactText(normalized).length > 8 && normalized.includes(' ')) {
-    const parts = normalized.split(/\s+/);
-    normalized = parts[parts.length - 1].trim();
-  }
   return normalized;
 }
 
@@ -2551,10 +2551,10 @@ function rewardClueForRole(role, index) {
     : motif.object.includes('문서')
       ? ['붉은 인장', '접힌 흔적', '사라진 서명', '봉인 끈']
       : ['검은 봉투', '젖은 모서리', '지워진 이름', '접힌 증언'];
-  const storyClues = ['첫 목격 기록', '엇갈린 동선', '남겨진 시간표'];
+  const storyClues = ['엇갈린 동선', '남겨진 시간표', '봉인된 진술'];
   if (String(role).includes('ANSWER')) return answerClues[index % answerClues.length];
   if (String(role).includes('FINAL')) return '조사 미션 8개 완료 시 자동 공개';
-  if (String(role).includes('START')) return '첫 기록';
+  if (String(role).includes('START')) return '용의자 정보 보안 해제';
   return storyClues[index % storyClues.length];
 }
 
@@ -2734,19 +2734,15 @@ function hasReviewRequiredText(value) {
 function ensureDraftIllustrationCards(draft) {
   draft.suspects = Array.isArray(draft.suspects) ? draft.suspects : [];
   draft.evidences = Array.isArray(draft.evidences) ? draft.evidences : [];
-  const hasPhoto = draft.evidences.some((evidence) => evidence.type === 'PHOTO');
-  if (!hasPhoto) {
-    draft.evidences.unshift({
-      title: '사건 현장 스케치',
-      type: 'PHOTO',
-      imageUrl: '',
-      textSummary: '사건이 시작된 장소에서 발견된 봉투와 훼손된 기록 조각입니다.',
-      sourceMissionOrder: 1
-    });
-  }
-  draft.evidences.forEach((evidence) => {
-    evidence.type = safeEvidenceType(evidence.type);
-  });
+  draft.evidences = draft.evidences
+    .filter((evidence) => {
+      const order = Number(evidence?.sourceMissionOrder);
+      return Number.isFinite(order) && order >= 2 && order <= 9;
+    })
+    .map((evidence) => ({
+      ...evidence,
+      type: safeEvidenceType(evidence.type)
+    }));
   ensureDraftImagePrompts(draft);
 }
 
@@ -2818,8 +2814,19 @@ function strengthenCaseMaterials(draft) {
     };
   });
   const evidenceByOrder = new Map((draft.evidences || []).map((evidence) => [Number(evidence.sourceMissionOrder || 0), evidence]));
-  draft.evidences = missions.map((mission, index) => {
-    const order = Number(mission.order || index + 1);
+  const investigationMissions = missions.filter((mission) => {
+    const order = Number(mission?.order);
+    return Number.isFinite(order)
+      && order >= 2
+      && order <= 9
+      && !mission.finalPlace
+      && mission.markerType !== 'START'
+      && mission.markerType !== 'FINAL'
+      && mission.clueRole !== 'START'
+      && mission.clueRole !== 'FINAL_PLACE';
+  });
+  draft.evidences = investigationMissions.map((mission) => {
+    const order = Number(mission.order);
     const type = safeEvidenceType(evidenceTypeForRole(mission.clueRole || mission.markerType));
     const current = evidenceByOrder.get(order) || {};
     const title = isWeakText(current.title) ? evidenceTitleForMission(mission, type) : current.title;
@@ -2839,7 +2846,18 @@ function strengthenCaseMaterials(draft) {
 function isWeakText(value) {
   const text = String(value || '').trim();
   if (!text) return true;
-  return ['AI 초안', 'placeholder', '검수', '운영 공개 전', '운영 확인', '사건 현장 스케치', '조사 시작 단서 카드', '초안입니다', '알리바이'].some((word) => text.includes(word));
+  return [
+    'AI 초안',
+    'placeholder',
+    '검수',
+    '운영 공개 전',
+    '운영 확인',
+    '사건 현장 스케치',
+    '조사 시작 단서 카드',
+    '초안입니다',
+    '사건이 시작된 장소에서 발견된 봉투와 훼손된 기록 조각입니다.',
+    '훼손된 기록 조각입니다.'
+  ].some((word) => text.includes(word));
 }
 
 function isWeakImageUrl(value) {
@@ -3543,7 +3561,7 @@ function applyCandidatesToDraft(showMessage = true) {
       latitude: candidate.latitude,
       longitude: candidate.longitude,
       description: candidate.description || (role === 'START'
-        ? '작전이 시작되는 기준 지점입니다. 첫 기록과 실제 동선을 대조하는 도입 단서가 남아 있습니다.'
+        ? '작전이 시작되는 기준 지점입니다. 시작 미션을 해결하면 용의자 정보 보안이 해제됩니다.'
         : role === 'FINAL'
           ? '조사 미션 8개 완료 후 자동 공개되는 최종 정답 입력 장소입니다. 최종 장소는 추리 대상이 아닙니다.'
           : '주변 동선에서 발견한 조사 지점입니다. 표식, 기록, 이동 흔적을 연결하는 보조 단서로 사용됩니다.'),

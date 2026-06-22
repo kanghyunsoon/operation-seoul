@@ -62,22 +62,22 @@ const request = {
   selectedGenreId: 'CRIME_MYSTERY',
   selectedGenreName: '범죄 미스터리',
   finalAnswerKeywords: [
-    '강수진',
-    '독이 섞인 수면제 캡슐',
-    '해고 통보에 대한 복수',
-    '피해자의 매일 복용 약을 독성 캡슐로 바꿔치기'
+    '서윤재',
+    '금속성 주입 장치',
+    '연구 기록 조작 은폐',
+    '피해자의 장비 점검 동선에 맞춰 주입 장치를 숨김'
   ],
   finalAnswerKeywordItems: [
-    { slotId: 'CULPRIT', type: 'CULPRIT', label: '범인', displayType: '범인', keyword: '강수진' },
-    { slotId: 'WEAPON', type: 'WEAPON', label: '흉기', displayType: '흉기', keyword: '독이 섞인 수면제 캡슐' },
-    { slotId: 'MOTIVE', type: 'MOTIVE', label: '동기', displayType: '동기', keyword: '해고 통보에 대한 복수' },
-    { slotId: 'METHOD', type: 'METHOD', label: '방법', displayType: '방법', keyword: '피해자의 매일 복용 약을 독성 캡슐로 바꿔치기' }
+    { slotId: 'CULPRIT', type: 'CULPRIT', label: '범인', displayType: '범인', keyword: '서윤재' },
+    { slotId: 'WEAPON', type: 'WEAPON', label: '흉기', displayType: '흉기', keyword: '금속성 주입 장치' },
+    { slotId: 'MOTIVE', type: 'MOTIVE', label: '동기', displayType: '동기', keyword: '연구 기록 조작 은폐' },
+    { slotId: 'METHOD', type: 'METHOD', label: '방법', displayType: '방법', keyword: '피해자의 장비 점검 동선에 맞춰 주입 장치를 숨김' }
   ],
   finalAnswers: {
-    culprit: '강수진',
-    weapon: '독이 섞인 수면제 캡슐',
-    motive: '해고 통보에 대한 복수',
-    method: '피해자의 매일 복용 약을 독성 캡슐로 바꿔치기'
+    culprit: '서윤재',
+    weapon: '금속성 주입 장치',
+    motive: '연구 기록 조작 은폐',
+    method: '피해자의 장비 점검 동선에 맞춰 주입 장치를 숨김'
   },
   places,
   finalSpot: places.at(-1)

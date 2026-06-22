@@ -1,7 +1,7 @@
 {
   "valid": true,
-  "episodeId": 163,
-  "title": "시간의 틈새 56719",
+  "episodeId": 3,
+  "title": "정동의 그림자",
   "status": "DRAFT",
   "readinessReady": true,
   "spotCount": 10,
@@ -15,41 +15,41 @@
   },
   "labels": [
     {
-      "spotId": 1206,
+      "spotId": 21,
       "label": "범인"
     },
     {
-      "spotId": 1207,
+      "spotId": 22,
       "label": "범인"
     },
     {
-      "spotId": 1208,
+      "spotId": 23,
       "label": "흉기"
     },
     {
-      "spotId": 1209,
+      "spotId": 24,
       "label": "흉기"
     },
     {
-      "spotId": 1210,
+      "spotId": 25,
       "label": "동기"
     },
     {
-      "spotId": 1211,
+      "spotId": 26,
       "label": "동기"
     },
     {
-      "spotId": 1212,
+      "spotId": 27,
       "label": "방법"
     },
     {
-      "spotId": 1213,
+      "spotId": 28,
       "label": "방법"
     }
   ],
   "final": [
     {
-      "spotId": 1214,
+      "spotId": 29,
       "markerType": "FINAL",
       "publicMarkerType": "ANSWER_HINT",
       "clueRole": "FINAL_PLACE",

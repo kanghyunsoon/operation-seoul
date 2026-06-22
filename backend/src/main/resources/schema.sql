@@ -215,6 +215,35 @@ create table if not exists user_follow (
         check (follower_id <> following_id)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
+create table if not exists episodes (
+    id bigint not null auto_increment,
+    title varchar(255) not null,
+    subtitle varchar(255) null,
+    region_id bigint null,
+    era varchar(100) null,
+    genre varchar(100) null,
+    difficulty varchar(32) null,
+    estimated_time varchar(100) null,
+    estimated_distance varchar(100) null,
+    fiction_synopsis text null,
+    mission_description text null,
+    final_answer_type varchar(64) null,
+    final_answer varchar(255) null,
+    final_answer_aliases varchar(1000) null,
+    final_question text null,
+    final_truth_summary text null,
+    actual_history_summary text null,
+    deduction_secret_facts text null,
+    deduction_forbidden_reveals text null,
+    max_deduction_questions int not null default 20,
+    status varchar(32) not null default 'DRAFT',
+    created_at datetime not null default current_timestamp,
+    updated_at datetime null,
+    primary key (id),
+    unique key uk_episodes_title (title),
+    index idx_episodes_status (status)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
 create table if not exists user_plans (
     id bigint not null auto_increment,
     user_id bigint not null,

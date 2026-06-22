@@ -207,7 +207,8 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         addColumnIfMissing("users", "status", "alter table users add column status varchar(32) not null default 'ACTIVE'");
         addColumnIfMissing("users", "created_at", "alter table users add column created_at datetime not null default current_timestamp");
         addColumnIfMissing("users", "updated_at", "alter table users add column updated_at datetime null");
-        jdbcTemplate.update("update users set role = case when is_admin = true then 'ROLE_ADMIN' else 'ROLE_USER' end where role is null or role = ''");
+        jdbcTemplate.update("update users set role = 'ROLE_ADMIN' where is_admin = true and (role is null or role <> 'ROLE_ADMIN')");
+        jdbcTemplate.update("update users set role = 'ROLE_USER' where is_admin = false and (role is null or role = '')");
         jdbcTemplate.update("update users set status = 'ACTIVE' where status is null or status = ''");
     }
 

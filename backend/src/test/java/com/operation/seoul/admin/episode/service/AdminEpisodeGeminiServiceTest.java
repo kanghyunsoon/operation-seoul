@@ -6,6 +6,8 @@ import com.operation.seoul.admin.episode.dto.AiEpisodeDraftRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftResponse;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftValidationRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftValidationResponse;
+import com.operation.seoul.admin.episode.dto.AiEpisodePlanResponse;
+import com.operation.seoul.global.exception.ApiException;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -14,6 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdminEpisodeGeminiServiceTest {
@@ -34,6 +37,237 @@ class AdminEpisodeGeminiServiceTest {
         assertEquals("비밀 계약 은폐", draft.getFinalAnswers().getMotive());
         assertEquals("약병 바꿔치기", draft.getFinalAnswers().getMethod());
         assertTrue(draft.getFinalAnswer().contains("범인: 강수진"));
+    }
+
+    @Test
+    void rejectsMissingApprovedFinalAnswersWithoutDefaultInjection() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.setFinalAnswerKeywordItems(List.of());
+        source.setFinalAnswers(null);
+
+        Method normalize = AdminEpisodeGeminiService.class.getDeclaredMethod("normalizeFinalAnswerKeywordItems", AiEpisodeDraftRequest.class);
+        normalize.setAccessible(true);
+        normalize.invoke(service, source);
+
+        Method validate = AdminEpisodeGeminiService.class.getDeclaredMethod("validateFinalAnswerContract", AiEpisodeDraftRequest.class);
+        validate.setAccessible(true);
+        Exception thrown = assertThrows(Exception.class, () -> validate.invoke(service, source));
+
+        assertTrue(thrown.getCause() instanceof ApiException);
+        assertTrue(source.getFinalAnswerKeywordItems() == null || source.getFinalAnswerKeywordItems().isEmpty());
+    }
+
+    @Test
+    void rejectsWeakApprovedFinalAnswerKeywords() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.setFinalAnswerKeywordItems(List.of(
+                keyword("CULPRIT", "범인", "박선우(관장)"),
+                keyword("WEAPON", "흉기", "붓펜"),
+                keyword("MOTIVE", "동기", "위작 전시 의혹 은폐"),
+                keyword("METHOD", "방법", "함")
+        ));
+        AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
+        answers.setCulprit("박선우(관장)");
+        answers.setWeapon("붓펜");
+        answers.setMotive("위작 전시 의혹 은폐");
+        answers.setMethod("함");
+        source.setFinalAnswers(answers);
+
+        Method validate = AdminEpisodeGeminiService.class.getDeclaredMethod("validateFinalAnswerContract", AiEpisodeDraftRequest.class);
+        validate.setAccessible(true);
+        Exception thrown = assertThrows(Exception.class, () -> validate.invoke(service, source));
+
+        assertTrue(thrown.getCause() instanceof ApiException);
+    }
+
+    @Test
+    void acceptsConcreteApprovedFinalAnswerKeywords() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.setFinalAnswerKeywordItems(List.of(
+                keyword("CULPRIT", "범인", "박선우(관장)"),
+                keyword("WEAPON", "흉기", "독성 잉크가 든 붓펜"),
+                keyword("MOTIVE", "동기", "위작 거래 은폐"),
+                keyword("METHOD", "방법", "독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴")
+        ));
+        AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
+        answers.setCulprit("박선우(관장)");
+        answers.setWeapon("독성 잉크가 든 붓펜");
+        answers.setMotive("위작 거래 은폐");
+        answers.setMethod("독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴");
+        source.setFinalAnswers(answers);
+
+        Method validate = AdminEpisodeGeminiService.class.getDeclaredMethod("validateFinalAnswerContract", AiEpisodeDraftRequest.class);
+        validate.setAccessible(true);
+        validate.invoke(service, source);
+    }
+
+    @Test
+    void repairsShortMethodKeywordFromWeaponContext() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.setFinalAnswerKeywordItems(List.of(
+                keyword("CULPRIT", "범인", "한지원(큐레이터)"),
+                keyword("WEAPON", "흉기", "독성 잉크가 든 붓펜"),
+                keyword("MOTIVE", "동기", "위작 전시 의혹 은폐"),
+                keyword("METHOD", "방법", "오염시킴")
+        ));
+        AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
+        answers.setCulprit("한지원(큐레이터)");
+        answers.setWeapon("독성 잉크가 든 붓펜");
+        answers.setMotive("위작 전시 의혹 은폐");
+        answers.setMethod("오염시킴");
+        source.setFinalAnswers(answers);
+
+        Method repair = AdminEpisodeGeminiService.class.getDeclaredMethod("repairWeakFinalAnswerKeywords", AiEpisodeDraftRequest.class);
+        repair.setAccessible(true);
+        repair.invoke(service, source);
+        Method validate = AdminEpisodeGeminiService.class.getDeclaredMethod("validateFinalAnswerContract", AiEpisodeDraftRequest.class);
+        validate.setAccessible(true);
+        validate.invoke(service, source);
+
+        assertEquals("독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴", source.getFinalAnswers().getMethod());
+        assertEquals("독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴", source.getFinalAnswerKeywordItems().get(3).getKeyword());
+    }
+
+    @Test
+    void draftValidationRejectsWeakFinalAnswerKeywords() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        draft.setFinalAnswerKeywordItems(List.of(
+                answerKeywordItem("CULPRIT", "여행사 직원"),
+                answerKeywordItem("WEAPON", "고산병 약"),
+                answerKeywordItem("MOTIVE", "범죄"),
+                answerKeywordItem("METHOD", "투여")
+        ));
+
+        AiEpisodeDraftValidationRequest request = new AiEpisodeDraftValidationRequest();
+        request.setDraft(draft);
+
+        AiEpisodeDraftValidationResponse result = service.validateDraft(request);
+
+        assertFalse(result.isValid());
+        assertTrue(result.getFindings().stream().anyMatch(finding -> "CONCRETE_FINAL_KEYWORD_REQUIRED".equals(finding.getCode())));
+    }
+
+    @Test
+    void planPromptRejectsRoleOnlyAndGenericKeywordExamples() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildPlanPrompt", AiEpisodeDraftRequest.class);
+        method.setAccessible(true);
+        String prompt = (String) method.invoke(service, source);
+
+        assertTrue(prompt.contains("Bad example: CULPRIT=\"큐레이터\", WEAPON=\"붓펜\", MOTIVE=\"은폐\", METHOD=\"함\""));
+        assertTrue(prompt.contains("Good example: CULPRIT=\"서민재(큐레이터)\", WEAPON=\"독성 잉크가 든 붓펜\""));
+        assertTrue(prompt.contains("Never return only an occupation"));
+        assertTrue(prompt.contains("never return only an ordinary object or container"));
+    }
+
+    @Test
+    void createAnswerPlanUsesConcreteServerTemplateWithoutGeminiKey() {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getPlaces().get(1).setName("테스트 미술관");
+        source.getPlaces().get(1).setDescription("전시와 작품 보관 기록이 있는 장소");
+
+        AiEpisodePlanResponse plan = service.createAnswerPlan(source);
+
+        assertEquals("범죄 미스터리", plan.getSelectedGenreName());
+        assertEquals(4, plan.getFinalAnswerKeywords().size());
+        assertFalse(plan.getFinalAnswers().getCulprit().contains("("));
+        assertFalse(plan.getFinalAnswers().getCulprit().contains(")"));
+        assertFalse(plan.getFinalAnswerKeywords().get(0).getPersonRole().isBlank());
+        assertTrue(plan.getFinalAnswers().getWeapon().contains("독성") || plan.getFinalAnswers().getWeapon().contains("마취") || plan.getFinalAnswers().getWeapon().contains("진정"));
+        assertTrue(plan.getFinalAnswers().getMotive().length() >= 6);
+        assertTrue(plan.getFinalAnswers().getMethod().length() >= 8);
+        assertFalse(plan.getFinalAnswers().getCulprit().contains("관장"));
+        assertFalse(plan.getFinalAnswers().getWeapon().contains("붓펜"));
+        assertFalse(plan.getFinalAnswers().getMotive().contains("위작"));
+        assertFalse(List.of("경비원)", "와인잔", "앙심", "함").contains(plan.getFinalAnswers().getCulprit()));
+        assertFalse(List.of("경비원)", "와인잔", "앙심", "함").contains(plan.getFinalAnswers().getWeapon()));
+        assertFalse(List.of("경비원)", "와인잔", "앙심", "함").contains(plan.getFinalAnswers().getMotive()));
+        assertFalse(List.of("경비원)", "와인잔", "앙심", "함").contains(plan.getFinalAnswers().getMethod()));
+    }
+
+    @Test
+    void createAnswerPlanUsesThemeNotPlaceDescriptionsForKeywordDomain() {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.setArea("부산 원도심");
+        source.setTheme("부산 항만 기록 미스터리 검증");
+        source.getPlaces().get(1).setName("테스트 미술관");
+        source.getPlaces().get(1).setDescription("전시와 작품 보관 기록이 있는 장소");
+        source.getPlaces().get(2).setName("테스트 갤러리");
+        source.getPlaces().get(2).setDescription("큐레이터와 관장이 있는 전시 장소");
+
+        AiEpisodePlanResponse plan = service.createAnswerPlan(source);
+
+        assertTrue(plan.getFinalAnswerKeywords().get(0).getPersonRole().contains("기록")
+                || plan.getFinalAnswerKeywords().get(0).getPersonRole().contains("물류")
+                || plan.getFinalAnswerKeywords().get(0).getPersonRole().contains("감사"));
+        assertEquals("독성 방부제가 묻은 항만 서류 봉투", plan.getFinalAnswers().getWeapon());
+        assertEquals("밀수 장부 은폐", plan.getFinalAnswers().getMotive());
+        assertEquals("피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기", plan.getFinalAnswers().getMethod());
+        assertFalse(plan.getFinalAnswers().getWeapon().contains("붓펜"));
+        assertFalse(plan.getFinalAnswers().getMotive().contains("위작"));
+    }
+
+    @Test
+    void extractsTourApiHistoricalContextWithoutPlaceNameOrAddress() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getPlaces().get(0).setName("Actual Restaurant Name");
+        source.getPlaces().get(0).setAddress("Actual Street Address");
+        source.getPlaces().get(0).setDescription("Joseon-era warehouse tax ledger incident");
+        source.getPlaces().get(0).setKeywords(List.of("old harbor", "customs record"));
+        source.getPlaces().get(0).setVerificationNotes(List.of("verified local history marker"));
+        source.getPlaces().get(0).setExternalResearchNotes(List.of("archive note about merchant dispute and sealed account book"));
+        source.getPlaces().get(0).setResearchSourceSummary("TourAPI heritage summary");
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildTourApiHistoricalContext", AiEpisodeDraftRequest.class);
+        method.setAccessible(true);
+        String context = (String) method.invoke(service, source);
+
+        assertTrue(context.contains("Joseon-era warehouse tax ledger incident"));
+        assertTrue(context.contains("old harbor"));
+        assertTrue(context.contains("verified local history marker"));
+        assertTrue(context.contains("archive note about merchant dispute and sealed account book"));
+        assertTrue(context.contains("TourAPI heritage summary"));
+        assertFalse(context.contains("Actual Restaurant Name"));
+        assertFalse(context.contains("Actual Street Address"));
+    }
+
+    @Test
+    void planPromptUsesHistoricalContextWithoutPlaceNameOrAddress() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getPlaces().get(0).setName("Actual Restaurant Name");
+        source.getPlaces().get(0).setAddress("Actual Street Address");
+        source.getPlaces().get(0).setDescription("historic merchant ledger conflict");
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildPlanPrompt", AiEpisodeDraftRequest.class);
+        method.setAccessible(true);
+        String prompt = (String) method.invoke(service, source);
+
+        assertTrue(prompt.contains("historic merchant ledger conflict"));
+        assertFalse(prompt.contains("Actual Restaurant Name"));
+        assertFalse(prompt.contains("Actual Street Address"));
+    }
+
+    @Test
+    void sanitizesGeminiPlanCulpritToNameOnly() throws Exception {
+        JsonNode node = new ObjectMapper().readTree("""
+                [
+                  {"slotId":"CULPRIT","keyword":"한지원(큐레이터)"},
+                  {"slotId":"WEAPON","keyword":"독성 안료가 묻은 감정용 장갑"},
+                  {"slotId":"MOTIVE","keyword":"작품 소유권 분쟁을 숨기기 위한 범행"},
+                  {"slotId":"METHOD","keyword":"감정용 장갑 안쪽에 독성 안료를 묻혀 피해자가 작품을 확인하며 접촉하게 함"}
+                ]
+                """);
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("sanitizePlanKeywords", JsonNode.class, String.class);
+        method.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<AiEpisodePlanResponse.AnswerKeyword> keywords = (List<AiEpisodePlanResponse.AnswerKeyword>) method.invoke(service, node, "GEMINI");
+
+        assertEquals("한지원", keywords.get(0).getKeyword());
+        assertEquals("한지원", keywords.get(0).getPersonName());
+        assertEquals("GEMINI", keywords.get(0).getSourceType());
     }
 
     @Test
@@ -340,8 +574,183 @@ class AdminEpisodeGeminiServiceTest {
         assertNoInvestigationRewardClueLeaksFinalAnswerValues(response.getDraft());
         assertTrue(response.getDraft().getMissions().stream()
                 .anyMatch(mission -> mission.getRewardClue() != null
-                        && mission.getRewardClue().contains("화상회의")
-                        && mission.getRewardClue().contains("CCTV 공백")));
+                        && mission.getRewardClue().contains("CCTV")));
+    }
+
+    @Test
+    void buildDraftResponseRepairsDuplicateSuspectsAndPlaceDrivenSynopsis() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        draft.setFictionSynopsis("테스트 장소 2에서 사건이 시작되고 테스트 장소 3의 기록을 따라 이동하는 이야기입니다.");
+        draft.setSuspects(List.of(
+                suspect("강수진", "행사 자료를 정리했다고 주장합니다.", "피해자 업무 공간에 접근할 수 있습니다."),
+                suspect("강수진", "회의 기록을 확인했다고 주장합니다.", "피해자와 갈등이 있었습니다."),
+                suspect("강수진", "전시 준비를 했다고 주장합니다.", "동선 공백이 있습니다.")
+        ));
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        assertTrue(response.getPublishable());
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_SUSPECTS"));
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_SYNOPSIS_SUSPECTS"));
+        assertEquals(3, response.getDraft().getSuspects().stream()
+                .map(AiEpisodeDraftResponse.SuspectDraft::getDisplayName)
+                .distinct()
+                .count());
+        assertFalse(response.getDraft().getFictionSynopsis().contains("테스트 장소"));
+        assertTrue(response.getDraft().getFictionSynopsis().contains("외부 침입"));
+        assertTrue(response.getDraft().getFictionSynopsis().contains("세 명"));
+    }
+
+    @Test
+    void repairedSynopsisAndMissionStoriesFollowFinalKeywordDomain() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.setFinalAnswerKeywordItems(List.of(
+                keyword("CULPRIT", "범인", "서민재"),
+                keyword("WEAPON", "흉기", "독성 방부제가 묻은 항만 서류 봉투"),
+                keyword("MOTIVE", "동기", "밀수 장부 은폐"),
+                keyword("METHOD", "방법", "피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기")
+        ));
+        AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
+        answers.setCulprit("서민재");
+        answers.setWeapon("독성 방부제가 묻은 항만 서류 봉투");
+        answers.setMotive("밀수 장부 은폐");
+        answers.setMethod("피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기");
+        source.setFinalAnswers(answers);
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        draft.setFictionSynopsis("장소 기록을 따라 이동하는 짧은 이야기입니다.");
+        draft.setSuspects(List.of(
+                suspect("서민재", "서류 작업을 했다고 주장하지만 일부 기록만 남아 있습니다.", "피해자의 자료 검토실에 접근할 수 있었습니다."),
+                suspect("홍지영", "비즈니스 미팅 기록이 일부 확인됩니다.", "피해자가 공개하려던 기록으로 사업상 손해를 볼 수 있었습니다."),
+                suspect("박태준", "잠시 자리를 비웠다가 복귀했다고 진술합니다.", "문서 보관 절차를 가장 잘 알고 있었습니다.")
+        ));
+        for (AiEpisodeDraftResponse.MissionDraft mission : draft.getMissions()) {
+            mission.setStoryText(null);
+        }
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        assertTrue(response.getDraft().getFictionSynopsis().contains("항만 물류 감사관"));
+        assertTrue(response.getDraft().getFictionSynopsis().contains("자료 검토실"));
+        assertTrue(response.getDraft().getFictionSynopsis().contains("밀수 장부 은폐"));
+        assertFalse(response.getDraft().getFictionSynopsis().contains("미술품 수집가"));
+        assertFalse(response.getDraft().getFictionSynopsis().contains("갤러리"));
+        assertTrue(response.getDraft().getMissions().stream().allMatch(mission -> mission.getStoryText() != null && !mission.getStoryText().isBlank()));
+    }
+
+    @Test
+    void buildDraftResponseRedactsRealPlaceNamesFromStoryTextButKeepsMissionPlaceName() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getPlaces().get(0).setName("솔솥 광화문 케이트윈점");
+        source.getPlaces().get(1).setName("행복한밥상");
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        draft.setFictionSynopsis("솔솥 광화문 케이트윈점에서 사건 흔적이 발견되고 행복한밥상의 기록을 대조하는 이야기입니다.");
+        draft.getMissions().get(0).setPlaceName("솔솥 광화문 케이트윈점");
+        draft.getMissions().get(0).setStoryText("솔솥 광화문 케이트윈점에서 사건 파일을 확인합니다.");
+        draft.getMissions().get(1).setStoryText("행복한밥상에서 발견된 기록을 비교합니다.");
+        draft.getMissions().get(1).setRewardClue("행복한밥상 출입 기록에 공백이 있습니다.");
+        draft.getEvidences().get(0).setTextSummary("행복한밥상 기록과 연결된 사건 자료입니다.");
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_REAL_PLACE_NAMES"));
+        assertEquals("솔솥 광화문 케이트윈점", response.getDraft().getMissions().get(0).getPlaceName());
+        assertFalse(response.getDraft().getFictionSynopsis().contains("솔솥 광화문 케이트윈점"));
+        assertFalse(response.getDraft().getFictionSynopsis().contains("행복한밥상"));
+        assertFalse(response.getDraft().getMissions().stream()
+                .map(mission -> String.join(" ", textOf(mission.getStoryText()), textOf(mission.getQuestionText()), textOf(mission.getRewardClue())))
+                .anyMatch(text -> text.contains("솔솥 광화문 케이트윈점") || text.contains("행복한밥상")));
+        assertFalse(response.getDraft().getEvidences().stream()
+                .map(evidence -> String.join(" ", textOf(evidence.getTitle()), textOf(evidence.getTextSummary())))
+                .anyMatch(text -> text.contains("솔솥 광화문 케이트윈점") || text.contains("행복한밥상")));
+    }
+
+    @Test
+    void buildDraftResponseRepairsEvidenceCardsThatLeakFinalAnswerValues() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        draft.getEvidences().get(0).setTextSummary("추가 지문이 강수진의 지문과 일치한다.");
+        draft.getEvidences().get(1).setTextSummary("흉기는 독성 캡슐이다.");
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        assertTrue(response.getPublishable());
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_EVIDENCES"));
+        assertEquals(List.of(2, 3, 4, 5, 6, 7, 8, 9), response.getDraft().getEvidences().stream()
+                .map(AiEpisodeDraftResponse.EvidenceDraft::getSourceMissionOrder)
+                .toList());
+        assertNoEvidenceLeaksFinalAnswerValues(response.getDraft());
+    }
+
+    @Test
+    void repairedInvestigationCluesFollowApprovedAnswerDomain() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getFinalAnswerKeywordItems().get(0).setKeyword("한지원");
+        source.getFinalAnswerKeywordItems().get(0).setPersonName("한지원");
+        source.getFinalAnswerKeywordItems().get(1).setKeyword("독성 시약이 섞인 연구실 음료");
+        source.getFinalAnswerKeywordItems().get(2).setKeyword("연구 조작 은폐");
+        source.getFinalAnswerKeywordItems().get(3).setKeyword("피해자의 매일 시험 전 마시는 음료를 독성 음료로 바꿔치기");
+        source.getFinalAnswers().setCulprit("한지원");
+        source.getFinalAnswers().setWeapon("독성 시약이 섞인 연구실 음료");
+        source.getFinalAnswers().setMotive("연구 조작 은폐");
+        source.getFinalAnswers().setMethod("피해자의 매일 시험 전 마시는 음료를 독성 음료로 바꿔치기");
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        for (AiEpisodeDraftResponse.MissionDraft mission : investigationMissions(draft)) {
+            mission.setRewardClue("leaked answer value: 한지원");
+        }
+        draft.setEvidences(List.of());
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
+                "buildDraftResponse",
+                AiEpisodeDraftResponse.EpisodeDraft.class,
+                AiEpisodeDraftRequest.class,
+                List.class
+        );
+        method.setAccessible(true);
+        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+
+        List<String> repairedClues = investigationMissions(response.getDraft()).stream()
+                .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
+                .toList();
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
+        assertTrue(repairedClues.stream().allMatch(clue -> clue != null && clue.length() >= 20));
+        assertTrue(repairedClues.stream().anyMatch(clue -> clue.contains("CCTV")));
+        assertTrue(repairedClues.stream().anyMatch(clue -> clue.contains("문서") || clue.contains("기록")));
+        assertTrue(repairedClues.stream().noneMatch(clue -> clue.contains("약통") || clue.contains("수면제") || clue.contains("캡슐")));
+        assertNoInvestigationRewardClueLeaksFinalAnswerValues(response.getDraft());
     }
 
     @Test
@@ -374,7 +783,7 @@ class AdminEpisodeGeminiServiceTest {
         AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
 
         assertTrue(response.getPublishable());
-        assertTrue(response.getValidationWarnings().isEmpty());
+        assertFalse(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
         assertEquals(distinctClues, investigationMissions(response.getDraft()).stream()
                 .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
                 .toList());
@@ -408,22 +817,23 @@ class AdminEpisodeGeminiServiceTest {
     @Test
     void buildDraftResponseRedactsSuspectNamesWithoutReplacingValidClues() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
-        source.getFinalAnswers().setCulprit("Alice");
-        source.getFinalAnswerKeywordItems().get(0).setKeyword("Alice");
+        source.getFinalAnswers().setCulprit("한지원");
+        source.getFinalAnswerKeywordItems().get(0).setKeyword("한지원");
+        source.getFinalAnswerKeywordItems().get(0).setPersonName("한지원");
         AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
         draft.setSuspects(List.of(
-                suspect("Alice", "event log confirms partial alibi", "office access remains suspicious"),
-                suspect("Bob", "call log confirms partial alibi", "financial benefit remains suspicious"),
-                suspect("Carol", "CCTV confirms partial alibi", "missing time remains suspicious")
+                suspect("한지원", "행사 준비 기록이 일부 알리바이를 뒷받침합니다.", "사무실 접근 권한이 남아 있습니다."),
+                suspect("오도윤", "통화 기록이 일부 알리바이를 뒷받침합니다.", "재정적 이익 가능성이 남아 있습니다."),
+                suspect("서민재", "CCTV가 일부 알리바이를 뒷받침합니다.", "동선 공백이 남아 있습니다.")
         ));
         applyApprovedContract(draft, source);
         List<String> clues = List.of(
-                "Alice CCTV 기록에는 사건 직전 서재 접근 동선이 남아 있었다.",
-                "Bob CCTV 기록은 사건 시간 동안 외부 이동이 유지되었음을 보여준다.",
+                "한지원 CCTV 기록에는 사건 직전 서재 접근 동선이 남아 있었다.",
+                "오도윤 CCTV 기록은 사건 시간 동안 외부 이동이 유지되었음을 보여준다.",
                 "약통 안 캡슐 일부에서 일반 수면제와 다른 독성 물질이 검출되었다.",
                 "독성 물질은 음식이나 음료가 아니라 캡슐 내부 흔적에서만 확인되었다.",
-                "Alice에게 보낸 해고 통보 메일과 강한 불만을 드러낸 답장이 발견되었다.",
-                "Bob은 피해자 사망 시 재정적 이득을 얻을 수 있었다는 계약 기록이 있다.",
+                "한지원에게 보낸 해고 통보 메일과 강한 불만을 드러낸 답장이 발견되었다.",
+                "오도윤은 피해자 사망 시 재정적 이득을 얻을 수 있었다는 계약 기록이 있다.",
                 "피해자의 매일 복용 시간과 약통 접근 시간이 같은 동선에 묶인다.",
                 "약병 보관 서랍의 열림 기록과 캡슐 교체 시간이 겹친다."
         );
@@ -447,10 +857,11 @@ class AdminEpisodeGeminiServiceTest {
         List<String> redactedClues = investigationMissions(response.getDraft()).stream()
                 .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
                 .toList();
-        assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("Alice") || clue.contains("Bob") || clue.contains("Carol")));
+        assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("한지원") || clue.contains("오도윤") || clue.contains("서민재")));
         assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("첫 번째 용의자") || clue.contains("두 번째 용의자") || clue.contains("세 번째 용의자")));
         assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("기록 속 인물")));
-        assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("문서에 언급된 인물")));
+        assertFalse(redactedClues.stream().anyMatch(clue -> clue.contains("문서에 언급된 인물")));
+        assertTrue(redactedClues.stream().anyMatch(clue -> clue.contains("이해관계가 드러난 인물") || clue.contains("해당 당사자") || clue.contains("문서상 이해관계자")));
     }
 
     @Test
@@ -514,8 +925,12 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void draftPromptIncludesExternalResearchContext() throws Exception {
+    void draftPromptOmitsRealPlaceContextFromStoryGeneration() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
+        source.getPlaces().get(0).setName("솔솥 광화문 케이트윈점");
+        source.getPlaces().get(0).setAddress("서울 종로구 종로1길 50");
+        source.getPlaces().get(1).setName("행복한밥상");
+        source.getPlaces().get(1).setAddress("서울 중구 세종대로 1");
         source.getPlaces().get(9).setExternalResearchNotes(List.of("external archive note about opening ceremony records"));
         source.getPlaces().get(9).setReferenceUrls(List.of("https://example.org/archive/final-place"));
         source.getPlaces().get(9).setResearchSourceSummary("external web and document notes");
@@ -524,21 +939,29 @@ class AdminEpisodeGeminiServiceTest {
         method.setAccessible(true);
         String prompt = (String) method.invoke(service, source);
 
-        assertTrue(prompt.contains("external archive note about opening ceremony records"));
-        assertTrue(prompt.contains("https://example.org/archive/final-place"));
-        assertTrue(prompt.contains("finalPlaceMotif"));
+        assertFalse(prompt.contains("external archive note about opening ceremony records"));
+        assertFalse(prompt.contains("https://example.org/archive/final-place"));
+        assertFalse(prompt.contains("finalPlaceMotif"));
+        assertFalse(prompt.contains("routePlaces"));
+        assertFalse(prompt.contains("솔솥 광화문 케이트윈점"));
+        assertFalse(prompt.contains("행복한밥상"));
+        assertFalse(prompt.contains("서울 종로구 종로1길 50"));
+        assertTrue(prompt.contains("routePolicy"));
+        assertTrue(prompt.contains("server attaches mission.placeName after draft generation"));
         assertTrue(prompt.contains("approvedFinalAnswers"));
         assertTrue(prompt.contains("CULPRIT: 강수진"));
         assertTrue(prompt.contains("finalTruthSummary must include the approved CULPRIT, WEAPON, MOTIVE, and METHOD values verbatim"));
         assertTrue(prompt.contains("Slot-specific clue rules"));
         assertTrue(prompt.contains("Do not write the culprit name"));
-        assertTrue(prompt.contains("Do not describe motive"));
         assertTrue(prompt.contains("Do not create place hints"));
         assertTrue(prompt.contains("Case blueprint"));
         assertTrue(prompt.contains("locked-room crime mystery"));
         assertTrue(prompt.contains("Target story pattern"));
-        assertTrue(prompt.contains("only 3 suspects had meaningful access"));
-        assertTrue(prompt.contains("daily medication habit"));
+        assertTrue(prompt.contains("exactly 3 suspects"));
+        assertTrue(prompt.contains("restricted access trace"));
+        assertTrue(prompt.contains("Never reuse stale sample answers or names"));
+        assertFalse(prompt.contains("daily medication habit"));
+        assertFalse(prompt.contains("capsule, medication"));
         assertTrue(prompt.contains("Suspects must include exactly 3 people"));
         assertTrue(prompt.contains("Evidences must include exactly 8 cards"));
         assertTrue(prompt.contains("uniquely deducible only after combining all 8 clues"));
@@ -584,6 +1007,16 @@ class AdminEpisodeGeminiServiceTest {
         for (AiEpisodeDraftResponse.MissionDraft mission : investigationMissions(draft)) {
             String clue = mission.getRewardClue() == null ? "" : mission.getRewardClue();
             assertFalse(answerValues.stream().anyMatch(clue::contains), "Leaked final answer value in mission " + mission.getOrder());
+        }
+    }
+
+    private void assertNoEvidenceLeaksFinalAnswerValues(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        List<String> answerValues = finalAnswerValues(draft);
+        for (AiEpisodeDraftResponse.EvidenceDraft evidence : draft.getEvidences()) {
+            String text = String.join(" ",
+                    evidence.getTitle() == null ? "" : evidence.getTitle(),
+                    evidence.getTextSummary() == null ? "" : evidence.getTextSummary());
+            assertFalse(answerValues.stream().anyMatch(text::contains), "Leaked final answer value in evidence " + evidence.getSourceMissionOrder());
         }
     }
 
@@ -637,6 +1070,18 @@ class AdminEpisodeGeminiServiceTest {
         item.setLabel(label);
         item.setKeyword(value);
         return item;
+    }
+
+    private AiEpisodeDraftResponse.AnswerKeywordItem answerKeywordItem(String slotId, String value) {
+        return AiEpisodeDraftResponse.AnswerKeywordItem.builder()
+                .slotId(slotId)
+                .type(slotId)
+                .label(targetLabel(slotId))
+                .displayType(targetLabel(slotId))
+                .keyword(value)
+                .value(value)
+                .personName("CULPRIT".equals(slotId) ? value : "")
+                .build();
     }
 
     private AiEpisodeDraftResponse.EpisodeDraft playableDraft(AiEpisodeDraftRequest source) {
@@ -737,5 +1182,9 @@ class AdminEpisodeGeminiServiceTest {
                     .build());
         }
         return evidences;
+    }
+
+    private String textOf(String value) {
+        return value == null ? "" : value;
     }
 }

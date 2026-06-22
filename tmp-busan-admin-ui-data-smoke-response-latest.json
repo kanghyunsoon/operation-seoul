@@ -1,0 +1,61 @@
+{
+  "valid": true,
+  "episodeId": 9,
+  "title": "바다 위의 서류가방",
+  "status": "DRAFT",
+  "readinessReady": true,
+  "spotCount": 10,
+  "investigationCount": 8,
+  "finalCount": 1,
+  "slotCounts": {
+    "CULPRIT": 2,
+    "WEAPON": 2,
+    "MOTIVE": 2,
+    "METHOD": 2
+  },
+  "labels": [
+    {
+      "spotId": 81,
+      "label": "범인"
+    },
+    {
+      "spotId": 82,
+      "label": "범인"
+    },
+    {
+      "spotId": 83,
+      "label": "흉기"
+    },
+    {
+      "spotId": 84,
+      "label": "흉기"
+    },
+    {
+      "spotId": 85,
+      "label": "동기"
+    },
+    {
+      "spotId": 86,
+      "label": "동기"
+    },
+    {
+      "spotId": 87,
+      "label": "방법"
+    },
+    {
+      "spotId": 88,
+      "label": "방법"
+    }
+  ],
+  "final": [
+    {
+      "spotId": 89,
+      "markerType": "FINAL",
+      "publicMarkerType": "ANSWER_HINT",
+      "clueRole": "FINAL_PLACE",
+      "finalPlace": true,
+      "rewardClue": "조사 미션 8개 완료 시 자동 공개"
+    }
+  ],
+  "issues": []
+}
