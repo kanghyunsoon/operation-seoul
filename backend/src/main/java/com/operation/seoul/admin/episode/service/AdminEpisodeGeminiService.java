@@ -67,7 +67,9 @@ public class AdminEpisodeGeminiService {
 
     public AiEpisodePlanResponse createAnswerPlan(AiEpisodeDraftRequest request) {
         validatePlaces(request);
+        List<String> storyAnchors = extractTourApiStoryAnchors(request);
         List<AiEpisodePlanResponse.AnswerKeyword> keywords = answerPlanKeywords(request);
+        attachPlanSourceBasis(keywords, storyAnchors);
         return AiEpisodePlanResponse.builder()
                 .selectedGenreId(GENRE_ID)
                 .selectedGenreName(GENRE_NAME)
@@ -76,7 +78,10 @@ public class AdminEpisodeGeminiService {
                 .finalAnswerKeywordItems(keywords)
                 .finalAnswers(planFinalAnswers(keywords))
                 .finalQuestionGuide("조사 미션 8개를 완료한 뒤 범인, 흉기, 동기, 방법을 각각 입력합니다.")
-                .rationale("장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/문화 문맥을 바탕으로 구체화합니다.")
+                .rationale(storyAnchors.isEmpty()
+                        ? "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 선택 장소의 검수 문맥을 바탕으로 구체화합니다."
+                        : "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/사건 앵커를 바탕으로 구체화합니다.")
+                .tourApiStoryAnchors(storyAnchors)
                 .planReviewRequired(false)
                 .reviewReason("")
                 .fieldVerificationRecommended(true)
@@ -1258,6 +1263,11 @@ public class AdminEpisodeGeminiService {
                 Genre is fixed to CRIME_MYSTERY.
                 Final answers are exactly four slots: CULPRIT, WEAPON, MOTIVE, METHOD.
                 Every final answer keyword must be concrete and playable.
+                Derive the four final answer values from the TourAPI story anchors below: historical incidents, cultural conflicts, records, materials, rituals, industries, disputes, or preservation facts.
+                Do not choose a generic domain template just because a place is a museum, gallery, cafe, market, mountain, or station.
+                The answer values should feel like a fictionalized case built from the anchors' concrete nouns and conflicts.
+                CULPRIT must be a new fictional modern Korean person. Do not use historical, literary, mythic, or public figure names such as 이몽룡, 성춘향, 홍길동, 임꺽정, 장보고, 유관순, 세종대왕, 이순신, 안중근, or 김구.
+                METHOD must explain the concrete delivery route and action. Do not use vague result-only wording such as "혼란을 야기함", "몰래 투여함", "정신을 잃게 함", or "상태를 악화시킴".
                 CULPRIT must be a Korean person name, optionally followed by role in parentheses, such as "오지훈(여행사 직원)" or "서민재". Never return only an occupation such as "큐레이터", "여행사 직원", or "관리자".
                 WEAPON must identify a harmful object or substance with the dangerous detail, such as "마취 성분이 섞인 향수병", "독성 잉크가 든 붓펜", or "독성 시약이 든 보온병"; never return only an ordinary object or container such as "향수병", "붓펜", "약병", or "컵".
                 MOTIVE must be a concrete reason that explains why the culprit acted, such as "위작 거래 은폐" or "불법 원정 사고 은폐"; never return generic words such as "은폐", "범죄", "복수", or "돈".
@@ -1268,7 +1278,7 @@ public class AdminEpisodeGeminiService {
                 Use the selected places and research context only as background motifs.
                 Never imply that a real crime happened at a real place.
                 Do not use immersion-breaking wording such as "real place", "fictional suspect", "needs admin review", or "RAG context".
-                Never reuse stale sample answers or names: 강수진, 독성 캡슐, 비밀 계약 은폐, 약병 바꿔치기, 독이 섞인 수면제 캡슐, 피해자의 매일 복용 약을 독성 캡슐로 바꿔치기.
+                Never reuse stale sample answers or names: 강수진, 서민재, 윤서진, 독성 캡슐, 비밀 계약 은폐, 약병 바꿔치기, 마취 성분이 섞인 향수병, 비공개 계약 파기 은폐, 향수병에 마취 성분을 넣어 피해자에게 분사, 독성 잉크가 든 붓펜, 위작 전시 의혹 은폐, 독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴.
                 Choose fresh culprit, weapon, motive, and method values that fit the selected route and case premise.
 
                 Required JSON shape:
@@ -1287,12 +1297,15 @@ public class AdminEpisodeGeminiService {
 
     private String buildAnswerPlanGenerationContext(AiEpisodeDraftRequest request) {
         String historicalContext = buildTourApiHistoricalContext(request);
+        List<String> storyAnchors = extractTourApiStoryAnchors(request);
         return String.join("\n",
                 "Admin input:",
                 "- area: " + safePromptText(request == null ? "" : request.getArea()),
                 "- theme: " + safePromptText(request == null ? "" : request.getTheme()),
                 "- playTime: " + safePromptText(request == null ? "" : request.getPlayTime()),
                 "- genre: " + safePromptText(request == null ? "" : request.getSelectedGenreName()),
+                "TourAPI story anchors to fictionalize:",
+                storyAnchors.isEmpty() ? "(none)" : storyAnchors.stream().map(anchor -> "- " + safePromptText(anchor)).collect(Collectors.joining("\n")),
                 "TourAPI historical/cultural motifs without place names or addresses:",
                 blank(historicalContext) ? "(none)" : safePromptText(historicalContext));
     }
@@ -1679,16 +1692,16 @@ public class AdminEpisodeGeminiService {
     }
 
     private List<AiEpisodePlanResponse.AnswerKeyword> answerPlanKeywords(AiEpisodeDraftRequest request) {
-        if (blank(geminiApiKey)) {
-            return deterministicAnswerKeywords(request);
-        }
+        ensureApiKey();
         try {
             JsonNode root = parseJson(callGemini(buildPlanPrompt(request)), "GEMINI_PLAN_PARSE_FAILED");
             JsonNode keywords = root.has("finalAnswerKeywords") ? root.path("finalAnswerKeywords") : root;
             return sanitizePlanKeywords(keywords, "GEMINI");
+        } catch (ApiException e) {
+            throw e;
         } catch (Exception e) {
-            log.warn("Gemini answer plan generation failed. Falling back to server template. reason={}", e.getMessage());
-            return deterministicAnswerKeywords(request);
+            log.warn("Gemini answer plan generation failed. reason={}", e.getMessage());
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_FAILED", "Gemini 최종 정답 키워드 생성에 실패했습니다. 서버 템플릿으로 대체하지 않습니다.");
         }
     }
 
@@ -1730,7 +1743,79 @@ public class AdminEpisodeGeminiService {
                 trim(request.getArea()),
                 trim(request.getTheme()),
                 trim(request.getPlayTime()),
-                trim(request.getSelectedGenreName()));
+                trim(request.getSelectedGenreName()),
+                buildTourApiAnswerSeedContext(request));
+    }
+
+    private String buildTourApiAnswerSeedContext(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null) return "";
+        return request.getPlaces().stream()
+                .filter(Objects::nonNull)
+                .map(this::tourApiAnswerSeedContextForPlace)
+                .filter(value -> !blank(value))
+                .collect(Collectors.joining(" "));
+    }
+
+    private String tourApiAnswerSeedContextForPlace(AiEpisodeDraftRequest.PlaceInput place) {
+        List<String> fragments = new ArrayList<>();
+        Stream.of(place.getResearchSourceSummary())
+                .map(this::safePromptText)
+                .filter(value -> !blank(value))
+                .forEach(fragments::add);
+        Stream.of(
+                        place.getKeywords(),
+                        place.getVerificationNotes(),
+                        place.getExternalResearchNotes()
+                )
+                .flatMap(values -> safeList(values).stream())
+                .map(this::safePromptText)
+                .filter(value -> !blank(value))
+                .forEach(fragments::add);
+        return safePromptText(String.join(" ", fragments));
+    }
+
+    private List<String> extractTourApiStoryAnchors(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null) return List.of();
+        LinkedHashSet<String> anchors = new LinkedHashSet<>();
+        for (AiEpisodeDraftRequest.PlaceInput place : request.getPlaces()) {
+            if (place == null) continue;
+            Stream.of(
+                            place.getResearchSourceSummary(),
+                            place.getDescription(),
+                            place.getAdminMemo()
+                    )
+                    .map(this::cleanStoryAnchor)
+                    .filter(value -> !blank(value))
+                    .forEach(anchors::add);
+            Stream.of(
+                            place.getExternalResearchNotes(),
+                            place.getVerificationNotes(),
+                            place.getKeywords()
+                    )
+                    .flatMap(values -> safeList(values).stream())
+                    .map(this::cleanStoryAnchor)
+                    .filter(value -> !blank(value))
+                    .forEach(anchors::add);
+            if (anchors.size() >= 3) break;
+        }
+        return anchors.stream().limit(3).toList();
+    }
+
+    private String cleanStoryAnchor(String value) {
+        String text = safePromptText(value);
+        if (blank(text)) return "";
+        text = text.replaceAll("\\s+", " ").trim();
+        return text.length() > 120 ? text.substring(0, 120).trim() : text;
+    }
+
+    private void attachPlanSourceBasis(List<AiEpisodePlanResponse.AnswerKeyword> keywords, List<String> storyAnchors) {
+        if (keywords == null || keywords.isEmpty() || storyAnchors == null || storyAnchors.isEmpty()) return;
+        String basis = String.join(" / ", storyAnchors);
+        for (AiEpisodePlanResponse.AnswerKeyword keyword : keywords) {
+            if (keyword != null) {
+                keyword.setSourceBasis(basis);
+            }
+        }
     }
 
     private String buildTourApiHistoricalContext(AiEpisodeDraftRequest request) {
@@ -1764,7 +1849,9 @@ public class AdminEpisodeGeminiService {
     }
 
     private String culpritRoleForContext(String context, int seed) {
-        if (containsAny(context, "항만", "화물", "밀수", "장부", "서류", "봉투", "기록")) return List.of("물류 운영팀장", "기록 보관 담당자", "감사 대응 담당자").get(seed % 3);
+        if (containsAny(context, "출입", "계약", "명부", "내부 고발")) return List.of("보안 운영팀장", "계약 관리 담당자", "내부 감사 담당자").get(seed % 3);
+        if (containsAny(context, "안전 점검", "안전점검", "소독제", "시설 점검", "시설점검", "관리 책임", "관리책임")) return List.of("시설 안전 담당자", "운영 관리 책임자", "점검 기록 담당자").get(seed % 3);
+        if (containsAny(context, "항만", "화물", "밀수", "장부", "서류", "봉투")) return List.of("물류 운영팀장", "기록 보관 담당자", "감사 대응 담당자").get(seed % 3);
         if (containsAny(context, "미술", "전시", "갤러리", "박물관", "작품", "화랑")) return List.of("큐레이터", "관장", "전시기획자").get(seed % 3);
         if (containsAny(context, "여행", "산", "전망", "케이블", "숙소", "관광")) return List.of("여행사 직원", "현장 가이드", "숙소 매니저").get(seed % 3);
         if (containsAny(context, "카페", "식당", "시장", "와인", "음료", "주점")) return List.of("매장 매니저", "소믈리에", "행사 케이터링 담당자").get(seed % 3);
@@ -1773,11 +1860,22 @@ public class AdminEpisodeGeminiService {
     }
 
     private CrimeAnswerTemplate crimeAnswerTemplateForContext(String context, int seed) {
-        if (containsAny(context, "항만", "화물", "밀수", "장부", "서류", "봉투", "기록")) {
+        if (containsAny(context, "출입", "계약", "명부", "내부 고발")) {
+            return new CrimeAnswerTemplate("독성 접착제가 묻은 출입카드", "내부 고발 계약 문서 은폐", "출입카드 접촉면에 독성 접착제를 발라 피해자가 사용하게 함");
+        }
+        if (containsAny(context, "안전 점검", "안전점검", "소독제", "시설 점검", "시설점검", "관리 책임", "관리책임")) {
+            return new CrimeAnswerTemplate("환각 성분이 주입된 손 소독제", "안전 점검 부실 은폐", "손 소독제 용기에 환각 성분을 주입해 피해자가 사용하게 함");
+        }
+        if (containsAny(context, "항만", "화물", "밀수", "장부", "서류", "봉투")) {
             return new CrimeAnswerTemplate("독성 방부제가 묻은 항만 서류 봉투", "밀수 장부 은폐", "피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기");
         }
         if (containsAny(context, "미술", "전시", "갤러리", "박물관", "작품", "화랑")) {
-            return new CrimeAnswerTemplate("독성 잉크가 든 붓펜", "위작 전시 의혹 은폐", "독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴");
+            List<CrimeAnswerTemplate> artTemplates = List.of(
+                    new CrimeAnswerTemplate("독성 안료가 묻은 감정용 장갑", "작품 소유권 분쟁 은폐", "감정용 장갑 안쪽에 독성 안료를 묻혀 피해자가 작품을 확인하며 접촉하게 함"),
+                    new CrimeAnswerTemplate("마취 성분이 섞인 보존 처리 스프레이", "복원 기록 조작 은폐", "보존 처리 스프레이에 마취 성분을 섞어 피해자가 작품 상태를 점검할 때 흡입하게 함"),
+                    new CrimeAnswerTemplate("독성 세척제가 든 붓 세척통", "감정 결과 조작 은폐", "붓 세척통에 독성 세척제를 넣어 피해자가 감정 도구를 정리하며 접촉하게 함")
+            );
+            return artTemplates.get(seed % artTemplates.size());
         }
         if (containsAny(context, "여행", "산", "전망", "케이블", "숙소", "관광")) {
             return new CrimeAnswerTemplate("진정제가 섞인 고산병 약 캡슐", "불법 원정 사고 은폐", "고산병 약 캡슐에 진정제를 섞어 피해자에게 복용시킴");
@@ -1874,13 +1972,13 @@ public class AdminEpisodeGeminiService {
 
     private boolean weakWeaponKeyword(String compacted) {
         if (containsAny(compacted, "독성", "마취", "진정", "수면", "청산", "시안", "오염", "섞인", "묻힌", "주입", "변조", "유독", "환각")
-                && containsAny(compacted, "약", "독", "캡슐", "병", "컵", "잔", "보온병", "향수", "시약", "분말", "액체", "주사", "칼", "도구", "붓펜", "펜", "잉크", "마커", "붓")) {
+                && containsAny(compacted, "약", "독", "캡슐", "병", "컵", "잔", "보온병", "향수", "시약", "분말", "액체", "주사", "칼", "도구", "붓펜", "펜", "잉크", "마커", "붓", "카드", "접착제", "소독제", "장갑", "안료", "스프레이", "세척제", "세척통")) {
             return false;
         }
-        if (weakKeyword(compacted, 5, "약", "독", "흉기", "도구", "칼", "약물", "고산병약", "수면제", "캡슐", "향수병", "약병", "컵", "잔", "보온병", "붓펜", "펜", "연필", "마커", "붓")) {
+        if (weakKeyword(compacted, 5, "약", "독", "흉기", "도구", "칼", "약물", "고산병약", "수면제", "캡슐", "향수병", "약병", "컵", "잔", "보온병", "붓펜", "펜", "연필", "마커", "붓", "카드", "접착제", "소독제", "장갑", "안료", "스프레이", "세척제", "세척통")) {
             return true;
         }
-        return containsAny(compacted, "병", "컵", "잔", "보온병", "봉투", "상자", "붓펜", "펜", "연필", "마커", "붓")
+        return containsAny(compacted, "병", "컵", "잔", "보온병", "봉투", "상자", "붓펜", "펜", "연필", "마커", "붓", "카드", "접착제", "소독제", "장갑", "안료", "스프레이", "세척제", "세척통")
                 && !containsAny(compacted, "독성", "마취", "진정", "수면", "청산", "시안", "오염", "섞인", "묻힌", "주입", "변조", "유독", "환각");
     }
 
@@ -1888,11 +1986,14 @@ public class AdminEpisodeGeminiService {
         if (List.of("함", "넣기", "투여", "주입", "교체", "은폐", "조작", "살해", "독살", "바꿔치기", "유인", "방치", "사용", "사용함", "실행", "실행함", "시도", "시도함").contains(compacted)) {
             return true;
         }
+        if (containsAny(compacted, "혼란을야기", "몰래투여", "정신을잃게", "상태를악화", "의식을잃게", "쓰러지게함")) {
+            return true;
+        }
         if (compacted.length() < 6) {
             return true;
         }
-        boolean hasAction = containsAny(compacted, "넣", "섞", "바꿔", "교체", "투여", "분사", "주입", "묻혀", "먹여", "마시게", "흡입", "조작", "유인", "오염", "서명", "바름", "칠함");
-        boolean hasObjectOrVictim = containsAny(compacted, "피해자", "약", "캡슐", "병", "컵", "잔", "보온병", "향수", "음료", "시약", "문서", "서명", "서명란", "붓펜", "펜", "잉크", "마커", "봉투", "열쇠", "서랍", "준비물");
+        boolean hasAction = containsAny(compacted, "넣", "섞", "바꿔", "교체", "투여", "분사", "주입", "묻혀", "먹여", "마시게", "흡입", "접촉", "조작", "유인", "오염", "서명", "바름", "발라", "칠함");
+        boolean hasObjectOrVictim = containsAny(compacted, "피해자", "약", "캡슐", "병", "컵", "잔", "보온병", "향수", "음료", "시약", "문서", "서명", "서명란", "붓펜", "펜", "잉크", "마커", "봉투", "열쇠", "서랍", "준비물", "카드", "접착제", "소독제", "장갑", "안료", "스프레이", "세척제", "세척통");
         return !hasAction || !hasObjectOrVictim;
     }
 
@@ -1905,6 +2006,8 @@ public class AdminEpisodeGeminiService {
     }
 
     private boolean isSpecificKoreanPersonName(String compacted) {
+        Set<String> forbiddenNames = Set.of("이몽룡", "성춘향", "춘향", "몽룡", "홍길동", "임꺽정", "장보고", "유관순", "세종대왕", "이순신", "안중근", "김구");
+        if (forbiddenNames.contains(compacted)) return false;
         Set<String> genericRoles = Set.of("여행사직원", "사업파트너", "피해자", "용의자", "관계자", "관리자", "직원", "가이드", "비서", "조카", "동료", "연구원", "큐레이터", "투자자", "운영자");
         if (genericRoles.contains(compacted)) return false;
         String namePattern = "(김|이|박|최|정|강|조|윤|장|임|한|오|서|신|권|황|안|송|전|홍|유|고|문|양|손|배|백|허|남|심|노|하|곽|성|차|주|우|구|민|류|나|진|지|엄|채|원|천|방|공|현|함|변|염|여|추|도|소|석|선|설|마|길|위|표|명|기|반|왕|금|옥|육|인|맹|제|모|탁|국|어|은|편|용|예|경|봉|사|부|가|복|태|목|형|계|피|두)[가-힣]{1,2}";

@@ -22,6 +22,7 @@ public class AiEpisodePlanResponse {
 
     private String finalQuestionGuide;
     private String rationale;
+    private List<String> tourApiStoryAnchors;
     private boolean planReviewRequired;
     private String reviewReason;
     private boolean fieldVerificationRecommended;

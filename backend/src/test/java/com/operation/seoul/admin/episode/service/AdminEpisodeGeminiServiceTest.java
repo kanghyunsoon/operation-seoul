@@ -158,56 +158,39 @@ class AdminEpisodeGeminiServiceTest {
         String prompt = (String) method.invoke(service, source);
 
         assertTrue(prompt.contains("Bad example: CULPRIT=\"큐레이터\", WEAPON=\"붓펜\", MOTIVE=\"은폐\", METHOD=\"함\""));
-        assertTrue(prompt.contains("Good example: CULPRIT=\"서민재(큐레이터)\", WEAPON=\"독성 잉크가 든 붓펜\""));
+        assertTrue(prompt.contains("Never reuse stale sample answers or names"));
+        assertTrue(prompt.contains("독성 잉크가 든 붓펜"));
+        assertTrue(prompt.contains("위작 전시 의혹 은폐"));
         assertTrue(prompt.contains("Never return only an occupation"));
         assertTrue(prompt.contains("never return only an ordinary object or container"));
     }
 
     @Test
-    void createAnswerPlanUsesConcreteServerTemplateWithoutGeminiKey() {
+    void createAnswerPlanRequiresGeminiApiKey() {
         AiEpisodeDraftRequest source = sourceInput();
-        source.getPlaces().get(1).setName("테스트 미술관");
-        source.getPlaces().get(1).setDescription("전시와 작품 보관 기록이 있는 장소");
 
-        AiEpisodePlanResponse plan = service.createAnswerPlan(source);
+        ApiException thrown = assertThrows(ApiException.class, () -> service.createAnswerPlan(source));
 
-        assertEquals("범죄 미스터리", plan.getSelectedGenreName());
-        assertEquals(4, plan.getFinalAnswerKeywords().size());
-        assertFalse(plan.getFinalAnswers().getCulprit().contains("("));
-        assertFalse(plan.getFinalAnswers().getCulprit().contains(")"));
-        assertFalse(plan.getFinalAnswerKeywords().get(0).getPersonRole().isBlank());
-        assertTrue(plan.getFinalAnswers().getWeapon().contains("독성") || plan.getFinalAnswers().getWeapon().contains("마취") || plan.getFinalAnswers().getWeapon().contains("진정"));
-        assertTrue(plan.getFinalAnswers().getMotive().length() >= 6);
-        assertTrue(plan.getFinalAnswers().getMethod().length() >= 8);
-        assertFalse(plan.getFinalAnswers().getCulprit().contains("관장"));
-        assertFalse(plan.getFinalAnswers().getWeapon().contains("붓펜"));
-        assertFalse(plan.getFinalAnswers().getMotive().contains("위작"));
-        assertFalse(List.of("경비원)", "와인잔", "앙심", "함").contains(plan.getFinalAnswers().getCulprit()));
-        assertFalse(List.of("경비원)", "와인잔", "앙심", "함").contains(plan.getFinalAnswers().getWeapon()));
-        assertFalse(List.of("경비원)", "와인잔", "앙심", "함").contains(plan.getFinalAnswers().getMotive()));
-        assertFalse(List.of("경비원)", "와인잔", "앙심", "함").contains(plan.getFinalAnswers().getMethod()));
+        assertEquals("GEMINI_API_KEY_MISSING", thrown.getCode());
     }
 
     @Test
-    void createAnswerPlanUsesThemeNotPlaceDescriptionsForKeywordDomain() {
+    void extractsTourApiStoryAnchorsWithoutPlaceNameOrAddress() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
-        source.setArea("부산 원도심");
-        source.setTheme("부산 항만 기록 미스터리 검증");
-        source.getPlaces().get(1).setName("테스트 미술관");
-        source.getPlaces().get(1).setDescription("전시와 작품 보관 기록이 있는 장소");
-        source.getPlaces().get(2).setName("테스트 갤러리");
-        source.getPlaces().get(2).setDescription("큐레이터와 관장이 있는 전시 장소");
+        source.getPlaces().get(0).setName("Actual Place Name");
+        source.getPlaces().get(0).setAddress("Actual Address");
+        source.getPlaces().get(0).setResearchSourceSummary("조선 후기 상인 조합의 세금 장부 분쟁 기록이 전해진다");
+        source.getPlaces().get(0).setExternalResearchNotes(List.of("폐쇄된 창고의 봉인 문서와 물품 검수 절차가 남아 있다"));
 
-        AiEpisodePlanResponse plan = service.createAnswerPlan(source);
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("extractTourApiStoryAnchors", AiEpisodeDraftRequest.class);
+        method.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<String> anchors = (List<String>) method.invoke(service, source);
 
-        assertTrue(plan.getFinalAnswerKeywords().get(0).getPersonRole().contains("기록")
-                || plan.getFinalAnswerKeywords().get(0).getPersonRole().contains("물류")
-                || plan.getFinalAnswerKeywords().get(0).getPersonRole().contains("감사"));
-        assertEquals("독성 방부제가 묻은 항만 서류 봉투", plan.getFinalAnswers().getWeapon());
-        assertEquals("밀수 장부 은폐", plan.getFinalAnswers().getMotive());
-        assertEquals("피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기", plan.getFinalAnswers().getMethod());
-        assertFalse(plan.getFinalAnswers().getWeapon().contains("붓펜"));
-        assertFalse(plan.getFinalAnswers().getMotive().contains("위작"));
+        assertFalse(anchors.isEmpty());
+        assertTrue(anchors.get(0).contains("세금 장부 분쟁"));
+        assertFalse(String.join(" ", anchors).contains("Actual Place Name"));
+        assertFalse(String.join(" ", anchors).contains("Actual Address"));
     }
 
     @Test
@@ -240,11 +223,15 @@ class AdminEpisodeGeminiServiceTest {
         source.getPlaces().get(0).setName("Actual Restaurant Name");
         source.getPlaces().get(0).setAddress("Actual Street Address");
         source.getPlaces().get(0).setDescription("historic merchant ledger conflict");
+        source.getPlaces().get(0).setResearchSourceSummary("merchant tax ledger dispute");
 
         Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildPlanPrompt", AiEpisodeDraftRequest.class);
         method.setAccessible(true);
         String prompt = (String) method.invoke(service, source);
 
+        assertTrue(prompt.contains("Derive the four final answer values from the TourAPI story anchors"));
+        assertTrue(prompt.contains("TourAPI story anchors to fictionalize"));
+        assertTrue(prompt.contains("merchant tax ledger dispute"));
         assertTrue(prompt.contains("historic merchant ledger conflict"));
         assertFalse(prompt.contains("Actual Restaurant Name"));
         assertFalse(prompt.contains("Actual Street Address"));
@@ -268,6 +255,24 @@ class AdminEpisodeGeminiServiceTest {
         assertEquals("한지원", keywords.get(0).getKeyword());
         assertEquals("한지원", keywords.get(0).getPersonName());
         assertEquals("GEMINI", keywords.get(0).getSourceType());
+    }
+
+    @Test
+    void rejectsGeminiPlanWithLiteraryCulpritAndVagueMethod() throws Exception {
+        JsonNode node = new ObjectMapper().readTree("""
+                [
+                  {"slotId":"CULPRIT","keyword":"이몽룡"},
+                  {"slotId":"WEAPON","keyword":"오염된 죽염 안약"},
+                  {"slotId":"MOTIVE","keyword":"춘향가 위조본 유통 은폐"},
+                  {"slotId":"METHOD","keyword":"눈에 몰래 투여하여 혼란을 야기함"}
+                ]
+                """);
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("sanitizePlanKeywords", JsonNode.class, String.class);
+        method.setAccessible(true);
+
+        Exception thrown = assertThrows(Exception.class, () -> method.invoke(service, node, "GEMINI"));
+
+        assertTrue(thrown.getCause() instanceof ApiException);
     }
 
     @Test
