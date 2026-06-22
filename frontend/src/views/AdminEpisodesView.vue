@@ -500,6 +500,9 @@
           <section v-if="draftPlan" class="draft-feedback-panel keyword-plan-panel">
             <strong>AI 장르/최종 정답 키워드 계획</strong>
             <p>장르: {{ draftPlan.selectedGenreName || draftPlan.selectedGenre }}</p>
+            <p v-if="isServerTemplatePlan(draftPlan)" class="plan-warning">
+              Gemini 생성이 아니라 서버 폴백 템플릿입니다. TourAPI 기반 생성 QA 통과로 보지 말고 다시 생성하거나 Gemini 설정을 확인하세요.
+            </p>
             <div class="chips">
               <span>범인: {{ draftPlan.finalAnswers?.culprit }}</span>
               <span>흉기: {{ draftPlan.finalAnswers?.weapon }}</span>
@@ -508,6 +511,16 @@
             </div>
             <p v-if="draftPlan.finalQuestionGuide">최종 질문 방향: {{ draftPlan.finalQuestionGuide }}</p>
             <p v-if="draftPlan.rationale">{{ draftPlan.rationale }}</p>
+            <div v-if="draftPlan.tourApiStoryAnchors?.length" class="mini-list">
+              <b>TourAPI 사건/역사 앵커</b>
+              <span v-for="anchor in draftPlan.tourApiStoryAnchors" :key="anchor">{{ anchor }}</span>
+            </div>
+            <div v-if="draftPlan.finalAnswerKeywordItems?.length || draftPlan.finalAnswerKeywords?.length" class="mini-list">
+              <b>키워드 생성 근거</b>
+              <span v-for="item in (draftPlan.finalAnswerKeywordItems || draftPlan.finalAnswerKeywords || [])" :key="`${item.slotId || item.type}-${item.keyword}`">
+                {{ item.label || item.displayType || item.slotId || item.type }} · {{ item.sourceType || 'UNKNOWN' }} · {{ item.sourceBasis || '근거 없음' }}
+              </span>
+            </div>
           </section>
           <div v-if="draftValidation || draftResult?.validationWarnings?.length || draftResult?.draft" class="draft-feedback-panel" :class="{ invalid: draftValidation && !draftValidation.valid }">
             <strong>{{ draftValidation ? (draftValidation.valid ? '검증 통과' : '검증 이슈 있음') : '초안 준비 완료' }}</strong>
@@ -2961,6 +2974,11 @@ function applyDraftPlanToPayload(payload) {
   };
 }
 
+function isServerTemplatePlan(plan) {
+  const items = plan?.finalAnswerKeywordItems || plan?.finalAnswerKeywords || [];
+  return Array.isArray(items) && items.some((item) => item?.sourceType === 'SERVER_TEMPLATE');
+}
+
 function normalizeFinalAnswerKeywordItemsFromPlan(plan, payload = {}) {
   const sourceItems = plan?.finalAnswerKeywordItems || plan?.finalAnswerKeywords || payload.finalAnswerKeywordItems || payload.finalAnswerKeywords || [];
   const bySlot = {};
@@ -3705,11 +3723,15 @@ h2, h3 { margin: 0 0 10px; }
 .draft-feedback-panel.invalid { border-color: rgba(248,113,113,.42); background: rgba(127,29,29,.2); }
 .draft-feedback-panel strong { color: #fde68a; }
 .draft-feedback-panel p { margin: 6px 0; color: #e2e8f0; }
+.draft-feedback-panel .plan-warning { padding: 8px 10px; border: 1px solid rgba(248,113,113,.42); border-radius: 10px; background: rgba(127,29,29,.24); color: #fecaca; font-weight: 800; }
 .draft-feedback-panel ul { margin: 8px 0 0; padding-left: 18px; color: #fecaca; line-height: 1.55; }
 .draft-feedback-panel li b { margin-right: 6px; color: #fbbf24; }
 .draft-feedback-panel li span { margin-right: 6px; color: #bfdbfe; font-weight: 900; }
 .draft-feedback-panel li em { margin-right: 6px; color: #cbd5e1; font-style: normal; }
 .draft-feedback-panel small { display: block; margin-top: 8px; color: #cbd5e1; }
+.draft-feedback-panel .mini-list { display: grid; gap: 6px; margin-top: 8px; color: #dbeafe; }
+.draft-feedback-panel .mini-list b { color: #fde68a; }
+.draft-feedback-panel .mini-list span { display: block; padding: 6px 8px; border-radius: 10px; background: rgba(15,23,42,.42); color: #dbeafe; }
 .case-builder-next { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; padding: 14px; border: 1px solid rgba(245,158,11,.32); border-radius: 16px; background: linear-gradient(135deg, rgba(120,53,15,.26), rgba(15,23,42,.72)); }
 .case-builder-next strong { color: #fde68a; font-size: 1rem; }
 .case-builder-next p { margin: 5px 0 0; color: #e2e8f0; line-height: 1.5; font-size: .88rem; }
