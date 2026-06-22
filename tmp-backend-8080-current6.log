@@ -1,0 +1,71 @@
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :resolveMainClassName UP-TO-DATE
+
+> Task :bootRun
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-06-22T15:11:56.564+09:00  INFO 9760 --- [           main] c.o.seoul.OperationSeoulApplication      : Starting OperationSeoulApplication using Java 17.0.17 with PID 9760 (C:\Users\SSAFY\Desktop\KHS\operation-seoul\backend\build\classes\java\main started by SSAFY in C:\Users\SSAFY\Desktop\KHS\operation-seoul\backend)
+2026-06-22T15:11:56.568+09:00  INFO 9760 --- [           main] c.o.seoul.OperationSeoulApplication      : No active profile set, falling back to 1 default profile: "local"
+2026-06-22T15:11:58.436+09:00  INFO 9760 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-06-22T15:11:58.449+09:00  INFO 9760 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-22T15:11:58.449+09:00  INFO 9760 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-06-22T15:11:58.515+09:00  INFO 9760 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1892 ms
+2026-06-22T15:11:58.629+09:00  INFO 9760 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-22T15:11:58.975+09:00  INFO 9760 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@3f0ce0d1
+2026-06-22T15:11:58.978+09:00  INFO 9760 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-22T15:11:59.956+09:00  INFO 9760 --- [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name userDetailsService
+2026-06-22T15:12:00.493+09:00  INFO 9760 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-06-22T15:12:00.563+09:00  INFO 9760 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-06-22T15:12:00.573+09:00  INFO 9760 --- [           main] c.o.seoul.OperationSeoulApplication      : Started OperationSeoulApplication in 4.473 seconds (process running for 4.941)
+2026-06-22T15:12:22.432+09:00  INFO 9760 --- [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-22T15:12:22.432+09:00  INFO 9760 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-22T15:12:22.433+09:00  INFO 9760 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-06-22T15:12:22.584+09:00  INFO 9760 --- [nio-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/actuator/health status=200 durationMs=148 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:27.217+09:00  INFO 9760 --- [nio-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me status=200 durationMs=14 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:27.296+09:00  INFO 9760 --- [nio-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me status=200 durationMs=75 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:27.305+09:00  INFO 9760 --- [nio-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=1 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:27.440+09:00  INFO 9760 --- [nio-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=132 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:27.446+09:00  INFO 9760 --- [nio-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/1 status=200 durationMs=1 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:27.508+09:00  INFO 9760 --- [nio-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/1 status=200 durationMs=61 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:27.522+09:00  INFO 9760 --- [nio-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/1/audit-logs status=200 durationMs=1 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:27.571+09:00  INFO 9760 --- [io-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/1/audit-logs status=200 durationMs=45 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:30.842+09:00  INFO 9760 --- [nio-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/place-candidates status=200 durationMs=1 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:30.854+09:00  INFO 9760 --- [nio-8080-exec-2] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5665 lng=126.978 radius=18000
+2026-06-22T15:15:34.087+09:00  INFO 9760 --- [nio-8080-exec-2] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=535 parsedCount=15
+2026-06-22T15:15:34.088+09:00  INFO 9760 --- [nio-8080-exec-2] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5796 lng=126.977 radius=18000
+2026-06-22T15:15:34.324+09:00  INFO 9760 --- [nio-8080-exec-2] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=534 parsedCount=15
+2026-06-22T15:15:34.325+09:00  INFO 9760 --- [nio-8080-exec-2] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5512 lng=126.9882 radius=18000
+2026-06-22T15:15:34.900+09:00  INFO 9760 --- [nio-8080-exec-2] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=539 parsedCount=15
+2026-06-22T15:15:34.904+09:00  INFO 9760 --- [nio-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/place-candidates status=200 durationMs=4059 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:36.077+09:00  INFO 9760 --- [nio-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/place-candidates/nearby status=200 durationMs=1 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:36.273+09:00  INFO 9760 --- [nio-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/place-candidates/nearby status=200 durationMs=192 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:37.935+09:00  INFO 9760 --- [nio-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/enrich-site-data status=200 durationMs=1 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:44.973+09:00  INFO 9760 --- [nio-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/enrich-site-data status=200 durationMs=7035 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:48.342+09:00  INFO 9760 --- [nio-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/plan status=200 durationMs=1 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:48.366+09:00  INFO 9760 --- [nio-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/plan status=200 durationMs=22 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:15:52.238+09:00  INFO 9760 --- [nio-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/gemini status=200 durationMs=0 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:10.923+09:00  WARN 9760 --- [io-8080-exec-10] c.o.s.a.e.s.AdminEpisodeGeminiService    : ai_draft_investigation_clues_repaired issues=[SLOT_RELEVANCE] title=ê·¸ë¦¼?ž?˜ ?–¥?ˆ˜ debugPath=build\ai-draft-debug\latest-pre-guardrail-investigation-clues.json
+2026-06-22T15:16:10.935+09:00  INFO 9760 --- [io-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/gemini status=200 durationMs=18695 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:16.940+09:00  INFO 9760 --- [nio-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/validate status=200 durationMs=0 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:16.972+09:00  INFO 9760 --- [nio-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/validate status=200 durationMs=30 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:21.135+09:00  INFO 9760 --- [nio-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/save status=200 durationMs=0 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:21.488+09:00  INFO 9760 --- [nio-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/save status=200 durationMs=351 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:21.521+09:00  INFO 9760 --- [nio-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/17/audit-logs status=200 durationMs=0 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:21.522+09:00  INFO 9760 --- [nio-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=0 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:21.550+09:00  INFO 9760 --- [nio-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/17/audit-logs status=200 durationMs=26 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:21.576+09:00  INFO 9760 --- [nio-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=53 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:21.578+09:00  INFO 9760 --- [nio-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/17/publish-readiness status=200 durationMs=0 remoteAddress=0:0:0:0:0:0:0:1
+2026-06-22T15:16:21.605+09:00  INFO 9760 --- [io-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/17/publish-readiness status=200 durationMs=25 remoteAddress=0:0:0:0:0:0:0:1
+
+> Task :bootRun FAILED
+4 actionable tasks: 1 executed, 3 up-to-date

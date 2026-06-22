@@ -1,0 +1,53 @@
+{
+  "title" : "그림자의 속삭임",
+  "issues" : [ "SLOT_RELEVANCE" ],
+  "missions" : [ {
+    "order" : 2,
+    "targetKeywordType" : "CULPRIT",
+    "supportsKeywordSlots" : [ "CULPRIT" ],
+    "issues" : [ ],
+    "rewardClue" : "사건 발생 시각, 메모의 대상자가 연구실 외부에 있었음을 증명하는 CCTV 기록의 일부가 삭제된 흔적이 발견되었습니다."
+  }, {
+    "order" : 3,
+    "targetKeywordType" : "CULPRIT",
+    "supportsKeywordSlots" : [ "CULPRIT" ],
+    "issues" : [ "SLOT_RELEVANCE" ],
+    "rewardClue" : "박선우의 연구실 금고에서 발견된 녹음 파일에는, 한 지원이 최근 자신에게 위작 전시회를 하지 말라고 협박하는 내용이 담겨 있었습니다."
+  }, {
+    "order" : 4,
+    "targetKeywordType" : "WEAPON",
+    "supportsKeywordSlots" : [ "WEAPON" ],
+    "issues" : [ ],
+    "rewardClue" : "사망자의 기도에서 미량의 신경 독성 물질이 검출되었으며, 이는 특정 화학 성분과 일치하는 것으로 나타났습니다."
+  }, {
+    "order" : 5,
+    "targetKeywordType" : "WEAPON",
+    "supportsKeywordSlots" : [ "WEAPON" ],
+    "issues" : [ ],
+    "rewardClue" : "사망자의 책상 위에서 발견된 붓펜의 잉크 샘플을 분석한 결과, 치명적인 독성 물질이 함유되어 있음이 확인되었습니다."
+  }, {
+    "order" : 6,
+    "targetKeywordType" : "MOTIVE",
+    "supportsKeywordSlots" : [ "MOTIVE" ],
+    "issues" : [ ],
+    "rewardClue" : "박선우가 최근 이서연에게 전달한 미술품 관련 계약서에는, 위작 의혹이 있는 작품의 복원 의뢰를 취소한다는 내용이 명시되어 있었습니다."
+  }, {
+    "order" : 7,
+    "targetKeywordType" : "MOTIVE",
+    "supportsKeywordSlots" : [ "MOTIVE" ],
+    "issues" : [ "SLOT_RELEVANCE" ],
+    "rewardClue" : "문서상 이해관계자가 박선우에게 보낸 메일에는, 박선우가 그의 갤러리에서 전시하려는 작품이 위작일 가능성이 높다는 정보를 입수했으며, 이에 대한 진상 규명을 요구하는 내용이 담겨 있었습니다."
+  }, {
+    "order" : 8,
+    "targetKeywordType" : "METHOD",
+    "supportsKeywordSlots" : [ "METHOD" ],
+    "issues" : [ ],
+    "rewardClue" : "박선우의 서명 기록과 붓펜에서 채취한 잉크 성분이 일치했으며, 서명란에만 국소적으로 독성 물질이 검출된 점은 직접적인 접촉을 시사합니다."
+  }, {
+    "order" : 9,
+    "targetKeywordType" : "METHOD",
+    "supportsKeywordSlots" : [ "METHOD" ],
+    "issues" : [ ],
+    "rewardClue" : "사건 당일, 동선 기록과 연결된 인물이 사용한 것으로 추정되는 붓펜 용액과 사망자의 연구실에서 발견된 붓펜의 잉크 색상 및 점도가 동일한 것으로 확인되었습니다."
+  } ]
+}

@@ -182,6 +182,48 @@ function validateSynopsisQuality(draft, issues) {
       addIssue(issues, 'ERROR', 'SYNOPSIS_SUSPECT_MISMATCH', `fictionSynopsis does not mention suspect "${name}".`, `draft.suspects[${index}].displayName`);
     }
   });
+
+  validateSynopsisDomain(draft, synopsis, issues);
+}
+
+function finalKeywordText(draft) {
+  return normalize((draft.finalAnswerKeywordItems || [])
+    .flatMap((item) => [item?.value, item?.keyword, item?.personName])
+    .filter(Boolean)
+    .join(' '));
+}
+
+function validateSynopsisDomain(draft, synopsis, issues) {
+  const keywords = finalKeywordText(draft);
+  const domainRules = [
+    {
+      name: 'harbor-document',
+      keywordTerms: ['항만', '화물', '밀수', '장부', '서류', '봉투'],
+      requiredSynopsisTerms: ['항만', '화물', '자료', '서류', '장부', '물류'],
+      forbiddenSynopsisTerms: ['미술품', '갤러리', '전시', '작품']
+    },
+    {
+      name: 'art-gallery',
+      keywordTerms: ['미술', '전시', '갤러리', '작품', '위작', '붓펜', '잉크', '서명'],
+      requiredSynopsisTerms: ['미술', '갤러리', '전시', '작품', '감정', '서명'],
+      forbiddenSynopsisTerms: ['항만', '화물', '밀수']
+    },
+    {
+      name: 'research-lab',
+      keywordTerms: ['연구', '실험', '시약', '논문', '특허'],
+      requiredSynopsisTerms: ['연구', '실험', '회의실', '연구동', '특허'],
+      forbiddenSynopsisTerms: ['갤러리', '미술품', '항만']
+    }
+  ];
+  const matched = domainRules.find((rule) => rule.keywordTerms.some((term) => keywords.includes(term)));
+  if (!matched) return;
+  if (!matched.requiredSynopsisTerms.some((term) => synopsis.includes(term))) {
+    addIssue(issues, 'ERROR', 'SYNOPSIS_DOMAIN_MISMATCH', `fictionSynopsis does not match final keyword domain ${matched.name}.`, 'draft.fictionSynopsis');
+  }
+  const forbidden = matched.forbiddenSynopsisTerms.find((term) => synopsis.includes(term));
+  if (forbidden) {
+    addIssue(issues, 'ERROR', 'SYNOPSIS_DOMAIN_FORBIDDEN_TERM', `fictionSynopsis contains incompatible domain term "${forbidden}" for ${matched.name}.`, 'draft.fictionSynopsis');
+  }
 }
 
 function validateMissions(draft, issues) {
@@ -228,6 +270,9 @@ function validateMissions(draft, issues) {
     if (mission.markerType !== 'ANSWER_HINT' || mission.clueRole !== 'ANSWER_HINT' || mission.publicMarkerType !== 'ANSWER_HINT') {
       addIssue(issues, 'ERROR', 'INVESTIGATION_MARKER_TYPE', 'Investigation mission must use ANSWER_HINT marker/clue/public type.', `draft.missions[${mission.order}]`);
     }
+    if (!normalize(mission.storyText)) {
+      addIssue(issues, 'ERROR', 'MISSION_STORY_TEXT_EMPTY', 'Investigation mission storyText is required.', `draft.missions[${mission.order}].storyText`);
+    }
     if (!normalize(mission.rewardClue)) {
       addIssue(issues, 'ERROR', 'REWARD_CLUE_EMPTY', 'Investigation mission rewardClue is required.', `draft.missions[${mission.order}].rewardClue`);
     }
@@ -245,6 +290,17 @@ function validateEvidence(draft, issues) {
       addIssue(issues, 'ERROR', 'EVIDENCE_SOURCE_MISSING', `Missing evidence for investigation mission order ${order}.`, 'draft.evidences');
     }
   }
+  const values = (draft.finalAnswerKeywordItems || [])
+    .flatMap((item) => [item.value, item.keyword, item.personName])
+    .map(normalize)
+    .filter((value) => value.length >= 2);
+  evidences.forEach((evidence, index) => {
+    const text = normalize(`${evidence?.title || ''}\n${evidence?.textSummary || ''}`);
+    const leaked = values.find((value) => text.includes(value));
+    if (leaked) {
+      addIssue(issues, 'ERROR', 'EVIDENCE_ANSWER_LEAK', `Evidence card directly includes final answer value "${leaked}".`, `draft.evidences[${index}]`);
+    }
+  });
 }
 
 function validateForbiddenText(draft, issues) {

@@ -35,7 +35,7 @@ public class CaseFileService {
     public CaseFileResponse getCaseFile(Long episodeId, User user) {
         Episode episode = caseFileRepository.findEpisode(episodeId);
         if (episode == null || !"PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "?먰뵾?뚮뱶瑜?李얠쓣 ???놁뒿?덈떎.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "에피소드를 찾을 수 없습니다.");
         }
 
         UserEpisodeProgress progress = caseFileRepository.findProgress(user.getId(), episodeId);
@@ -65,7 +65,6 @@ public class CaseFileService {
                 .map(this::clueValueWithoutSlot)
                 .map(this::localizeClueValue)
                 .toList();
-        Set<Long> unlockedSuspectIds = readLongList(progress == null ? null : progress.getUnlockedSuspectIds()).stream().collect(Collectors.toSet());
         Set<Long> clearedSuspectIds = readLongList(progress == null ? null : progress.getClearedSuspectIds()).stream().collect(Collectors.toSet());
         Set<Long> unlockedEvidenceIds = readLongList(progress == null ? null : progress.getUnlockedEvidenceIds()).stream().collect(Collectors.toSet());
 
@@ -100,7 +99,7 @@ public class CaseFileService {
                         .storyUnlocked(storyUnlocked)
                         .unlockedStoryClues(storyClues)
                         .build())
-                .suspects(suspects.stream().map(suspect -> toSuspect(suspect, unlockedSuspectIds, clearedSuspectIds, evidences)).toList())
+                .suspects(suspects.stream().map(suspect -> toSuspect(suspect, storyUnlocked, clearedSuspectIds, evidences)).toList())
                 .evidences(evidences.stream().map(evidence -> toEvidence(evidence, unlockedEvidenceIds)).toList())
                 .clueSummary(CaseFileResponse.ClueSummary.builder()
                         .culpritClues(culpritClues)
@@ -119,7 +118,7 @@ public class CaseFileService {
                         .totalSpotCount(totalSpotCount)
                         .unlockedEvidenceCount(countUnlockedEvidences(evidences, unlockedEvidenceIds))
                         .totalEvidenceCount(evidences.size())
-                        .unlockedSuspectCount(countUnlockedSuspects(suspects, unlockedSuspectIds))
+                        .unlockedSuspectCount(countUnlockedSuspects(suspects, storyUnlocked))
                         .totalSuspectCount(suspects.size())
                         .hintUsedCount(progress == null || progress.getHintUsedCount() == null ? 0 : progress.getHintUsedCount())
                         .wrongAnswerCount(progress == null || progress.getWrongAnswerCount() == null ? 0 : progress.getWrongAnswerCount())
@@ -149,14 +148,14 @@ public class CaseFileService {
                 .build();
     }
 
-    private CaseFileResponse.Suspect toSuspect(CaseSuspect suspect, Set<Long> unlockedIds, Set<Long> clearedIds, List<CaseEvidence> evidences) {
-        boolean unlocked = true;
+    private CaseFileResponse.Suspect toSuspect(CaseSuspect suspect, boolean suspectsUnlocked, Set<Long> clearedIds, List<CaseEvidence> evidences) {
+        boolean unlocked = suspectsUnlocked;
         int relatedCount = (int) evidences.stream().filter(evidence -> suspect.getId().equals(evidence.getRelatedSuspectId())).count();
         return CaseFileResponse.Suspect.builder()
                 .suspectId(suspect.getId())
                 .displayName(unlocked ? suspect.getDisplayName() : "잠긴 용의자")
-                .alias(suspect.getAlias())
-                .shortDescription(unlocked ? suspect.getShortDescription() : "愿??利앷굅瑜??띾뱷?섎㈃ 怨듦컻?⑸땲??")
+                .alias(unlocked ? suspect.getAlias() : "시작 미션 잠금")
+                .shortDescription(unlocked ? suspect.getShortDescription() : "시작 미션을 해결하면 용의자 3명의 관계와 알리바이가 함께 공개됩니다.")
                 .portraitImageUrl(unlocked ? suspect.getPortraitImageUrl() : null)
                 .relationToVictim(unlocked ? suspect.getRelationToVictim() : null)
                 .suspiciousPoint(unlocked ? suspect.getSuspiciousPoint() : null)
@@ -171,18 +170,18 @@ public class CaseFileService {
         boolean unlocked = Boolean.TRUE.equals(evidence.getUnlockedByDefault()) || unlockedIds.contains(evidence.getId());
         return CaseFileResponse.Evidence.builder()
                 .evidenceId(evidence.getId())
-                .title(unlocked ? localizeEvidenceTitle(evidence.getTitle()) : "?좉릿 ?ш굔?먮즺")
+                .title(unlocked ? localizeEvidenceTitle(evidence.getTitle()) : "잠긴 사건자료")
                 .type(evidence.getType())
                 .imageUrl(unlocked ? evidence.getImageUrl() : null)
-                .textSummary(unlocked ? localizeEvidenceSummary(evidence.getTextSummary(), evidence.getTitle()) : "?꾩옣 ?쇱쫹???닿껐?섎㈃ ???먮즺媛 ?ш굔?뚯씪??異붽??⑸땲??")
+                .textSummary(unlocked ? localizeEvidenceSummary(evidence.getTextSummary(), evidence.getTitle()) : "현장 퍼즐을 해결하면 이 자료가 사건파일에 추가됩니다.")
                 .sourceSpotId(unlocked ? evidence.getSourceSpotId() : null)
                 .relatedSuspectIds(unlocked && evidence.getRelatedSuspectId() != null ? List.of(evidence.getRelatedSuspectId()) : List.of())
                 .relatedClueType(evidence.getRelatedClueType())
                 .unlocked(unlocked)
                 .build();
     }
-    private int countUnlockedSuspects(List<CaseSuspect> suspects, Set<Long> unlockedIds) {
-        return suspects.size();
+    private int countUnlockedSuspects(List<CaseSuspect> suspects, boolean suspectsUnlocked) {
+        return suspectsUnlocked ? suspects.size() : 0;
     }
 
     private int countUnlockedEvidences(List<CaseEvidence> evidences, Set<Long> unlockedIds) {
@@ -208,9 +207,9 @@ public class CaseFileService {
         }
         String normalized = value.trim();
         if (normalized.equalsIgnoreCase("walking route review required") || normalized.equalsIgnoreCase("review required")) {
-            return "?꾨낫 ?숈꽑 ?뺤씤 ?꾩슂";
+            return "도보 동선 확인 필요";
         }
-        return normalized.replaceAll("(?i)\\babout\\b\\s*", "??");
+        return normalized.replaceAll("(?i)\\babout\\b\\s*", "약 ");
     }
 
     private String localizeClueValue(String value) {
@@ -299,61 +298,61 @@ public class CaseFileService {
         String text = value.trim();
         String normalized = text.toLowerCase(Locale.ROOT).replaceAll("[_\\-]+", " ").replaceAll("\\s+", " ");
         return switch (normalized) {
-            case "first field photo envelope" -> "泥??꾩옣 ?ъ쭊 遊됲닾";
-            case "torn route memo" -> "李?릿 ?숈꽑 硫붾え";
-            case "conflicting witness note" -> "?뉕컝由?紐⑷꺽 湲곕줉";
-            case "lens fragment record" -> "?뚯쫰 ?뚰렪 湲곕줉";
+            case "first field photo envelope" -> "첫 현장 사진 봉투";
+            case "torn route memo" -> "찢긴 동선 메모";
+            case "conflicting witness note" -> "엇갈린 목격 기록";
+            case "lens fragment record" -> "렌즈 파편 기록";
             case "red seal sketch" -> "붉은 봉인 스케치";
-            case "destination cipher memo" -> "紐⑹쟻吏 ?뷀샇 硫붾え";
-            case "final route log" -> "理쒖쥌 ?숈꽑 湲곕줉";
-            case "sealed name card" -> "遊됱씤??紐낇븿";
-            case "final deduction support file" -> "理쒖쥌 異붾━ 蹂댁“ ?뚯씪";
+            case "destination cipher memo" -> "목적지 암호 메모";
+            case "final route log" -> "최종 동선 기록";
+            case "sealed name card" -> "봉인된 명함";
+            case "final deduction support file" -> "최종 추리 보조 파일";
             default -> {
                 String clueTitle = normalized.endsWith(" clue card")
-                        ? localizeClueValue(text.substring(0, text.length() - " clue card".length())) + " ?⑥꽌 移대뱶"
+                        ? localizeClueValue(text.substring(0, text.length() - " clue card".length())) + " 단서 카드"
                         : text;
-                yield isEnglishOnly(clueTitle) ? "?대룆 ?꾩슂 ?ш굔?먮즺" : clueTitle;
+                yield isEnglishOnly(clueTitle) ? "해독 필요 사건자료" : clueTitle;
             }
         };
     }
 
     private String localizeEvidenceSummary(String value, String title) {
         if (value == null || value.isBlank()) {
-            return "?꾩옣 ?⑥꽌瑜?異붾━???곌껐?섎뒗 ?ш굔?먮즺?낅땲??";
+            return "현장 단서를 추리와 연결하는 사건자료입니다.";
         }
         String text = value.trim();
         String lower = text.toLowerCase(Locale.ROOT);
         if (lower.contains("marks the opening point of the case")) {
-            return "?ш굔???쒖옉 吏?먯쓣 ?쒖떆?섎뒗 ?먮즺?낅땲??";
+            return "사건의 시작 지점을 표시하는 자료입니다.";
         }
         if (lower.contains("links route movement with a missing trace")) {
-            return "?숈꽑怨??щ씪吏??붿쟻???곌껐?섎뒗 硫붾え?낅땲??";
+            return "동선과 사라진 흔적을 연결하는 메모입니다.";
         }
         if (lower.contains("witness record") && lower.contains("contradiction")) {
-            return "?쒕줈 留욎? ?딅뒗 吏꾩닠???쒕윭?대뒗 紐⑷꺽 湲곕줉?낅땲??";
+            return "서로 맞지 않는 진술을 드러내는 목격 기록입니다.";
         }
         if (lower.contains("narrows the nature of the final object")) {
-            return "理쒖쥌 利앷굅臾쇱쓽 ?뺤껜瑜?醫곹?二쇰뒗 ?먮즺?낅땲??";
+            return "최종 증거물의 정체를 좁혀 주는 자료입니다.";
         }
         if (lower.contains("connecting suspect motive to the case")) {
-            return "?⑹쓽?먯쓽 ?숆린? ?ш굔???곌껐?섎뒗 ?⑥꽌?낅땲??";
+            return "용의자의 동기를 사건과 연결하는 단서입니다.";
         }
         if (lower.contains("narrows the destination without naming it")) {
-            return "?μ냼紐낆쓣 吏곸젒 留먰븯吏 ?딄퀬 紐⑹쟻吏瑜?醫곹?二쇰뒗 硫붾え?낅땲??";
+            return "장소명을 직접 말하지 않고 목적지를 좁혀 주는 메모입니다.";
         }
         if (lower.contains("reconstructing the final movement path")) {
-            return "理쒖쥌 ?숈꽑???ㅼ떆 援ъ꽦?섎뒗 ???꾩슂??湲곕줉?낅땲??";
+            return "최종 동선을 다시 구성하는 데 필요한 기록입니다.";
         }
         if (lower.contains("sealed file") && lower.contains("final deduction")) {
-            return "理쒖쥌 異붾━ ?꾩뿉 ?뺤씤?댁빞 ??遊됱씤???뚯씪?낅땲??";
+            return "최종 추리 전에 확인해야 할 봉인된 파일입니다.";
         }
         if (lower.contains("support material for combining collected clues")) {
-            return "紐⑥? ?⑥꽌瑜?議고빀?섎뒗 ???꾩슂??蹂댁“ ?먮즺?낅땲??";
+            return "모은 단서를 조합하는 데 필요한 보조 자료입니다.";
         }
         if (lower.contains("case material unlocked after solving this mission")) {
-            return "??誘몄뀡???硫??닿툑?섎뒗 ?ш굔?먮즺?낅땲??";
+            return "이 미션을 풀면 해금되는 사건자료입니다.";
         }
-        return isEnglishOnly(text) ? localizeEvidenceTitle(title) + "???곌껐???ш굔?먮즺?낅땲??" : text;
+        return isEnglishOnly(text) ? localizeEvidenceTitle(title) + "와 연결된 사건자료입니다." : text;
     }
     private boolean isEnglishOnly(String text) {
         if (text == null || text.isBlank() || text.chars().anyMatch(ch -> ch >= 0xAC00 && ch <= 0xD7A3)) {
@@ -364,25 +363,26 @@ public class CaseFileService {
 
     private String briefingTitle(Episode episode) {
         String title = episode == null ? null : episode.getTitle();
-        return title == null || title.isBlank() ? "誘몄뀡 硫붾え" : title.trim() + " 誘몄뀡 硫붾え";
+        return title == null || title.isBlank() ? "미션 메모" : title.trim() + " 미션 메모";
     }
 
     private String caseSummary(Episode episode) {
-        String synopsis = episode == null
-                ? null
-                : episode.getMissionDescription() == null || episode.getMissionDescription().isBlank()
-                        ? episode.getFictionSynopsis()
-                        : episode.getMissionDescription();
-        if (synopsis != null && !synopsis.isBlank()) {
-            return synopsis.trim();
+        String fictionSynopsis = episode == null ? null : textOrNull(episode.getFictionSynopsis());
+        String missionDescription = episode == null ? null : textOrNull(episode.getMissionDescription());
+        String synopsis = longerText(fictionSynopsis, missionDescription);
+        if (synopsis != null && synopsis.length() >= 80 && !isGenericStorySummary(synopsis)) {
+            return synopsis;
         }
-        String title = episode == null || episode.getTitle() == null || episode.getTitle().isBlank() ? "???ш굔" : episode.getTitle().trim();
-        return title + "???꾩옣 湲곕줉???쒕줈 留욎? ?딆뒿?덈떎. ?뚮젅?댁뼱??議곗궗 吏?먯쓣 ?뚮ŉ ?⑥꽌? ?ш굔?먮즺瑜??議고빐???⑸땲??";
+        String title = episode == null || episode.getTitle() == null || episode.getTitle().isBlank() ? "이 사건" : episode.getTitle().trim();
+        String setting = synopsis == null ? "제한된 공간에서 한 인물이 쓰러진 채 발견되며 시작됩니다." : synopsis;
+        return title + " 사건은 " + setting
+                + " 현장에는 외부 침입 흔적이 뚜렷하지 않고, 사건 시간대 의미 있는 접근 권한을 가진 인물은 세 명으로 압축됩니다."
+                + " 플레이어는 8개 조사 지점에서 알리바이, 물증, 동기 문서, 범행 수법의 흔적을 모아 범인·흉기·동기·방법을 재구성해야 합니다.";
     }
 
     private String lockedStorySummary(Episode episode) {
-        String title = episode == null || episode.getTitle() == null || episode.getTitle().isBlank() ? "???ш굔" : episode.getTitle().trim();
-        return title + "???듭떖 湲곕줉? ?꾩쭅 遊됱씤?섏뼱 ?덉뒿?덈떎. ?쒖옉 ?μ냼???ㅽ넗由?誘몄뀡???닿껐?섎㈃ ?ш굔??泥?紐⑷꺽 湲곕줉怨????먯꽭??諛곌꼍????移대뱶??異붽??⑸땲??";
+        return caseSummary(episode)
+                + "\n\n용의자 파일은 아직 봉인되어 있습니다. 시작 장소의 스토리 미션을 해결하면 용의자 3명의 관계, 알리바이, 의심 포인트가 함께 공개됩니다.";
     }
 
     private String detailedStorySummary(Episode episode, List<String> storyClues) {
@@ -392,14 +392,28 @@ public class CaseFileService {
                 .map(String::trim)
                 .toList();
         if (safeClues.isEmpty()) {
-            return base + "\n\n?쒖옉 湲곕줉???닿툑?섏뿀?듬땲?? 泥??꾩옣 ?⑥꽌? ?ш굔?먮즺瑜??議고빐 ?듭떖 ?⑥꽌? ?μ냼 ?⑥꽌瑜?遺꾨━?섏꽭??";
+            return base + "\n\n시작 기록이 해금되었습니다. 첫 현장 단서와 사건자료를 대조해 스토리 단서와 장소 단서를 분리하세요.";
         }
-        return base + "\n\n?닿툑???쒖옉 湲곕줉: " + String.join(" 쨌 ", safeClues)
-                + "\n??湲곕줉? ?ш굔??諛곌꼍??蹂닿컯?섎뒗 ?⑥꽌?낅땲?? 理쒖쥌 ?뺣떟?대굹 ?μ냼瑜?吏곸젒 留먰븯吏 ?딆쑝誘濡??ㅻⅨ 利앷굅 移대뱶? ?④퍡 ?議고빐???⑸땲??";
+        return base + "\n\n해금된 시작 기록: " + String.join(" · ", safeClues)
+                + "\n이 기록은 사건의 배경을 보강하는 단서입니다. 최종 정답이나 장소를 직접 말하지 않으므로 다른 증거 카드와 함께 대조해야 합니다.";
     }
 
     private String caseGoal(Episode episode) {
         return "현장 단서와 사건 자료를 종합해 범인, 흉기, 동기, 방법을 밝혀라.";
+    }
+
+    private String textOrNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String longerText(String first, String second) {
+        if (first == null) return second;
+        if (second == null) return first;
+        return second.length() > first.length() ? second : first;
+    }
+
+    private boolean isGenericStorySummary(String value) {
+        return containsAny(value, "8개 조사 단서로 네 개 정답 슬롯", "정답 슬롯", "조사 단서는", "판단에 필요한 근거");
     }
 
     private String finalAnswerTypeLabel(String type) {

@@ -39,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -764,10 +765,10 @@ public class AdminEpisodeService {
 
     private DraftObjective crimeMysteryDraftObjective(AiEpisodeDraftRequest request, List<AiEpisodeDraftRequest.PlaceInput> places) {
         String genre = ContentGenre.CRIME_MYSTERY.displayName();
-        String culprit = finalAnswerValue(request, "CULPRIT", "강수진");
-        String weapon = finalAnswerValue(request, "WEAPON", "독성 캡슐");
-        String motive = finalAnswerValue(request, "MOTIVE", "해고 통보에 대한 복수");
-        String method = finalAnswerValue(request, "METHOD", "피해자의 약을 독성 캡슐로 바꿔치기");
+        String culprit = finalAnswerValue(request, "CULPRIT", "범인 미입력");
+        String weapon = finalAnswerValue(request, "WEAPON", "흉기 미입력");
+        String motive = finalAnswerValue(request, "MOTIVE", "동기 미입력");
+        String method = finalAnswerValue(request, "METHOD", "방법 미입력");
         List<String> keywords = List.of(culprit, weapon, motive, method);
         String finalAnswer = "범인: " + culprit + " / 흉기: " + weapon + " / 동기: " + motive + " / 방법: " + method;
         return new DraftObjective(
@@ -918,7 +919,10 @@ public class AdminEpisodeService {
 
 
     private List<AiEpisodeDraftResponse.EvidenceDraft> defaultDraftEvidences(List<AiEpisodeDraftResponse.MissionDraft> missions) {
-        return missions.stream().limit(8).map(mission -> AiEpisodeDraftResponse.EvidenceDraft.builder()
+        return missions.stream()
+                .filter(mission -> mission.getOrder() != null && mission.getOrder() >= 2 && mission.getOrder() <= 9)
+                .limit(8)
+                .map(mission -> AiEpisodeDraftResponse.EvidenceDraft.builder()
                 .title(mission.getRewardClue() + " 단서 카드")
                 .type(evidenceTypeForMission(mission))
                 .imageUrl("")
@@ -952,6 +956,7 @@ public class AdminEpisodeService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DRAFT", "저장할 AI 초안이 필요합니다.");
         }
         sanitizeDraftPlayerTextForSave(draft);
+        normalizeDraftNarrativeBeforeSave(draft, request == null ? null : request.getSourceInput());
         List<AiEpisodeDraftResponse.MissionDraft> missions = draft.getMissions() == null ? List.of() : draft.getMissions();
         if (missions.size() < 6) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "NOT_ENOUGH_MISSIONS", "AI 초안에는 충분한 미션이 필요합니다.");
@@ -1040,9 +1045,234 @@ public class AdminEpisodeService {
         List<String> approvedFinalKeywords = finalKeywordValues(request.getSourceInput());
         List<CaseSuspect> suspects = saveDraftSuspects(episode.getId(), draft.getSuspects(), approvedFinalKeywords);
         Map<Integer, CaseEvidence> evidenceByMissionOrder = saveDraftEvidences(episode.getId(), draft.getEvidences(), missions, spotByOrder, suspects);
-        applyDraftRewardPayloads(episode.getId(), missions, puzzleByOrder, evidenceByMissionOrder, approvedFinalKeywords);
+        applyDraftRewardPayloads(episode.getId(), missions, puzzleByOrder, evidenceByMissionOrder, approvedFinalKeywords, suspects);
         saveDraftPartnerReward(episode.getId());
         return getEpisode(episode.getId());
+    }
+
+    private void normalizeDraftNarrativeBeforeSave(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest sourceInput) {
+        normalizeDraftCulpritRoleBeforeSave(draft);
+        List<String> placeNames = draftPlaceNames(draft, sourceInput);
+        Map<String, String> answers = draftAnswerMap(draft);
+        if (shouldReplaceSavedSynopsis(draft.getFictionSynopsis(), answers, placeNames)) {
+            draft.setFictionSynopsis(savedCanonicalSynopsis(draft, answers));
+        } else {
+            draft.setFictionSynopsis(redactPlaceNames(draft.getFictionSynopsis(), placeNames, "조사 지점"));
+        }
+        draft.setMissionDescription("8개 조사 단서를 대조해 범인, 흉기, 동기, 방법을 종합해 최종 진실을 판단합니다.");
+        if (shouldReplaceSavedHistorySummary(draft.getActualHistorySummary(), answers, placeNames)) {
+            draft.setActualHistorySummary("선택된 실제 장소들은 플레이 동선을 구성하는 배경 지점이며, 사건과 인물은 최종 정답 키워드를 바탕으로 구성된 허구의 범죄 미스터리입니다.");
+        } else {
+            draft.setActualHistorySummary(redactPlaceNames(draft.getActualHistorySummary(), placeNames, "선택 지점"));
+        }
+        for (AiEpisodeDraftResponse.MissionDraft mission : safeList(draft.getMissions())) {
+            if (mission == null) continue;
+            boolean start = "START".equalsIgnoreCase(blank(mission.getMarkerType(), ""));
+            boolean finalPlace = Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equalsIgnoreCase(blank(mission.getMarkerType(), ""));
+            if (start && shouldReplaceSavedMissionStory(mission.getStoryText(), answers, placeNames)) {
+                mission.setStoryText("사건 파일의 첫 장을 열고 피해자, 용의자, 사건 시간대, 조사 규칙을 확인합니다.");
+            } else if (finalPlace && shouldReplaceSavedMissionStory(mission.getStoryText(), answers, placeNames)) {
+                mission.setStoryText("모든 조사 단서를 대조한 뒤 범인, 흉기, 동기, 방법을 최종 입력합니다.");
+            } else if (!finalPlace) {
+                mission.setStoryText(redactPlaceNames(mission.getStoryText(), placeNames, "조사 지점"));
+            }
+            mission.setQuestionText(redactPlaceNames(mission.getQuestionText(), placeNames, "조사 지점"));
+            mission.setRewardClue(redactPlaceNames(mission.getRewardClue(), placeNames, "조사 지점"));
+        }
+    }
+
+    private void normalizeDraftCulpritRoleBeforeSave(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        if (draft == null) return;
+        String raw = "";
+        if (draft.getFinalAnswers() != null) {
+            raw = blank(draft.getFinalAnswers().getCulprit(), "");
+        }
+        if (missing(raw) && draft.getFinalAnswerKeywordItems() != null) {
+            raw = draft.getFinalAnswerKeywordItems().stream()
+                    .filter(item -> item != null && "CULPRIT".equals(normalizeType(blank(item.getType(), item.getSlotId()))))
+                    .map(item -> blank(item.getValue(), item.getKeyword()))
+                    .filter(value -> !missing(value))
+                    .findFirst()
+                    .orElse("");
+        }
+        NameRole culprit = splitNameRole(raw);
+        if (missing(culprit.name())) return;
+        if (draft.getFinalAnswers() != null) {
+            draft.getFinalAnswers().setCulprit(culprit.name());
+            draft.getFinalAnswers().setRelatedPerson(culprit.name());
+        }
+        if (draft.getFinalAnswerKeywords() != null && !draft.getFinalAnswerKeywords().isEmpty()) {
+            List<String> values = new ArrayList<>(draft.getFinalAnswerKeywords());
+            values.set(0, culprit.name());
+            draft.setFinalAnswerKeywords(values);
+        }
+        if (draft.getFinalAnswerKeywordItems() != null) {
+            for (AiEpisodeDraftResponse.AnswerKeywordItem item : draft.getFinalAnswerKeywordItems()) {
+                if (item == null || !"CULPRIT".equals(normalizeType(blank(item.getType(), item.getSlotId())))) continue;
+                String role = blank(culprit.role(), blank(item.getPersonRole(), item.getRole()));
+                item.setKeyword(culprit.name());
+                item.setValue(culprit.name());
+                item.setPersonName(culprit.name());
+                item.setPersonRole(role);
+                item.setRole(role);
+            }
+        }
+        if (!missing(draft.getFinalAnswer())) {
+            draft.setFinalAnswer(draft.getFinalAnswer().replace(raw, culprit.name()));
+        }
+    }
+
+    private List<String> draftPlaceNames(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest sourceInput) {
+        List<String> names = new ArrayList<>();
+        if (sourceInput != null && sourceInput.getPlaces() != null) {
+            sourceInput.getPlaces().stream()
+                    .map(AiEpisodeDraftRequest.PlaceInput::getName)
+                    .filter(value -> !missing(value))
+                    .map(String::trim)
+                    .forEach(names::add);
+        }
+        safeList(draft == null ? null : draft.getMissions()).stream()
+                .map(AiEpisodeDraftResponse.MissionDraft::getPlaceName)
+                .filter(value -> !missing(value))
+                .map(String::trim)
+                .forEach(names::add);
+        return names.stream().filter(name -> name.length() >= 3).distinct().toList();
+    }
+
+    private Map<String, String> draftAnswerMap(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        Map<String, String> answers = new LinkedHashMap<>();
+        if (draft != null && draft.getFinalAnswers() != null) {
+            answers.put("CULPRIT", blank(draft.getFinalAnswers().getCulprit(), ""));
+            answers.put("WEAPON", blank(draft.getFinalAnswers().getWeapon(), ""));
+            answers.put("MOTIVE", blank(draft.getFinalAnswers().getMotive(), ""));
+            answers.put("METHOD", blank(draft.getFinalAnswers().getMethod(), ""));
+        }
+        for (AiEpisodeDraftResponse.AnswerKeywordItem item : safeList(draft == null ? null : draft.getFinalAnswerKeywordItems())) {
+            String slot = blank(item.getSlotId(), item.getType());
+            String value = blank(item.getValue(), item.getKeyword());
+            if (!missing(slot) && !missing(value)) answers.put(slot.toUpperCase(Locale.ROOT), value);
+        }
+        return answers;
+    }
+
+    private boolean shouldReplaceSavedSynopsis(String synopsis, Map<String, String> answers, List<String> placeNames) {
+        if (missing(synopsis) || synopsis.length() < 120 || looksLikeOperationBriefing(synopsis) || containsAnyPlaceName(synopsis, placeNames)) {
+            return true;
+        }
+        String domain = answerDomain(answers);
+        String compactSynopsis = compact(synopsis);
+        if ("HARBOR".equals(domain)) return containsAnyCompact(compactSynopsis, "미술품", "갤러리", "전시", "작품") || !containsAnyCompact(compactSynopsis, "항만", "화물", "자료", "서류", "장부", "물류");
+        if ("ART".equals(domain)) return containsAnyCompact(compactSynopsis, "항만", "화물", "밀수") || !containsAnyCompact(compactSynopsis, "미술", "갤러리", "전시", "작품", "감정", "서명");
+        if ("RESEARCH".equals(domain)) return containsAnyCompact(compactSynopsis, "갤러리", "미술품", "항만") || !containsAnyCompact(compactSynopsis, "연구", "실험", "회의실", "연구동", "특허");
+        return false;
+    }
+
+    private boolean shouldReplaceSavedHistorySummary(String value, Map<String, String> answers, List<String> placeNames) {
+        if (missing(value) || containsAnyPlaceName(value, placeNames)) return true;
+        String domain = answerDomain(answers);
+        String compactValue = compact(value);
+        if ("HARBOR".equals(domain)) return containsAnyCompact(compactValue, "미술품", "갤러리", "전시", "작품");
+        if ("ART".equals(domain)) return containsAnyCompact(compactValue, "항만", "화물", "밀수");
+        return false;
+    }
+
+    private boolean shouldReplaceSavedMissionStory(String value, Map<String, String> answers, List<String> placeNames) {
+        return missing(value)
+                || containsAnyPlaceName(value, placeNames)
+                || containsAnyAnswerValue(value, answers)
+                || looksLikeOperationBriefing(value)
+                || looksMojibake(value);
+    }
+
+    private String savedCanonicalSynopsis(AiEpisodeDraftResponse.EpisodeDraft draft, Map<String, String> answers) {
+        List<AiEpisodeDraftResponse.SuspectDraft> suspects = safeList(draft.getSuspects());
+        String first = suspectName(suspects, 0, "용의자 A");
+        String second = suspectName(suspects, 1, "용의자 B");
+        String third = suspectName(suspects, 2, "용의자 C");
+        String weapon = blank(answers.get("WEAPON"), "독성 물질");
+        String motive = blank(answers.get("MOTIVE"), "비공개 계약 은폐");
+        String routine = savedRoutineLabel(answers.get("METHOD"));
+        String domain = answerDomain(answers);
+        String intro = switch (domain) {
+            case "HARBOR" -> "항만 물류 감사관 한태준이 비공개 감사 보고회를 하루 앞둔 밤, 운영사 회의실 안쪽 자료 검토실에서 숨진 채 발견되었다.";
+            case "ART" -> "유명 미술품 수집가 한태준이 개인 갤러리 개관 행사 전날 밤, 자신의 집무실에서 숨진 채 발견되었다.";
+            case "RESEARCH" -> "바이오 연구소 책임자 한태준이 신약 투자 발표회를 하루 앞둔 밤, 연구동 회의실에서 숨진 채 발견되었다.";
+            case "FOOD" -> "외식 브랜드 투자자 한태준이 신규 매장 계약 발표 전날 밤, 비공개 시음 회의실에서 숨진 채 발견되었다.";
+            default -> "중요 계약을 앞둔 사업가 한태준이 발표 전날 밤, 제한 구역 안쪽 회의실에서 숨진 채 발견되었다.";
+        };
+        String locked = switch (domain) {
+            case "HARBOR" -> "자료 검토실 출입문은 전자 잠금장치로 닫혀 있었고 외부 침입 기록은 남아 있지 않았다.";
+            case "RESEARCH" -> "회의실은 내부 보안 카드로 잠긴 상태였고 CCTV는 사건 직전 짧은 공백을 보였다.";
+            default -> "출입문은 내부에서 잠긴 상태였고 외부 침입 흔적은 발견되지 않았다.";
+        };
+        return intro + "\n\n"
+                + "사인은 " + weapon + "에서 검출된 유해 성분과 연결된 급성 반응으로 추정되었다.\n\n"
+                + locked + " 현장에는 몸싸움의 흔적이 없었고, 유해 성분이 어떤 경로로 피해자에게 닿았는지는 즉시 밝혀지지 않았다.\n\n"
+                + "수사 결과, 사건 추정 시간대에 내부에 남아 있었던 인물은 " + first + ", " + second + ", " + third + " 세 명뿐이었다.\n\n"
+                + "한태준은 최근 " + motive + " 문제를 둘러싸고 관계자들과 갈등을 겪고 있었다. 플레이어는 세 용의자의 알리바이, 접근 기록, " + routine + " 변조 흔적, 그리고 현장 기록의 공백을 대조해 범인과 범행 방식을 밝혀야 한다.";
+    }
+
+    private String answerDomain(Map<String, String> answers) {
+        String text = compact(String.join(" ", blank(answers.get("WEAPON"), ""), blank(answers.get("MOTIVE"), ""), blank(answers.get("METHOD"), "")));
+        if (containsAnyCompact(text, "항만", "화물", "밀수", "장부", "서류", "봉투")) return "HARBOR";
+        if (containsAnyCompact(text, "미술", "전시", "갤러리", "작품", "위작", "붓펜", "잉크", "서명")) return "ART";
+        if (containsAnyCompact(text, "연구", "실험", "시약", "논문", "특허")) return "RESEARCH";
+        if (containsAnyCompact(text, "카페", "와인", "잔", "음료", "식당", "보온병", "향수")) return "FOOD";
+        return "GENERAL";
+    }
+
+    private String savedRoutineLabel(String method) {
+        String text = compact(blank(method, ""));
+        if (containsAnyCompact(text, "음료", "커피", "차", "마시")) return "반복되던 음료 준비";
+        if (containsAnyCompact(text, "약", "캡슐", "수면제", "복용")) return "반복되던 약 복용";
+        if (containsAnyCompact(text, "서류", "봉투", "문서")) return "반복되던 문서 확인";
+        if (containsAnyCompact(text, "향수", "분사")) return "현장 준비물 사용";
+        return "반복되던 준비물";
+    }
+
+    private String suspectName(List<AiEpisodeDraftResponse.SuspectDraft> suspects, int index, String fallback) {
+        if (suspects == null || suspects.size() <= index || suspects.get(index) == null) return fallback;
+        return blank(suspects.get(index).getDisplayName(), fallback);
+    }
+
+    private String redactPlaceNames(String value, List<String> placeNames, String replacement) {
+        if (value == null) return null;
+        String result = value;
+        for (String placeName : placeNames) {
+            result = result.replace(placeName, replacement);
+        }
+        return result;
+    }
+
+    private boolean containsAnyPlaceName(String value, List<String> placeNames) {
+        if (missing(value)) return false;
+        return placeNames.stream().anyMatch(value::contains);
+    }
+
+    private boolean containsAnyAnswerValue(String value, Map<String, String> answers) {
+        if (missing(value) || answers == null || answers.isEmpty()) return false;
+        String compactValue = compact(value);
+        return answers.values().stream()
+                .filter(answer -> !missing(answer) && compact(answer).length() >= 2)
+                .anyMatch(answer -> compactValue.contains(compact(answer)));
+    }
+
+    private boolean looksMojibake(String value) {
+        if (missing(value)) return false;
+        long questionMarks = value.chars().filter(ch -> ch == '?').count();
+        long cjkCompatibility = value.chars().filter(ch -> ch >= 0xF900 && ch <= 0xFAFF).count();
+        return questionMarks >= 3 || cjkCompatibility >= 2 || value.indexOf('\uFFFD') >= 0;
+    }
+
+    private boolean containsAnyCompact(String compactValue, String... terms) {
+        for (String term : terms) {
+            if (compactValue.contains(compact(term))) return true;
+        }
+        return false;
+    }
+
+    private <T> List<T> safeList(List<T> values) {
+        return values == null ? List.of() : values;
     }
 
     private AdminEpisodeDetailResponse.Spot toSpot(MissionSpot spot) {
@@ -1132,23 +1362,28 @@ public class AdminEpisodeService {
 
     private List<CaseSuspect> saveDraftSuspects(Long episodeId, List<AiEpisodeDraftResponse.SuspectDraft> drafts, List<String> finalAnswerKeywords) {
         List<AiEpisodeDraftResponse.SuspectDraft> source = drafts == null || drafts.isEmpty() ? defaultDraftSuspects() : drafts;
-        String relatedPersonKeyword = finalAnswerKeywords == null || finalAnswerKeywords.isEmpty() ? "" : finalAnswerKeywords.get(0);
+        NameRole relatedPerson = splitNameRole(finalAnswerKeywords == null || finalAnswerKeywords.isEmpty() ? "" : finalAnswerKeywords.get(0));
+        String relatedPersonKeyword = relatedPerson.name();
         int relatedPersonIndex = relatedPersonTargetIndex(source, relatedPersonKeyword);
         List<CaseSuspect> saved = new ArrayList<>();
+        Set<String> usedDisplayNames = new LinkedHashSet<>();
         int index = 0;
         for (AiEpisodeDraftResponse.SuspectDraft draft : source) {
             CaseSuspect suspect = new CaseSuspect();
             suspect.setEpisodeId(episodeId);
             suspect.setAlias(blank(draft.getAlias(), "Suspect " + (char) ('A' + index)));
-            String displayName = safeSuspectDisplayName(draft.getDisplayName(), index);
+            NameRole draftName = splitNameRole(draft.getDisplayName());
+            String displayName = safeSuspectDisplayName(draftName.name(), index);
+            String displayRole = blank(draftName.role(), relatedPersonRoleForIndex(index, relatedPersonIndex, relatedPerson.role()));
             if (!missing(relatedPersonKeyword) && (same(displayName, relatedPersonKeyword) || index == relatedPersonIndex)) {
                 displayName = relatedPersonKeyword.trim();
             }
+            displayName = uniqueSuspectDisplayName(displayName, index, relatedPersonKeyword, index == relatedPersonIndex, usedDisplayNames);
             suspect.setDisplayName(displayName);
-            suspect.setShortDescription(blank(draft.getShortDescription(), "A stakeholder who may have distorted the clue chain."));
-            suspect.setRelationToVictim(blank(draft.getRelationToVictim(), "Case stakeholder"));
-            suspect.setSuspiciousPoint(blank(draft.getSuspiciousPoint(), "There is an unexplained gap in the timeline."));
-            suspect.setAlibiSummary(blank(draft.getAlibiSummary(), "The alibi requires comparison with evidence cards."));
+            suspect.setShortDescription(normalizeVictimReference(blank(draft.getShortDescription(), "A stakeholder who may have distorted the clue chain.")));
+            suspect.setRelationToVictim(normalizeVictimReference(relationWithRole(draft.getRelationToVictim(), displayRole)));
+            suspect.setSuspiciousPoint(normalizeVictimReference(blank(draft.getSuspiciousPoint(), "There is an unexplained gap in the timeline.")));
+            suspect.setAlibiSummary(normalizeVictimReference(blank(draft.getAlibiSummary(), "The alibi requires comparison with evidence cards.")));
             suspect.setPortraitImageUrl(draft.getPortraitImageUrl());
             suspect.setImagePrompt(ensureKoreanPersonPrompt(blank(draft.getImagePrompt(), buildSuspectImagePrompt(draft))));
             suspect.setUnlockedByDefault(true);
@@ -1158,6 +1393,78 @@ public class AdminEpisodeService {
             index++;
         }
         return saved;
+    }
+
+    private String uniqueSuspectDisplayName(String candidate, int index, String relatedPersonKeyword, boolean relatedPersonSlot, Set<String> usedDisplayNames) {
+        String displayName = safeSuspectDisplayName(candidate, index);
+        if (relatedPersonSlot && !missing(relatedPersonKeyword)) {
+            displayName = relatedPersonKeyword.trim();
+        }
+        if (usedDisplayNames.add(compact(displayName))) {
+            return displayName;
+        }
+        for (String fallback : suspectFallbackNames(index)) {
+            if (!relatedPersonSlot && !missing(relatedPersonKeyword) && same(fallback, relatedPersonKeyword)) {
+                continue;
+            }
+            if (usedDisplayNames.add(compact(fallback))) {
+                return fallback;
+            }
+        }
+        String numbered = displayName + " " + (index + 1);
+        usedDisplayNames.add(compact(numbered));
+        return numbered;
+    }
+
+    private String relatedPersonRoleForIndex(int index, int relatedPersonIndex, String role) {
+        return index == relatedPersonIndex ? role : "";
+    }
+
+    private String relationWithRole(String relation, String role) {
+        String base = blank(relation, "Case stakeholder");
+        if (missing(role) || containsCompact(base, role)) {
+            return base;
+        }
+        if ("Case stakeholder".equals(base)) {
+            return role;
+        }
+        return role + " / " + base;
+    }
+
+    private String normalizeVictimReference(String value) {
+        if (value == null) return null;
+        return value.replace("김준혁", "한태준");
+    }
+
+    private NameRole splitNameRole(String value) {
+        String text = blank(value, "").trim();
+        if (text.isEmpty()) return new NameRole("", "");
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("^\\s*([가-힣]{2,4})\\s*\\(([^)]+)\\)\\s*$")
+                .matcher(text);
+        if (matcher.matches()) {
+            return new NameRole(matcher.group(1).trim(), matcher.group(2).trim());
+        }
+        return new NameRole(text, "");
+    }
+
+    private record NameRole(String name, String role) {}
+
+    private List<String> suspectFallbackNames(int index) {
+        List<String> names = List.of(
+                "\uC11C\uBBFC\uC7AC",
+                "\uD64D\uC9C0\uC601",
+                "\uBC15\uD0DC\uC900",
+                "\uC774\uD604\uC6B0",
+                "\uD55C\uC9C0\uC6D0",
+                "\uC624\uB3C4\uC724"
+        );
+        int start = Math.floorMod(index, names.size());
+        List<String> rotated = new ArrayList<>();
+        for (int i = 0; i < names.size(); i++) {
+            rotated.add(names.get((start + i) % names.size()));
+        }
+        return rotated;
     }
 
     private int relatedPersonTargetIndex(List<AiEpisodeDraftResponse.SuspectDraft> source, String relatedPersonKeyword) {
@@ -1456,7 +1763,7 @@ public class AdminEpisodeService {
 
 
 
-    private void applyDraftRewardPayloads(Long episodeId, List<AiEpisodeDraftResponse.MissionDraft> missions, Map<Integer, Puzzle> puzzleByOrder, Map<Integer, CaseEvidence> evidenceByMissionOrder, List<String> finalKeywords) {
+    private void applyDraftRewardPayloads(Long episodeId, List<AiEpisodeDraftResponse.MissionDraft> missions, Map<Integer, Puzzle> puzzleByOrder, Map<Integer, CaseEvidence> evidenceByMissionOrder, List<String> finalKeywords, List<CaseSuspect> suspects) {
         String coreKeyword = finalKeywords != null && finalKeywords.size() >= 2 ? finalKeywords.get(1) : "";
         int answerClueRevealIndex = 0;
         for (int i = 0; i < missions.size(); i++) {
@@ -1464,6 +1771,23 @@ public class AdminEpisodeService {
             int order = mission.getOrder() == null ? i + 1 : mission.getOrder();
             Puzzle puzzle = puzzleByOrder.get(order);
             if (puzzle == null) {
+                continue;
+            }
+            if (isStartMission(mission)) {
+                List<Map<String, Object>> rewards = new ArrayList<>();
+                for (CaseSuspect suspect : safeList(suspects)) {
+                    if (suspect == null || suspect.getId() == null) continue;
+                    Map<String, Object> suspectReward = new LinkedHashMap<>();
+                    suspectReward.put("type", "SUSPECT_UNLOCK");
+                    suspectReward.put("targetId", suspect.getId());
+                    rewards.add(suspectReward);
+                }
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("rewards", rewards);
+                payload.put("interaction", buildPuzzleInteraction(mission, i, "SUSPECT_UNLOCK"));
+                puzzle.setRewardClue("");
+                puzzle.setRewardPayload(writeObjectJson(payload));
+                adminEpisodeRepository.updatePuzzle(puzzle);
                 continue;
             }
             String clueType = rewardTypeForMission(mission);
@@ -1528,10 +1852,17 @@ public class AdminEpisodeService {
             return mission.getStoryText();
         }
         String story = blank(mission.getStoryText(), "");
+        if (!story.isBlank() && !looksLikeOperationBriefing(story) && !looksMojibake(story)) {
+            return story;
+        }
         if (story.length() >= 120 && !looksLikeOperationBriefing(story)) {
             return story;
         }
+        String fallbackStory = "작전 파일이 생성되었습니다. 현장의 숨은 기록, 이동 흔적, 관계자 진술을 순서대로 대조해 사건의 배후와 숨겨진 단서를 확인하세요. 첫 지점에서는 전체 임무의 목적과 조사 기준을 확인하고 다음 단계로 이동합니다.";
         String synopsis = draft == null ? "" : blank(draft.getFictionSynopsis(), "");
+        if (synopsis.isBlank() || synopsis.length() < 120) {
+            return fallbackStory;
+        }
         if (!synopsis.isBlank() && synopsis.length() >= 120) {
             return synopsis;
         }
@@ -3017,13 +3348,15 @@ public class AdminEpisodeService {
         if (item == null) {
             return "";
         }
-        if ("RELATED_PERSON".equals(normalizeType(item.getSlotId())) || containsAny(item.getLabel(), "관련자", "관계자", "용의자", "실종자", "협력자")) {
-            String personName = blank(item.getPersonName(), "");
+        String slot = normalizeType(blank(item.getSlotId(), item.getType()));
+        if ("RELATED_PERSON".equals(normalizeType(item.getSlotId())) || "CULPRIT".equals(slot) || containsAny(item.getLabel(), "관련자", "관계자", "용의자", "실종자", "협력자")) {
+            String personName = splitNameRole(blank(item.getPersonName(), "")).name();
             if (isUsableSuspectName(personName)) {
                 return personName;
             }
         }
-        return item.getKeyword();
+        String value = item.getKeyword();
+        return "CULPRIT".equals(slot) ? splitNameRole(value).name() : value;
     }
 
     private AdminEpisodeProgressStats safeStats(Long episodeId) {
@@ -3325,10 +3658,11 @@ public class AdminEpisodeService {
         List<String> labels = List.of("범인", "흉기", "동기", "방법");
         List<AdminEpisodeDetailResponse.FinalAnswerKeywordItem> items = new ArrayList<>();
         for (int i = 0; i < types.size(); i++) {
+            String value = "CULPRIT".equals(types.get(i)) ? splitNameRole(values.get(i)).name() : values.get(i);
             items.add(AdminEpisodeDetailResponse.FinalAnswerKeywordItem.builder()
                     .type(types.get(i))
                     .displayType(labels.get(i))
-                    .value(values.get(i))
+                    .value(value)
                     .aliases(List.of())
                     .build());
         }

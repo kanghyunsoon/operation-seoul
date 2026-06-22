@@ -253,7 +253,7 @@ public class EpisodePlayService {
                     .canOpenPuzzle(false)
                     .isActualFinalArrived(false)
                     .canStartDeduction(false)
-                    .message("?꾩갑 諛섍꼍 諛뽰엯?덈떎. ?μ냼????媛源뚯씠 ?대룞??二쇱꽭??")
+                    .message("도착 반경 밖입니다. 장소에 더 가까이 이동해 주세요.")
                     .build();
         }
 
@@ -269,10 +269,10 @@ public class EpisodePlayService {
         episodeRepository.updateProgress(progress);
 
         String message = actualFinal
-                ? "議곗궗 ?μ냼媛 ?뺤씤?섏뿀?듬땲?? 理쒖쥌 異붾━瑜??쒖옉?????덉?留? 遺議깊븳 ?⑥꽌???먯닔???곹뼢??以????덉뒿?덈떎."
+                ? "최종 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다."
                 : ("DESTINATION_HINT".equals(spot.getPublicMarkerType())
-                    ? "?μ냼 ?⑥꽌? ?議고븷 議곗궗 吏?먯엯?덈떎. 誘몄뀡 硫붾え怨??⑥꽌 蹂대뱶瑜??ㅼ떆 ?뺤씤??二쇱꽭??"
-                    : "?꾩갑???뺤씤?섏뿀?듬땲?? ?꾩옣 ?쇱쫹???????덉뒿?덈떎.");
+                    ? "장소 단서를 대조할 조사 지점입니다. 미션 메모와 단서 보드를 다시 확인해 주세요."
+                    : "도착을 확인했습니다. 현장 퍼즐을 열 수 있습니다.");
 
         return ArriveResponse.builder()
                 .arrived(true)
@@ -289,11 +289,11 @@ public class EpisodePlayService {
         MissionSpot finalSpot = episodeRepository.findSpotsByEpisodeId(episodeId).stream()
                 .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "議곗궗 ?μ냼 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "최종 장소 정보를 찾을 수 없습니다."));
         UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
         boolean adminBypass = user != null && user.isAdmin();
         if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled && !adminBypass) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "???쒕쾭?먯꽌??媛쒕컻???꾩갑 ?먯젙??鍮꾪솢?깊솕?섏뼱 ?덉뒿?덈떎.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "이 서버에서는 개발용 도착 판정이 비활성화되어 있습니다.");
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
         requireCoordinatesUnlessDevMode(request, devMode);
@@ -309,7 +309,7 @@ public class EpisodePlayService {
                     .canOpenPuzzle(false)
                     .isActualFinalArrived(false)
                     .canStartDeduction(false)
-                    .message("?꾩옱 ?꾩튂?먯꽌??理쒖쥌 異붾━瑜??쒖옉?????놁뒿?덈떎. ?⑥꽌 蹂대뱶? 誘몄뀡 硫붾え???ㅼ떆 ?뺤씤??二쇱꽭??")
+                    .message("현재 위치에서는 최종 추리를 시작할 수 없습니다. 단서 보드와 미션 메모를 다시 확인해 주세요.")
                     .build();
         }
         progress.setFinalArrivedSpotId(finalSpot.getId());
@@ -321,7 +321,7 @@ public class EpisodePlayService {
                 .canOpenPuzzle(false)
                 .isActualFinalArrived(true)
                 .canStartDeduction(true)
-                .message("議곗궗 ?μ냼媛 ?뺤씤?섏뿀?듬땲?? 理쒖쥌 異붾━瑜??쒖옉?????덉?留? 遺議깊븳 ?⑥꽌???먯닔???곹뼢??以????덉뒿?덈떎.")
+                .message("최종 장소가 확인되었습니다. 최종 추리를 시작할 수 있지만, 부족한 단서는 점수에 영향을 줄 수 있습니다.")
                 .build();
     }
 
@@ -333,7 +333,7 @@ public class EpisodePlayService {
         }
         Puzzle puzzle = episodeRepository.findPuzzleBySpotId(spotId);
         if (puzzle == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "?쇱쫹??李얠쓣 ???놁뒿?덈떎.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "퍼즐을 찾을 수 없습니다.");
         }
         return PuzzleResponse.builder()
                 .puzzleId(puzzle.getId())
@@ -418,6 +418,11 @@ public class EpisodePlayService {
         interaction.put("localSolution", localSolution);
         interaction.put("timeLimitSeconds", 60);
         interaction.put("config", config);
+        interaction.put("title", "단서 배치 · 패턴 잠금");
+        interaction.put("prompt", "아래 미션을 해결하여 단서를 얻으세요.");
+        interaction.put("missionDescription", "불이 켜지는 노드 순서를 기억하고 그대로 입력한 뒤 결과를 제출하세요.");
+        interaction.put("storyHook", "아래 미션을 해결하여 단서를 얻으세요.");
+        interaction.put("basis", sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "사건 단서")));
         return interaction;
     }
 
@@ -499,7 +504,7 @@ public class EpisodePlayService {
         MissionSpot spot = requireSpot(puzzle.getMissionSpotId(), null);
         UserEpisodeProgress progress = requireProgress(user.getId(), spot.getEpisodeId());
         if (!readLongList(progress.getVisitedSpotIds()).contains(spot.getId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "?쇱쫹???湲??꾩뿉 ?대떦 ?μ냼???꾩갑?댁빞 ?⑸땲??");
+            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "퍼즐을 풀기 전에 해당 장소에 도착해야 합니다.");
         }
 
         puzzleAttemptGuard.enforce(user.getId(), puzzle.getId());
@@ -519,7 +524,7 @@ public class EpisodePlayService {
             );
             return PuzzleSubmitResponse.builder()
                     .correct(false)
-                    .message("?뺣떟???꾨떃?덈떎. 媛숈? 誘몄뀡???ㅻⅨ 臾몄젣濡??ㅼ떆 ?쒕룄??二쇱꽭??")
+                    .message("정답이 아닙니다. 같은 미션의 다른 문제로 다시 시도해 주세요.")
                     .retryInteraction(puzzleInteraction(puzzle, retryVariant))
                     .clueBoard(buildClueBoard(progress))
                     .build();

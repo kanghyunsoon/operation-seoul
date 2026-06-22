@@ -11,6 +11,12 @@ const jwtIssuer = process.env.JWT_ISSUER || 'operation-seoul-local';
 const forbiddenPlayerPhrases = [
   'TourAPI',
   'RAG',
+  '기록 속 인물 서명 확인',
+  '사건이 시작된 장소에서 발견된 봉투와 훼손된 기록 조각입니다.',
+  '범인: 강수진',
+  '흉기: 독성 캡슐',
+  '동기: 비밀 계약 은폐',
+  '방법: 약병 바꿔치기',
   '실제 장소',
   '가상의 용의자',
   '관리자 검수',
@@ -297,6 +303,51 @@ function scanPreClearAnswerLeaks(textEntries, saved) {
     return leaks;
 }
 
+function scanStaleAnswerTuple(saved, textEntries) {
+  const values = finalAnswerValues(saved).join('|');
+  const staleTuple = ['강수진', '독성 캡슐', '비밀 계약 은폐', '약병 바꿔치기'];
+  const savedUsesStaleTuple = staleTuple.every((value) => values.includes(value));
+  const textUsesStaleTuple = staleTuple.every((value) => textEntries.some((entry) => entry.value.includes(value)));
+  return savedUsesStaleTuple || textUsesStaleTuple
+    ? [{ scope: 'playerText', path: '$', phrase: 'stale-default-answer-tuple', value: values }]
+    : [];
+}
+
+function scanDuplicateDeductionClues(snapshots) {
+  const issues = [];
+  for (const snapshot of snapshots) {
+    const summary = unwrap(snapshot.body)?.clueSummary;
+    if (!summary) continue;
+    const bySlot = [
+      ['culpritClues', summary.culpritClues],
+      ['weaponClues', summary.weaponClues],
+      ['motiveClues', summary.motiveClues],
+      ['methodClues', summary.methodClues]
+    ];
+    const seen = new Map();
+    for (const [slot, clues] of bySlot) {
+      for (const clue of uniqueStrings(clues)) {
+        const key = normalizeText(clue);
+        if (!key) continue;
+        if (seen.has(key) && seen.get(key) !== slot) {
+          issues.push({ scope: 'deductionClues', path: `${snapshot.scope}.clueSummary.${slot}`, phrase: 'duplicate-slot-clue', value: clue });
+        } else {
+          seen.set(key, slot);
+        }
+      }
+    }
+  }
+  return issues;
+}
+
+function uniqueStrings(values = []) {
+  return [...new Set((Array.isArray(values) ? values : []).map((value) => String(value || '').trim()).filter(Boolean))];
+}
+
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, '').toLowerCase();
+}
+
 function isPreClearClueTextPath(path) {
   return path.includes('.rewardClue')
     || path.includes('.clueBoard')
@@ -389,7 +440,9 @@ async function main() {
   const issues = [
     ...scanForbidden(allEntries, forbiddenPlayerPhrases, 'playerText'),
     ...scanForbidden(allPreClearEntries, forbiddenPreClearPhrases, 'preClearText'),
-    ...scanPreClearAnswerLeaks(allPreClearEntries, saved)
+    ...scanPreClearAnswerLeaks(allPreClearEntries, saved),
+    ...scanStaleAnswerTuple(saved, allEntries),
+    ...scanDuplicateDeductionClues(snapshots)
   ];
 
   const summary = {

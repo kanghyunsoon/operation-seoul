@@ -115,6 +115,35 @@ class AdminEpisodeServiceAiDraftSaveTest {
     }
 
     @Test
+    void deduplicatesSuspectNamesBeforeSave() {
+        AdminEpisodeRepository repository = mock(AdminEpisodeRepository.class);
+        InMemoryAdminEpisodeRepositoryState state = new InMemoryAdminEpisodeRepositoryState();
+        state.bind(repository);
+        AdminEpisodeService service = new AdminEpisodeService(
+                repository,
+                new ObjectMapper(),
+                mock(TourApiService.class),
+                mock(OperationAreaResolver.class),
+                mock(KakaoLocalCandidateService.class),
+                mock(ExternalPlaceResearchService.class)
+        );
+        AiEpisodeDraftSaveRequest request = saveRequest();
+        request.getDraft().getSuspects().forEach(suspect -> suspect.setDisplayName(ANSWER_VALUES.get(0)));
+
+        AdminEpisodeDetailResponse saved = assertDoesNotThrow(() -> service.saveAiDraft(request));
+
+        assertEquals(3, saved.getSuspects().size());
+        assertEquals(3, saved.getSuspects().stream()
+                .map(AdminEpisodeDetailResponse.Suspect::getDisplayName)
+                .map(this::compact)
+                .distinct()
+                .count());
+        assertEquals(1, saved.getSuspects().stream()
+                .filter(suspect -> ANSWER_VALUES.get(0).equals(suspect.getDisplayName()))
+                .count());
+    }
+
+    @Test
     void rejectsMojibakeAiDraftBeforeSave() {
         AdminEpisodeRepository repository = mock(AdminEpisodeRepository.class);
         InMemoryAdminEpisodeRepositoryState state = new InMemoryAdminEpisodeRepositoryState();

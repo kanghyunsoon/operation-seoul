@@ -1,0 +1,61 @@
+{
+  "valid": true,
+  "episodeId": 5,
+  "title": "부둣가 그림자의 비밀",
+  "status": "DRAFT",
+  "readinessReady": true,
+  "spotCount": 10,
+  "investigationCount": 8,
+  "finalCount": 1,
+  "slotCounts": {
+    "CULPRIT": 2,
+    "WEAPON": 2,
+    "MOTIVE": 2,
+    "METHOD": 2
+  },
+  "labels": [
+    {
+      "spotId": 41,
+      "label": "범인"
+    },
+    {
+      "spotId": 42,
+      "label": "범인"
+    },
+    {
+      "spotId": 43,
+      "label": "흉기"
+    },
+    {
+      "spotId": 44,
+      "label": "흉기"
+    },
+    {
+      "spotId": 45,
+      "label": "동기"
+    },
+    {
+      "spotId": 46,
+      "label": "동기"
+    },
+    {
+      "spotId": 47,
+      "label": "방법"
+    },
+    {
+      "spotId": 48,
+      "label": "방법"
+    }
+  ],
+  "final": [
+    {
+      "spotId": 49,
+      "markerType": "FINAL",
+      "publicMarkerType": "ANSWER_HINT",
+      "clueRole": "FINAL_PLACE",
+      "finalPlace": true,
+      "rewardClue": "조사 미션 8개 완료 시 자동 공개"
+    }
+  ],
+  "issues": []
+}

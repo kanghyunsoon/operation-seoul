@@ -49,13 +49,6 @@ public class AdminEpisodeGeminiService {
             "MOTIVE", "동기",
             "METHOD", "방법"
     );
-    private static final List<String> DEFAULT_ANSWERS = List.of(
-            "강수진",
-            "독성 캡슐",
-            "비밀 계약 은폐",
-            "약병 바꿔치기"
-    );
-
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate(requestFactory());
 
@@ -74,9 +67,7 @@ public class AdminEpisodeGeminiService {
 
     public AiEpisodePlanResponse createAnswerPlan(AiEpisodeDraftRequest request) {
         validatePlaces(request);
-        ensureApiKey();
-        JsonNode root = parseJson(callGemini(buildPlanPrompt(request)), "GEMINI_PLAN_PARSE_FAILED");
-        List<AiEpisodePlanResponse.AnswerKeyword> keywords = sanitizePlanKeywords(root.path("finalAnswerKeywords"));
+        List<AiEpisodePlanResponse.AnswerKeyword> keywords = answerPlanKeywords(request);
         return AiEpisodePlanResponse.builder()
                 .selectedGenreId(GENRE_ID)
                 .selectedGenreName(GENRE_NAME)
@@ -85,7 +76,7 @@ public class AdminEpisodeGeminiService {
                 .finalAnswerKeywordItems(keywords)
                 .finalAnswers(planFinalAnswers(keywords))
                 .finalQuestionGuide("조사 미션 8개를 완료한 뒤 범인, 흉기, 동기, 방법을 각각 입력합니다.")
-                .rationale("장르는 범죄 미스터리로 고정하고 선택 장소 정보는 배경 모티브로만 사용합니다.")
+                .rationale("장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/문화 문맥을 바탕으로 구체화합니다.")
                 .planReviewRequired(false)
                 .reviewReason("")
                 .fieldVerificationRecommended(true)
@@ -98,6 +89,7 @@ public class AdminEpisodeGeminiService {
     public AiEpisodeDraftResponse createGeminiDraft(AiEpisodeDraftRequest request) {
         validatePlaces(request);
         normalizeFinalAnswerKeywordItems(request);
+        repairWeakFinalAnswerKeywords(request);
         validateFinalAnswerContract(request);
         ensureApiKey();
         AiEpisodeDraftResponse.EpisodeDraft draft;
@@ -155,7 +147,10 @@ public class AdminEpisodeGeminiService {
     private void applyApprovedFinalAnswerContract(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request, List<String> warnings) {
         if (draft == null) return;
         normalizeFinalAnswerKeywordItems(request);
+        repairWeakFinalAnswerKeywords(request);
         Map<String, String> approved = approvedAnswers(request);
+        NameRole culprit = splitNameRole(approved.get("CULPRIT"));
+        approved.put("CULPRIT", culprit.name());
         List<String> values = SLOT_IDS.stream().map(approved::get).toList();
         draft.setGenre(GENRE_NAME);
         draft.setSelectedGenre(GENRE_NAME);
@@ -164,7 +159,9 @@ public class AdminEpisodeGeminiService {
                 .map(slot -> AiEpisodeDraftResponse.AnswerKeywordItem.builder()
                         .slotId(slot).type(slot).displayType(SLOT_LABELS.get(slot)).label(SLOT_LABELS.get(slot))
                         .keyword(approved.get(slot)).value(approved.get(slot))
-                        .personName("CULPRIT".equals(slot) ? approved.get(slot) : "")
+                        .personName("CULPRIT".equals(slot) ? culprit.name() : "")
+                        .personRole("CULPRIT".equals(slot) ? culprit.role() : "")
+                        .role("CULPRIT".equals(slot) ? culprit.role() : "")
                         .aliases(List.of()).build())
                 .toList());
         draft.setFinalAnswers(AiEpisodeDraftResponse.FinalAnswers.builder()
@@ -218,14 +215,32 @@ public class AdminEpisodeGeminiService {
                 mission.setRewardClueLabel(SLOT_LABELS.get(target) + " 단서");
                 mission.setSupportsKeywordSlots(List.of(target));
                 mission.setRewardClue(blank(mission.getRewardClue()) ? null : mission.getRewardClue().trim());
+                mission.setStoryText(defaultIfBlank(mission.getStoryText(), investigationStoryText(i + 1, target)));
+            } else if (start) {
+                mission.setStoryText(defaultIfBlank(mission.getStoryText(), "사건 파일의 첫 장을 열고 피해자, 용의자, 사건 시간대를 확인합니다."));
             }
             if (finalPlace) {
                 mission.setUnlockCondition(defaultIfBlank(mission.getUnlockCondition(), "ALL_INVESTIGATION_MISSIONS_CLEARED"));
                 mission.setRewardClue(defaultIfBlank(mission.getRewardClue(), "조사 미션 8개 완료 시 자동 공개"));
+                mission.setStoryText(defaultIfBlank(mission.getStoryText(), "모든 조사 단서를 대조한 뒤 범인, 흉기, 동기, 방법을 최종 입력합니다."));
             }
             missions.add(mission);
         }
         draft.setMissions(missions);
+    }
+
+    private String investigationStoryText(int order, String target) {
+        return switch (order) {
+            case 2 -> "사건 발생 시간대의 출입 기록과 내부 동선을 대조해 실제 접근 가능했던 인물을 좁힙니다.";
+            case 3 -> "알리바이 기록, CCTV 공백, 휴대폰 위치 기록을 비교해 용의자들의 진술이 맞는지 확인합니다.";
+            case 4 -> "피해자 주변에서 나온 물질 흔적을 분석해 사망 원인과 연결되는 물증을 확인합니다.";
+            case 5 -> "현장에 남은 물건의 상태와 보관 위치를 대조해 어떤 도구가 범행에 쓰였는지 추적합니다.";
+            case 6 -> "피해자와 용의자들 사이의 계약, 장부, 문서 기록을 확인해 사건의 이해관계를 찾습니다.";
+            case 7 -> "사건 직전의 메시지, 통화, 목격 진술을 비교해 누가 가장 강한 압박을 받았는지 판단합니다.";
+            case 8 -> "피해자가 반복하던 행동과 사건 당일 준비물의 변화를 대조해 범행 순서를 복원합니다.";
+            case 9 -> "마지막 조작 흔적과 접근 순서를 맞춰 범행 방법이 어떻게 실행됐는지 확정합니다.";
+            default -> "수집한 사건 기록을 대조해 " + SLOT_LABELS.getOrDefault(target, "정답") + " 판단에 필요한 단서를 확인합니다.";
+        };
     }
 
     private void applyDeterministicCrimeMysteryGuardrail(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request, List<String> warnings) {
@@ -236,22 +251,31 @@ public class AdminEpisodeGeminiService {
         String weapon = approved.get("WEAPON");
         String motive = approved.get("MOTIVE");
         String method = approved.get("METHOD");
+        String routineLabel = methodRoutineLabel(method);
+        String containerLabel = evidenceContainerLabel(weapon, method);
+        String motiveDocument = motiveDocumentLabel(motive);
         draft.setFictionSynopsis(defaultIfBlank(draft.getFictionSynopsis(),
-                "중요한 행사 전날 밤 피해자가 집무실에서 숨진 채 발견되었다. 외부 침입 흔적은 없고, 사건 시간대에 의미 있는 접근 권한을 가진 인물은 세 명뿐이었다. 조사 단서는 피해자의 평소 복용 습관, 접근 기록, 독성 분석, 알리바이의 빈틈을 따라 하나의 진실로 수렴한다."));
+                "중요한 행사 전날 밤 피해자가 제한된 공간에서 숨진 채 발견되었다. 외부 침입 흔적은 없고, 사건 시간대에 의미 있는 접근 권한을 가진 인물은 세 명뿐이었다. 조사 단서는 피해자의 " + routineLabel + ", 접근 기록, 독성 분석, 알리바이의 빈틈을 따라 하나의 진실로 수렴한다."));
         draft.setMissionDescription("8개 조사 단서로 범인, 흉기, 동기, 방법을 종합해 최종 진실을 판단합니다.");
         if (!finalTruthExplainsAnswers(draft, culprit, weapon, motive, method)) {
             draft.setFinalTruthSummary(String.format(
-                    "범인: %s. 흉기: %s. 동기: %s. 방법: %s. 피해자의 평소 복용 습관, 약통 접근 흔적, 독성 성분 분석, 인사 문서와 알리바이 검증 결과가 서로 맞물리며 이 네 가지 정답으로 수렴합니다.",
-                    culprit, weapon, motive, method));
+                    "범인: %s. 흉기: %s. 동기: %s. 방법: %s. 피해자의 %s, %s 접근 흔적, 독성 성분 분석, %s와 알리바이 검증 결과가 서로 맞물리며 이 네 가지 정답으로 수렴합니다.",
+                    culprit, weapon, motive, method, routineLabel, containerLabel, motiveDocument));
             safeWarnings.add("GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY");
         }
         if (!hasUsableSuspects(draft, culprit)) {
             draft.setSuspects(canonicalSuspects(draft.getSuspects(), culprit));
             safeWarnings.add("GUARDRAIL_REPAIRED_SUSPECTS");
         }
-        if (!synopsisMentionsAllSuspects(draft)) {
-            draft.setFictionSynopsis(canonicalSynopsis(draft, weapon));
+        if (shouldRepairSynopsis(draft, request) || !synopsisMentionsAllSuspects(draft)) {
+            draft.setFictionSynopsis(canonicalSynopsis(draft, weapon, motive, method));
             safeWarnings.add("GUARDRAIL_REPAIRED_SYNOPSIS_SUSPECTS");
+        }
+        if (redactRealPlaceNamesFromStoryFields(draft, request)) {
+            safeWarnings.add("GUARDRAIL_REDACTED_REAL_PLACE_NAMES");
+        }
+        if (normalizeSuspectVictimReferences(draft)) {
+            safeWarnings.add("GUARDRAIL_NORMALIZED_SUSPECT_VICTIM_REFERENCES");
         }
         if (redactSuspectNamesFromInvestigationClues(draft)) {
             safeWarnings.add("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES");
@@ -265,11 +289,11 @@ public class AdminEpisodeGeminiService {
         List<String> investigationClueIssues = investigationClueIssues(draft);
         if (!investigationClueIssues.isEmpty()) {
             logInvestigationClueRepairSnapshot(draft, investigationClueIssues);
-            applyCanonicalInvestigationClues(draft);
+            applyCanonicalInvestigationClues(draft, request);
             safeWarnings.add("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES");
             investigationClueIssues.forEach(issue -> safeWarnings.add("GUARDRAIL_INVESTIGATION_CLUES_" + issue));
         }
-        if (!hasUsableEvidences(draft)) {
+        if (!hasUsableEvidences(draft) || evidencesLeakFinalAnswerValues(draft)) {
             draft.setEvidences(canonicalEvidences(draft.getMissions()));
             safeWarnings.add("GUARDRAIL_REPAIRED_EVIDENCES");
         }
@@ -285,8 +309,12 @@ public class AdminEpisodeGeminiService {
         List<AiEpisodeDraftResponse.SuspectDraft> suspects = safeList(draft.getSuspects());
         if (suspects.size() != 3) return false;
         boolean hasCulprit = false;
+        Set<String> names = new LinkedHashSet<>();
         for (AiEpisodeDraftResponse.SuspectDraft suspect : suspects) {
             if (suspect == null || blank(suspect.getDisplayName()) || blank(suspect.getAlibiSummary()) || blank(suspect.getSuspiciousPoint())) {
+                return false;
+            }
+            if (!names.add(compact(suspect.getDisplayName()))) {
                 return false;
             }
             String suspectText = compact(String.join(" ",
@@ -296,6 +324,22 @@ public class AdminEpisodeGeminiService {
             hasCulprit = hasCulprit || suspectText.contains(compact(culprit));
         }
         return hasCulprit;
+    }
+
+    private boolean shouldRepairSynopsis(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
+        String synopsis = trim(draft == null ? "" : draft.getFictionSynopsis());
+        String compacted = compact(synopsis);
+        if (synopsis.length() < 140) return true;
+        if (!containsAny(compacted, "피해자", "숨진", "사망", "발견", "외부침입", "잠겨", "용의자", "세명", "3명")) {
+            return true;
+        }
+        for (AiEpisodeDraftRequest.PlaceInput place : request == null || request.getPlaces() == null ? List.<AiEpisodeDraftRequest.PlaceInput>of() : request.getPlaces()) {
+            String placeName = trim(place.getName());
+            if (placeName.length() >= 3 && synopsis.contains(placeName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean synopsisMentionsAllSuspects(AiEpisodeDraftResponse.EpisodeDraft draft) {
@@ -310,17 +354,155 @@ public class AdminEpisodeGeminiService {
                 .allMatch(name -> synopsis.contains(compact(name)));
     }
 
-    private String canonicalSynopsis(AiEpisodeDraftResponse.EpisodeDraft draft, String weapon) {
+    private boolean redactRealPlaceNamesFromStoryFields(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
+        if (draft == null || request == null || request.getPlaces() == null) return false;
+        List<String> placeNames = request.getPlaces().stream()
+                .filter(Objects::nonNull)
+                .map(AiEpisodeDraftRequest.PlaceInput::getName)
+                .map(this::trim)
+                .filter(name -> name.length() >= 3)
+                .distinct()
+                .toList();
+        if (placeNames.isEmpty()) return false;
+        String beforeDraftText = String.join(" ",
+                trim(draft.getEpisodeTitle()),
+                trim(draft.getSubtitle()),
+                trim(draft.getFictionSynopsis()),
+                trim(draft.getMissionDescription()),
+                trim(draft.getFinalTruthSummary()),
+                trim(draft.getActualHistorySummary()));
+        boolean changed = containsAnyPlaceName(beforeDraftText, placeNames);
+        draft.setEpisodeTitle(redactRealPlaceNames(draft.getEpisodeTitle(), placeNames, "case scene"));
+        draft.setSubtitle(redactRealPlaceNames(draft.getSubtitle(), placeNames, "case scene"));
+        draft.setFictionSynopsis(redactRealPlaceNames(draft.getFictionSynopsis(), placeNames, "case scene"));
+        draft.setMissionDescription(redactRealPlaceNames(draft.getMissionDescription(), placeNames, "investigation point"));
+        draft.setFinalTruthSummary(redactRealPlaceNames(draft.getFinalTruthSummary(), placeNames, "case scene"));
+        draft.setActualHistorySummary(redactRealPlaceNames(draft.getActualHistorySummary(), placeNames, "final point"));
+        for (AiEpisodeDraftResponse.MissionDraft mission : safeList(draft.getMissions())) {
+            if (mission == null) continue;
+            String before = String.join(" ",
+                    trim(mission.getStoryText()),
+                    trim(mission.getQuestionText()),
+                    trim(mission.getRewardClue()));
+            mission.setStoryText(redactRealPlaceNames(mission.getStoryText(), placeNames, "investigation point"));
+            mission.setQuestionText(redactRealPlaceNames(mission.getQuestionText(), placeNames, "investigation point"));
+            mission.setRewardClue(redactRealPlaceNames(mission.getRewardClue(), placeNames, "investigation point"));
+            changed = changed || containsAnyPlaceName(before, placeNames);
+        }
+        for (AiEpisodeDraftResponse.EvidenceDraft evidence : safeList(draft.getEvidences())) {
+            if (evidence == null) continue;
+            String before = String.join(" ", trim(evidence.getTitle()), trim(evidence.getTextSummary()));
+            evidence.setTitle(redactRealPlaceNames(evidence.getTitle(), placeNames, "case file"));
+            evidence.setTextSummary(redactRealPlaceNames(evidence.getTextSummary(), placeNames, "case file"));
+            changed = changed || containsAnyPlaceName(before, placeNames);
+        }
+        return changed;
+    }
+
+    private boolean normalizeSuspectVictimReferences(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        if (draft == null || draft.getSuspects() == null) return false;
+        boolean changed = false;
+        for (AiEpisodeDraftResponse.SuspectDraft suspect : draft.getSuspects()) {
+            if (suspect == null) continue;
+            String shortDescription = normalizeVictimReference(suspect.getShortDescription());
+            String relationToVictim = normalizeVictimReference(suspect.getRelationToVictim());
+            String suspiciousPoint = normalizeVictimReference(suspect.getSuspiciousPoint());
+            String alibiSummary = normalizeVictimReference(suspect.getAlibiSummary());
+            changed = changed
+                    || !Objects.equals(shortDescription, suspect.getShortDescription())
+                    || !Objects.equals(relationToVictim, suspect.getRelationToVictim())
+                    || !Objects.equals(suspiciousPoint, suspect.getSuspiciousPoint())
+                    || !Objects.equals(alibiSummary, suspect.getAlibiSummary());
+            suspect.setShortDescription(shortDescription);
+            suspect.setRelationToVictim(relationToVictim);
+            suspect.setSuspiciousPoint(suspiciousPoint);
+            suspect.setAlibiSummary(alibiSummary);
+        }
+        return changed;
+    }
+
+    private String normalizeVictimReference(String value) {
+        if (value == null) return null;
+        return value.replace("김준혁", "한태준");
+    }
+
+    private String redactRealPlaceNames(String value, List<String> placeNames, String replacement) {
+        if (blank(value)) return value;
+        String result = value;
+        for (String placeName : placeNames) {
+            result = result.replace(placeName, replacement);
+        }
+        return result;
+    }
+
+    private boolean containsAnyPlaceName(String value, List<String> placeNames) {
+        if (blank(value)) return false;
+        return placeNames.stream().anyMatch(value::contains);
+    }
+
+    private String canonicalSynopsis(AiEpisodeDraftResponse.EpisodeDraft draft, String weapon, String motive, String method) {
         List<AiEpisodeDraftResponse.SuspectDraft> suspects = safeList(draft.getSuspects());
-        String first = suspectName(suspects, 0, "강수진");
-        String second = suspectName(suspects, 1, "박도현");
-        String third = suspectName(suspects, 2, "이재훈");
+        String first = suspectName(suspects, 0, "용의자 A");
+        String second = suspectName(suspects, 1, "용의자 B");
+        String third = suspectName(suspects, 2, "용의자 C");
         String weaponPhrase = blank(weapon) ? "독성 물질" : weapon;
-        return "유명 미술품 수집가 한태준이 개인 갤러리 개관 행사 전날 밤 자신의 집무실에서 숨진 채 발견되었다. "
-                + "사인은 " + weaponPhrase + "과 연결된 독극물 중독으로 추정되며, 문은 안에서 잠겨 있었고 외부 침입 흔적은 없었다. "
-                + "사건 발생 추정 시각에 건물 안에서 의미 있는 접근 권한을 가진 인물은 "
-                + first + ", " + second + ", " + third + " 세 명뿐이었다. "
-                + "조사는 각자의 알리바이, 약통 접근 가능성, 인사 기록, 동선 공백을 대조해 범인과 범행 방식으로 수렴한다.";
+        String routineLabel = methodRoutineLabel(method);
+        String containerLabel = evidenceContainerLabel(weapon, method);
+        CaseSynopsisTemplate template = caseSynopsisTemplate(weapon, motive, method);
+        return template.victimIntro() + "\n\n"
+                + "사인은 " + weaponPhrase + "에서 검출된 독성 성분과 연결된 급성 반응으로 추정되었다.\n\n"
+                + template.lockedRoomBeat() + " 현장에는 몸싸움의 흔적이 없었고, 독성 물질이 어떤 경로로 피해자에게 닿았는지는 즉시 밝혀지지 않았다.\n\n"
+                + "수사 결과, 사건 추정 시간대에 내부에 남아 있었던 인물은 " + first + ", " + second + ", " + third + " 세 명뿐이었다.\n\n"
+                + template.conflictBeat(defaultIfBlank(motive, template.defaultMotive())) + " 플레이어는 세 용의자의 알리바이, "
+                + containerLabel + " 접근 기록, " + routineLabel + " 변조 흔적, 그리고 현장 기록의 공백을 대조해 범인과 범행 방식을 밝혀야 한다.";
+    }
+
+    private CaseSynopsisTemplate caseSynopsisTemplate(String weapon, String motive, String method) {
+        String text = compact(String.join(" ", trim(weapon), trim(motive), trim(method)));
+        if (containsAny(text, "항만", "화물", "밀수", "장부", "서류", "봉투")) {
+            return new CaseSynopsisTemplate(
+                    "항만 물류 감사관 한태준이 비공개 감사 보고회를 하루 앞둔 밤, 운영사 회의실 안쪽 자료 검토실에서 숨진 채 발견되었다.",
+                    "자료 검토실 출입문은 전자 잠금장치로 닫혀 있었고 외부 침입 기록은 남아 있지 않았다.",
+                    "한태준은 최근 항만 물품 거래와 내부 장부를 대조하며 비정상적인 화물 흐름을 추적하고 있었지만, %s를 둘러싼 이해관계가 여러 사람에게 치명적인 압박이 되고 있었다.",
+                    "밀수 장부 은폐"
+            );
+        }
+        if (containsAny(text, "연구", "실험", "시약", "논문", "특허")) {
+            return new CaseSynopsisTemplate(
+                    "바이오 연구소 책임자 한태준이 신약 투자 발표회를 하루 앞둔 밤, 연구동 회의실에서 숨진 채 발견되었다.",
+                    "회의실은 내부 보안 카드로 잠긴 상태였고 CCTV는 사건 직전 짧은 공백을 보였다.",
+                    "한태준은 최근 연구 성과와 특허 권리를 재정리하고 있었지만, %s를 둘러싼 갈등이 연구팀 내부에 깊게 남아 있었다.",
+                    "연구 조작 기록 은폐"
+            );
+        }
+        if (containsAny(text, "미술", "전시", "갤러리", "작품", "위작", "붓펜", "잉크", "서명")) {
+            return new CaseSynopsisTemplate(
+                    "유명 미술품 수집가 한태준이 개인 갤러리 개관 행사 전날 밤, 자신의 집무실에서 숨진 채 발견되었다.",
+                    "집무실 문은 안에서 잠겨 있었고 외부 침입 흔적은 발견되지 않았다.",
+                    "한태준은 최근 고가 작품의 감정 결과와 전시 공개를 앞두고 있었지만, %s를 둘러싼 이해관계가 관계자들을 압박하고 있었다.",
+                    "위작 전시 의혹 은폐"
+            );
+        }
+        if (containsAny(text, "카페", "와인", "잔", "음료", "식당", "보온병")) {
+            return new CaseSynopsisTemplate(
+                    "외식 브랜드 투자자 한태준이 신규 매장 계약 발표 전날 밤, 비공개 시음 회의실에서 숨진 채 발견되었다.",
+                    "회의실 출입 기록은 내부 관계자 카드만 남아 있었고 외부 침입 흔적은 없었다.",
+                    "한태준은 최근 투자금 흐름과 매장 운영권을 재검토하고 있었지만, %s를 둘러싼 갈등이 관계자들에게 큰 위협이 되고 있었다.",
+                    "투자금 횡령 발각 은폐"
+            );
+        }
+        return new CaseSynopsisTemplate(
+                "중요 계약을 앞둔 사업가 한태준이 발표 전날 밤, 제한 구역 안쪽 회의실에서 숨진 채 발견되었다.",
+                "회의실 출입문은 내부에서 잠긴 상태였고 외부 침입 흔적은 발견되지 않았다.",
+                "한태준은 최근 내부 계약과 권리 관계를 재정리하고 있었지만, %s를 둘러싼 이해관계가 세 용의자 모두에게 부담으로 작용하고 있었다.",
+                "비공개 계약 은폐"
+        );
+    }
+
+    private record CaseSynopsisTemplate(String victimIntro, String lockedRoomBeat, String conflictBeatFormat, String defaultMotive) {
+        String conflictBeat(String motive) {
+            return String.format(conflictBeatFormat, motive);
+        }
     }
 
     private String suspectName(List<AiEpisodeDraftResponse.SuspectDraft> suspects, int index, String fallback) {
@@ -547,7 +729,7 @@ public class AdminEpisodeGeminiService {
         return switch (normalize(targetKeywordType)) {
             case "CULPRIT" -> "기록 속 인물";
             case "WEAPON" -> "물증과 연결된 인물";
-            case "MOTIVE" -> "문서에 언급된 인물";
+            case "MOTIVE" -> "이해관계가 드러난 인물";
             case "METHOD" -> "동선이 겹친 인물";
             default -> "사건 기록 속 인물";
         };
@@ -645,6 +827,22 @@ public class AdminEpisodeGeminiService {
         return evidences.stream().allMatch(evidence -> evidence != null && !blank(evidence.getTitle()) && !blank(evidence.getTextSummary()));
     }
 
+    private boolean evidencesLeakFinalAnswerValues(AiEpisodeDraftResponse.EpisodeDraft draft) {
+        List<String> answers = answerValues(draft).stream()
+                .filter(value -> !blank(value))
+                .map(this::compact)
+                .toList();
+        if (answers.isEmpty()) return false;
+        for (AiEpisodeDraftResponse.EvidenceDraft evidence : safeList(draft.getEvidences())) {
+            if (evidence == null) continue;
+            String text = compact(String.join(" ", trim(evidence.getTitle()), trim(evidence.getTextSummary())));
+            if (answers.stream().anyMatch(answer -> !blank(answer) && text.contains(answer))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private List<AiEpisodeDraftResponse.SuspectDraft> canonicalSuspects(List<AiEpisodeDraftResponse.SuspectDraft> source, String culprit) {
         List<AiEpisodeDraftResponse.SuspectDraft> result = new ArrayList<>();
         AiEpisodeDraftResponse.SuspectDraft culpritDraft = safeList(source).stream()
@@ -675,8 +873,13 @@ public class AdminEpisodeGeminiService {
                 .filter(suspect -> suspect != null && result.stream().noneMatch(saved -> compact(saved.getDisplayName()).equals(compact(suspect.getDisplayName()))))
                 .findFirst()
                 .orElse(null);
+        String displayName = defaultIfBlank(existing == null ? "" : existing.getDisplayName(), fallbackName);
+        String compactDisplayName = compact(displayName);
+        if (result.stream().anyMatch(saved -> compact(saved.getDisplayName()).equals(compactDisplayName))) {
+            displayName = fallbackName;
+        }
         result.add(AiEpisodeDraftResponse.SuspectDraft.builder()
-                .displayName(defaultIfBlank(existing == null ? "" : existing.getDisplayName(), fallbackName))
+                .displayName(displayName)
                 .alias(existing == null ? null : existing.getAlias())
                 .relationToVictim(defaultIfBlank(existing == null ? "" : existing.getRelationToVictim(), relation))
                 .alibiSummary(defaultIfBlank(existing == null ? "" : existing.getAlibiSummary(), alibi))
@@ -687,17 +890,9 @@ public class AdminEpisodeGeminiService {
                 .build());
     }
 
-    private void applyCanonicalInvestigationClues(AiEpisodeDraftResponse.EpisodeDraft draft) {
-        List<String> clues = List.of(
-                "약통에서는 피해자의 지문 외에 업무 공간을 자유롭게 출입할 수 있는 한 사람의 추가 지문만 검출되었다.",
-                "사업 파트너의 화상회의 기록은 사망 추정 시간 내내 유지되었고, 조카의 CCTV 공백은 사망 추정 시각보다 1시간 이전이었다.",
-                "약통 안의 캡슐 일부에서 일반 수면제 성분과 다른 독성 물질이 검출되었다.",
-                "독성 물질은 음식이나 음료가 아니라 캡슐 내부에서만 발견되어 약물 조작 가능성을 높였다.",
-                "사망 일주일 전 작성된 인사 문서에는 비서 계약 종료와 인수인계 일정이 기록되어 있었다.",
-                "피해자와 가까운 직원이 계약 종료 통보 직후 강한 불만과 복수심을 드러냈다는 통화 기록이 남아 있었다.",
-                "피해자는 매일 밤 같은 약통에서 수면제를 복용했고, 약통은 집무실 서랍 안에 보관되어 있었다.",
-                "약통 보관 서랍의 열림 기록과 캡슐 교체 추정 시간이 비서의 업무 동선과 겹친다."
-        );
+    private void applyCanonicalInvestigationClues(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
+        Map<String, String> answers = approvedAnswers(request);
+        List<String> clues = canonicalInvestigationClues(answers);
         List<String> targets = List.of("CULPRIT", "CULPRIT", "WEAPON", "WEAPON", "MOTIVE", "MOTIVE", "METHOD", "METHOD");
         List<AiEpisodeDraftResponse.MissionDraft> missions = safeList(draft.getMissions());
         int clueIndex = 0;
@@ -715,6 +910,115 @@ public class AdminEpisodeGeminiService {
             mission.setRewardClue(clues.get(clueIndex));
             clueIndex++;
         }
+    }
+
+    private List<String> canonicalInvestigationClues(Map<String, String> answers) {
+        if (answers != null) {
+            String weapon = compact(answers.get("WEAPON"));
+            String method = compact(answers.get("METHOD"));
+            String objectLabel = cleanEvidenceObjectLabel(weapon, method);
+            String containerLabel = cleanEvidenceContainerLabel(weapon, method);
+            String motiveDocument = cleanMotiveDocumentLabel(compact(answers.get("MOTIVE")));
+            String routineLabel = cleanMethodRoutineLabel(method);
+            return List.of(
+                    "출입 기록과 알리바이를 대조하면 사건 직전 피해자의 업무 공간에 혼자 접근한 사람은 한 명뿐이며, 같은 시간대에 " + containerLabel + " 보관 위치도 열려 있었다.",
+                    containerLabel + "에서 피해자의 흔적 외 추가 지문 하나가 검출됐고, 그 지문 주인의 알리바이에는 CCTV 공백과 맞물리는 짧은 이동 시간이 남아 있다.",
+                    "감식 결과 피해자는 음식 전체가 아니라 사건 직전 반복적으로 만진 " + objectLabel + "의 표면 성분과 접촉한 뒤 급성 반응을 보인 것으로 좁혀졌다.",
+                    objectLabel + "의 오염 흔적과 물질 성분은 오래된 것이 아니라 사건 당일 새로 묻은 상태였고, 평소 보관 위치가 아닌 제한 구역에서 옮겨진 정황이 확인됐다.",
+                    "사건 일주일 전 작성된 " + motiveDocument + "에는 피해자가 공개하려던 결정 때문에 내부 관계자 한 명이 직위나 계약상 손실을 볼 내용과 갈등 기록이 적혀 있었다.",
+                    "삭제된 메시지와 목격 진술을 대조하면 그 관계자는 공개를 막아야 한다는 압박을 받았고, 피해자와 언쟁한 직후 감정적 문장을 남겼다.",
+                    "피해자는 사건 직전에도 평소 절차대로 " + routineLabel + "을 확인했으며, 증상 발생 시각은 그 반복 행동 직후로 맞아떨어진다.",
+                    "시간표, 지문, 오염 시점, 문서 기록을 겹치면 알리바이가 남는 두 명은 접근 권한과 동기, 조작 순서 조건을 동시에 만족하지 못한다."
+            );
+        }
+        String weapon = compact(answers.get("WEAPON"));
+        String motive = compact(answers.get("MOTIVE"));
+        String method = compact(answers.get("METHOD"));
+        String objectLabel = evidenceObjectLabel(weapon, method);
+        String containerLabel = evidenceContainerLabel(weapon, method);
+        String motiveDocument = motiveDocumentLabel(motive);
+        String routineLabel = methodRoutineLabel(method);
+        return List.of(
+                containerLabel + "에서는 피해자의 흔적 외에 업무 공간을 자유롭게 출입할 수 있는 한 사람의 추가 지문만 검출되었다.",
+                "사건 시간대 출입 기록과 알리바이 대조 결과, 두 명의 용의자는 주요 시각의 동선이 외부 기록으로 확인되었다.",
+                objectLabel + " 분석 결과 일반 성분과 다른 독성 물질이 검출되었고, 같은 성분은 다른 음식이나 주변 물건에서는 확인되지 않았다.",
+                containerLabel + " 안쪽 잔류물과 폐기 흔적이 서로 맞아, 독성 물질이 사건 직전 준비물에만 섞였다는 점이 드러났다.",
+                "사건 전 작성된 " + motiveDocument + "에는 피해자와 가까운 인물에게 불리한 결정과 은폐해야 할 문제가 함께 기록되어 있었다.",
+                "피해자와 가까운 직원이 사건 직전 강한 불만과 압박감을 드러냈다는 메시지 기록이 남아 있었다.",
+                "피해자는 사건 전 일정한 순서로 " + routineLabel + "를 확인하거나 사용했고, 그 준비물은 제한된 업무 공간에 보관되어 있었다.",
+                routineLabel + " 교체 추정 시간과 보관 지점 접근 기록이 같은 업무 동선 위에서 겹친다."
+        );
+    }
+
+    private String cleanEvidenceObjectLabel(String weapon, String method) {
+        String text = compact(weapon + " " + method);
+        if (containsAny(text, "서류", "봉투", "문서", "장부")) return "문서 봉투";
+        if (containsAny(text, "붓펜", "잉크", "서명", "펜")) return "서명 도구";
+        if (containsAny(text, "향수", "분사")) return "휴대용 분사 물품";
+        if (containsAny(text, "약", "캡슐", "복용")) return "복용 물품";
+        if (containsAny(text, "음료", "커피", "차", "와인", "잔", "보온병")) return "음료 용기";
+        return "현장 물증";
+    }
+
+    private String cleanEvidenceContainerLabel(String weapon, String method) {
+        String text = compact(weapon + " " + method);
+        if (containsAny(text, "서류", "봉투", "문서", "장부")) return "문서 보관함";
+        if (containsAny(text, "붓펜", "잉크", "서명", "펜")) return "필기구 보관함";
+        if (containsAny(text, "향수", "분사")) return "개인 소지품 보관함";
+        if (containsAny(text, "약", "캡슐", "복용")) return "약품 보관함";
+        if (containsAny(text, "음료", "커피", "차", "와인", "잔", "보온병")) return "음료 준비대";
+        return "증거 보관 지점";
+    }
+
+    private String cleanMotiveDocumentLabel(String motive) {
+        if (containsAny(motive, "위작", "전시", "작품", "감정")) return "감정 보고서";
+        if (containsAny(motive, "밀수", "장부", "계약", "은폐")) return "비공개 계약 문서";
+        if (containsAny(motive, "연구", "특허", "논문", "조작")) return "연구 감사 문서";
+        if (containsAny(motive, "횡령", "투자", "손실", "채무")) return "회계 검토 문서";
+        if (containsAny(motive, "유산", "상속")) return "상속 관련 문서";
+        return "내부 결정 문서";
+    }
+
+    private String cleanMethodRoutineLabel(String method) {
+        if (containsAny(method, "서류", "봉투", "문서")) return "매일 확인하던 문서";
+        if (containsAny(method, "서명", "붓펜", "펜", "잉크")) return "서명 확인 절차";
+        if (containsAny(method, "향수", "분사")) return "현장 준비물 사용";
+        if (containsAny(method, "약", "캡슐", "복용")) return "반복 복용하던 약";
+        if (containsAny(method, "음료", "마시", "커피", "차", "와인")) return "반복되던 음료 준비";
+        return "반복되던 확인 절차";
+    }
+
+    private String evidenceObjectLabel(String weapon, String method) {
+        String text = compact(weapon + " " + method);
+        if (containsAny(text, "음료", "커피", "차", "잔", "컵", "보온병")) return "음료 용기";
+        if (containsAny(text, "시약", "실험", "연구")) return "시료 용기";
+        if (containsAny(text, "약", "캡슐", "수면제", "복용")) return "약물 용기";
+        if (containsAny(text, "서류", "봉투", "문서")) return "문서 봉투";
+        return "현장 물증";
+    }
+
+    private String evidenceContainerLabel(String weapon, String method) {
+        String text = compact(weapon + " " + method);
+        if (containsAny(text, "음료", "커피", "차", "잔", "컵", "보온병")) return "음료 보관대";
+        if (containsAny(text, "시약", "실험", "연구")) return "실험 준비물 보관함";
+        if (containsAny(text, "약", "캡슐", "수면제", "복용")) return "약통";
+        if (containsAny(text, "서류", "봉투", "문서")) return "문서 보관함";
+        return "증거 보관 지점";
+    }
+
+    private String motiveDocumentLabel(String motive) {
+        if (containsAny(motive, "연구", "조작", "논문", "실험", "시약")) return "연구 감사 문서";
+        if (containsAny(motive, "해고", "계약", "인수인계")) return "인사 문서";
+        if (containsAny(motive, "채무", "손실", "횡령", "재정", "금전")) return "회계 문서";
+        if (containsAny(motive, "유산", "상속")) return "상속 관련 문서";
+        return "내부 문서";
+    }
+
+    private String methodRoutineLabel(String method) {
+        if (containsAny(method, "음료", "커피", "차", "마시는")) return "매일 마시던 음료";
+        if (containsAny(method, "약", "캡슐", "수면제", "복용")) return "매일 복용하던 약";
+        if (containsAny(method, "서류", "봉투", "문서")) return "매일 확인하던 문서";
+        return "반복되던 준비물";
     }
 
     private List<AiEpisodeDraftResponse.EvidenceDraft> canonicalEvidences(List<AiEpisodeDraftResponse.MissionDraft> missions) {
@@ -743,6 +1047,13 @@ public class AdminEpisodeGeminiService {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         if (items.size() != 4 || !itemSlots.equals(new LinkedHashSet<>(SLOT_IDS)) || items.stream().anyMatch(item -> blank(answerKeywordItemValue(item)))) {
             addFinding(findings, "ERROR", "FOUR_FINAL_KEYWORD_ITEMS_REQUIRED", "finalAnswerKeywordItems must contain exactly CULPRIT, WEAPON, MOTIVE, METHOD with non-empty values.", null, "finalAnswerKeywordItems");
+        }
+        for (AiEpisodeDraftResponse.AnswerKeywordItem item : items) {
+            String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
+            String value = answerKeywordItemValue(item);
+            if (SLOT_IDS.contains(slot) && weakFinalAnswerKeyword(slot, value)) {
+                addFinding(findings, "ERROR", "CONCRETE_FINAL_KEYWORD_REQUIRED", "최종 정답 키워드는 구체적인 인물, 물건, 동기, 범행 과정이어야 합니다.", null, "finalAnswerKeywordItems");
+            }
         }
     }
 
@@ -777,6 +1088,9 @@ public class AdminEpisodeGeminiService {
         List<String> answers = answerValues(draft);
         for (AiEpisodeDraftResponse.MissionDraft mission : investigation) {
             String clue = trim(mission.getRewardClue());
+            if (blank(mission.getStoryText())) {
+                addFinding(findings, "ERROR", "MISSION_STORY_TEXT_REQUIRED", "Investigation mission storyText is required.", mission.getOrder(), "storyText");
+            }
             if (blank(clue) || clue.length() < 10) addFinding(findings, "ERROR", "DEDUCTIVE_CLUE_REQUIRED", "Investigation rewardClue is required.", mission.getOrder(), "rewardClue");
             if (isGenericFallbackClue(clue)) addFinding(findings, "ERROR", "GENERIC_DEDUCTIVE_CLUE", "Investigation rewardClue must be a concrete case fact, not a generic fallback sentence.", mission.getOrder(), "rewardClue");
             if (!blank(clue) && !clues.add(compact(clue))) addFinding(findings, "ERROR", "DUPLICATE_CLUE", "Investigation clues must be unique.", mission.getOrder(), "rewardClue");
@@ -808,10 +1122,14 @@ public class AdminEpisodeGeminiService {
     private void validateSuspects(AiEpisodeDraftResponse.EpisodeDraft draft, List<AiEpisodeDraftValidationResponse.Finding> findings) {
         List<AiEpisodeDraftResponse.SuspectDraft> suspects = safeList(draft.getSuspects());
         if (suspects.size() != 3) addFinding(findings, "ERROR", "EXACTLY_THREE_SUSPECTS_REQUIRED", "Exactly three suspects are required.", null, "suspects");
+        Set<String> names = new LinkedHashSet<>();
         for (int i = 0; i < suspects.size(); i++) {
             AiEpisodeDraftResponse.SuspectDraft suspect = suspects.get(i);
             if (blank(suspect.getDisplayName()) || blank(suspect.getAlibiSummary()) || blank(suspect.getSuspiciousPoint())) {
                 addFinding(findings, "ERROR", "SUSPECT_DETAILS_REQUIRED", "Suspect details are required.", null, "suspects[" + i + "]");
+            }
+            if (!blank(suspect.getDisplayName()) && !names.add(compact(suspect.getDisplayName()))) {
+                addFinding(findings, "ERROR", "SUSPECT_NAMES_MUST_BE_UNIQUE", "Suspect names must be unique.", null, "suspects[" + i + "].displayName");
             }
         }
     }
@@ -843,10 +1161,47 @@ public class AdminEpisodeGeminiService {
         if (blank(draft.getEpisodeTitle())) addFinding(findings, "ERROR", "EPISODE_TITLE_REQUIRED", "episodeTitle is required.", null, "episodeTitle");
         if (blank(draft.getFictionSynopsis())) addFinding(findings, "ERROR", "FICTION_SYNOPSIS_REQUIRED", "fictionSynopsis must describe the fictional case overview.", null, "fictionSynopsis");
         if (blank(draft.getFinalTruthSummary())) addFinding(findings, "ERROR", "FINAL_TRUTH_SUMMARY_REQUIRED", "finalTruthSummary must explain the culprit, weapon, motive, and method.", null, "finalTruthSummary");
+        validateSynopsisDomain(draft, findings);
+    }
+
+    private void validateSynopsisDomain(AiEpisodeDraftResponse.EpisodeDraft draft, List<AiEpisodeDraftValidationResponse.Finding> findings) {
+        String synopsis = compact(draft.getFictionSynopsis());
+        String keywords = compact(safeList(draft.getFinalAnswerKeywordItems()).stream()
+                .flatMap(item -> Stream.of(item.getValue(), item.getKeyword(), item.getPersonName()))
+                .filter(value -> !blank(value))
+                .collect(Collectors.joining(" ")));
+        if (containsAny(keywords, "항만", "화물", "밀수", "장부", "서류", "봉투")) {
+            if (!containsAny(synopsis, "항만", "화물", "자료", "서류", "장부", "물류")) {
+                addFinding(findings, "ERROR", "SYNOPSIS_DOMAIN_MISMATCH", "fictionSynopsis must match the final keyword domain.", null, "fictionSynopsis");
+            }
+            if (containsAny(synopsis, "미술품", "갤러리", "전시", "작품")) {
+                addFinding(findings, "ERROR", "SYNOPSIS_DOMAIN_FORBIDDEN_TERM", "fictionSynopsis contains an incompatible domain term.", null, "fictionSynopsis");
+            }
+        }
+        if (containsAny(keywords, "미술", "전시", "갤러리", "작품", "위작", "붓펜", "잉크", "서명")) {
+            if (!containsAny(synopsis, "미술", "갤러리", "전시", "작품", "감정", "서명")) {
+                addFinding(findings, "ERROR", "SYNOPSIS_DOMAIN_MISMATCH", "fictionSynopsis must match the final keyword domain.", null, "fictionSynopsis");
+            }
+            if (containsAny(synopsis, "항만", "화물", "밀수")) {
+                addFinding(findings, "ERROR", "SYNOPSIS_DOMAIN_FORBIDDEN_TERM", "fictionSynopsis contains an incompatible domain term.", null, "fictionSynopsis");
+            }
+        }
+        if (containsAny(keywords, "연구", "실험", "시약", "논문", "특허")) {
+            if (!containsAny(synopsis, "연구", "실험", "회의실", "연구동", "특허")) {
+                addFinding(findings, "ERROR", "SYNOPSIS_DOMAIN_MISMATCH", "fictionSynopsis must match the final keyword domain.", null, "fictionSynopsis");
+            }
+            if (containsAny(synopsis, "갤러리", "미술품", "항만")) {
+                addFinding(findings, "ERROR", "SYNOPSIS_DOMAIN_FORBIDDEN_TERM", "fictionSynopsis contains an incompatible domain term.", null, "fictionSynopsis");
+            }
+        }
     }
 
     private void validateEvidences(AiEpisodeDraftResponse.EpisodeDraft draft, List<AiEpisodeDraftValidationResponse.Finding> findings) {
         List<AiEpisodeDraftResponse.EvidenceDraft> evidences = safeList(draft.getEvidences());
+        List<String> answerValues = answerValues(draft).stream()
+                .filter(value -> !blank(value))
+                .map(this::compact)
+                .toList();
         if (evidences.size() != 8) {
             addFinding(findings, "ERROR", "EIGHT_EVIDENCE_CARDS_REQUIRED", "Exactly 8 evidence cards are required, one for each investigation mission.", null, "evidences");
         }
@@ -863,6 +1218,10 @@ public class AdminEpisodeGeminiService {
             Integer order = evidence.getSourceMissionOrder();
             if (order == null || order < 2 || order > 9 || !orders.add(order)) {
                 addFinding(findings, "ERROR", "EVIDENCE_SOURCE_MISSION_REQUIRED", "Evidence must map uniquely to investigation mission orders 2-9.", order, "evidences[" + i + "].sourceMissionOrder");
+            }
+            String text = compact(String.join(" ", trim(evidence.getTitle()), trim(evidence.getTextSummary())));
+            if (answerValues.stream().anyMatch(value -> !blank(value) && text.contains(value))) {
+                addFinding(findings, "ERROR", "EVIDENCE_ANSWER_LEAK", "Evidence cards must not directly reveal final answer values.", order, "evidences[" + i + "]");
             }
         }
     }
@@ -898,10 +1257,19 @@ public class AdminEpisodeGeminiService {
                 Return JSON only.
                 Genre is fixed to CRIME_MYSTERY.
                 Final answers are exactly four slots: CULPRIT, WEAPON, MOTIVE, METHOD.
+                Every final answer keyword must be concrete and playable.
+                CULPRIT must be a Korean person name, optionally followed by role in parentheses, such as "오지훈(여행사 직원)" or "서민재". Never return only an occupation such as "큐레이터", "여행사 직원", or "관리자".
+                WEAPON must identify a harmful object or substance with the dangerous detail, such as "마취 성분이 섞인 향수병", "독성 잉크가 든 붓펜", or "독성 시약이 든 보온병"; never return only an ordinary object or container such as "향수병", "붓펜", "약병", or "컵".
+                MOTIVE must be a concrete reason that explains why the culprit acted, such as "위작 거래 은폐" or "불법 원정 사고 은폐"; never return generic words such as "은폐", "범죄", "복수", or "돈".
+                METHOD must be a concrete crime process with object and action, such as "향수병에 마취 성분을 넣어 피해자에게 분사" or "독성 잉크가 든 붓펜으로 서명란을 오염시킴"; never return a single verb or empty predicate such as "함", "넣기", "투여", or "조작".
+                Bad example: CULPRIT="큐레이터", WEAPON="붓펜", MOTIVE="은폐", METHOD="함".
+                Good example: CULPRIT="서민재(큐레이터)", WEAPON="독성 잉크가 든 붓펜", MOTIVE="위작 전시 의혹 은폐", METHOD="독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴".
                 Do not create place hints, destination clues, or final-place guessing.
                 Use the selected places and research context only as background motifs.
                 Never imply that a real crime happened at a real place.
                 Do not use immersion-breaking wording such as "real place", "fictional suspect", "needs admin review", or "RAG context".
+                Never reuse stale sample answers or names: 강수진, 독성 캡슐, 비밀 계약 은폐, 약병 바꿔치기, 독이 섞인 수면제 캡슐, 피해자의 매일 복용 약을 독성 캡슐로 바꿔치기.
+                Choose fresh culprit, weapon, motive, and method values that fit the selected route and case premise.
 
                 Required JSON shape:
                 {
@@ -914,7 +1282,19 @@ public class AdminEpisodeGeminiService {
                 }
 
                 Context:
-                """ + buildPlaceContext(request);
+                """ + buildAnswerPlanGenerationContext(request);
+    }
+
+    private String buildAnswerPlanGenerationContext(AiEpisodeDraftRequest request) {
+        String historicalContext = buildTourApiHistoricalContext(request);
+        return String.join("\n",
+                "Admin input:",
+                "- area: " + safePromptText(request == null ? "" : request.getArea()),
+                "- theme: " + safePromptText(request == null ? "" : request.getTheme()),
+                "- playTime: " + safePromptText(request == null ? "" : request.getPlayTime()),
+                "- genre: " + safePromptText(request == null ? "" : request.getSelectedGenreName()),
+                "TourAPI historical/cultural motifs without place names or addresses:",
+                blank(historicalContext) ? "(none)" : safePromptText(historicalContext));
     }
 
     private String buildDraftPrompt(AiEpisodeDraftRequest request) {
@@ -925,18 +1305,23 @@ public class AdminEpisodeGeminiService {
                 Final answers are exactly CULPRIT, WEAPON, MOTIVE, METHOD.
                 Use the approved final answer values exactly. Do not invent a different culprit, weapon, motive, or method.
                 The culprit answer value must be one of the 3 suspect displayName values.
+                Suspect displayName must be a Korean personal name only, such as "서민재". Do not put role or job in displayName, such as "서민재(운영팀장)".
+                Put roles and jobs in relationToVictim or shortDescription instead.
                 All suspects, finalTruthSummary, rewardClue values, and evidences must converge to the approved final answers.
                 finalTruthSummary must include the approved CULPRIT, WEAPON, MOTIVE, and METHOD values verbatim.
+                Never reuse stale sample answers or names: 강수진, 독성 캡슐, 비밀 계약 은폐, 약병 바꿔치기, 독이 섞인 수면제 캡슐, 피해자의 매일 복용 약을 독성 캡슐로 바꿔치기.
                 The final place is not a deduction answer. It unlocks automatically after all 8 investigation missions are cleared.
                 Use TourAPI, external research notes, reference URLs, admin memo, and place descriptions only as background motifs.
                 Do not state or imply that a real crime happened at any real place.
+                Do not put selected real place names in fictionSynopsis as the murder scene. Create a fictional indoor location such as a private office, gallery office, research meeting room, archive room, or event preparation room.
                 Do not write phrases that break immersion, including "실제 장소", "가상의 용의자", "관리자 검수", "RAG", "TourAPI", "외부 검색".
                 Do not create place hints, destination clues, DESTINATION_HINT, DESTINATION_CLUE, FINAL_DESTINATION, or PLACE_HINT.
                 Create 10 missions: order 1 START, orders 2-9 ANSWER_HINT, order 10 FINAL.
                 The 8 investigation rewardClue values must be distinct deductive clues, not atmosphere.
                 Never use generic clue text such as "조사 단서는 ... 판단에 필요한 근거를 제공합니다."
-                Each investigation rewardClue must support exactly one targetKeywordType.
-                Internally tag the 8 investigation clues so every final answer slot is supported, but write them as one natural evidence chain rather than visible category pairs.
+                Each investigation rewardClue must have exactly one internal targetKeywordType for answer-board grouping.
+                Player-facing rewardClue text must still work as a mixed evidence chain: each clue should narrow more than one part of the truth through timeline, access, object trace, motive pressure, and routine sequence.
+                Do not write visibly separated pairs such as "two culprit clues, two weapon clues". The eight clues should feel like one investigation that gradually converges on culprit, weapon, motive, and method together.
                 rewardClue must not directly include final answer values, including the culprit name.
                 Investigation rewardClue should avoid suspect display names in general. Use indirect labels such as "a suspect", "the person with access", "the owner of the fingerprint", or "the person shown in CCTV".
                 Keep suspect display names in the suspects array and finalTruthSummary only, not in the 8 investigation rewardClue values.
@@ -966,20 +1351,21 @@ public class AdminEpisodeGeminiService {
                 - finalAnswerKeywordItems and finalAnswers must contain only the approved 4 answer slots.
 
                 Target story pattern:
-                - fictionSynopsis should read like: a prominent professional or collector is found dead before an important event; the cause is poisoning or another clear mechanism; the room or timeline limits outside intrusion; only 3 suspects had meaningful access.
+                - fictionSynopsis should be a full case overview, not route/place description. Format it like: "A prominent victim is found dead before an important event. Cause is identified. Door/timeline limits outside intrusion. No forced entry. Only 3 suspects remained inside. Victim had ownership, contract, inheritance, research, or business conflicts."
+                - fictionSynopsis must include at least five concrete beats: victim identity, event scheduled soon, cause/mechanism, locked room or CCTV/time gap, exactly 3 suspects, and conflict background.
                 - Suspect cards should read like: name and relation, alibi during the estimated incident time, supporting record, suspicious point, and why the person remains plausible.
                 - Final truth should state culprit, weapon, method, and motive with the approved answer values, then explain why the other two suspects are weakened by the clues.
-                - The 8 rewardClue values should read as a progressive evidence chain: daily medication habit, extra fingerprint or access trace, toxicology source, false or supported alibi, dismissal or conflict document, CCTV timing, object tampering, and final matching trace.
+                - The 8 rewardClue values should read as a progressive evidence chain: restricted access trace tied to evidence storage, alibi narrowing tied to fingerprint or CCTV, material analysis tied to victim routine, object state tied to preparation timing, conflict document tied to benefit, pressure message tied to concealment, routine timing tied to execution, and final cross-check excluding the other two suspects.
 
                 Slot-specific clue rules:
-                - CULPRIT clues identify access, fingerprints, CCTV, alibi gaps, or exclusive opportunity. Do not write the culprit name.
-                - WEAPON clues identify the object, material, toxicology, capsule, medication, or physical trace. Do not mention motive.
-                - MOTIVE clues identify dismissal, revenge, conflict, loss, debt, inheritance, threat, or benefit. Do not describe the physical method.
-                - METHOD clues identify swap, replacement, tampering, injection, concealment, timing, access path, or execution sequence. Do not describe motive.
+                - CULPRIT-targeted clues should primarily identify access, fingerprints, CCTV, alibi gaps, or exclusive opportunity, but may also mention object storage or timing if it helps narrow the whole truth. Do not write the culprit name.
+                - WEAPON-targeted clues should primarily identify the object, material, residue, damage pattern, analysis result, or physical trace, but may also connect that trace to victim routine or access path.
+                - MOTIVE-targeted clues should primarily identify revenge, conflict, loss, debt, inheritance, threat, benefit, betrayal, or concealment pressure, but may also connect the pressure to who had access.
+                - METHOD-targeted clues should primarily identify replacement, tampering, injection, concealment, timing, access path, misdirection, or execution sequence, but may also mention why other suspects are weakened.
                 - CULPRIT rewardClue should naturally include at least one of these Korean evidence anchors: 지문, 출입, 접근, 알리바이, 동선, 기록, CCTV, 목격, 권한, 일치, 용의자.
-                - WEAPON rewardClue should naturally include at least one of these Korean evidence anchors: 흉기, 도구, 독극물, 캡슐, 약, 약물, 병, 물질, 성분, 검출, 흔적.
-                - MOTIVE rewardClue should naturally include at least one of these Korean evidence anchors: 동기, 복수, 해고, 계약, 분쟁, 유산, 손실, 채무, 협박, 이익, 불만, 갈등.
-                - METHOD rewardClue should naturally include at least one of these Korean evidence anchors: 방법, 바꿔치기, 교체, 조작, 삽입, 주입, 은폐, 복용, 캡슐, 접근, 시간, 경로.
+                - WEAPON rewardClue should naturally include at least one of these Korean evidence anchors: 흉기, 도구, 독극물, 물질, 성분, 검출, 흔적, 파손, 잔류물, 분석.
+                - MOTIVE rewardClue should naturally include at least one of these Korean evidence anchors: 동기, 복수, 계약, 분쟁, 유산, 손실, 채무, 협박, 이익, 은폐, 배신, 갈등.
+                - METHOD rewardClue should naturally include at least one of these Korean evidence anchors: 방법, 교체, 조작, 삽입, 주입, 은폐, 위장, 접근, 시간, 경로, 순서.
 
                 Required mission contract:
                 - START: markerType START, clueRole START, publicMarkerType START, finalPlace false.
@@ -1022,7 +1408,32 @@ public class AdminEpisodeGeminiService {
                 }
 
                 Context:
-                """ + buildPlaceContext(request);
+                """ + buildStoryGenerationContext(request);
+    }
+
+    private String buildStoryGenerationContext(AiEpisodeDraftRequest request) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("area: ").append(safePromptText(request == null ? "" : request.getArea())).append('\n');
+        builder.append("theme: ").append(safePromptText(request == null ? "" : request.getTheme())).append('\n');
+        builder.append("playTime: ").append(safePromptText(request == null ? "" : request.getPlayTime())).append('\n');
+        appendApprovedAnswers(builder, request);
+        builder.append("routePolicy:\n");
+        builder.append("- Do not use real route place names, addresses, shop names, restaurant names, POI names, reference URLs, or external research notes in story generation.\n");
+        builder.append("- Real route places are only mission map anchors. The server attaches mission.placeName after draft generation.\n");
+        builder.append("- Write fictional crime locations only: private gallery office, locked study, research meeting room, archive room, preparation room, or similar indoor scenes.\n");
+        builder.append("- Missions should be ordered investigation beats, not destination hints or place-name puzzles.\n");
+        builder.append("missionOrders:\n");
+        builder.append("- 1 START\n");
+        builder.append("- 2 ANSWER_HINT CULPRIT access/opportunity clue\n");
+        builder.append("- 3 ANSWER_HINT CULPRIT alibi/trace clue\n");
+        builder.append("- 4 ANSWER_HINT WEAPON material/analysis clue\n");
+        builder.append("- 5 ANSWER_HINT WEAPON object/container clue\n");
+        builder.append("- 6 ANSWER_HINT MOTIVE conflict/document clue\n");
+        builder.append("- 7 ANSWER_HINT MOTIVE pressure/message clue\n");
+        builder.append("- 8 ANSWER_HINT METHOD routine/timing clue\n");
+        builder.append("- 9 ANSWER_HINT METHOD tampering/sequence clue\n");
+        builder.append("- 10 FINAL unlocks after all investigation missions\n");
+        return builder.toString();
     }
 
     private String buildPlaceContext(AiEpisodeDraftRequest request) {
@@ -1151,14 +1562,21 @@ public class AdminEpisodeGeminiService {
 
     private void normalizeFinalAnswerKeywordItems(AiEpisodeDraftRequest request) {
         if (request == null || (request.getFinalAnswerKeywordItems() != null && !request.getFinalAnswerKeywordItems().isEmpty())) return;
+        if (request.getFinalAnswers() == null) return;
+        Map<String, String> fromFinalAnswers = new LinkedHashMap<>();
+        putIfNotBlank(fromFinalAnswers, "CULPRIT", request.getFinalAnswers().getCulprit());
+        putIfNotBlank(fromFinalAnswers, "WEAPON", request.getFinalAnswers().getWeapon());
+        putIfNotBlank(fromFinalAnswers, "MOTIVE", request.getFinalAnswers().getMotive());
+        putIfNotBlank(fromFinalAnswers, "METHOD", request.getFinalAnswers().getMethod());
+        if (SLOT_IDS.stream().anyMatch(slot -> blank(fromFinalAnswers.get(slot)))) return;
         List<AiEpisodeDraftRequest.AnswerKeywordInput> items = new ArrayList<>();
-        for (int i = 0; i < SLOT_IDS.size(); i++) {
+        for (String slot : SLOT_IDS) {
             AiEpisodeDraftRequest.AnswerKeywordInput item = new AiEpisodeDraftRequest.AnswerKeywordInput();
-            item.setSlotId(SLOT_IDS.get(i));
-            item.setType(SLOT_IDS.get(i));
-            item.setLabel(SLOT_LABELS.get(SLOT_IDS.get(i)));
-            item.setDisplayType(SLOT_LABELS.get(SLOT_IDS.get(i)));
-            item.setKeyword(DEFAULT_ANSWERS.get(i));
+            item.setSlotId(slot);
+            item.setType(slot);
+            item.setLabel(SLOT_LABELS.get(slot));
+            item.setDisplayType(SLOT_LABELS.get(slot));
+            item.setKeyword(fromFinalAnswers.get(slot));
             items.add(item);
         }
         request.setFinalAnswerKeywordItems(items);
@@ -1167,15 +1585,66 @@ public class AdminEpisodeGeminiService {
     private void validateFinalAnswerContract(AiEpisodeDraftRequest request) {
         Map<String, String> values = approvedAnswers(request);
         if (SLOT_IDS.stream().anyMatch(slot -> blank(values.get(slot)))) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FINAL_ANSWER_KEYWORDS", "최종 정답 키워드는 범인, 흉기, 동기, 방법 4개를 모두 포함해야 합니다.");
+        List<String> weakSlots = SLOT_IDS.stream().filter(slot -> weakFinalAnswerKeyword(slot, values.get(slot))).toList();
+        if (!weakSlots.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "WEAK_FINAL_ANSWER_KEYWORDS", "최종 정답 키워드는 구체적인 인물, 물건, 동기, 범행 과정이어야 합니다: " + String.join(", ", weakSlots));
+        }
+    }
+
+    private void repairWeakFinalAnswerKeywords(AiEpisodeDraftRequest request) {
+        if (request == null) return;
+        Map<String, String> values = approvedAnswers(request);
+        String method = values.get("METHOD");
+        if (weakMethodKeyword(compact(method))) {
+            updateFinalAnswerKeyword(request, "METHOD", concreteMethodFor(values.get("WEAPON"), values.get("MOTIVE"), method));
+        }
+    }
+
+    private String concreteMethodFor(String weapon, String motive, String currentMethod) {
+        String text = compact(String.join(" ", trim(weapon), trim(motive), trim(currentMethod)));
+        if (containsAny(text, "붓펜", "잉크", "서명", "위작", "전시", "감정")) {
+            return "독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴";
+        }
+        if (containsAny(text, "향수", "분사")) {
+            return "향수병에 마취 성분을 넣어 피해자에게 분사";
+        }
+        if (containsAny(text, "와인", "잔", "음료", "보온병", "마시")) {
+            return "잔 가장자리에 수면제를 묻혀 피해자가 마시게 함";
+        }
+        if (containsAny(text, "약", "캡슐", "고산병", "복용")) {
+            return "약 캡슐에 진정제를 섞어 피해자에게 복용시킴";
+        }
+        if (containsAny(text, "봉투", "문서", "분말")) {
+            return "문서 봉투 접착면에 독성 분말을 묻혀 피해자가 만지게 함";
+        }
+        return "현장 준비물에 유해 성분을 섞어 피해자에게 접촉시킴";
+    }
+
+    private void updateFinalAnswerKeyword(AiEpisodeDraftRequest request, String slot, String value) {
+        if (request.getFinalAnswers() == null) {
+            request.setFinalAnswers(new AiEpisodeDraftRequest.FinalAnswersInput());
+        }
+        if ("CULPRIT".equals(slot)) request.getFinalAnswers().setCulprit(value);
+        if ("WEAPON".equals(slot)) request.getFinalAnswers().setWeapon(value);
+        if ("MOTIVE".equals(slot)) request.getFinalAnswers().setMotive(value);
+        if ("METHOD".equals(slot)) request.getFinalAnswers().setMethod(value);
+        if (request.getFinalAnswerKeywordItems() == null) return;
+        for (AiEpisodeDraftRequest.AnswerKeywordInput item : request.getFinalAnswerKeywordItems()) {
+            String itemSlot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
+            if (slot.equals(itemSlot)) {
+                item.setKeyword(value);
+                if ("CULPRIT".equals(slot)) item.setPersonName(value);
+            }
+        }
     }
 
     private Map<String, String> approvedAnswers(AiEpisodeDraftRequest request) {
         Map<String, String> result = new LinkedHashMap<>();
-        for (int i = 0; i < SLOT_IDS.size(); i++) result.put(SLOT_IDS.get(i), DEFAULT_ANSWERS.get(i));
+        SLOT_IDS.forEach(slot -> result.put(slot, ""));
         if (request != null && request.getFinalAnswerKeywordItems() != null) {
             for (AiEpisodeDraftRequest.AnswerKeywordInput item : request.getFinalAnswerKeywordItems()) {
                 String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-                if (SLOT_IDS.contains(slot)) result.put(slot, defaultIfBlank(answerKeywordValue(item), result.get(slot)));
+                if (SLOT_IDS.contains(slot)) putIfNotBlank(result, slot, answerKeywordValue(item));
             }
         }
         if (request != null && request.getFinalAnswers() != null) {
@@ -1190,13 +1659,15 @@ public class AdminEpisodeGeminiService {
     private String answerKeywordValue(AiEpisodeDraftRequest.AnswerKeywordInput item) {
         if (item == null) return "";
         String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-        return "CULPRIT".equals(slot) && !blank(item.getPersonName()) ? item.getPersonName() : defaultIfBlank(item.getKeyword(), item.getSourceText());
+        String value = "CULPRIT".equals(slot) && !blank(item.getPersonName()) ? item.getPersonName() : defaultIfBlank(item.getKeyword(), item.getSourceText());
+        return "CULPRIT".equals(slot) ? splitNameRole(value).name() : value;
     }
 
     private String answerKeywordItemValue(AiEpisodeDraftResponse.AnswerKeywordItem item) {
         if (item == null) return "";
         String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-        return "CULPRIT".equals(slot) && !blank(item.getPersonName()) ? item.getPersonName() : defaultIfBlank(item.getKeyword(), item.getValue());
+        String value = "CULPRIT".equals(slot) && !blank(item.getPersonName()) ? item.getPersonName() : defaultIfBlank(item.getKeyword(), item.getValue());
+        return "CULPRIT".equals(slot) ? splitNameRole(value).name() : value;
     }
 
     private void putIfNotBlank(Map<String, String> values, String key, String value) {
@@ -1207,12 +1678,163 @@ public class AdminEpisodeGeminiService {
         return SLOT_IDS.stream().map(slot -> AiEpisodePlanResponse.AnswerSlotPlan.builder().slotId(slot).label(SLOT_LABELS.get(slot)).description(SLOT_LABELS.get(slot) + " 정답 슬롯").minClueCount(2).build()).toList();
     }
 
+    private List<AiEpisodePlanResponse.AnswerKeyword> answerPlanKeywords(AiEpisodeDraftRequest request) {
+        if (blank(geminiApiKey)) {
+            return deterministicAnswerKeywords(request);
+        }
+        try {
+            JsonNode root = parseJson(callGemini(buildPlanPrompt(request)), "GEMINI_PLAN_PARSE_FAILED");
+            JsonNode keywords = root.has("finalAnswerKeywords") ? root.path("finalAnswerKeywords") : root;
+            return sanitizePlanKeywords(keywords, "GEMINI");
+        } catch (Exception e) {
+            log.warn("Gemini answer plan generation failed. Falling back to server template. reason={}", e.getMessage());
+            return deterministicAnswerKeywords(request);
+        }
+    }
+
+    private List<AiEpisodePlanResponse.AnswerKeyword> deterministicAnswerKeywords(AiEpisodeDraftRequest request) {
+        String context = compact(buildAnswerPlanContext(request));
+        int seed = Math.floorMod(context.hashCode(), 10_000);
+        String name = List.of("서민재", "박선우", "한지원", "오도윤", "정하린", "강태오", "윤서진", "최이현").get(seed % 8);
+        String role = culpritRoleForContext(context, seed);
+        CrimeAnswerTemplate template = crimeAnswerTemplateForContext(context, seed);
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("CULPRIT", name);
+        values.put("WEAPON", template.weapon());
+        values.put("MOTIVE", template.motive());
+        values.put("METHOD", template.method());
+        List<String> weakSlots = SLOT_IDS.stream().filter(slot -> weakFinalAnswerKeyword(slot, values.get(slot))).toList();
+        if (!weakSlots.isEmpty()) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "ANSWER_PLAN_TEMPLATE_INVALID", "서버 정답 템플릿이 구체성 검증을 통과하지 못했습니다: " + String.join(", ", weakSlots));
+        }
+        return SLOT_IDS.stream()
+                .map(slot -> AiEpisodePlanResponse.AnswerKeyword.builder()
+                        .slotId(slot)
+                        .type(slot)
+                        .label(SLOT_LABELS.get(slot))
+                        .displayType(SLOT_LABELS.get(slot))
+                        .keyword(values.get(slot))
+                        .personName("CULPRIT".equals(slot) ? name : "")
+                        .personRole("CULPRIT".equals(slot) ? role : "")
+                        .role("CULPRIT".equals(slot) ? role : "")
+                        .aliases("CULPRIT".equals(slot) ? List.of(name, role) : List.of())
+                        .sourceBasis("서버 범죄 미스터리 정답 템플릿")
+                        .sourceType("SERVER_TEMPLATE")
+                        .build())
+                .toList();
+    }
+
+    private String buildAnswerPlanContext(AiEpisodeDraftRequest request) {
+        if (request == null) return "";
+        return String.join(" ",
+                trim(request.getArea()),
+                trim(request.getTheme()),
+                trim(request.getPlayTime()),
+                trim(request.getSelectedGenreName()));
+    }
+
+    private String buildTourApiHistoricalContext(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null) return "";
+        return request.getPlaces().stream()
+                .filter(Objects::nonNull)
+                .map(this::tourApiHistoricalContextForPlace)
+                .filter(value -> !blank(value))
+                .collect(Collectors.joining(" "));
+    }
+
+    private String tourApiHistoricalContextForPlace(AiEpisodeDraftRequest.PlaceInput place) {
+        List<String> fragments = new ArrayList<>();
+        Stream.of(
+                        place.getDescription(),
+                        place.getResearchSourceSummary()
+                )
+                .map(this::safePromptText)
+                .filter(value -> !blank(value))
+                .forEach(fragments::add);
+        Stream.of(
+                        place.getKeywords(),
+                        place.getVerificationNotes(),
+                        place.getExternalResearchNotes()
+                )
+                .flatMap(values -> safeList(values).stream())
+                .map(this::safePromptText)
+                .filter(value -> !blank(value))
+                .forEach(fragments::add);
+        return safePromptText(String.join(" ", fragments));
+    }
+
+    private String culpritRoleForContext(String context, int seed) {
+        if (containsAny(context, "항만", "화물", "밀수", "장부", "서류", "봉투", "기록")) return List.of("물류 운영팀장", "기록 보관 담당자", "감사 대응 담당자").get(seed % 3);
+        if (containsAny(context, "미술", "전시", "갤러리", "박물관", "작품", "화랑")) return List.of("큐레이터", "관장", "전시기획자").get(seed % 3);
+        if (containsAny(context, "여행", "산", "전망", "케이블", "숙소", "관광")) return List.of("여행사 직원", "현장 가이드", "숙소 매니저").get(seed % 3);
+        if (containsAny(context, "카페", "식당", "시장", "와인", "음료", "주점")) return List.of("매장 매니저", "소믈리에", "행사 케이터링 담당자").get(seed % 3);
+        if (containsAny(context, "학교", "도서관", "연구", "실험", "기록관")) return List.of("연구원", "기록관리자", "조교").get(seed % 3);
+        return List.of("운영팀장", "행사 담당자", "시설 관리자").get(seed % 3);
+    }
+
+    private CrimeAnswerTemplate crimeAnswerTemplateForContext(String context, int seed) {
+        if (containsAny(context, "항만", "화물", "밀수", "장부", "서류", "봉투", "기록")) {
+            return new CrimeAnswerTemplate("독성 방부제가 묻은 항만 서류 봉투", "밀수 장부 은폐", "피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기");
+        }
+        if (containsAny(context, "미술", "전시", "갤러리", "박물관", "작품", "화랑")) {
+            return new CrimeAnswerTemplate("독성 잉크가 든 붓펜", "위작 전시 의혹 은폐", "독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴");
+        }
+        if (containsAny(context, "여행", "산", "전망", "케이블", "숙소", "관광")) {
+            return new CrimeAnswerTemplate("진정제가 섞인 고산병 약 캡슐", "불법 원정 사고 은폐", "고산병 약 캡슐에 진정제를 섞어 피해자에게 복용시킴");
+        }
+        if (containsAny(context, "카페", "식당", "시장", "와인", "음료", "주점")) {
+            return new CrimeAnswerTemplate("수면제가 묻은 와인잔", "투자금 횡령 발각 은폐", "와인잔 가장자리에 수면제를 묻혀 피해자가 마시게 함");
+        }
+        if (containsAny(context, "학교", "도서관", "연구", "실험", "기록관")) {
+            return new CrimeAnswerTemplate("독성 시약이 섞인 연구실 음료", "연구 조작 기록 은폐", "피해자의 연구실 음료에 독성 시약을 섞어 마시게 함");
+        }
+        List<CrimeAnswerTemplate> defaults = List.of(
+                new CrimeAnswerTemplate("마취 성분이 섞인 향수병", "비공개 계약 파기 은폐", "향수병에 마취 성분을 넣어 피해자에게 분사"),
+                new CrimeAnswerTemplate("독성 분말이 묻은 초대장 봉투", "내부 고발 문서 은폐", "초대장 봉투 접착면에 독성 분말을 묻혀 피해자가 만지게 함"),
+                new CrimeAnswerTemplate("진정제가 섞인 보온병 음료", "행사 예산 횡령 은폐", "보온병 음료에 진정제를 섞어 피해자에게 마시게 함")
+        );
+        return defaults.get(seed % defaults.size());
+    }
+
+    private record CrimeAnswerTemplate(String weapon, String motive, String method) {}
+
     private List<AiEpisodePlanResponse.AnswerKeyword> sanitizePlanKeywords(JsonNode node) {
+        return sanitizePlanKeywords(node, "");
+    }
+
+    private List<AiEpisodePlanResponse.AnswerKeyword> sanitizePlanKeywords(JsonNode node, String sourceType) {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (node != null && node.isArray()) {
+            for (int i = 0; i < node.size(); i++) {
+                JsonNode item = node.get(i);
+                String slot = normalize(defaultIfBlank(item.path("slotId").asText(""), item.path("type").asText("")));
+                if (!SLOT_IDS.contains(slot) && i < SLOT_IDS.size()) slot = SLOT_IDS.get(i);
+                String keyword = trim(item.path("keyword").asText(""));
+                if ("CULPRIT".equals(slot)) keyword = splitNameRole(keyword).name();
+                if (SLOT_IDS.contains(slot) && !blank(keyword)) values.put(slot, keyword);
+            }
+        }
+        if (!SLOT_IDS.stream().allMatch(slot -> !blank(values.get(slot)))) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_INVALID", "Gemini가 범인, 흉기, 동기, 방법 4개 정답 키워드를 모두 생성하지 못했습니다.");
+        }
+        List<String> weakSlots = SLOT_IDS.stream().filter(slot -> weakFinalAnswerKeyword(slot, values.get(slot))).toList();
+        if (!weakSlots.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_INVALID", "Gemini가 구체적인 최종 정답 키워드를 생성하지 못했습니다: " + String.join(", ", weakSlots));
+        }
         List<AiEpisodePlanResponse.AnswerKeyword> result = new ArrayList<>();
         for (int i = 0; i < SLOT_IDS.size(); i++) {
             String slot = SLOT_IDS.get(i);
-            String value = node != null && node.isArray() && node.size() > i ? defaultIfBlank(node.get(i).path("keyword").asText(""), DEFAULT_ANSWERS.get(i)) : DEFAULT_ANSWERS.get(i);
-            result.add(AiEpisodePlanResponse.AnswerKeyword.builder().slotId(slot).type(slot).label(SLOT_LABELS.get(slot)).displayType(SLOT_LABELS.get(slot)).keyword(value).aliases(List.of()).build());
+            String value = values.get(slot);
+            result.add(AiEpisodePlanResponse.AnswerKeyword.builder()
+                    .slotId(slot)
+                    .type(slot)
+                    .label(SLOT_LABELS.get(slot))
+                    .displayType(SLOT_LABELS.get(slot))
+                    .keyword(value)
+                    .personName("CULPRIT".equals(slot) ? value : "")
+                    .aliases("CULPRIT".equals(slot) ? List.of(value) : List.of())
+                    .sourceType(sourceType)
+                    .build());
         }
         return result;
     }
@@ -1233,6 +1855,77 @@ public class AdminEpisodeGeminiService {
         String text = String.join(" ", trim(mission.getMarkerType()), trim(mission.getPublicMarkerType()), trim(mission.getClueRole()), trim(mission.getRewardClueSlotId()), trim(mission.getRewardClue()), trim(mission.getQuestionText()), trim(mission.getStoryText()), trim(mission.getPuzzleAnswerSource()));
         return containsAny(text, "DESTINATION_HINT", "DESTINATION_CLUE", "FINAL_DESTINATION", "PLACE_HINT", "장소 힌트", "장소 정답", "최종 장소를 찾", "최종 목적지를 찾");
     }
+
+    private boolean weakFinalAnswerKeyword(String slot, String value) {
+        String compacted = compact(value);
+        if (blank(compacted)) return true;
+        return switch (slot) {
+            case "CULPRIT" -> weakCulpritKeyword(compacted);
+            case "WEAPON" -> weakWeaponKeyword(compacted);
+            case "MOTIVE" -> weakKeyword(compacted, 6, "범죄", "복수", "돈", "질투", "은폐", "원한", "분노", "실수", "협박", "비밀");
+            case "METHOD" -> weakMethodKeyword(compacted);
+            default -> false;
+        };
+    }
+
+    private boolean weakCulpritKeyword(String compacted) {
+        return !isSpecificKoreanPersonName(compacted);
+    }
+
+    private boolean weakWeaponKeyword(String compacted) {
+        if (containsAny(compacted, "독성", "마취", "진정", "수면", "청산", "시안", "오염", "섞인", "묻힌", "주입", "변조", "유독", "환각")
+                && containsAny(compacted, "약", "독", "캡슐", "병", "컵", "잔", "보온병", "향수", "시약", "분말", "액체", "주사", "칼", "도구", "붓펜", "펜", "잉크", "마커", "붓")) {
+            return false;
+        }
+        if (weakKeyword(compacted, 5, "약", "독", "흉기", "도구", "칼", "약물", "고산병약", "수면제", "캡슐", "향수병", "약병", "컵", "잔", "보온병", "붓펜", "펜", "연필", "마커", "붓")) {
+            return true;
+        }
+        return containsAny(compacted, "병", "컵", "잔", "보온병", "봉투", "상자", "붓펜", "펜", "연필", "마커", "붓")
+                && !containsAny(compacted, "독성", "마취", "진정", "수면", "청산", "시안", "오염", "섞인", "묻힌", "주입", "변조", "유독", "환각");
+    }
+
+    private boolean weakMethodKeyword(String compacted) {
+        if (List.of("함", "넣기", "투여", "주입", "교체", "은폐", "조작", "살해", "독살", "바꿔치기", "유인", "방치", "사용", "사용함", "실행", "실행함", "시도", "시도함").contains(compacted)) {
+            return true;
+        }
+        if (compacted.length() < 6) {
+            return true;
+        }
+        boolean hasAction = containsAny(compacted, "넣", "섞", "바꿔", "교체", "투여", "분사", "주입", "묻혀", "먹여", "마시게", "흡입", "조작", "유인", "오염", "서명", "바름", "칠함");
+        boolean hasObjectOrVictim = containsAny(compacted, "피해자", "약", "캡슐", "병", "컵", "잔", "보온병", "향수", "음료", "시약", "문서", "서명", "서명란", "붓펜", "펜", "잉크", "마커", "봉투", "열쇠", "서랍", "준비물");
+        return !hasAction || !hasObjectOrVictim;
+    }
+
+    private boolean weakKeyword(String compacted, int minLength, String... genericValues) {
+        if (compacted.length() < minLength) return true;
+        for (String generic : genericValues) {
+            if (compacted.equals(compact(generic))) return true;
+        }
+        return false;
+    }
+
+    private boolean isSpecificKoreanPersonName(String compacted) {
+        Set<String> genericRoles = Set.of("여행사직원", "사업파트너", "피해자", "용의자", "관계자", "관리자", "직원", "가이드", "비서", "조카", "동료", "연구원", "큐레이터", "투자자", "운영자");
+        if (genericRoles.contains(compacted)) return false;
+        String namePattern = "(김|이|박|최|정|강|조|윤|장|임|한|오|서|신|권|황|안|송|전|홍|유|고|문|양|손|배|백|허|남|심|노|하|곽|성|차|주|우|구|민|류|나|진|지|엄|채|원|천|방|공|현|함|변|염|여|추|도|소|석|선|설|마|길|위|표|명|기|반|왕|금|옥|육|인|맹|제|모|탁|국|어|은|편|용|예|경|봉|사|부|가|복|태|목|형|계|피|두)[가-힣]{1,2}";
+        return compacted.matches("^" + namePattern + "$")
+                || compacted.matches("^" + namePattern + "\\([가-힣A-Za-z0-9·/\\-]+\\)$")
+                || compacted.matches("^" + namePattern + "(팀장|대표|실장|매니저|가이드|직원|비서|교수|연구원|관리자|기자|작가|큐레이터|조교|의사|간호사|변호사|파트너)$");
+    }
+
+    private NameRole splitNameRole(String value) {
+        String text = trim(value);
+        if (blank(text)) return new NameRole("", "");
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("^\\s*([가-힣]{2,4})\\s*\\(([^)]+)\\)\\s*$")
+                .matcher(text);
+        if (matcher.matches()) {
+            return new NameRole(matcher.group(1).trim(), matcher.group(2).trim());
+        }
+        return new NameRole(text, "");
+    }
+
+    private record NameRole(String name, String role) {}
 
     private String playerFacingText(AiEpisodeDraftResponse.EpisodeDraft draft) {
         if (draft == null) return "";
@@ -1303,14 +1996,14 @@ public class AdminEpisodeGeminiService {
         if ("MOTIVE".equals(target) && containsAny(compacted, "해고", "계약", "분쟁", "유산", "손실", "채무", "협박", "이익", "이득", "재정", "금전", "수익", "상속", "불만", "갈등", "불화", "통보", "문자", "메모", "메시지", "연락", "기록", "격앙", "분노", "감정", "복수")) {
             return true;
         }
-        if ("METHOD".equals(target) && containsAny(compacted, "교환", "약병", "약함", "약통", "약물", "복용", "캡슐", "외형", "목격", "증언", "장면", "이용", "바꾼", "바꾸", "교체", "조작")) {
+        if ("METHOD".equals(target) && containsAny(compacted, "교환", "약병", "약함", "약통", "약물", "복용", "캡슐", "외형", "목격", "증언", "장면", "이용", "바꾼", "바꾸", "교체", "조작", "반복", "순서", "준비물", "사용", "서명란", "오염", "접촉")) {
             return true;
         }
         return switch (target) {
             case "CULPRIT" -> containsAny(compacted, "지문", "출입", "접근", "알리바이", "동선", "기록", "cctv", "목격", "권한", "일치", "용의자");
             case "WEAPON" -> containsAny(compacted, "흉기", "독", "독극물", "캡슐", "약", "수면제", "잔", "물질", "성분", "검출", "도구");
             case "MOTIVE" -> containsAny(compacted, "동기", "복수", "해고", "계약", "분쟁", "유산", "손실", "채무", "원한", "협박", "이익", "불만", "갈등", "언쟁", "징계", "배제", "문자", "메모", "메시지", "연락", "기록", "격앙", "분노", "감정");
-            case "METHOD" -> containsAny(compacted, "방법", "바꿔치기", "교체", "조작", "혼입", "투입", "주입", "희석", "위조", "제조", "복용", "캡슐", "접근", "시간", "경로", "열쇠", "봉인");
+            case "METHOD" -> containsAny(compacted, "방법", "바꿔치기", "교체", "조작", "혼입", "투입", "주입", "희석", "위조", "제조", "복용", "캡슐", "접근", "시간", "경로", "열쇠", "봉인", "반복", "순서", "준비물", "사용", "서명란", "오염", "접촉");
             default -> true;
         };
     }
@@ -1374,6 +2067,7 @@ public class AdminEpisodeGeminiService {
             case "ANSWER_SLOT_EXACT_SUPPORT_REQUIRED" -> "8개 조사 단서는 내부적으로 범인, 흉기, 동기, 방법을 모두 충분히 지원해야 합니다.";
             case "EXACTLY_THREE_SUSPECTS_REQUIRED" -> "용의자 카드는 정확히 3명이어야 합니다.";
             case "SUSPECT_DETAILS_REQUIRED" -> "각 용의자에는 이름, 알리바이, 의심 포인트가 필요합니다.";
+            case "SUSPECT_NAMES_MUST_BE_UNIQUE" -> "용의자 3명은 서로 다른 이름이어야 합니다.";
             case "CULPRIT_MUST_BE_SUSPECT" -> "범인 정답은 용의자 카드 3명 중 한 명이어야 합니다.";
             case "FINAL_TRUTH_MUST_EXPLAIN_ANSWERS" -> "진실 요약에는 범인, 흉기, 동기, 방법 4개 정답이 모두 설명되어야 합니다.";
             case "EPISODE_TITLE_REQUIRED" -> "에피소드 제목이 필요합니다.";

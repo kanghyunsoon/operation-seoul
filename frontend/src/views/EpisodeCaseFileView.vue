@@ -30,35 +30,15 @@
         <p class="section-label">사건 개요</p>
         <div class="story-card-head">
           <h3>{{ caseFile.overview?.briefingTitle || '사건 브리핑' }}</h3>
-          <span>{{ caseFile.overview?.storyUnlocked ? '스토리 기록 해금' : '시작 미션 필요' }}</span>
+          <span>{{ caseFile.overview?.storyUnlocked ? '용의자 정보 보안 해제' : '시작 미션 필요' }}</span>
         </div>
         <p class="story-summary">{{ caseFile.overview?.summary }}</p>
         <div v-if="caseFile.overview?.storyUnlocked && overviewStoryClues.length" class="story-clue-strip">
-          <strong>해금된 사건 기록</strong>
+          <strong>해금된 용의자 정보</strong>
           <span v-for="(clue, index) in overviewStoryClues" :key="`overview-story-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
         </div>
-        <p v-else class="story-locked-help">시작 장소의 현장 퍼즐을 해결하면 이 카드가 상세 스토리 기록으로 갱신됩니다.</p>
+        <p v-else class="story-locked-help">시작 장소의 현장 퍼즐을 해결하면 용의자 3명의 관계, 알리바이, 의심 포인트가 한 번에 공개됩니다.</p>
         <p class="goal">목표: {{ caseFile.overview?.goal }}</p>
-      </section>
-
-      <section class="dossier">
-        <div class="section-head">
-          <div>
-            <p class="section-label">추리 현황</p>
-            <h3>네 가지 사건 진실</h3>
-            <p class="section-help">수집한 정보는 정답을 직접 보여주지 않습니다. 각 축의 단서를 교차 검증해 하나의 사건 진실로 수렴시키세요.</p>
-          </div>
-        </div>
-        <div class="deduction-grid">
-          <article v-for="slot in deductionSlots" :key="slot.id" :class="`deduction-${slot.id.toLowerCase()}`">
-            <strong>{{ slot.label }}</strong>
-            <span>{{ slot.clues.length }}개 단서</span>
-            <ul v-if="slot.clues.length">
-              <li v-for="clue in slot.clues" :key="clue">{{ clue }}</li>
-            </ul>
-            <p v-else>아직 분류된 단서가 없습니다.</p>
-          </article>
-        </div>
       </section>
 
       <section class="dossier">
@@ -85,7 +65,7 @@
                 <dt>알리바이</dt><dd>{{ suspect.alibiSummary || '알리바이 미확인' }}</dd>
               </dl>
             </div>
-            <span class="unlock-badge">{{ suspect.cleared ? '혐의 해소' : suspect.unlocked ? '정보 확인' : '기본 공개' }}</span>
+            <span class="unlock-badge">{{ suspect.cleared ? '혐의 해소' : suspect.unlocked ? '정보 확인' : '잠김' }}</span>
           </article>
         </div>
       </section>
@@ -165,18 +145,9 @@ const overviewStoryClues = computed(() => {
     ...(caseFile.value?.clueSummary?.storyClues || [])
   ]
     .filter(Boolean)
+    .filter((clue) => !/첫\s*기록|첫\s*목격\s*기록|시작\s*기록/.test(String(clue)))
     .filter((clue, index, list) => list.findIndex((item) => normalizeText(item) === normalizeText(clue)) === index)
     .filter((clue) => !evidenceTexts.has(normalizeText(clue)));
-});
-const deductionSlots = computed(() => {
-  const summary = caseFile.value?.clueSummary || {};
-  const fallback = uniqueClues(summary.answerClues);
-  return [
-    deductionSlot('CULPRIT', '범인', summary.culpritClues, fallback, 0),
-    deductionSlot('WEAPON', '흉기', summary.weaponClues, fallback, 1),
-    deductionSlot('MOTIVE', '동기', summary.motiveClues, fallback, 2),
-    deductionSlot('METHOD', '방법', summary.methodClues, fallback, 3)
-  ];
 });
 onMounted(loadCaseFile);
 
@@ -196,15 +167,6 @@ const statusLabel = (status) => ({ NOT_STARTED: '시작 전', IN_PROGRESS: '조�
 const clueTypeLabel = (type) => ({ ANSWER_CLUE: '추리 단서', DESTINATION_CLUE: '사건 기록', STORY_CLUE: '사건 기록', SUSPECT_CLUE: '용의자 단서' }[type] || type);
 const evidenceTypeLabel = (type) => ({ PHOTO: '사진', MEMO: '메모', NOTE: '노트', DOCUMENT: '문서', EVIDENCE: '증거', SUSPECT_CLUE: '용의자 단서', POST_IT: '포스트잇', ANSWER_CLUE: '추리 단서', DESTINATION_CLUE: '사건 기록', STORY_CLUE: '사건 기록' }[type] || type);
 
-function deductionSlot(id, label, explicit, fallback, offset) {
-  const clues = uniqueClues(explicit);
-  return { id, label, clues: clues.length ? clues : fallback.filter((_, index) => index % 4 === offset) };
-}
-
-function uniqueClues(values = []) {
-  return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
-}
-
 function normalizeText(value) {
   return String(value || '').replace(/\s+/g, '').toLowerCase();
 }
@@ -212,7 +174,6 @@ function normalizeText(value) {
 function suspectPortraitSrc(suspect) { return usableImageUrl(suspect.portraitImageUrl) || generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint); }
 function evidenceImageSrc(evidence) { return usableImageUrl(evidence.imageUrl) || generatedCaseCardDataUrl(evidence.title, evidence.type, evidence.textSummary); }
 function usableImageUrl(value) { const url = String(value || '').trim(); return !url || url.includes('generated-case-card') ? '' : url; }
-function suspectNames(ids = []) { return ids.map((id) => caseFile.value?.suspects?.find((suspect) => suspect.suspectId === id)?.displayName).filter(Boolean).join(', '); }
 function humanizeClue(value) {
   return String(value || '').trim();
 }
@@ -267,16 +228,6 @@ blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; back
 .goal, .team, .resume { color: #fde68a; }
 .section-head { display: flex; align-items: end; justify-content: space-between; gap: 10px; padding: 18px 18px 0; }
 .section-help { margin: 6px 0 0; color: #cbd5e1; font-size: .84rem; line-height: 1.55; }
-.deduction-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 18px; }
-.deduction-grid article { padding: 14px; border: 1px solid rgba(148,163,184,.2); border-top: 4px solid #64748b; border-radius: 15px; background: rgba(2,6,23,.3); }
-.deduction-grid article.deduction-culprit { border-top-color: #ef4444; }
-.deduction-grid article.deduction-weapon { border-top-color: #3b82f6; }
-.deduction-grid article.deduction-motive { border-top-color: #f59e0b; }
-.deduction-grid article.deduction-method { border-top-color: #10b981; }
-.deduction-grid article > span { float: right; color: #94a3b8; font-size: .76rem; }
-.deduction-grid ul { display: grid; gap: 6px; margin: 12px 0 0; padding-left: 18px; color: #dbeafe; }
-.deduction-grid li { line-height: 1.45; }
-.deduction-grid article p { margin: 12px 0 0; color: #64748b; font-size: .82rem; }
 .card-grid, .evidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; padding: 14px 18px 18px; }
 .clue-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 14px 18px 18px; }
 .clue-summary-grid article { display: grid; align-content: start; gap: 7px; min-height: 118px; border: 1px solid rgba(148,163,184,.2); border-radius: 14px; padding: 12px; background: rgba(2,6,23,.28); }
