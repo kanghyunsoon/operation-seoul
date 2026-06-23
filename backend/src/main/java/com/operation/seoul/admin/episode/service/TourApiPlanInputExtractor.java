@@ -26,32 +26,37 @@ final class TourApiPlanInputExtractor {
 
     private static List<String> storyAnchors(AiEpisodeDraftRequest request) {
         LinkedHashSet<String> anchors = new LinkedHashSet<>();
-        for (AiEpisodeDraftRequest.PlaceInput place : request.getPlaces()) {
-            if (place == null) continue;
-            Stream.of(place.getResearchSourceSummary(), place.getDescription())
+        for (SelectedPlace selected : storySourcePlaces(request)) {
+            AiEpisodeDraftRequest.PlaceInput place = selected.place();
+            Stream.of(place.getResearchSourceSummary())
                     .map(TourApiPlanInputExtractor::cleanStoryAnchor)
                     .filter(value -> !blank(value))
                     .forEach(anchors::add);
-            Stream.of(place.getExternalResearchNotes(), place.getKeywords())
-                    .flatMap(values -> safeList(values).stream())
+            safeList(place.getExternalResearchNotes()).stream()
                     .map(TourApiPlanInputExtractor::cleanStoryAnchor)
                     .filter(value -> !blank(value))
                     .forEach(anchors::add);
-            if (anchors.size() >= 3) break;
+            Stream.of(place.getDescription())
+                    .map(TourApiPlanInputExtractor::cleanStoryAnchor)
+                    .filter(value -> !blank(value))
+                    .forEach(anchors::add);
         }
-        return anchors.stream().limit(3).toList();
+        if (anchors.isEmpty()) {
+            regionalEraAnchor(request).stream()
+                    .filter(value -> !blank(value))
+                    .forEach(anchors::add);
+        }
+        return anchors.stream().limit(5).toList();
     }
 
     private static List<String> includedInputs(AiEpisodeDraftRequest request) {
         List<String> result = new ArrayList<>();
-        for (int i = 0; i < request.getPlaces().size(); i++) {
-            AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(i);
-            if (place == null) continue;
-            int placeIndex = i;
+        for (SelectedPlace selected : storySourcePlaces(request)) {
+            AiEpisodeDraftRequest.PlaceInput place = selected.place();
+            int placeIndex = selected.placeIndex();
             appendIncluded(result, placeIndex, "researchSourceSummary", place.getResearchSourceSummary());
             appendIncluded(result, placeIndex, "description", place.getDescription());
             safeList(place.getExternalResearchNotes()).forEach(value -> appendIncluded(result, placeIndex, "externalResearchNotes", value));
-            safeList(place.getKeywords()).forEach(value -> appendIncluded(result, placeIndex, "keywords", value));
         }
         return result.stream().limit(20).toList();
     }
@@ -68,25 +73,52 @@ final class TourApiPlanInputExtractor {
             appendExcluded(result, placeIndex, "researchSourceSummary", place.getResearchSourceSummary(), "filtered as Kakao/site noise");
             appendExcluded(result, placeIndex, "description", place.getDescription(), "filtered as Kakao/site noise");
             safeList(place.getExternalResearchNotes()).forEach(value -> appendExcluded(result, placeIndex, "externalResearchNotes", value, "filtered as Kakao/site noise"));
-            safeList(place.getKeywords()).forEach(value -> appendExcluded(result, placeIndex, "keywords", value, "filtered as Kakao/site noise"));
+            safeList(place.getKeywords()).forEach(value -> appendExcluded(result, placeIndex, "keywords", value, "keyword is not a TourAPI history source"));
+        }
+        List<SelectedPlace> selectedPlaces = storySourcePlaces(request);
+        for (int i = 0; i < request.getPlaces().size(); i++) {
+            AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(i);
+            if (place == null) continue;
+            if (selectedPlaces.stream().anyMatch(selected -> selected.place() == place || samePlace(selected.place(), place))) continue;
+            int placeIndex = i;
+            appendExcludedIfClean(result, placeIndex, "researchSourceSummary", place.getResearchSourceSummary(), "non-final route point is not a story anchor");
+            appendExcludedIfClean(result, placeIndex, "description", place.getDescription(), "non-final route point is not a story anchor");
+            safeList(place.getExternalResearchNotes()).forEach(value -> appendExcludedIfClean(result, placeIndex, "externalResearchNotes", value, "non-final route point is not a story anchor"));
         }
         return result.stream().limit(30).toList();
     }
 
     private static String historicalContext(AiEpisodeDraftRequest request) {
-        return request.getPlaces().stream()
-                .filter(Objects::nonNull)
+        String context = storySourcePlaces(request).stream()
+                .map(SelectedPlace::place)
                 .map(TourApiPlanInputExtractor::historicalContextForPlace)
                 .filter(value -> !blank(value))
                 .collect(java.util.stream.Collectors.joining(" "));
+        if (!blank(context)) return context;
+        return String.join(" ", regionalEraAnchor(request));
     }
 
     private static String answerSeedContext(AiEpisodeDraftRequest request) {
-        return request.getPlaces().stream()
-                .filter(Objects::nonNull)
+        String context = storySourcePlaces(request).stream()
+                .map(SelectedPlace::place)
                 .map(TourApiPlanInputExtractor::answerSeedContextForPlace)
                 .filter(value -> !blank(value))
                 .collect(java.util.stream.Collectors.joining(" "));
+        if (!blank(context)) return context;
+        return String.join(" ", regionalEraAnchor(request));
+    }
+
+    private static List<String> regionalEraAnchor(AiEpisodeDraftRequest request) {
+        if (request == null) return List.of();
+        List<String> fragments = new ArrayList<>();
+        String area = cleanRegionalText(request.getArea());
+        String era = cleanRegionalText(request.getEra());
+        String theme = cleanRegionalText(request.getTheme());
+        if (!blank(area)) fragments.add("지역 기반: " + area);
+        if (!blank(era)) fragments.add("시대 기반: " + era);
+        if (!blank(theme)) fragments.add("테마 기반: " + theme);
+        if (fragments.isEmpty()) return List.of();
+        return List.of("직접 역사 사건 앵커가 부족해 지역/시대/테마 기반 배경으로 생성: " + String.join(" / ", fragments));
     }
 
     private static String historicalContextForPlace(AiEpisodeDraftRequest.PlaceInput place) {
@@ -95,8 +127,7 @@ final class TourApiPlanInputExtractor {
                 .map(TourApiPlanInputExtractor::cleanTourApiPlanResearchText)
                 .filter(value -> !blank(value))
                 .forEach(fragments::add);
-        Stream.of(place.getKeywords(), place.getExternalResearchNotes())
-                .flatMap(values -> safeList(values).stream())
+        safeList(place.getExternalResearchNotes()).stream()
                 .map(TourApiPlanInputExtractor::cleanTourApiPlanResearchText)
                 .filter(value -> !blank(value))
                 .forEach(fragments::add);
@@ -109,12 +140,55 @@ final class TourApiPlanInputExtractor {
                 .map(TourApiPlanInputExtractor::cleanTourApiPlanResearchText)
                 .filter(value -> !blank(value))
                 .forEach(fragments::add);
-        Stream.of(place.getKeywords(), place.getExternalResearchNotes())
-                .flatMap(values -> safeList(values).stream())
+        safeList(place.getExternalResearchNotes()).stream()
                 .map(TourApiPlanInputExtractor::cleanTourApiPlanResearchText)
                 .filter(value -> !blank(value))
                 .forEach(fragments::add);
         return safePromptText(String.join(" ", fragments));
+    }
+
+    private static List<SelectedPlace> storySourcePlaces(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null || request.getPlaces().isEmpty()) return List.of();
+        int finalSpotIndex = matchingPlaceIndex(request.getFinalSpot(), request.getPlaces());
+        if (finalSpotIndex >= 0) {
+            AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(finalSpotIndex);
+            if (place != null) return List.of(new SelectedPlace(place, finalSpotIndex));
+        }
+        if (request.getFinalSpot() != null) {
+            return List.of(new SelectedPlace(request.getFinalSpot(), request.getPlaces().size() - 1));
+        }
+        for (int i = 0; i < request.getPlaces().size(); i++) {
+            AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(i);
+            if (place != null && "FINAL".equals(normalizeRole(place.getRole()))) {
+                return List.of(new SelectedPlace(place, i));
+            }
+        }
+        int lastIndex = request.getPlaces().size() - 1;
+        AiEpisodeDraftRequest.PlaceInput last = request.getPlaces().get(lastIndex);
+        return last == null ? List.of() : List.of(new SelectedPlace(last, lastIndex));
+    }
+
+    private static int matchingPlaceIndex(AiEpisodeDraftRequest.PlaceInput target, List<AiEpisodeDraftRequest.PlaceInput> places) {
+        if (target == null || places == null || places.isEmpty()) return -1;
+        for (int i = 0; i < places.size(); i++) {
+            AiEpisodeDraftRequest.PlaceInput place = places.get(i);
+            if (place == target || samePlace(target, place)) return i;
+        }
+        return -1;
+    }
+
+    private static boolean samePlace(AiEpisodeDraftRequest.PlaceInput a, AiEpisodeDraftRequest.PlaceInput b) {
+        if (a == null || b == null) return false;
+        if (!blank(a.getPlaceId()) && a.getPlaceId().equals(b.getPlaceId())) return true;
+        return !blank(a.getName())
+                && !blank(b.getName())
+                && a.getName().trim().equals(b.getName().trim())
+                && Objects.equals(a.getLatitude(), b.getLatitude())
+                && Objects.equals(a.getLongitude(), b.getLongitude());
+    }
+
+    private static String normalizeRole(String role) {
+        return role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
     }
 
     private static void appendIncluded(List<String> result, int placeIndex, String source, String value) {
@@ -132,6 +206,13 @@ final class TourApiPlanInputExtractor {
         }
     }
 
+    private static void appendExcludedIfClean(List<String> result, int placeIndex, String source, String value, String reason) {
+        String cleaned = cleanTourApiPlanResearchText(value);
+        if (!blank(cleaned)) {
+            result.add("place " + (placeIndex + 1) + " " + source + " excluded (" + reason + "): " + abbreviateForLog(cleaned, 160));
+        }
+    }
+
     private static String cleanStoryAnchor(String value) {
         String text = cleanTourApiPlanResearchText(value);
         if (blank(text)) return "";
@@ -143,6 +224,14 @@ final class TourApiPlanInputExtractor {
         String text = safePromptText(value);
         if (blank(text)) return "";
         text = stripKakaoSiteSignalSuffix(text);
+        text = text.replaceAll("\\s+", " ").trim();
+        if (blank(text) || isKakaoOrSiteVerificationNoise(text)) return "";
+        return text;
+    }
+
+    private static String cleanRegionalText(String value) {
+        String text = safePromptText(value);
+        if (blank(text)) return "";
         text = text.replaceAll("\\s+", " ").trim();
         if (blank(text) || isKakaoOrSiteVerificationNoise(text)) return "";
         return text;
@@ -206,7 +295,9 @@ final class TourApiPlanInputExtractor {
                 "rag_error",
                 "verification",
                 "siteverification",
-                "nearbyfamousplacesignal"
+                "nearbyfamousplacesignal",
+                "장소설명확인필요",
+                "설명확인필요"
         );
     }
 
@@ -247,5 +338,8 @@ final class TourApiPlanInputExtractor {
             if (!blank(target) && text.contains(target)) return true;
         }
         return false;
+    }
+
+    private record SelectedPlace(AiEpisodeDraftRequest.PlaceInput place, int placeIndex) {
     }
 }

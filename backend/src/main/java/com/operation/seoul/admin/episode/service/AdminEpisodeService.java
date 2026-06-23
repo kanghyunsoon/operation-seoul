@@ -615,6 +615,14 @@ public class AdminEpisodeService {
 
 
     public AiEpisodeDraftResponse createAiDraft(AiEpisodeDraftRequest request) {
+        throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "RULE_BASED_AI_DRAFT_DISABLED",
+                "규칙 기반 예비 초안 생성은 비활성화되었습니다. Gemini 최종 정답 계획과 전체 초안 생성을 사용하세요."
+        );
+    }
+
+    private AiEpisodeDraftResponse createRuleBasedAiDraft(AiEpisodeDraftRequest request) {
         List<AiEpisodeDraftRequest.PlaceInput> places = request.getPlaces() == null ? List.of() : request.getPlaces();
         if (places.size() < 6) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "NOT_ENOUGH_PLACES", "At least 6 places are required for a case-file episode.");
@@ -1053,27 +1061,13 @@ public class AdminEpisodeService {
     private void normalizeDraftNarrativeBeforeSave(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest sourceInput) {
         normalizeDraftCulpritRoleBeforeSave(draft);
         List<String> placeNames = draftPlaceNames(draft, sourceInput);
-        Map<String, String> answers = draftAnswerMap(draft);
-        if (shouldReplaceSavedSynopsis(draft.getFictionSynopsis(), answers, placeNames)) {
-            draft.setFictionSynopsis(savedCanonicalSynopsis(draft, answers));
-        } else {
-            draft.setFictionSynopsis(redactPlaceNames(draft.getFictionSynopsis(), placeNames, "조사 지점"));
-        }
+        draft.setFictionSynopsis(redactPlaceNames(draft.getFictionSynopsis(), placeNames, "조사 지점"));
         draft.setMissionDescription("8개 조사 단서를 대조해 범인, 흉기, 동기, 방법을 종합해 최종 진실을 판단합니다.");
-        if (shouldReplaceSavedHistorySummary(draft.getActualHistorySummary(), answers, placeNames)) {
-            draft.setActualHistorySummary("선택된 실제 장소들은 플레이 동선을 구성하는 배경 지점이며, 사건과 인물은 최종 정답 키워드를 바탕으로 구성된 허구의 범죄 미스터리입니다.");
-        } else {
-            draft.setActualHistorySummary(redactPlaceNames(draft.getActualHistorySummary(), placeNames, "선택 지점"));
-        }
+        draft.setActualHistorySummary(redactPlaceNames(draft.getActualHistorySummary(), placeNames, "선택 지점"));
         for (AiEpisodeDraftResponse.MissionDraft mission : safeList(draft.getMissions())) {
             if (mission == null) continue;
-            boolean start = "START".equalsIgnoreCase(blank(mission.getMarkerType(), ""));
             boolean finalPlace = Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equalsIgnoreCase(blank(mission.getMarkerType(), ""));
-            if (start && shouldReplaceSavedMissionStory(mission.getStoryText(), answers, placeNames)) {
-                mission.setStoryText("사건 파일의 첫 장을 열고 피해자, 용의자, 사건 시간대, 조사 규칙을 확인합니다.");
-            } else if (finalPlace && shouldReplaceSavedMissionStory(mission.getStoryText(), answers, placeNames)) {
-                mission.setStoryText("모든 조사 단서를 대조한 뒤 범인, 흉기, 동기, 방법을 최종 입력합니다.");
-            } else if (!finalPlace) {
+            if (!finalPlace) {
                 mission.setStoryText(redactPlaceNames(mission.getStoryText(), placeNames, "조사 지점"));
             }
             mission.setQuestionText(redactPlaceNames(mission.getQuestionText(), placeNames, "조사 지점"));
@@ -1153,86 +1147,6 @@ public class AdminEpisodeService {
             if (!missing(slot) && !missing(value)) answers.put(slot.toUpperCase(Locale.ROOT), value);
         }
         return answers;
-    }
-
-    private boolean shouldReplaceSavedSynopsis(String synopsis, Map<String, String> answers, List<String> placeNames) {
-        if (missing(synopsis) || synopsis.length() < 120 || looksLikeOperationBriefing(synopsis) || containsAnyPlaceName(synopsis, placeNames)) {
-            return true;
-        }
-        String domain = answerDomain(answers);
-        String compactSynopsis = compact(synopsis);
-        if ("HARBOR".equals(domain)) return containsAnyCompact(compactSynopsis, "미술품", "갤러리", "전시", "작품") || !containsAnyCompact(compactSynopsis, "항만", "화물", "자료", "서류", "장부", "물류");
-        if ("ART".equals(domain)) return containsAnyCompact(compactSynopsis, "항만", "화물", "밀수") || !containsAnyCompact(compactSynopsis, "미술", "갤러리", "전시", "작품", "감정", "서명");
-        if ("RESEARCH".equals(domain)) return containsAnyCompact(compactSynopsis, "갤러리", "미술품", "항만") || !containsAnyCompact(compactSynopsis, "연구", "실험", "회의실", "연구동", "특허");
-        return false;
-    }
-
-    private boolean shouldReplaceSavedHistorySummary(String value, Map<String, String> answers, List<String> placeNames) {
-        if (missing(value) || containsAnyPlaceName(value, placeNames)) return true;
-        String domain = answerDomain(answers);
-        String compactValue = compact(value);
-        if ("HARBOR".equals(domain)) return containsAnyCompact(compactValue, "미술품", "갤러리", "전시", "작품");
-        if ("ART".equals(domain)) return containsAnyCompact(compactValue, "항만", "화물", "밀수");
-        return false;
-    }
-
-    private boolean shouldReplaceSavedMissionStory(String value, Map<String, String> answers, List<String> placeNames) {
-        return missing(value)
-                || containsAnyPlaceName(value, placeNames)
-                || containsAnyAnswerValue(value, answers)
-                || looksLikeOperationBriefing(value)
-                || looksMojibake(value);
-    }
-
-    private String savedCanonicalSynopsis(AiEpisodeDraftResponse.EpisodeDraft draft, Map<String, String> answers) {
-        List<AiEpisodeDraftResponse.SuspectDraft> suspects = safeList(draft.getSuspects());
-        String first = suspectName(suspects, 0, "용의자 A");
-        String second = suspectName(suspects, 1, "용의자 B");
-        String third = suspectName(suspects, 2, "용의자 C");
-        String weapon = blank(answers.get("WEAPON"), "독성 물질");
-        String motive = blank(answers.get("MOTIVE"), "비공개 계약 은폐");
-        String routine = savedRoutineLabel(answers.get("METHOD"));
-        String domain = answerDomain(answers);
-        String intro = switch (domain) {
-            case "HARBOR" -> "항만 물류 감사관 한태준이 비공개 감사 보고회를 하루 앞둔 밤, 운영사 회의실 안쪽 자료 검토실에서 숨진 채 발견되었다.";
-            case "ART" -> "유명 미술품 수집가 한태준이 개인 갤러리 개관 행사 전날 밤, 자신의 집무실에서 숨진 채 발견되었다.";
-            case "RESEARCH" -> "바이오 연구소 책임자 한태준이 신약 투자 발표회를 하루 앞둔 밤, 연구동 회의실에서 숨진 채 발견되었다.";
-            case "FOOD" -> "외식 브랜드 투자자 한태준이 신규 매장 계약 발표 전날 밤, 비공개 시음 회의실에서 숨진 채 발견되었다.";
-            default -> "중요 계약을 앞둔 사업가 한태준이 발표 전날 밤, 제한 구역 안쪽 회의실에서 숨진 채 발견되었다.";
-        };
-        String locked = switch (domain) {
-            case "HARBOR" -> "자료 검토실 출입문은 전자 잠금장치로 닫혀 있었고 외부 침입 기록은 남아 있지 않았다.";
-            case "RESEARCH" -> "회의실은 내부 보안 카드로 잠긴 상태였고 CCTV는 사건 직전 짧은 공백을 보였다.";
-            default -> "출입문은 내부에서 잠긴 상태였고 외부 침입 흔적은 발견되지 않았다.";
-        };
-        return intro + "\n\n"
-                + "사인은 " + weapon + "에서 검출된 유해 성분과 연결된 급성 반응으로 추정되었다.\n\n"
-                + locked + " 현장에는 몸싸움의 흔적이 없었고, 유해 성분이 어떤 경로로 피해자에게 닿았는지는 즉시 밝혀지지 않았다.\n\n"
-                + "수사 결과, 사건 추정 시간대에 내부에 남아 있었던 인물은 " + first + ", " + second + ", " + third + " 세 명뿐이었다.\n\n"
-                + "한태준은 최근 " + motive + " 문제를 둘러싸고 관계자들과 갈등을 겪고 있었다. 플레이어는 세 용의자의 알리바이, 접근 기록, " + routine + " 변조 흔적, 그리고 현장 기록의 공백을 대조해 범인과 범행 방식을 밝혀야 한다.";
-    }
-
-    private String answerDomain(Map<String, String> answers) {
-        String text = compact(String.join(" ", blank(answers.get("WEAPON"), ""), blank(answers.get("MOTIVE"), ""), blank(answers.get("METHOD"), "")));
-        if (containsAnyCompact(text, "항만", "화물", "밀수", "장부", "서류", "봉투")) return "HARBOR";
-        if (containsAnyCompact(text, "미술", "전시", "갤러리", "작품", "위작", "붓펜", "잉크", "서명")) return "ART";
-        if (containsAnyCompact(text, "연구", "실험", "시약", "논문", "특허")) return "RESEARCH";
-        if (containsAnyCompact(text, "카페", "와인", "잔", "음료", "식당", "보온병", "향수")) return "FOOD";
-        return "GENERAL";
-    }
-
-    private String savedRoutineLabel(String method) {
-        String text = compact(blank(method, ""));
-        if (containsAnyCompact(text, "음료", "커피", "차", "마시")) return "반복되던 음료 준비";
-        if (containsAnyCompact(text, "약", "캡슐", "수면제", "복용")) return "반복되던 약 복용";
-        if (containsAnyCompact(text, "서류", "봉투", "문서")) return "반복되던 문서 확인";
-        if (containsAnyCompact(text, "향수", "분사")) return "현장 준비물 사용";
-        return "반복되던 준비물";
-    }
-
-    private String suspectName(List<AiEpisodeDraftResponse.SuspectDraft> suspects, int index, String fallback) {
-        if (suspects == null || suspects.size() <= index || suspects.get(index) == null) return fallback;
-        return blank(suspects.get(index).getDisplayName(), fallback);
     }
 
     private String redactPlaceNames(String value, List<String> placeNames, String replacement) {

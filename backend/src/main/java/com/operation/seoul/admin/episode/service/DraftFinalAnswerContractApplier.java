@@ -18,7 +18,6 @@ final class DraftFinalAnswerContractApplier {
         if (draft == null) return;
 
         FinalAnswerContractSupport.normalizeFinalAnswerKeywordItems(request);
-        FinalAnswerContractSupport.repairWeakFinalAnswerKeywords(request);
 
         Map<String, String> approved = FinalAnswerContractSupport.approvedAnswers(request);
         FinalAnswerContractSupport.NameRole culprit = FinalAnswerContractSupport.splitNameRole(approved.get("CULPRIT"));
