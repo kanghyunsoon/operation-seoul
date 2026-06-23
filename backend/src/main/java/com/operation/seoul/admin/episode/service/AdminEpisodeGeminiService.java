@@ -1,6 +1,5 @@
 package com.operation.seoul.admin.episode.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftResponse;
@@ -8,18 +7,10 @@ import com.operation.seoul.admin.episode.dto.AiEpisodeDraftValidationRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftValidationResponse;
 import com.operation.seoul.admin.episode.dto.AiEpisodePlanResponse;
 import com.operation.seoul.global.exception.ApiException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,21 +27,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class AdminEpisodeGeminiService {
-    private static final String GENRE_ID = "CRIME_MYSTERY";
     private static final String GENRE_NAME = "범죄 미스터리";
-    private static final String API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
-    private static final List<String> SLOT_IDS = List.of("CULPRIT", "WEAPON", "MOTIVE", "METHOD");
-    private static final Map<String, String> SLOT_LABELS = Map.of(
-            "CULPRIT", "범인",
-            "WEAPON", "흉기",
-            "MOTIVE", "동기",
-            "METHOD", "방법"
-    );
+    private static final List<String> SLOT_IDS = FinalAnswerSlots.IDS;
+    private static final Map<String, String> SLOT_LABELS = FinalAnswerSlots.LABELS;
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate = new RestTemplate(requestFactory());
+    private final GeminiContentClient geminiContentClient;
+
+    public AdminEpisodeGeminiService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+        this.geminiContentClient = new GeminiContentClient(objectMapper);
+    }
 
     @Value("${gemini.api.key:}")
     private String geminiApiKey;
@@ -58,47 +46,18 @@ public class AdminEpisodeGeminiService {
     @Value("${gemini.model:gemini-2.5-flash-lite}")
     private String geminiModel;
 
-    private static SimpleClientHttpRequestFactory requestFactory() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10_000);
-        factory.setReadTimeout(145_000);
-        return factory;
-    }
-
     public AiEpisodePlanResponse createAnswerPlan(AiEpisodeDraftRequest request) {
         validatePlaces(request);
         TourApiPlanContext planContext = TourApiPlanInputExtractor.extract(request);
-        List<String> storyAnchors = planContext.storyAnchors();
         List<AiEpisodePlanResponse.AnswerKeyword> keywords = answerPlanKeywords(request);
-        attachPlanSourceBasis(keywords, storyAnchors);
-        return AiEpisodePlanResponse.builder()
-                .selectedGenreId(GENRE_ID)
-                .selectedGenreName(GENRE_NAME)
-                .answerSlots(answerSlotPlans())
-                .finalAnswerKeywords(keywords)
-                .finalAnswerKeywordItems(keywords)
-                .finalAnswers(planFinalAnswers(keywords))
-                .finalQuestionGuide("조사 미션 8개를 완료한 뒤 범인, 흉기, 동기, 방법을 각각 입력합니다.")
-                .rationale(storyAnchors.isEmpty()
-                        ? "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 선택 장소의 검수 문맥을 바탕으로 구체화합니다."
-                        : "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/사건 앵커를 바탕으로 구체화합니다.")
-                .tourApiStoryAnchors(storyAnchors)
-                .tourApiPlanInputs(planContext.includedInputs())
-                .excludedPlanInputs(planContext.excludedInputs())
-                .planReviewRequired(false)
-                .reviewReason("")
-                .fieldVerificationRecommended(true)
-                .rejectedGenreReasons(List.of("장소 힌트나 최종 장소 추리 구조는 사용하지 않습니다."))
-                .validationWarnings(List.of())
-                .nextSteps(List.of("4개 정답 슬롯을 검수하고 AI 초안을 생성하세요."))
-                .build();
+        return AnswerPlanResponseFactory.build(planContext, keywords);
     }
 
     public AiEpisodeDraftResponse createGeminiDraft(AiEpisodeDraftRequest request) {
         validatePlaces(request);
-        normalizeFinalAnswerKeywordItems(request);
-        repairWeakFinalAnswerKeywords(request);
-        validateFinalAnswerContract(request);
+        FinalAnswerContractSupport.normalizeFinalAnswerKeywordItems(request);
+        FinalAnswerContractSupport.repairWeakFinalAnswerKeywords(request);
+        FinalAnswerContractSupport.validateFinalAnswerContract(request);
         ensureApiKey();
         AiEpisodeDraftResponse.EpisodeDraft draft = new GeminiDraftGenerator(objectMapper, this::callGemini).generate(request);
         return buildDraftResponse(draft, request, new ArrayList<>());
@@ -146,10 +105,10 @@ public class AdminEpisodeGeminiService {
 
     private void applyApprovedFinalAnswerContract(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request, List<String> warnings) {
         if (draft == null) return;
-        normalizeFinalAnswerKeywordItems(request);
-        repairWeakFinalAnswerKeywords(request);
-        Map<String, String> approved = approvedAnswers(request);
-        NameRole culprit = splitNameRole(approved.get("CULPRIT"));
+        FinalAnswerContractSupport.normalizeFinalAnswerKeywordItems(request);
+        FinalAnswerContractSupport.repairWeakFinalAnswerKeywords(request);
+        Map<String, String> approved = FinalAnswerContractSupport.approvedAnswers(request);
+        FinalAnswerContractSupport.NameRole culprit = FinalAnswerContractSupport.splitNameRole(approved.get("CULPRIT"));
         approved.put("CULPRIT", culprit.name());
         List<String> values = SLOT_IDS.stream().map(approved::get).toList();
         draft.setGenre(GENRE_NAME);
@@ -246,7 +205,7 @@ public class AdminEpisodeGeminiService {
     private void applyDeterministicCrimeMysteryGuardrail(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request, List<String> warnings) {
         if (draft == null) return;
         List<String> safeWarnings = warnings == null ? new ArrayList<>() : warnings;
-        Map<String, String> approved = approvedAnswers(request);
+        Map<String, String> approved = FinalAnswerContractSupport.approvedAnswers(request);
         String culprit = approved.get("CULPRIT");
         String weapon = approved.get("WEAPON");
         String motive = approved.get("MOTIVE");
@@ -891,7 +850,7 @@ public class AdminEpisodeGeminiService {
     }
 
     private void applyCanonicalInvestigationClues(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
-        Map<String, String> answers = approvedAnswers(request);
+        Map<String, String> answers = FinalAnswerContractSupport.approvedAnswers(request);
         List<String> clues = canonicalInvestigationClues(answers);
         List<String> targets = List.of("CULPRIT", "CULPRIT", "WEAPON", "WEAPON", "MOTIVE", "MOTIVE", "METHOD", "METHOD");
         List<AiEpisodeDraftResponse.MissionDraft> missions = safeList(draft.getMissions());
@@ -1045,12 +1004,12 @@ public class AdminEpisodeGeminiService {
         Set<String> itemSlots = items.stream()
                 .map(item -> normalize(defaultIfBlank(item.getSlotId(), item.getType())))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        if (items.size() != 4 || !itemSlots.equals(new LinkedHashSet<>(SLOT_IDS)) || items.stream().anyMatch(item -> blank(answerKeywordItemValue(item)))) {
+        if (items.size() != 4 || !itemSlots.equals(new LinkedHashSet<>(SLOT_IDS)) || items.stream().anyMatch(item -> blank(FinalAnswerContractSupport.answerKeywordItemValue(item)))) {
             addFinding(findings, "ERROR", "FOUR_FINAL_KEYWORD_ITEMS_REQUIRED", "finalAnswerKeywordItems must contain exactly CULPRIT, WEAPON, MOTIVE, METHOD with non-empty values.", null, "finalAnswerKeywordItems");
         }
         for (AiEpisodeDraftResponse.AnswerKeywordItem item : items) {
             String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-            String value = answerKeywordItemValue(item);
+            String value = FinalAnswerContractSupport.answerKeywordItemValue(item);
             if (SLOT_IDS.contains(slot) && weakFinalAnswerKeyword(slot, value)) {
                 addFinding(findings, "ERROR", "CONCRETE_FINAL_KEYWORD_REQUIRED", "최종 정답 키워드는 구체적인 인물, 물건, 동기, 범행 과정이어야 합니다.", null, "finalAnswerKeywordItems");
             }
@@ -1257,20 +1216,7 @@ public class AdminEpisodeGeminiService {
     }
 
     private String callGemini(String prompt) {
-        String url = API_BASE_URL + "/models/" + geminiModel + ":generateContent?key=" + geminiApiKey;
-        Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        try {
-            JsonNode root = objectMapper.readTree(restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class));
-            return root.path("candidates").path(0).path("content").path("parts").path(0).path("text").asText("");
-        } catch (RestClientResponseException e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_REQUEST_FAILED", "Gemini 요청에 실패했습니다. 상태=" + e.getStatusCode().value());
-        } catch (RestClientException e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_REQUEST_FAILED", "Gemini 요청에 실패했습니다. 원인=" + e.getClass().getSimpleName());
-        } catch (Exception e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_RESPONSE_PARSE_FAILED", "Gemini 응답을 해석할 수 없습니다.");
-        }
+        return geminiContentClient.generateContent(prompt, geminiModel, geminiApiKey);
     }
 
     private void ensureApiKey() {
@@ -1282,232 +1228,41 @@ public class AdminEpisodeGeminiService {
     }
 
     private void normalizeFinalAnswerKeywordItems(AiEpisodeDraftRequest request) {
-        if (request == null || (request.getFinalAnswerKeywordItems() != null && !request.getFinalAnswerKeywordItems().isEmpty())) return;
-        if (request.getFinalAnswers() == null) return;
-        Map<String, String> fromFinalAnswers = new LinkedHashMap<>();
-        putIfNotBlank(fromFinalAnswers, "CULPRIT", request.getFinalAnswers().getCulprit());
-        putIfNotBlank(fromFinalAnswers, "WEAPON", request.getFinalAnswers().getWeapon());
-        putIfNotBlank(fromFinalAnswers, "MOTIVE", request.getFinalAnswers().getMotive());
-        putIfNotBlank(fromFinalAnswers, "METHOD", request.getFinalAnswers().getMethod());
-        if (SLOT_IDS.stream().anyMatch(slot -> blank(fromFinalAnswers.get(slot)))) return;
-        List<AiEpisodeDraftRequest.AnswerKeywordInput> items = new ArrayList<>();
-        for (String slot : SLOT_IDS) {
-            AiEpisodeDraftRequest.AnswerKeywordInput item = new AiEpisodeDraftRequest.AnswerKeywordInput();
-            item.setSlotId(slot);
-            item.setType(slot);
-            item.setLabel(SLOT_LABELS.get(slot));
-            item.setDisplayType(SLOT_LABELS.get(slot));
-            item.setKeyword(fromFinalAnswers.get(slot));
-            items.add(item);
-        }
-        request.setFinalAnswerKeywordItems(items);
+        FinalAnswerContractSupport.normalizeFinalAnswerKeywordItems(request);
     }
+
 
     private void validateFinalAnswerContract(AiEpisodeDraftRequest request) {
-        Map<String, String> values = approvedAnswers(request);
-        if (SLOT_IDS.stream().anyMatch(slot -> blank(values.get(slot)))) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FINAL_ANSWER_KEYWORDS", "최종 정답 키워드는 범인, 흉기, 동기, 방법 4개를 모두 포함해야 합니다.");
-        List<String> weakSlots = SLOT_IDS.stream().filter(slot -> weakFinalAnswerKeyword(slot, values.get(slot))).toList();
-        if (!weakSlots.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "WEAK_FINAL_ANSWER_KEYWORDS", "최종 정답 키워드는 구체적인 인물, 물건, 동기, 범행 과정이어야 합니다: " + String.join(", ", weakSlots));
-        }
+        FinalAnswerContractSupport.validateFinalAnswerContract(request);
     }
+
 
     private void repairWeakFinalAnswerKeywords(AiEpisodeDraftRequest request) {
-        if (request == null) return;
-        Map<String, String> values = approvedAnswers(request);
-        String method = values.get("METHOD");
-        if (weakFinalAnswerKeyword("METHOD", method)) {
-            updateFinalAnswerKeyword(request, "METHOD", concreteMethodFor(values.get("WEAPON"), values.get("MOTIVE"), method));
-        }
+        FinalAnswerContractSupport.repairWeakFinalAnswerKeywords(request);
     }
 
-    private String concreteMethodFor(String weapon, String motive, String currentMethod) {
-        String text = compact(String.join(" ", trim(weapon), trim(motive), trim(currentMethod)));
-        if (containsAny(text, "붓펜", "잉크", "서명", "위작", "전시", "감정")) {
-            return "독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴";
-        }
-        if (containsAny(text, "향수", "분사")) {
-            return "향수병에 마취 성분을 넣어 피해자에게 분사";
-        }
-        if (containsAny(text, "와인", "잔", "음료", "보온병", "마시")) {
-            return "잔 가장자리에 수면제를 묻혀 피해자가 마시게 함";
-        }
-        if (containsAny(text, "약", "캡슐", "고산병", "복용")) {
-            return "약 캡슐에 진정제를 섞어 피해자에게 복용시킴";
-        }
-        if (containsAny(text, "봉투", "문서", "분말")) {
-            return "문서 봉투 접착면에 독성 분말을 묻혀 피해자가 만지게 함";
-        }
-        return "현장 준비물에 유해 성분을 섞어 피해자에게 접촉시킴";
-    }
 
-    private void updateFinalAnswerKeyword(AiEpisodeDraftRequest request, String slot, String value) {
-        if (request.getFinalAnswers() == null) {
-            request.setFinalAnswers(new AiEpisodeDraftRequest.FinalAnswersInput());
-        }
-        if ("CULPRIT".equals(slot)) request.getFinalAnswers().setCulprit(value);
-        if ("WEAPON".equals(slot)) request.getFinalAnswers().setWeapon(value);
-        if ("MOTIVE".equals(slot)) request.getFinalAnswers().setMotive(value);
-        if ("METHOD".equals(slot)) request.getFinalAnswers().setMethod(value);
-        if (request.getFinalAnswerKeywordItems() == null) return;
-        for (AiEpisodeDraftRequest.AnswerKeywordInput item : request.getFinalAnswerKeywordItems()) {
-            String itemSlot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-            if (slot.equals(itemSlot)) {
-                item.setKeyword(value);
-                if ("CULPRIT".equals(slot)) item.setPersonName(value);
-            }
-        }
-    }
+
+
+
 
     private Map<String, String> approvedAnswers(AiEpisodeDraftRequest request) {
-        Map<String, String> result = new LinkedHashMap<>();
-        SLOT_IDS.forEach(slot -> result.put(slot, ""));
-        if (request != null && request.getFinalAnswerKeywordItems() != null) {
-            for (AiEpisodeDraftRequest.AnswerKeywordInput item : request.getFinalAnswerKeywordItems()) {
-                String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-                if (SLOT_IDS.contains(slot)) putIfNotBlank(result, slot, answerKeywordValue(item));
-            }
-        }
-        if (request != null && request.getFinalAnswers() != null) {
-            putIfNotBlank(result, "CULPRIT", request.getFinalAnswers().getCulprit());
-            putIfNotBlank(result, "WEAPON", request.getFinalAnswers().getWeapon());
-            putIfNotBlank(result, "MOTIVE", request.getFinalAnswers().getMotive());
-            putIfNotBlank(result, "METHOD", request.getFinalAnswers().getMethod());
-        }
-        return result;
+        return FinalAnswerContractSupport.approvedAnswers(request);
     }
 
-    private String answerKeywordValue(AiEpisodeDraftRequest.AnswerKeywordInput item) {
-        if (item == null) return "";
-        String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-        String value = "CULPRIT".equals(slot) && !blank(item.getPersonName()) ? item.getPersonName() : defaultIfBlank(item.getKeyword(), item.getSourceText());
-        return "CULPRIT".equals(slot) ? splitNameRole(value).name() : value;
-    }
+
+
 
     private String answerKeywordItemValue(AiEpisodeDraftResponse.AnswerKeywordItem item) {
-        if (item == null) return "";
-        String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-        String value = "CULPRIT".equals(slot) && !blank(item.getPersonName()) ? item.getPersonName() : defaultIfBlank(item.getKeyword(), item.getValue());
-        return "CULPRIT".equals(slot) ? splitNameRole(value).name() : value;
+        return FinalAnswerContractSupport.answerKeywordItemValue(item);
     }
 
-    private void putIfNotBlank(Map<String, String> values, String key, String value) {
-        if (!blank(value)) values.put(key, value.trim());
-    }
 
-    private List<AiEpisodePlanResponse.AnswerSlotPlan> answerSlotPlans() {
-        return SLOT_IDS.stream().map(slot -> AiEpisodePlanResponse.AnswerSlotPlan.builder().slotId(slot).label(SLOT_LABELS.get(slot)).description(SLOT_LABELS.get(slot) + " 정답 슬롯").minClueCount(2).build()).toList();
-    }
+
 
     private List<AiEpisodePlanResponse.AnswerKeyword> answerPlanKeywords(AiEpisodeDraftRequest request) {
         ensureApiKey();
         return new GeminiAnswerPlanGenerator(objectMapper, this::callGemini).generate(request);
-    }
-
-    private List<AiEpisodePlanResponse.AnswerKeyword> deterministicAnswerKeywords(AiEpisodeDraftRequest request) {
-        String context = compact(buildAnswerPlanContext(request));
-        int seed = Math.floorMod(context.hashCode(), 10_000);
-        String name = List.of("서민재", "박선우", "한지원", "오도윤", "정하린", "강태오", "윤서진", "최이현").get(seed % 8);
-        String role = culpritRoleForContext(context, seed);
-        CrimeAnswerTemplate template = crimeAnswerTemplateForContext(context, seed);
-        Map<String, String> values = new LinkedHashMap<>();
-        values.put("CULPRIT", name);
-        values.put("WEAPON", template.weapon());
-        values.put("MOTIVE", template.motive());
-        values.put("METHOD", template.method());
-        List<String> weakSlots = SLOT_IDS.stream().filter(slot -> weakFinalAnswerKeyword(slot, values.get(slot))).toList();
-        if (!weakSlots.isEmpty()) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "ANSWER_PLAN_TEMPLATE_INVALID", "서버 정답 템플릿이 구체성 검증을 통과하지 못했습니다: " + String.join(", ", weakSlots));
-        }
-        return SLOT_IDS.stream()
-                .map(slot -> AiEpisodePlanResponse.AnswerKeyword.builder()
-                        .slotId(slot)
-                        .type(slot)
-                        .label(SLOT_LABELS.get(slot))
-                        .displayType(SLOT_LABELS.get(slot))
-                        .keyword(values.get(slot))
-                        .personName("CULPRIT".equals(slot) ? name : "")
-                        .personRole("CULPRIT".equals(slot) ? role : "")
-                        .role("CULPRIT".equals(slot) ? role : "")
-                        .aliases("CULPRIT".equals(slot) ? List.of(name, role) : List.of())
-                        .sourceBasis("서버 범죄 미스터리 정답 템플릿")
-                        .sourceType("SERVER_TEMPLATE")
-                        .build())
-                .toList();
-    }
-
-    private String buildAnswerPlanContext(AiEpisodeDraftRequest request) {
-        if (request == null) return "";
-        return String.join(" ",
-                trim(request.getArea()),
-                trim(request.getTheme()),
-                trim(request.getPlayTime()),
-                trim(request.getSelectedGenreName()),
-                TourApiPlanInputExtractor.extract(request).answerSeedContext());
-    }
-
-    private void attachPlanSourceBasis(List<AiEpisodePlanResponse.AnswerKeyword> keywords, List<String> storyAnchors) {
-        if (keywords == null || keywords.isEmpty() || storyAnchors == null || storyAnchors.isEmpty()) return;
-        String basis = String.join(" / ", storyAnchors);
-        for (AiEpisodePlanResponse.AnswerKeyword keyword : keywords) {
-            if (keyword != null) {
-                keyword.setSourceBasis(basis);
-            }
-        }
-    }
-
-    private String culpritRoleForContext(String context, int seed) {
-        if (containsAny(context, "출입", "계약", "명부", "내부 고발")) return List.of("보안 운영팀장", "계약 관리 담당자", "내부 감사 담당자").get(seed % 3);
-        if (containsAny(context, "안전 점검", "안전점검", "소독제", "시설 점검", "시설점검", "관리 책임", "관리책임")) return List.of("시설 안전 담당자", "운영 관리 책임자", "점검 기록 담당자").get(seed % 3);
-        if (containsAny(context, "항만", "화물", "밀수", "장부", "서류", "봉투")) return List.of("물류 운영팀장", "기록 보관 담당자", "감사 대응 담당자").get(seed % 3);
-        if (containsAny(context, "미술", "전시", "갤러리", "박물관", "작품", "화랑")) return List.of("큐레이터", "관장", "전시기획자").get(seed % 3);
-        if (containsAny(context, "여행", "산", "전망", "케이블", "숙소", "관광")) return List.of("여행사 직원", "현장 가이드", "숙소 매니저").get(seed % 3);
-        if (containsAny(context, "카페", "식당", "시장", "와인", "음료", "주점")) return List.of("매장 매니저", "소믈리에", "행사 케이터링 담당자").get(seed % 3);
-        if (containsAny(context, "학교", "도서관", "연구", "실험", "기록관")) return List.of("연구원", "기록관리자", "조교").get(seed % 3);
-        return List.of("운영팀장", "행사 담당자", "시설 관리자").get(seed % 3);
-    }
-
-    private CrimeAnswerTemplate crimeAnswerTemplateForContext(String context, int seed) {
-        if (containsAny(context, "출입", "계약", "명부", "내부 고발")) {
-            return new CrimeAnswerTemplate("독성 접착제가 묻은 출입카드", "내부 고발 계약 문서 은폐", "출입카드 접촉면에 독성 접착제를 발라 피해자가 사용하게 함");
-        }
-        if (containsAny(context, "안전 점검", "안전점검", "소독제", "시설 점검", "시설점검", "관리 책임", "관리책임")) {
-            return new CrimeAnswerTemplate("환각 성분이 주입된 손 소독제", "안전 점검 부실 은폐", "손 소독제 용기에 환각 성분을 주입해 피해자가 사용하게 함");
-        }
-        if (containsAny(context, "항만", "화물", "밀수", "장부", "서류", "봉투")) {
-            return new CrimeAnswerTemplate("독성 방부제가 묻은 항만 서류 봉투", "밀수 장부 은폐", "피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기");
-        }
-        if (containsAny(context, "미술", "전시", "갤러리", "박물관", "작품", "화랑")) {
-            List<CrimeAnswerTemplate> artTemplates = List.of(
-                    new CrimeAnswerTemplate("독성 안료가 묻은 감정용 장갑", "작품 소유권 분쟁 은폐", "감정용 장갑 안쪽에 독성 안료를 묻혀 피해자가 작품을 확인하며 접촉하게 함"),
-                    new CrimeAnswerTemplate("마취 성분이 섞인 보존 처리 스프레이", "복원 기록 조작 은폐", "보존 처리 스프레이에 마취 성분을 섞어 피해자가 작품 상태를 점검할 때 흡입하게 함"),
-                    new CrimeAnswerTemplate("독성 세척제가 든 붓 세척통", "감정 결과 조작 은폐", "붓 세척통에 독성 세척제를 넣어 피해자가 감정 도구를 정리하며 접촉하게 함")
-            );
-            return artTemplates.get(seed % artTemplates.size());
-        }
-        if (containsAny(context, "여행", "산", "전망", "케이블", "숙소", "관광")) {
-            return new CrimeAnswerTemplate("진정제가 섞인 고산병 약 캡슐", "불법 원정 사고 은폐", "고산병 약 캡슐에 진정제를 섞어 피해자에게 복용시킴");
-        }
-        if (containsAny(context, "카페", "식당", "시장", "와인", "음료", "주점")) {
-            return new CrimeAnswerTemplate("수면제가 묻은 와인잔", "투자금 횡령 발각 은폐", "와인잔 가장자리에 수면제를 묻혀 피해자가 마시게 함");
-        }
-        if (containsAny(context, "학교", "도서관", "연구", "실험", "기록관")) {
-            return new CrimeAnswerTemplate("독성 시약이 섞인 연구실 음료", "연구 조작 기록 은폐", "피해자의 연구실 음료에 독성 시약을 섞어 마시게 함");
-        }
-        List<CrimeAnswerTemplate> defaults = List.of(
-                new CrimeAnswerTemplate("마취 성분이 섞인 향수병", "비공개 계약 파기 은폐", "향수병에 마취 성분을 넣어 피해자에게 분사"),
-                new CrimeAnswerTemplate("독성 분말이 묻은 초대장 봉투", "내부 고발 문서 은폐", "초대장 봉투 접착면에 독성 분말을 묻혀 피해자가 만지게 함"),
-                new CrimeAnswerTemplate("진정제가 섞인 보온병 음료", "행사 예산 횡령 은폐", "보온병 음료에 진정제를 섞어 피해자에게 마시게 함")
-        );
-        return defaults.get(seed % defaults.size());
-    }
-
-    private record CrimeAnswerTemplate(String weapon, String motive, String method) {}
-
-    private AiEpisodePlanResponse.FinalAnswers planFinalAnswers(List<AiEpisodePlanResponse.AnswerKeyword> keywords) {
-        Map<String, String> values = new LinkedHashMap<>();
-        for (AiEpisodePlanResponse.AnswerKeyword keyword : keywords) values.put(normalize(keyword.getSlotId()), keyword.getKeyword());
-        return AiEpisodePlanResponse.FinalAnswers.builder().culprit(values.get("CULPRIT")).weapon(values.get("WEAPON")).motive(values.get("MOTIVE")).method(values.get("METHOD")).build();
     }
 
     private List<String> answerValues(AiEpisodeDraftResponse.EpisodeDraft draft) {
@@ -1522,20 +1277,14 @@ public class AdminEpisodeGeminiService {
     }
 
     private boolean weakFinalAnswerKeyword(String slot, String value) {
-        return FinalAnswerKeywordValidator.weakFinalAnswerKeyword(slot, value);
+        return FinalAnswerContractSupport.weakFinalAnswerKeyword(slot, value);
     }
 
     private NameRole splitNameRole(String value) {
-        String text = trim(value);
-        if (blank(text)) return new NameRole("", "");
-        java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("^\\s*([가-힣]{2,4})\\s*\\(([^)]+)\\)\\s*$")
-                .matcher(text);
-        if (matcher.matches()) {
-            return new NameRole(matcher.group(1).trim(), matcher.group(2).trim());
-        }
-        return new NameRole(text, "");
+        FinalAnswerContractSupport.NameRole nameRole = FinalAnswerContractSupport.splitNameRole(value);
+        return new NameRole(nameRole.name(), nameRole.role());
     }
+
 
     private record NameRole(String name, String role) {}
 

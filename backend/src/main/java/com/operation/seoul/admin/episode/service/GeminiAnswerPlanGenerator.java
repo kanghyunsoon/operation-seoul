@@ -17,13 +17,8 @@ import java.util.function.Function;
 
 @Slf4j
 final class GeminiAnswerPlanGenerator {
-    private static final List<String> SLOT_IDS = List.of("CULPRIT", "WEAPON", "MOTIVE", "METHOD");
-    private static final Map<String, String> SLOT_LABELS = Map.of(
-            "CULPRIT", "범인",
-            "WEAPON", "흉기",
-            "MOTIVE", "동기",
-            "METHOD", "방법"
-    );
+    private static final List<String> SLOT_IDS = FinalAnswerSlots.IDS;
+    private static final Map<String, String> SLOT_LABELS = FinalAnswerSlots.LABELS;
 
     private final ObjectMapper objectMapper;
     private final Function<String, String> geminiCaller;
