@@ -179,12 +179,19 @@ final class TourApiPlanInputExtractor {
 
     private static boolean samePlace(AiEpisodeDraftRequest.PlaceInput a, AiEpisodeDraftRequest.PlaceInput b) {
         if (a == null || b == null) return false;
+        if (!sameCoordinates(a, b)) return false;
         if (!blank(a.getPlaceId()) && a.getPlaceId().equals(b.getPlaceId())) return true;
         return !blank(a.getName())
                 && !blank(b.getName())
-                && a.getName().trim().equals(b.getName().trim())
-                && Objects.equals(a.getLatitude(), b.getLatitude())
-                && Objects.equals(a.getLongitude(), b.getLongitude());
+                && a.getName().trim().equals(b.getName().trim());
+    }
+
+    private static boolean sameCoordinates(AiEpisodeDraftRequest.PlaceInput a, AiEpisodeDraftRequest.PlaceInput b) {
+        if (a.getLatitude() == null || a.getLongitude() == null || b.getLatitude() == null || b.getLongitude() == null) {
+            return Objects.equals(a.getLatitude(), b.getLatitude()) && Objects.equals(a.getLongitude(), b.getLongitude());
+        }
+        return Math.abs(a.getLatitude() - b.getLatitude()) <= 0.00001
+                && Math.abs(a.getLongitude() - b.getLongitude()) <= 0.00001;
     }
 
     private static String normalizeRole(String role) {

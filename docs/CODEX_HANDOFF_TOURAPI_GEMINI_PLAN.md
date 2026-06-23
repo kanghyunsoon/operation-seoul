@@ -94,16 +94,75 @@ npm run build
 
 ## 다음 Codex가 이어서 할 일
 
-1. 실제 로컬 서버가 최신 코드로 재시작되어 있는지 확인한다.
+2026-06-24 추가 진행 상황:
+
+- 사용자는 Gemini draft 결과에서 다음 문제를 추가로 확인했다.
+  - 실제 역사 해설(`actualHistorySummary`)에 `깨진 돌절구 조각` 같은 물건이 중요한 증거처럼 등장하지만, 조사 단서/증거 카드에는 없는 불일치.
+  - 보상 단서 등에 `물증가` 같은 비문이 생성됨. 이 경우 `증거가`로 정리하면 된다.
+  - `메모의 대상자가` 같은 어색한 치환 문구가 플레이어 노출 텍스트에 섞임.
+  - 사건 개요에 `"제목"` 또는 `미션메모` 같은 제작 메타 문구가 섞임.
+  - TourAPI에서 얻어온 장소와 위도/경도가 다르면, 이름이나 ID가 같아도 힌트 목적지/스토리 앵커 목적지로 같은 장소 취급하면 안 된다.
+
+이번 변경:
+
+- `GeminiDraftPromptBuilder`
+  - `actualHistorySummary`가 허구 사건의 증거 카드처럼 보이는 표현을 쓰지 않도록 지시 추가.
+  - `finalTruthSummary`가 단서/증거 카드에 없는 새 물건을 핵심 증거처럼 추가하지 않도록 지시 추가.
+  - `미션메모`, `제목`, `보상 단서`, `rewardClue` 같은 제작 메타 문구 금지 지시 추가.
+
+- `DraftPlayerTextSanitizer` 신규 추가.
+  - 플레이어 노출 텍스트 전반에서 좁은 범위의 생성 비문을 정리한다.
+  - 현재 교정 대상:
+    - `물증가` -> `증거가`
+    - `메모의 대상자...` -> `기록에 나온 인물...`
+    - `중요한 증거` -> `중요한 보존 흔적`
+    - `결정적 단서` -> `주요 보존 흔적`
+    - `미션메모`, `"제목"`, `보상 단서`, `rewardClue`
+  - 주의: 정상적인 `물증` 전체를 바꾸면 WEAPON 단서 검증이 깨질 수 있으므로, `물증가` 같은 비문만 좁게 교정해야 한다.
+
+- `DraftCrimeMysteryGuardrailApplier`
+  - `DraftPlayerTextSanitizer.sanitize()`를 적용하고 변경 시 `GUARDRAIL_SANITIZED_PLAYER_TEXT` warning을 남긴다.
+
+- `TourApiPlanInputExtractor`
+  - `samePlace()`가 이름/ID만으로 장소를 같다고 판단하지 않도록 수정했다.
+  - 이제 좌표가 먼저 같아야 하며, 좌표가 다르면 `placeId`와 `name`이 같아도 다른 장소로 본다.
+  - 좌표 비교 허용 오차는 `0.00001`이다.
+
+- `AdminEpisodeGeminiServiceTest`
+  - 좌표가 다른 동일 이름/ID TourAPI 장소가 같은 final spot으로 매칭되지 않는 회귀 테스트 추가.
+  - `물증가`, `메모의 대상자`, `미션메모`, `"제목"`, `보상 단서`가 응답 조립 단계에서 정리되는 회귀 테스트 추가.
+
+검증:
+
+- 통과:
+  - `.\gradlew.bat test --tests com.operation.seoul.admin.episode.service.AdminEpisodeGeminiServiceTest.planContextDoesNotMatchFinalSpotWhenCoordinatesDifferEvenWithSameNameOrId --tests com.operation.seoul.admin.episode.service.AdminEpisodeGeminiServiceTest.buildDraftResponseSanitizesAwkwardGeneratedPlayerText`
+- 확인 필요:
+  - `.\gradlew.bat test --tests com.operation.seoul.admin.episode.service.AdminEpisodeGeminiServiceTest`는 현재 11개 기존 guardrail repair 기대 테스트가 실패한다.
+  - 실패 양상은 `publishable=false`, `SLOT_RELEVANCE`, `FINAL_TRUTH_MUST_EXPLAIN_ANSWERS` 등이다.
+  - 진단 중 한 사례에서는 WEAPON 슬롯에 `해고 통보 문서가 발견되었다.` 같은 MOTIVE성 단서가 남아 있었다. `DraftCrimeMysteryGuardrailApplier`는 실제 수리 대신 repair logger를 호출하고 경고를 남기는 구조라, 기존 테스트의 "수리 후 publishable=true" 기대와 현 코드가 어긋나 있을 가능성이 있다.
+  - 다음 Codex는 이번 변경과 별개로 `GUARDRAIL_REPAIRED_INVESTIGATION_CLUES`가 실제로 어디서 수리되어야 하는지, 현재 코드에서 수리 로직이 빠진 것인지 확인해야 한다.
+
+다음 Codex가 이어서 할 일:
+
+1. `AdminEpisodeGeminiServiceTest` 전체 실패 11개를 먼저 분리한다.
+   - 이번 변경의 신규 테스트 2개는 통과했다.
+   - 기존 repair 테스트 실패가 이전부터 존재했는지, 또는 `DraftPlayerTextSanitizer` 적용 순서가 간접 영향을 주는지 `git diff`와 validation warnings로 확인한다.
+2. `DraftCrimeMysteryGuardrailApplier`가 `investigationClueRepairLogger`를 호출만 하는 현재 구조가 의도인지 확인한다.
+   - 테스트 기대대로라면 SLOT_RELEVANCE, DIRECT_ANSWER_LEAK, FINAL_TRUTH 부족 등을 deterministic repair로 실제 수정해야 한다.
+3. 실제 Gemini QA를 다시 수행한다.
+   - `actualHistorySummary`에 "중요한 증거/결정적 단서/물증"처럼 허구 사건 증거로 오해되는 표현이 사라지는지 확인한다.
+   - `finalTruthSummary`에 단서/증거 카드에 없는 새 물건이 갑자기 핵심 증거로 등장하지 않는지 확인한다.
+   - 좌표가 다른 동일 이름 TourAPI 장소가 final spot/story anchor로 잘못 선택되지 않는지 확인한다.
+4. 실제 로컬 서버가 최신 코드로 재시작되어 있는지 확인한다.
    - 사용자가 여전히 `SERVER_TEMPLATE` 경고를 본다면 구버전 서버가 떠 있거나, 배포/실행 프로필이 최신 빌드를 반영하지 않았을 가능성이 있다.
-2. 실행 중인 Spring profile과 Gemini 설정을 확인한다.
+5. 실행 중인 Spring profile과 Gemini 설정을 확인한다.
    - `application-prod.properties`: `gemini.api.key=${GEMINI_API_KEY:}`
    - `application-local.properties`: 현재 하드코딩된 키처럼 보이는 값이 있다. 실제 유효 키인지 확인 필요.
    - 민감정보를 커밋하거나 문서에 추가 노출하지 말 것.
-3. `createAnswerPlan()` 호출이 실패할 때 프론트에서 에러 메시지가 명확히 보이는지 QA한다.
-4. 실제 Gemini 응답이 `GEMINI_PLAN_INVALID`로 자주 실패한다면 프롬프트를 더 구체화한다.
+6. `createAnswerPlan()` 호출이 실패할 때 프론트에서 에러 메시지가 명확히 보이는지 QA한다.
+7. 실제 Gemini 응답이 `GEMINI_PLAN_INVALID`로 자주 실패한다면 프롬프트를 더 구체화한다.
    - 단, 서버 템플릿 fallback을 되살리면 안 된다.
-5. 필요하면 plan endpoint에 별도 debug field를 추가한다.
+8. 필요하면 plan endpoint에 별도 debug field를 추가한다.
    - 예: `generatorType`, `model`, `failureReason`.
    - 단, API 키나 민감정보는 절대 노출하지 않는다.
 

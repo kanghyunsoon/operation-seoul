@@ -314,6 +314,36 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
+    void planContextDoesNotMatchFinalSpotWhenCoordinatesDifferEvenWithSameNameOrId() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftRequest.PlaceInput routeFinal = source.getPlaces().get(9);
+        routeFinal.setPlaceId("tour-duplicated-name");
+        routeFinal.setName("Same TourAPI Name");
+        routeFinal.setLatitude(37.500000);
+        routeFinal.setLongitude(126.900000);
+        routeFinal.setResearchSourceSummary("route coordinate archive");
+
+        AiEpisodeDraftRequest.PlaceInput finalSpot = new AiEpisodeDraftRequest.PlaceInput();
+        finalSpot.setPlaceId("tour-duplicated-name");
+        finalSpot.setName("Same TourAPI Name");
+        finalSpot.setLatitude(37.510000);
+        finalSpot.setLongitude(126.910000);
+        finalSpot.setResearchSourceSummary("explicit coordinate archive");
+        source.setFinalSpot(finalSpot);
+
+        TourApiPlanContext context = TourApiPlanInputExtractor.extract(source);
+        String anchors = String.join(" ", context.storyAnchors());
+        String included = String.join(" ", context.includedInputs());
+        String excluded = String.join(" ", context.excludedInputs());
+
+        assertTrue(anchors.contains("explicit coordinate archive"));
+        assertTrue(included.contains("explicit coordinate archive"));
+        assertFalse(anchors.contains("route coordinate archive"));
+        assertFalse(included.contains("route coordinate archive"));
+        assertTrue(excluded.contains("route coordinate archive"));
+    }
+
+    @Test
     void sanitizesGeminiPlanCulpritToNameOnly() throws Exception {
         JsonNode node = new ObjectMapper().readTree("""
                 [
@@ -921,6 +951,31 @@ class AdminEpisodeGeminiServiceTest {
                 .anyMatch(evidence -> evidence.getTextSummary() != null && evidence.getTextSummary().contains("특정 용의자")));
         assertTrue(response.getDraft().getMissions().stream()
                 .anyMatch(mission -> mission.getRewardClue() != null && mission.getRewardClue().contains("기록 속 인물")));
+    }
+
+    @Test
+    void buildDraftResponseSanitizesAwkwardGeneratedPlayerText() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        draft.setFictionSynopsis("\"제목\" 미션메모 피해자가 발견된 사건 개요입니다.");
+        draft.setActualHistorySummary("깨진 돌절구 조각은 중요한 증거가 아니라 보존 흔적으로 설명되어야 한다.");
+        investigationMissions(draft).get(0)
+                .setRewardClue("물증가 기록과 맞지 않고 메모의 대상자가 같은 시간대에 이동했다.");
+        draft.getEvidences().get(0)
+                .setTextSummary("보상 단서에는 물증가 남아 있었다고 적혀 있다.");
+
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
+        String playerText = DraftClueQualityRules.playerFacingText(response.getDraft());
+
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_SANITIZED_PLAYER_TEXT"));
+        assertFalse(playerText.contains("미션메모"));
+        assertFalse(playerText.contains("\"제목\""));
+        assertFalse(playerText.contains("물증가"));
+        assertFalse(playerText.contains("메모의 대상자"));
+        assertFalse(playerText.contains("보상 단서"));
+        assertTrue(playerText.contains("증거가"));
+        assertTrue(playerText.contains("기록에 나온 인물"));
     }
 
     @Test

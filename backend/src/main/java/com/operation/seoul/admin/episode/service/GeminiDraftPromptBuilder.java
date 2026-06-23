@@ -44,6 +44,9 @@ final class GeminiDraftPromptBuilder {
                 - actualHistorySummary는 TourAPI/외부조사에서 온 실제 장소 해설이다. 허구 사건의 전말을 반복하지 말고, storyAnchors/historicalContext에 담긴 장소의 건축적 특징, 행정/상업/문화 기능, 보존 가치, 시대적 배경, 지역적 맥락을 5~7문장으로 설명한다.
                 - actualHistorySummary에는 "본 사건은 직접적인 역사 사건을 다루지 않습니다", "직접 역사 사건이 아니라", "허구 사건입니다", "모티브로 삼았습니다" 같은 방어적 문구를 쓰지 않는다. 사용자가 알아야 할 것은 실제 장소가 어떤 특성을 가진 곳인지다.
                 - actualHistorySummary는 장소의 특성을 먼저 설명하고, 마지막 1~2문장에서 그 특성이 게임의 권한, 이동 동선, 건물 구조, 물건의 쓰임, 지역 갈등 같은 미스터리 소재로 어떻게 연결되는지 자연스럽게 설명한다.
+                - actualHistorySummary에서 "중요한 증거", "결정적 단서", "물증"처럼 허구 사건의 증거 카드처럼 읽히는 표현을 쓰지 않는다. 실제 유물이나 시설 조각을 설명할 때도 역사적 특징/보존 흔적으로만 설명한다.
+                - finalTruthSummary에서 특정 물건을 사건 해결의 핵심 증거처럼 다루려면 같은 물건이 missions[2~9].rewardClue와 evidences 중 적어도 하나에 먼저 등장해야 한다. 단서/증거 카드에 없는 물건을 최종 해설에서 새 증거처럼 추가하지 않는다.
+                - episodeTitle, fictionSynopsis, missionDescription, storyText에는 "미션메모", "제목", "보상 단서", "rewardClue" 같은 제작 메타 문구를 쓰지 않는다.
                 - missions는 10개다. 1번 START, 2~9번 ANSWER_HINT, 10번 FINAL.
                 - suspects는 정확히 3명이다. 세 명 모두 displayName, alias, shortDescription, relationToVictim, suspiciousPoint, alibiSummary를 채운다. 세 명 모두 피해자와의 관계, 알리바이, 의심 지점이 서로 달라야 한다.
                 - Suspect design must support elimination, not equal suspicion. One suspect is the real culprit. The other two are plausible red herrings at first, but their alibi, role, or later evidence must give players a reason to rule them out.

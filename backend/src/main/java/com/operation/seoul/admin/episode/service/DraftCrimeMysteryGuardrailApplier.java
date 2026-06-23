@@ -51,6 +51,9 @@ final class DraftCrimeMysteryGuardrailApplier {
         if (DraftInvestigationCluePolicy.redactFinalAnswerValues(draft)) {
             safeWarnings.add("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES");
         }
+        if (DraftPlayerTextSanitizer.sanitize(draft)) {
+            safeWarnings.add("GUARDRAIL_SANITIZED_PLAYER_TEXT");
+        }
 
         List<String> investigationClueIssues = DraftInvestigationCluePolicy.investigationClueIssues(draft);
         if (!investigationClueIssues.isEmpty()) {
