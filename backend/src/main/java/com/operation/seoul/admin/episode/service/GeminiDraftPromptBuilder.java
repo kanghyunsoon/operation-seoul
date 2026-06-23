@@ -15,113 +15,39 @@ final class GeminiDraftPromptBuilder {
 
     static String build(AiEpisodeDraftRequest request) {
         return """
-                Return JSON only, matching AiEpisodeDraftResponse.EpisodeDraft.
-                Write in Korean.
-                Genre is fixed to 범죄 미스터리.
-                Final answers are exactly CULPRIT, WEAPON, MOTIVE, METHOD.
-                Use the approved final answer values exactly. Do not invent a different culprit, weapon, motive, or method.
-                The culprit answer value must be one of the 3 suspect displayName values.
-                Suspect displayName must be a Korean personal name only, such as "서민재". Do not put role or job in displayName, such as "서민재(운영팀장)".
-                Put roles and jobs in relationToVictim or shortDescription instead.
-                All suspects, finalTruthSummary, rewardClue values, and evidences must converge to the approved final answers.
-                finalTruthSummary must include the approved CULPRIT, WEAPON, MOTIVE, and METHOD values verbatim.
-                Never reuse stale sample answers or names: 강수진, 독성 캡슐, 비밀 계약 은폐, 약병 바꿔치기, 독이 섞인 수면제 캡슐, 피해자의 매일 복용 약을 독성 캡슐로 바꿔치기.
-                The final place is not a deduction answer. It unlocks automatically after all 8 investigation missions are cleared.
-                Use TourAPI, external research notes, reference URLs, admin memo, and place descriptions only as background motifs.
-                Do not state or imply that a real crime happened at any real place.
-                Do not put selected real place names in fictionSynopsis as the murder scene. Create a fictional indoor location such as a private office, gallery office, research meeting room, archive room, or event preparation room.
-                Do not write phrases that break immersion, including "실제 장소", "가상의 용의자", "관리자 검수", "RAG", "TourAPI", "외부 검색".
-                Do not create place hints, destination clues, DESTINATION_HINT, DESTINATION_CLUE, FINAL_DESTINATION, or PLACE_HINT.
-                Create 10 missions: order 1 START, orders 2-9 ANSWER_HINT, order 10 FINAL.
-                The 8 investigation rewardClue values must be distinct deductive clues, not atmosphere.
-                Never use generic clue text such as "조사 단서는 ... 판단에 필요한 근거를 제공합니다."
-                Each investigation rewardClue must have exactly one internal targetKeywordType for answer-board grouping.
-                Player-facing rewardClue text must still work as a mixed evidence chain: each clue should narrow more than one part of the truth through timeline, access, object trace, motive pressure, and routine sequence.
-                Do not write visibly separated pairs such as "two culprit clues, two weapon clues". The eight clues should feel like one investigation that gradually converges on culprit, weapon, motive, and method together.
-                rewardClue must not directly include final answer values, including the culprit name.
-                Investigation rewardClue should avoid suspect display names in general. Use indirect labels such as "a suspect", "the person with access", "the owner of the fingerprint", or "the person shown in CCTV".
-                Keep suspect display names in the suspects array and finalTruthSummary only, not in the 8 investigation rewardClue values.
-                Before returning JSON, self-check every investigation rewardClue against the approved final answer values.
-                If a rewardClue contains the exact approved CULPRIT, WEAPON, MOTIVE, or METHOD value, rewrite it as indirect evidence.
-                Example: do not write the culprit name; write "the person with unrestricted office access" or "the owner of the extra fingerprint" instead.
-                Example: do not write the weapon answer value; write toxicology, container, residue, or material facts that let the player infer it.
-                Example: do not write the motive answer value; write documents, debt records, conflict messages, or benefit facts that imply it.
-                Example: do not write the method answer value; write timing, access path, object state, or tampering sequence facts that imply it.
-                Suspects must include exactly 3 people, each with alibiSummary and suspiciousPoint.
-                Evidences must include exactly 8 cards mapped to sourceMissionOrder 2 through 9.
-                actualHistorySummary must explain the historical/cultural motif behind the final place without saying the case is real.
+                JSON만 반환한다. 모든 문장은 한국어로 작성한다.
+                장르는 항상 "범죄 미스터리"다.
 
-                Do not omit or null these fields: episodeTitle, fictionSynopsis, finalTruthSummary, missions, suspects, evidences.
+                너의 역할은 장소 안내문 작성자가 아니라 크라임씬 사건 작가다.
+                승인된 최종 정답 4개(CULPRIT, WEAPON, MOTIVE, METHOD)를 바탕으로 하나의 완성된 살인 사건을 만든다.
+                실제 장소명, 주소, 상호명, Kakao 주변 후보, 지도 동선은 사건 줄거리와 단서에 사용하지 않는다.
+                장소는 나중에 미션에 배정될 지도 좌표일 뿐이다.
 
-                Case blueprint:
-                - Create a fictional victim, incident setup, cause or mechanism, limited suspect pool, and timeline.
-                - The case overview must resemble a locked-room crime mystery: victim found dead or incapacitated, clear cause/mechanism, no obvious forced entry, and exactly 3 suspects present in the plausible incident window.
-                - The culprit must be exactly one of the 3 suspects.
-                - Each suspect needs a concrete alibiSummary and a concrete suspiciousPoint.
-                - Suspect alibiSummary must include the claimed activity during the incident window and what record/witness partially supports it.
-                - Suspect suspiciousPoint must include motive pressure, recent conflict, access, missing time, or benefit from the victim's death.
-                - Build the truth so CULPRIT, WEAPON, MOTIVE, and METHOD are uniquely deducible only after combining all 8 clues.
-                - The 8 clues must be evidence facts such as records, fingerprints, access logs, object traces, CCTV gaps, medical/toxicology facts, contracts, schedules, or witness observations.
-                - Do not use simple mood, scenery, tourism facts, route directions, address numbers, sign text, or place-name extraction as deduction clues.
-                - Every clue must add different information. Avoid repeating the same fact with different wording.
-                - finalAnswerKeywordItems and finalAnswers must contain only the approved 4 answer slots.
+                반드시 지킬 것:
+                - CULPRIT 값은 suspects[0..2].displayName 중 정확히 한 명이어야 한다.
+                - suspect displayName은 한국인 이름만 쓴다. 직업/역할은 relationToVictim 또는 shortDescription에 쓴다.
+                - finalTruthSummary에는 승인된 CULPRIT, WEAPON, MOTIVE, METHOD 값을 그대로 모두 포함한다.
+                - fictionSynopsis는 경로 설명이 아니라 사건 개요다. 피해자, 발견 상황, 사망 방식, 제한된 용의자 3명, 갈등 배경, 수사해야 할 핵심 의문을 포함한다.
+                - actualHistorySummary는 허구 사건 해설이 아니다. 아래 storyAnchors/historicalContext가 있으면 그 실제 배경이 사건 모티브로 어떻게 변환됐는지 설명한다. 직접 역사 사건이 부족하면 "직접 역사 사건이 아니라 지역/시대/공간 성격을 모티브로 삼았다"고 명확히 쓴다.
+                - missions는 10개다. 1번 START, 2~9번 ANSWER_HINT, 10번 FINAL.
+                - 2~9번 rewardClue는 각각 구체적인 증거 문장이어야 한다. 기록, 지문, 출입 로그, CCTV 공백, 물증 상태, 분석 결과, 계약/문서, 목격 진술처럼 수사 자료로 쓴다.
+                - rewardClue에 정답 값을 그대로 쓰지 않는다. 특히 범인 이름, 흉기명, 동기 문구, 방법 문장을 직접 노출하지 않는다.
+                - evidences는 8개이며 sourceMissionOrder 2~9에 각각 연결한다.
+                - "단순 사고", "반복되는 숫자", "방향 표식", "최종 장소를 찾아라", "장소를 비교하라", "TourAPI", "RAG", "Kakao" 같은 표현은 쓰지 않는다.
 
-                Target story pattern:
-                - fictionSynopsis should be a full case overview, not route/place description. Format it like: "A prominent victim is found dead before an important event. Cause is identified. Door/timeline limits outside intrusion. No forced entry. Only 3 suspects remained inside. Victim had ownership, contract, inheritance, research, or business conflicts."
-                - fictionSynopsis must include at least five concrete beats: victim identity, event scheduled soon, cause/mechanism, locked room or CCTV/time gap, exactly 3 suspects, and conflict background.
-                - Suspect cards should read like: name and relation, alibi during the estimated incident time, supporting record, suspicious point, and why the person remains plausible.
-                - Final truth should state culprit, weapon, method, and motive with the approved answer values, then explain why the other two suspects are weakened by the clues.
-                - The 8 rewardClue values should read as a progressive evidence chain: restricted access trace tied to evidence storage, alibi narrowing tied to fingerprint or CCTV, material analysis tied to victim routine, object state tied to preparation timing, conflict document tied to benefit, pressure message tied to concealment, routine timing tied to execution, and final cross-check excluding the other two suspects.
+                미션 슬롯:
+                - order 2: targetKeywordType CULPRIT, 접근/권한/기회 증거
+                - order 3: targetKeywordType CULPRIT, 알리바이/CCTV/지문 대조 증거
+                - order 4: targetKeywordType WEAPON, 물증/흔적/손상/성분 분석 증거
+                - order 5: targetKeywordType WEAPON, 보관 위치/이동/사용 흔적 증거
+                - order 6: targetKeywordType MOTIVE, 계약/소유권/거래/평판/책임 관련 문서 증거
+                - order 7: targetKeywordType MOTIVE, 협박/압박/삭제 메시지/목격 진술 증거
+                - order 8: targetKeywordType METHOD, 피해자 루틴/사건 직전 행동/시간표 증거
+                - order 9: targetKeywordType METHOD, 조작 순서/접근 경로/실행 가능성 교차 검증 증거
 
-                Slot-specific clue rules:
-                - CULPRIT-targeted clues should primarily identify access, fingerprints, CCTV, alibi gaps, or exclusive opportunity, but may also mention object storage or timing if it helps narrow the whole truth. Do not write the culprit name.
-                - WEAPON-targeted clues should primarily identify the object, material, residue, damage pattern, analysis result, or physical trace, but may also connect that trace to victim routine or access path.
-                - MOTIVE-targeted clues should primarily identify revenge, conflict, loss, debt, inheritance, threat, benefit, betrayal, or concealment pressure, but may also connect the pressure to who had access.
-                - METHOD-targeted clues should primarily identify replacement, tampering, injection, concealment, timing, access path, misdirection, or execution sequence, but may also mention why other suspects are weakened.
-                - CULPRIT rewardClue should naturally include at least one of these Korean evidence anchors: 지문, 출입, 접근, 알리바이, 동선, 기록, CCTV, 목격, 권한, 일치, 용의자.
-                - WEAPON rewardClue should naturally include at least one of these Korean evidence anchors: 흉기, 도구, 독극물, 물질, 성분, 검출, 흔적, 파손, 잔류물, 분석.
-                - MOTIVE rewardClue should naturally include at least one of these Korean evidence anchors: 동기, 복수, 계약, 분쟁, 유산, 손실, 채무, 협박, 이익, 은폐, 배신, 갈등.
-                - METHOD rewardClue should naturally include at least one of these Korean evidence anchors: 방법, 교체, 조작, 삽입, 주입, 은폐, 위장, 접근, 시간, 경로, 순서.
-
-                Required mission contract:
-                - START: markerType START, clueRole START, publicMarkerType START, finalPlace false.
-                - Investigation: markerType ANSWER_HINT, clueRole ANSWER_HINT, publicMarkerType ANSWER_HINT, finalPlace false.
-                - Orders 2-9 must each include a concrete rewardClue sentence. Never leave rewardClue null, empty, or templated.
-                - Invalid rewardClue examples: "2번 조사 단서는 범인 판단에 필요한 근거를 제공합니다.", "이 단서는 정답 추리에 필요합니다.", "현장에서 단서가 발견되었다."
-                - Valid rewardClue examples must name a concrete record, trace, timing, object state, document, witness observation, or analysis result.
-                - Required internal tagging for answer board grouping:
-                  order 2 targetKeywordType CULPRIT, but write the clue as access/opportunity evidence.
-                  order 3 targetKeywordType CULPRIT, but write the clue as alibi narrowing or trace matching evidence.
-                  order 4 targetKeywordType WEAPON, but write the clue as toxicology/material evidence.
-                  order 5 targetKeywordType WEAPON, but write the clue as object/container evidence.
-                  order 6 targetKeywordType MOTIVE, but write the clue as conflict/document/benefit evidence.
-                  order 7 targetKeywordType MOTIVE, but write the clue as pressure/message/revenge evidence.
-                  order 8 targetKeywordType METHOD, but write the clue as routine/timing evidence.
-                  order 9 targetKeywordType METHOD, but write the clue as tampering/access-sequence evidence.
-                - Do not make the clue text read like "culprit clue 1", "weapon clue 2", or any visible category checklist.
-                - FINAL: markerType FINAL, clueRole FINAL_PLACE, publicMarkerType ANSWER_HINT, finalPlace true, unlockCondition ALL_INVESTIGATION_MISSIONS_CLEARED.
-
-                Required JSON shape:
-                {
-                  "episodeTitle": "...",
-                  "subtitle": "...",
-                  "genre": "범죄 미스터리",
-                  "fictionSynopsis": "사건 개요. 피해자, 사망/피해 정황, 제한된 용의자 범위, 시간대를 포함.",
-                  "missionDescription": "8개 조사 단서로 범인, 흉기, 동기, 방법을 추론한다.",
-                  "finalTruthSummary": "범인: <approved CULPRIT>. 흉기: <approved WEAPON>. 동기: <approved MOTIVE>. 방법: <approved METHOD>. 네 정답이 왜 유일한지 설명.",
-                  "actualHistorySummary": "최종 장소의 역사/문화 모티브 설명.",
-                  "missions": [
-                    {"order":1,"markerType":"START","publicMarkerType":"START","clueRole":"START","finalPlace":false},
-                    {"order":2,"markerType":"ANSWER_HINT","publicMarkerType":"ANSWER_HINT","clueRole":"ANSWER_HINT","finalPlace":false,"targetKeywordType":"CULPRIT","supportsKeywordSlots":["CULPRIT"],"rewardClue":"범인 이름 없이 접근 권한이나 알리바이 공백을 보여주는 증거"},
-                    {"order":10,"markerType":"FINAL","publicMarkerType":"ANSWER_HINT","clueRole":"FINAL_PLACE","finalPlace":true,"unlockCondition":"ALL_INVESTIGATION_MISSIONS_CLEARED"}
-                  ],
-                  "suspects": [
-                    {"displayName":"...","relationToVictim":"...","alibiSummary":"...","suspiciousPoint":"..."}
-                  ],
-                  "evidences": [
-                    {"title":"...","type":"STORY_CLUE","textSummary":"rewardClue와 연결되는 구체적 증거","sourceMissionOrder":2}
-                  ]
-                }
+                반환 JSON 필수 필드:
+                episodeTitle, subtitle, genre, selectedGenre, fictionSynopsis, missionDescription,
+                finalTruthSummary, actualHistorySummary, finalQuestion, missions, suspects, evidences.
 
                 Context:
                 """ + buildStoryGenerationContext(request);
@@ -133,11 +59,7 @@ final class GeminiDraftPromptBuilder {
         builder.append("theme: ").append(safePromptText(request == null ? "" : request.getTheme())).append('\n');
         builder.append("playTime: ").append(safePromptText(request == null ? "" : request.getPlayTime())).append('\n');
         appendApprovedAnswers(builder, request);
-        builder.append("routePolicy:\n");
-        builder.append("- Do not use real route place names, addresses, shop names, restaurant names, POI names, reference URLs, or external research notes in story generation.\n");
-        builder.append("- Real route places are only mission map anchors. The server attaches mission.placeName after draft generation.\n");
-        builder.append("- Write fictional crime locations only: private gallery office, locked study, research meeting room, archive room, preparation room, or similar indoor scenes.\n");
-        builder.append("- Missions should be ordered investigation beats, not destination hints or place-name puzzles.\n");
+        appendTourApiContext(builder, request);
         builder.append("missionOrders:\n");
         builder.append("- 1 START\n");
         builder.append("- 2 ANSWER_HINT CULPRIT access/opportunity clue\n");
@@ -150,6 +72,21 @@ final class GeminiDraftPromptBuilder {
         builder.append("- 9 ANSWER_HINT METHOD tampering/sequence clue\n");
         builder.append("- 10 FINAL unlocks after all investigation missions\n");
         return builder.toString();
+    }
+
+    private static void appendTourApiContext(StringBuilder builder, AiEpisodeDraftRequest request) {
+        TourApiPlanContext context = TourApiPlanInputExtractor.extract(request);
+        builder.append("storyAnchors:\n");
+        if (context.storyAnchors().isEmpty()) {
+            builder.append("- 직접 역사/사건 앵커 없음. 지역/시대/공간 성격 기반으로만 모티브를 만든다.\n");
+        } else {
+            context.storyAnchors().forEach(anchor -> builder.append("- ").append(safePromptText(anchor)).append('\n'));
+        }
+        builder.append("historicalContext:\n");
+        builder.append(safePromptText(context.historicalContext())).append('\n');
+        builder.append("forbiddenSourcePolicy:\n");
+        builder.append("- Kakao Local, 주변 후보, 현장 검수 메모, 실제 route place names are not story material.\n");
+        builder.append("- Story and clues must be written before assigning real map places.\n");
     }
 
     private static void appendApprovedAnswers(StringBuilder builder, AiEpisodeDraftRequest request) {

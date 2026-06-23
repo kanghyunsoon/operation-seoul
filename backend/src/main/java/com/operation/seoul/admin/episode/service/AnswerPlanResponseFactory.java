@@ -26,8 +26,8 @@ final class AnswerPlanResponseFactory {
                 .finalAnswers(finalAnswers(keywords))
                 .finalQuestionGuide("조사 미션 8개를 완료한 뒤 범인, 흉기, 동기, 방법을 각각 입력합니다.")
                 .rationale(storyAnchors.isEmpty()
-                        ? "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 선택 장소의 검수 문맥을 바탕으로 구체화합니다."
-                        : "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/사건 앵커를 바탕으로 구체화합니다.")
+                        ? "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/사건 또는 지역·시대 기반 배경을 바탕으로 구체화합니다."
+                        : "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/사건 또는 지역·시대 기반 앵커를 바탕으로 구체화합니다.")
                 .tourApiStoryAnchors(storyAnchors)
                 .tourApiPlanInputs(planContext == null ? List.of() : planContext.includedInputs())
                 .excludedPlanInputs(planContext == null ? List.of() : planContext.excludedInputs())
@@ -54,7 +54,8 @@ final class AnswerPlanResponseFactory {
     private static AiEpisodePlanResponse.FinalAnswers finalAnswers(List<AiEpisodePlanResponse.AnswerKeyword> keywords) {
         Map<String, String> values = new LinkedHashMap<>();
         for (AiEpisodePlanResponse.AnswerKeyword keyword : keywords == null ? List.<AiEpisodePlanResponse.AnswerKeyword>of() : keywords) {
-            values.put(normalize(keyword.getSlotId()), keyword.getKeyword());
+            String slot = normalize(keyword.getSlotId());
+            values.put(slot, finalAnswerValue(slot, keyword));
         }
         return AiEpisodePlanResponse.FinalAnswers.builder()
                 .culprit(values.get("CULPRIT"))
@@ -62,6 +63,14 @@ final class AnswerPlanResponseFactory {
                 .motive(values.get("MOTIVE"))
                 .method(values.get("METHOD"))
                 .build();
+    }
+
+    private static String finalAnswerValue(String slot, AiEpisodePlanResponse.AnswerKeyword keyword) {
+        if (keyword == null) return "";
+        if ("METHOD".equals(slot) && !blank(keyword.getSourceText())) {
+            return keyword.getSourceText().trim();
+        }
+        return keyword.getKeyword();
     }
 
     private static void attachSourceBasis(List<AiEpisodePlanResponse.AnswerKeyword> keywords, List<String> storyAnchors) {
@@ -76,5 +85,9 @@ final class AnswerPlanResponseFactory {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 }

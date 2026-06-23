@@ -471,9 +471,6 @@
               <button type="button" class="primary-action" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'gemini' }" @click="generateGeminiDraft">
                 {{ activeAction === 'gemini' ? 'Gemini 작성 중...' : 'Gemini로 전체 초안 작성' }}
               </button>
-              <button type="button" class="ghost-btn" :disabled="draftBusy || !canGenerateDraftFromSelection" :class="{ busy: activeAction === 'rule' }" @click="generateDraft">
-                {{ activeAction === 'rule' ? '예비 초안 작성 중...' : '예비 초안 만들기' }}
-              </button>
               <button v-if="draftResult?.draft" type="button" class="ghost-btn" :disabled="draftBusy" :class="{ busy: activeAction === 'validate' }" @click="validateDraft(false)">
                 {{ activeAction === 'validate' ? '검증 중...' : '기본 검증' }}
               </button>
@@ -481,7 +478,7 @@
                 {{ activeAction === 'geminiValidate' ? 'Gemini 검증 중...' : 'Gemini 검증' }}
               </button>
               <button v-if="draftResult?.draft" type="button" class="ghost-btn" :disabled="draftBusy" @click="normalizeDraftBeforeSave(draftResult.draft, true)">
-                검증 전 자동 보정
+                구조 필드 정리
               </button>
               <button v-if="draftResult?.draft" type="button" class="save-draft-btn" :disabled="draftBusy" :class="{ busy: activeAction === 'save' }" @click="saveDraft">
                 {{ activeAction === 'save' ? 'DB 저장 중...' : 'DRAFT로 저장' }}
@@ -550,11 +547,7 @@
           <div class="ai-mode-grid">
             <article>
               <strong>Gemini 전체 작성</strong>
-              <span>관리자가 선택한 장소와 메모를 기반으로 스토리, 퍼즐, 단서, 용의자, 증거 카드 초안을 생성합니다. 생성 직후 최종 장소 자동 공개 조건과 카드 수는 자동 보정됩니다.</span>
-            </article>
-            <article>
-              <strong>예비 초안</strong>
-              <span>Gemini 키가 없거나 호출 실패 시 쓰는 안전 예비 초안입니다. AI가 아니라 입력값 기반 템플릿입니다.</span>
+              <span>최종 정답 키워드와 TourAPI 기반 앵커를 바탕으로 사건 줄거리, 미션 단서, 용의자, 증거 카드 초안을 생성합니다. 생성 후 내용 자동 보정은 하지 않고 검증 경고만 표시합니다.</span>
             </article>
             <article>
               <strong>검증 정책</strong>
@@ -756,8 +749,7 @@
               <summary>조사 미션 초안</summary>
               <p class="draft-section-help">조사 미션 8개는 하나의 사건 진실로 수렴하는 증거 체인입니다. 내부적으로는 범인/흉기/동기/방법 추리를 모두 지원하지만, 최종 장소는 추리 대상이 아니며 조사 8개 완료 시 자동 공개됩니다.</p>
               <div class="payload-actions compact">
-                <button type="button" class="ghost-btn" @click="regenerateAllMissionsSafely">전체 미션 안전 재구성</button>
-                <button type="button" class="ghost-btn" @click="normalizeDraftBeforeSave(draftResult.draft, true)">저장 전 자동 보정</button>
+                <button type="button" class="ghost-btn" @click="normalizeDraftBeforeSave(draftResult.draft, true)">구조 필드 정리</button>
               </div>
               <div class="draft-mission-list">
                 <details v-for="mission in draftResult.draft.missions || []" :key="`draft-mission-${mission.order}`" class="draft-mission-card" :class="{ final: mission.finalPlace }">
@@ -777,7 +769,6 @@
                     <span>보상: {{ mission.rewardClue || '미정' }}</span>
                   </div>
                   <div class="payload-actions compact">
-                    <button type="button" class="ghost-btn mini" @click="regenerateMissionDraft(mission)">이 미션 안전 재구성</button>
                     <button type="button" class="ghost-btn mini" @click="refreshMissionEvidenceCard(mission)">사건자료 카드 연결</button>
                   </div>
                   <div class="edit-grid">
@@ -1203,18 +1194,18 @@ function validationSeverityLabel(severity) {
 
 function warningLabel(warning) {
   const labels = {
-    GUARDRAIL_REPAIRED_SUSPECTS: '용의자 카드가 범죄 미스터리 구조에 맞게 자동 보정되었습니다.',
-    GUARDRAIL_REPAIRED_SYNOPSIS_SUSPECTS: '사건 개요가 용의자 카드 3명과 일치하도록 자동 보정되었습니다.',
+    GUARDRAIL_REPAIRED_SUSPECTS: '용의자 카드가 부족하거나 범인이 용의자 3명 안에 포함되지 않았습니다.',
+    GUARDRAIL_REPAIRED_SYNOPSIS_SUSPECTS: '사건 개요가 용의자 카드 3명과 충분히 맞물리지 않습니다.',
     GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES: '조사 단서에서 용의자 이름 직접 노출을 간접 표현으로 바꿨습니다.',
     GUARDRAIL_REWROTE_GENERIC_SUSPECT_REFERENCES: '반복적이거나 약한 용의자 표현을 추리 가능한 간접 표현으로 바꿨습니다.',
     GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES: '조사 단서에서 최종 정답 직접 노출을 제거했습니다.',
-    GUARDRAIL_REPAIRED_INVESTIGATION_CLUES: '조사 단서 8개가 정답 슬롯 구조에 맞도록 자동 보정되었습니다.',
-    GUARDRAIL_REPAIRED_EVIDENCES: '증거 카드가 조사 미션 8개와 연결되도록 자동 보정되었습니다.',
-    GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY: '최종 진실 요약이 범인, 흉기, 동기, 방법을 모두 설명하도록 보정되었습니다.',
-    GUARDRAIL_INVESTIGATION_CLUES_SLOT_RELEVANCE: '일부 조사 단서의 정답 슬롯 관련성이 약해 자동 보정되었습니다.',
-    GUARDRAIL_INVESTIGATION_CLUES_DIRECT_ANSWER_LEAK: '일부 조사 단서가 정답을 직접 노출해 자동 보정되었습니다.',
-    GUARDRAIL_INVESTIGATION_CLUES_GENERIC: '일부 조사 단서가 너무 일반적이라 구체적인 사건 단서로 보정되었습니다.',
-    GUARDRAIL_INVESTIGATION_CLUES_DUPLICATE: '중복된 조사 단서가 서로 다른 정보로 보정되었습니다.'
+    GUARDRAIL_REPAIRED_INVESTIGATION_CLUES: '조사 단서가 부족합니다. 자동 보정하지 않았으니 다시 생성하거나 직접 수정하세요.',
+    GUARDRAIL_REPAIRED_EVIDENCES: '증거 카드가 부족하거나 정답을 노출합니다. 다시 생성하거나 직접 수정하세요.',
+    GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY: '최종 진실 요약이 범인, 흉기, 동기, 방법을 모두 설명하지 않습니다.',
+    GUARDRAIL_INVESTIGATION_CLUES_SLOT_RELEVANCE: '일부 조사 단서의 정답 슬롯 관련성이 약합니다.',
+    GUARDRAIL_INVESTIGATION_CLUES_DIRECT_ANSWER_LEAK: '일부 조사 단서가 정답을 직접 노출합니다.',
+    GUARDRAIL_INVESTIGATION_CLUES_GENERIC: '일부 조사 단서가 너무 일반적입니다.',
+    GUARDRAIL_INVESTIGATION_CLUES_DUPLICATE: '중복된 조사 단서가 있습니다.'
   };
   return labels[String(warning || '')] || String(warning || '');
 }
@@ -1890,50 +1881,24 @@ async function runNextCaseBuilderAction() {
   }
 }
 
-async function generateDraft() {
-  if (!prepareDraftInputFromSelection()) return;
-  startDraftProgress('rule', 'API 키 없이 입력값 기반 예비 초안을 작성하고 있습니다.');
-  try {
-    const payload = JSON.parse(draftInput.value);
-    draftProgressStep.value = 'request';
-    draftResult.value = await adminEpisodeApi.createAiDraft(payload);
-    draftProgressStep.value = 'hydrate';
-    hydrateDraftForEditing();
-    draftValidation.value = null;
-    finishDraftProgress('예비 초안이 생성되었습니다. Gemini가 아니라 템플릿 기반 결과이므로 문장 품질 검수가 필요합니다.');
-    setMessage('예비 사건파일 초안이 생성되었습니다. 아직 DB에는 저장되지 않았습니다.', 'success');
-  } catch (error) {
-    failDraftProgress(error.userMessage || error.message || '초안을 생성할 수 없습니다.');
-    setMessage(draftError.value, 'error');
-  }
-}
-
 async function generateGeminiDraft() {
   if (!prepareDraftInputFromSelection()) return;
   if (!draftPlan.value) {
     setMessage('먼저 AI 장르/최종 정답 키워드를 생성하고 확인하세요.', 'error');
     return;
   }
-  startDraftProgress('gemini', 'Gemini가 사건 개요, 퍼즐, 단서, 용의자, 증거 카드 초안을 작성하고 있습니다. 최대 180초까지 기다립니다.');
+  startDraftProgress('gemini', 'Gemini가 사건 개요, 미션 단서, 용의자, 증거 카드 초안을 작성하고 있습니다. 최대 180초까지 기다립니다.');
   try {
     let payload = JSON.parse(draftInput.value);
-    if (!siteDataEnriched.value) {
-      draftProgressStep.value = 'request';
-      draftStatus.value = '현장 근거를 먼저 자동 보강한 뒤 Gemini 초안을 요청합니다.';
-      payload = await adminEpisodeApi.enrichSiteData(payload);
-      draftInput.value = JSON.stringify(payload, null, 2);
-      siteDataEnriched.value = true;
-    }
     payload = applyDraftPlanToPayload(payload);
     draftInput.value = JSON.stringify(payload, null, 2);
     draftProgressStep.value = 'request';
     draftResult.value = await adminEpisodeApi.createGeminiDraft(payload);
     draftProgressStep.value = 'hydrate';
     hydrateDraftForEditing();
-    normalizeDraftBeforeSave(draftResult.value.draft, false);
     draftValidation.value = null;
-    finishDraftProgress('Gemini 초안이 생성되었고 저장 전 자동 보정까지 적용했습니다. 각 장소의 현장 근거만 최종 확인하세요.');
-    setMessage('Gemini 사건파일 초안이 생성되었습니다. 구조 보정은 적용됐고 아직 DB에는 저장되지 않았습니다.', 'success');
+    finishDraftProgress('Gemini 초안이 생성되었습니다. 자동 내용 보정은 적용하지 않았습니다. 검증 결과를 확인하세요.');
+    setMessage('Gemini 사건파일 초안이 생성되었습니다. 부족한 줄거리, 단서, 증거는 검증 경고로 확인하세요.', 'success');
   } catch (error) {
     failDraftProgress(error.userMessage || error.message || 'Gemini 초안을 생성할 수 없습니다. gemini.api.key와 gemini.model 설정을 확인하세요.');
     setMessage(draftError.value, 'error');
@@ -2024,7 +1989,6 @@ function buildDraftSavePayload() {
   draft.subtitle = draft.subtitle || suggestedDraftSubtitle(draft);
   draft.era = draft.era || suggestedDraftEra(draft);
   ensureDraftIllustrationCards(draft);
-  strengthenCaseMaterials(draft);
   draft.suspects = (draft.suspects || []).map((suspect) => {
     const portraitImageUrl = String(suspect.portraitImageUrl || '').trim();
     return {
@@ -2060,30 +2024,8 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
   if (!draft.finalQuestion || isWeakFinalQuestion(draft.finalQuestion) || objectiveMismatch) {
     draft.finalQuestion = objective.finalQuestion;
   }
-  if (!draft.fictionSynopsis || isWeakText(draft.fictionSynopsis) || isRepeatedDefaultSynopsis(draft.fictionSynopsis)) {
-    draft.fictionSynopsis = objective.synopsis || synopsisForMotif(draft, motif);
-  }
-  if (!draft.missionDescription || isWeakText(draft.missionDescription) || isRepeatedDefaultSynopsis(draft.missionDescription)) {
-    draft.missionDescription = draft.fictionSynopsis;
-  }
   maskDraftKeywordLeaks(draft, draft.finalAnswerKeywords || []);
-  if (!draft.finalTruthSummary || isWeakText(draft.finalTruthSummary)) {
-    draft.finalTruthSummary = `3. 픽션과 역사의 매칭 (디브리핑)
-스토리 속 [${motif.object}] -> 실제 역사 속 [장소에 남은 기록과 기억]: 최종 단서가 하나의 역사적 기억으로 수렴하도록 만든 상징 장치입니다.
-스토리 속 [현장 지령] -> 실제 역사 속 [최종 장소의 역사적 맥락]: 장소에 남은 기록과 분위기를 사건 배경 모티브로 바꾼 장치입니다.
-스토리 속 [암호 카드] -> 실제 역사 속 [기록과 증언]: 플레이어가 단서를 대조하도록 실제 자료 해석 과정을 은유했습니다.
-스토리 속 [조력자/용의자 진술] -> 실제 역사 속 [관련 인물과 이해관계]: 실존 인물을 범인으로 만들지 않고 역할과 갈등만 차용했습니다.`;
-  }
-  if (!draft.actualHistorySummary || isWeakText(draft.actualHistorySummary)) {
-    draft.actualHistorySummary = `1. 모티브 공개
-이 임무는 장소에 남은 역사적 기억과 주변 동선의 분위기를 배경 모티브로 제작되었습니다.
-
-2. 역사·문화 해설
-이 에피소드는 장소의 역사·문화적 분위기와 주변 동선을 상징적인 요원 임무로 각색한 픽션 사건입니다. 플레이어는 장소의 기록, 관찰 요소, 이동 흔적을 조합해 사건의 배경과 의미를 해석하게 됩니다.`;
-  }
-  draft.deductionSecretFacts = Array.isArray(draft.deductionSecretFacts) && draft.deductionSecretFacts.length
-    ? draft.deductionSecretFacts
-    : [`최종 정답은 ${objective.finalAnswer}이다.`, '최종 정답은 시놉시스가 요구한 해결 조건을 모두 포함해야 한다.', '일부 단서 물건이나 문서 위치만 맞히는 답은 최종 정답이 아니다.'];
+  draft.deductionSecretFacts = Array.isArray(draft.deductionSecretFacts) ? draft.deductionSecretFacts : [];
   draft.deductionForbiddenReveals = Array.from(new Set([...(draft.deductionForbiddenReveals || []), draft.finalAnswer, ...(draft.finalAnswerAliases || [])].filter(Boolean)));
   const finalIndex = draft.missions.findIndex((mission) => mission.finalPlace || mission.markerType === 'FINAL');
   draft.missions.forEach((mission, index) => {
@@ -2101,8 +2043,6 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
       mission.publicMarkerType = 'ANSWER_HINT';
       mission.storyText = sanitizeFinalPlaceStory(mission.storyText);
     }
-    if (!mission.rewardClue) mission.rewardClue = rewardClueForRole(mission.clueRole || mission.markerType, index);
-    if (!mission.questionText || !mission.answer || !mission.puzzleType) regenerateMissionDraft(mission, false);
     normalizeMissionPuzzleForSave(mission, mission.clueRole || mission.markerType || 'ANSWER_HINT', index);
   });
   const actualFinalCount = draft.missions.filter((mission) => mission.finalPlace || mission.markerType === 'FINAL').length;
@@ -2114,38 +2054,17 @@ function normalizeDraftBeforeSave(draft = draftResult.value?.draft, showMessage 
     finalMission.publicMarkerType = 'ANSWER_HINT';
   }
   ensureDraftIllustrationCards(draft);
-  strengthenCaseMaterials(draft);
-  if (showMessage) setMessage('저장 전 자동 보정을 적용했습니다. 최종 장소는 조사 8개 완료 시 자동 공개되는 최종 정답 입력 장소로 유지됩니다.', 'success');
+  if (showMessage) setMessage('구조 필드만 정리했습니다. 줄거리, 단서, 용의자, 증거 카드는 자동 생성하지 않습니다.', 'success');
 }
 
 function regenerateAllMissionsSafely() {
-  const draft = draftResult.value?.draft;
-  if (!draft?.missions?.length) return;
-  draft.missions.forEach((mission) => regenerateMissionDraft(mission, false));
-  normalizeDraftBeforeSave(draft, false);
   draftValidation.value = null;
-  setMessage('전체 미션을 안전한 검수용 초안으로 재구성했습니다. 각 장소의 실제 현장 요소는 공개 전 확인하세요.', 'success');
+  setMessage('자동 미션 재구성은 비활성화했습니다. 단서는 Gemini 생성 결과를 직접 검증하세요.', 'warning');
 }
 
 function regenerateMissionDraft(mission, showMessage = true) {
   if (!mission) return;
-  syncDraftMissionRole(mission);
-  const index = Math.max(0, Number(mission.order || 1) - 1);
-  const role = mission.clueRole || mission.markerType || 'ANSWER_HINT';
-  const source = sourceCandidateForMission(mission);
-  const keyword = primaryKeyword(source, mission);
-  const rewardClue = rewardClueForRole(role, index);
-  mission.storyText = storyTextForMission(mission, role, keyword);
-  mission.puzzleType = puzzleTypeForSource(source, role, index);
-  mission.answerFormat = mission.puzzleType === 'NUMBER_LOCK' ? 'NUMBER' : 'TEXT';
-  mission.answer = answerForSource(source, mission.puzzleType, keyword);
-  mission.questionText = questionForMission(mission, source, keyword);
-  mission.rewardClue = rewardClue;
-  mission.groundRule = groundRuleForMission(source);
-  mission.hints = hintsForMission(mission, keyword);
-  refreshMissionEvidenceCard(mission, false);
-  draftValidation.value = null;
-  if (showMessage) setMessage(`${mission.placeName} 미션을 안전한 검수용 초안으로 재구성했습니다.`, 'success');
+  if (showMessage) setMessage('자동 미션 재구성은 비활성화했습니다. 단서는 Gemini 생성 결과를 직접 검증하세요.', 'warning');
 }
 
 function refreshMissionEvidenceCard(mission, showMessage = true) {
@@ -2278,8 +2197,7 @@ function inferFinalObjective(draft, motif) {
     answerType: 'CASE_TRUTH',
     finalAnswer,
     aliases: [culprit, weapon, motive, method, finalAnswer.replaceAll(' ', '')],
-    finalQuestion: finalQuestionForMotif(motif),
-    synopsis: synopsisForMotif(draft, motif)
+    finalQuestion: finalQuestionForMotif(motif)
   };
 }
 
@@ -2319,10 +2237,10 @@ function maskDraftKeywordLeaks(draft, keywords) {
   draft.episodeTitle = maskKeywords(draft.episodeTitle, values);
   draft.subtitle = maskKeywords(draft.subtitle, values);
   if (containsKeywordLeak(draft.fictionSynopsis, values) || containsMaskPlaceholder(draft.fictionSynopsis)) {
-    draft.fictionSynopsis = safeFictionSynopsis(draft);
+    draft.fictionSynopsis = maskKeywords(draft.fictionSynopsis, values);
   }
   if (containsKeywordLeak(draft.missionDescription, values) || containsMaskPlaceholder(draft.missionDescription)) {
-    draft.missionDescription = safeFictionSynopsis(draft);
+    draft.missionDescription = maskKeywords(draft.missionDescription, values);
   }
   draft.finalQuestion = maskKeywords(draft.finalQuestion, values);
 }
@@ -2423,36 +2341,6 @@ function containsMaskPlaceholder(text) {
     || compact.includes('핵심키워드');
 }
 
-function safeFictionSynopsis(draft) {
-  const missions = (draft?.missions || []).filter((mission) => !mission.finalPlace && mission.markerType !== 'FINAL');
-  const firstPlace = missions[0]?.placeName || '첫 조사 장소';
-  const secondPlace = missions[1]?.placeName || '다음 조사 장소';
-  const genre = draft?.selectedGenre || draft?.genre || '실종 사건';
-  const source = [
-    draft?.episodeTitle,
-    draft?.subtitle,
-    ...missions.flatMap((mission) => [mission.storyText, mission.rewardClue, mission.groundRule])
-  ].join(' ');
-  const clueTypes = containsAny(source, ['사진', '필름', '렌즈'])
-    ? '사진의 촬영 순서, 봉투 흔적, 시간 기록'
-    : containsAny(source, ['암호', '숫자', '문장', '표식'])
-      ? '반복되는 숫자, 방향 표식, 문장의 배열'
-      : containsAny(source, ['붓', '그림', '초안'])
-        ? '붓 자국, 찢어진 초안, 작업 시간 기록'
-        : '남겨진 물건, 시간 기록, 이동 방향';
-
-  if (genre === '살인 미스터리' || genre === '범죄 미스터리') {
-    return `${firstPlace}에서 단순 사고로 보기 어려운 사건 흔적이 발견되었습니다. ${secondPlace}을 포함한 각 장소는 당시의 행동과 진술을 대조하기 위해 조사해야 합니다. ${clueTypes}을 비교해 잘못된 추측을 제외하고, 범인과 흉기, 동기, 방법을 도출하세요. 최종 장소는 조사 미션 8개 완료 후 자동 공개됩니다.`;
-  }
-  if (genre === '보물찾기') {
-    return `${firstPlace}에서 발견된 기록은 핵심 물건을 직접 가리키지 않고 여러 장소에 단서를 나누어 남기고 있습니다. ${secondPlace}을 포함한 각 장소에서 ${clueTypes}을 모아 기록의 순서와 해금 조건을 복원해야 합니다. 장소가 아니라 사건의 정답 항목을 추리하세요.`;
-  }
-  if (genre === '암호 해독') {
-    return `${firstPlace}에서 시작된 사건의 핵심은 장소마다 달라지는 글자와 숫자의 배열입니다. ${secondPlace}을 포함한 각 장소에서 ${clueTypes}을 확인하고 반복되는 규칙을 비교해야 합니다. 여러 단서를 조합해 암호가 가리키는 사건의 정답 항목을 도출하세요.`;
-  }
-  return `사건 관계자의 흔적은 ${firstPlace} 한 곳에서 끝나지 않고 ${secondPlace}을 포함한 여러 장소에 흩어져 있습니다. 각 장소는 행동과 진술을 대조하는 데 필요한 서로 다른 기록을 보관하고 있습니다. ${clueTypes}을 비교해 겉보기 순서와 실제 동선을 구분하고, 범인과 흉기, 동기, 방법을 도출하세요.`;
-}
-
 function containsKeywordLeak(text, keywords) {
   const rawText = String(text || '');
   const compact = compactText(rawText);
@@ -2464,20 +2352,6 @@ function containsKeywordLeak(text, keywords) {
 
 function compactText(value) {
   return String(value || '').replaceAll(/\s+/g, '').toLowerCase();
-}
-
-function synopsisForIdentityAndHideout(draft, motif) {
-  const missions = Array.isArray(draft?.missions) ? draft.missions : [];
-  const first = missions[0]?.placeName || motif.setting;
-  const last = missions[missions.length - 1]?.placeName || '마지막 조사 지점';
-  return `${first}에서 도난 기록이 발견된다. 설계도와 장부는 단서일 뿐이며, 사건자료의 표식은 ${last}까지 이어진다. 플레이어는 현장 단서와 사건파일을 대조해 검은 그림자의 역할과 숨어든 장소의 특징을 유추해야 한다.`;
-}
-
-function synopsisForMotif(draft, motif) {
-  const missions = Array.isArray(draft?.missions) ? draft.missions : [];
-  const first = missions[0]?.placeName || motif.setting;
-  const last = missions[missions.length - 1]?.placeName || '마지막 조사 지점';
-  return `${first}에서 시작된 ${motif.caseType}은 ${last}까지 이어진다. ${motif.victim}가 남긴 ${motif.trace}이 서로 어긋나며, 플레이어는 현장 단서와 사건자료를 대조해 ${motif.object}의 정체를 좁혀야 한다.`;
 }
 
 function isWeakFinalQuestion(value) {
@@ -2797,100 +2671,6 @@ function strengthenKoreanEvidencePrompt(prompt) {
   return `${text} If any person, hand, portrait, reflection, or silhouette appears, it must depict a fictional Korean person from Seoul and match the story-specific age and era. Do not cast a Western or European-looking model.`;
 }
 
-function strengthenCaseMaterials(draft) {
-  if (!draft) return;
-  const missions = Array.isArray(draft.missions) ? draft.missions : [];
-  const finalAnswerType = draft.finalAnswerType || 'EVIDENCE';
-  const suspectSeeds = [
-    {
-      alias: '용의자 A',
-      displayName: '붉은 우산의 의뢰인',
-      relation: '사건 의뢰를 가장 먼저 전달한 인물',
-      suspicion: '현장 사진이 사라진 시간대에 조사 경로 근처에서 반복적으로 목격되었다.',
-      alibi: '비가 오기 전 카페 골목에 있었다고 주장하지만, 장소 단서와 동선이 일부 겹친다.'
-    },
-    {
-      alias: '용의자 B',
-      displayName: '잃어버린 필름의 조수',
-      relation: '피해자의 기록 정리를 맡았던 조수',
-      suspicion: '사진과 메모의 순서를 알고 있어 단서를 바꿔치기할 수 있는 위치에 있었다.',
-      alibi: '자료실에 있었다고 말하지만, 핵심 단서 중 하나가 그의 진술과 충돌한다.'
-    },
-    {
-      alias: '용의자 C',
-      displayName: '회색 봉투의 전달자',
-      relation: '마지막 문서를 전달한 익명의 중개인',
-      suspicion: '장소 단서 두 개가 모두 이 인물의 이동 방향을 가리킨다.',
-      alibi: '봉투만 전달했을 뿐이라고 주장하지만, 봉투 안쪽에 사건의 핵심 단어가 남아 있다.'
-    }
-  ];
-  draft.suspects = suspectSeeds.map((seed, index) => {
-    const current = draft.suspects?.[index] || {};
-    const displayName = isWeakText(current.displayName) ? seed.displayName : current.displayName;
-    return {
-      ...current,
-      alias: isWeakText(current.alias) ? seed.alias : current.alias,
-      displayName,
-      shortDescription: `${withTopicParticle(displayName)} ${withAndParticle(finalAnswerTypeLabel(finalAnswerType))} 연결될 가능성이 있는 가상 용의자입니다.`,
-      relationToVictim: seed.relation,
-      suspiciousPoint: isWeakText(current.suspiciousPoint) ? seed.suspicion : current.suspiciousPoint,
-      alibiSummary: isWeakText(current.alibiSummary) ? seed.alibi : current.alibiSummary,
-      imagePrompt: current.imagePrompt || buildSuspectImagePrompt({ ...current, displayName, alias: seed.alias, suspiciousPoint: seed.suspicion }),
-      portraitImageUrl: current.portraitImageUrl || ''
-    };
-  });
-  const evidenceByOrder = new Map((draft.evidences || []).map((evidence) => [Number(evidence.sourceMissionOrder || 0), evidence]));
-  const investigationMissions = missions.filter((mission) => {
-    const order = Number(mission?.order);
-    return Number.isFinite(order)
-      && order >= 2
-      && order <= 9
-      && !mission.finalPlace
-      && mission.markerType !== 'START'
-      && mission.markerType !== 'FINAL'
-      && mission.clueRole !== 'START'
-      && mission.clueRole !== 'FINAL_PLACE';
-  });
-  draft.evidences = investigationMissions.map((mission) => {
-    const order = Number(mission.order);
-    const type = safeEvidenceType(evidenceTypeForRole(mission.clueRole || mission.markerType));
-    const current = evidenceByOrder.get(order) || {};
-    const title = isWeakText(current.title) ? evidenceTitleForMission(mission, type) : current.title;
-    const textSummary = isWeakText(current.textSummary) ? evidenceSummaryForMission(mission) : current.textSummary;
-    return {
-      ...current,
-      title,
-      type,
-      textSummary,
-      sourceMissionOrder: order,
-      imagePrompt: current.imagePrompt || buildEvidenceImagePrompt({ ...current, title, type, textSummary }),
-      imageUrl: isWeakImageUrl(current.imageUrl) ? '' : current.imageUrl
-    };
-  });
-}
-
-function isWeakText(value) {
-  const text = String(value || '').trim();
-  if (!text) return true;
-  return [
-    'AI 초안',
-    'placeholder',
-    '검수',
-    '운영 공개 전',
-    '운영 확인',
-    '사건 현장 스케치',
-    '조사 시작 단서 카드',
-    '초안입니다',
-    '사건이 시작된 장소에서 발견된 봉투와 훼손된 기록 조각입니다.',
-    '훼손된 기록 조각입니다.'
-  ].some((word) => text.includes(word));
-}
-
-function isWeakImageUrl(value) {
-  const url = String(value || '').trim();
-  return !url || url.includes('generated-case-card') || url.includes('placeholder');
-}
-
 function buildSuspectImagePrompt(suspect = {}) {
   const name = suspect.displayName || suspect.alias || 'case-file suspect';
   const suspicion = suspect.suspiciousPoint || suspect.shortDescription || 'a hidden contradiction in the route timeline';
@@ -2935,16 +2715,9 @@ async function copyImagePrompt(prompt) {
 
 async function generateAnswerPlan() {
   if (!prepareDraftInputFromSelection()) return;
-  startDraftProgress('plan', 'Gemini가 선택 장소에 맞는 에피소드 장르와 최종 정답 키워드를 설계하고 있습니다.');
+  startDraftProgress('plan', 'Gemini가 TourAPI 기반 최종 정답 키워드 계획을 작성하고 있습니다.');
   try {
     let payload = JSON.parse(draftInput.value);
-    if (!siteDataEnriched.value) {
-      draftProgressStep.value = 'request';
-      draftStatus.value = '현장 근거를 먼저 자동 보강한 뒤 장르/정답 키워드를 요청합니다.';
-      payload = await adminEpisodeApi.enrichSiteData(payload);
-      draftInput.value = JSON.stringify(payload, null, 2);
-      siteDataEnriched.value = true;
-    }
     draftProgressStep.value = 'request';
     draftPlan.value = await adminEpisodeApi.createAnswerPlan(payload);
     draftPlan.value.finalAnswerKeywords = (draftPlan.value.finalAnswerKeywords || [])
@@ -3029,37 +2802,6 @@ function normalizeFinalAnswerKeywordItemsFromPlan(plan, payload = {}) {
     value: normalizeAnswerKeywordValue(fallbackValues[slotId]),
     aliases: []
   });
-}
-
-function finalAnswerTypeLabel(type) {
-  return {
-    CULPRIT: '범인',
-    WEAPON: '흉기',
-    MOTIVE: '동기',
-    METHOD: '방법',
-    CASE_TRUTH: '사건의 진실'
-  }[type] || '사건의 진실';
-}
-
-function hasFinalConsonant(value = '') {
-  const chars = Array.from(String(value).trim());
-  const last = chars[chars.length - 1];
-  if (!last) return false;
-  const code = last.charCodeAt(0);
-  if (code < 0xac00 || code > 0xd7a3) return false;
-  return (code - 0xac00) % 28 !== 0;
-}
-
-function withTopicParticle(value = '') {
-  const text = String(value || '').trim();
-  if (!text) return '이 인물은(는)';
-  return `${text}${hasFinalConsonant(text) ? '은' : '는'}`;
-}
-
-function withAndParticle(value = '') {
-  const text = String(value || '').trim();
-  if (!text) return '사건의 핵심 진실과';
-  return `${text}${hasFinalConsonant(text) ? '과' : '와'}`;
 }
 
 function safeEvidenceType(type) {

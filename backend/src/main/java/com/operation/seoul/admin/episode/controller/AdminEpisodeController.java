@@ -232,7 +232,7 @@ public class AdminEpisodeController {
 
     @PostMapping("/ai-draft")
     public ResponseEntity<ApiResponse<AiEpisodeDraftResponse>> createAiDraft(@RequestBody AiEpisodeDraftRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("규칙 기반 AI 초안을 생성했습니다.", adminEpisodeService.createAiDraft(request)));
+        return ResponseEntity.ok(ApiResponse.ok("규칙 기반 예비 초안 생성은 비활성화되었습니다.", adminEpisodeService.createAiDraft(request)));
     }
 
     @PostMapping("/ai-draft/enrich-site-data")

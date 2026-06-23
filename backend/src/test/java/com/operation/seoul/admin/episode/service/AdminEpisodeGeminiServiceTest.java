@@ -93,28 +93,27 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void repairsShortMethodKeywordFromWeaponContext() throws Exception {
+    void rejectsShortMethodKeywordWithoutServerRepair() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         source.setFinalAnswerKeywordItems(List.of(
-                keyword("CULPRIT", "범인", "한지원(큐레이터)"),
+                keyword("CULPRIT", "범인", "최서윤(큐레이터)"),
                 keyword("WEAPON", "흉기", "독성 잉크가 든 붓펜"),
-                keyword("MOTIVE", "동기", "위작 전시 의혹 은폐"),
-                keyword("METHOD", "방법", "오염시킴")
+                keyword("MOTIVE", "동기", "위작 전시 은폐"),
+                keyword("METHOD", "방법", "만지게 함")
         ));
         AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
-        answers.setCulprit("한지원(큐레이터)");
+        answers.setCulprit("최서윤(큐레이터)");
         answers.setWeapon("독성 잉크가 든 붓펜");
-        answers.setMotive("위작 전시 의혹 은폐");
-        answers.setMethod("오염시킴");
+        answers.setMotive("위작 전시 은폐");
+        answers.setMethod("만지게 함");
         source.setFinalAnswers(answers);
 
-        FinalAnswerContractSupport.repairWeakFinalAnswerKeywords(source);
-        FinalAnswerContractSupport.validateFinalAnswerContract(source);
+        ApiException exception = assertThrows(ApiException.class, () -> FinalAnswerContractSupport.validateFinalAnswerContract(source));
 
-        assertEquals("독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴", source.getFinalAnswers().getMethod());
-        assertEquals("독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴", source.getFinalAnswerKeywordItems().get(3).getKeyword());
+        assertEquals("WEAK_FINAL_ANSWER_KEYWORDS", exception.getCode());
+        assertEquals("만지게 함", source.getFinalAnswers().getMethod());
+        assertEquals("만지게 함", source.getFinalAnswerKeywordItems().get(3).getKeyword());
     }
-
     @Test
     void draftValidationRejectsWeakFinalAnswerKeywords() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
@@ -142,19 +141,14 @@ class AdminEpisodeGeminiServiceTest {
 
         String prompt = GeminiAnswerPlanPromptBuilder.build(source);
 
-        assertTrue(prompt.contains("Bad example: CULPRIT=\"관리자\", WEAPON=\"봉투\", MOTIVE=\"은폐\", METHOD=\"함\""));
+        assertTrue(prompt.contains("Before returning JSON, internally follow this generation process"));
+        assertTrue(prompt.contains("Choose one murder mechanism that fits the anchor domain"));
+        assertTrue(prompt.contains("Do not default to poisoning, contamination, toxic residue, or skin contact"));
+        assertTrue(prompt.contains("method_keyword"));
+        assertTrue(prompt.contains("method_sentence"));
         assertTrue(prompt.contains("Never reuse stale sample answers or names"));
-        assertTrue(prompt.contains("독성 분말이 묻은 문서 봉투"));
-        assertTrue(prompt.contains("비공개 계약 문서 은폐"));
-        assertTrue(prompt.contains("Never return only an occupation"));
-        assertTrue(prompt.contains("never return only an ordinary object or container"));
-        assertTrue(prompt.contains("Before returning JSON, internally verify that every slot would pass these server checks"));
-        assertTrue(prompt.contains("METHOD is at least one complete Korean phrase"));
-        assertTrue(prompt.contains("METHOD must be more specific than WEAPON"));
-        assertTrue(prompt.contains("METHOD should follow this pattern"));
-        assertTrue(prompt.contains("METHOD must be physically plausible"));
-        assertTrue(prompt.contains("pens, brushes, documents, gloves, cards, and tools should use contact"));
-        assertTrue(prompt.contains("내용물 섭취 유도"));
+        assertFalse(prompt.contains("Bad example:"));
+        assertFalse(prompt.contains("Good example:"));
     }
 
     @Test
@@ -169,10 +163,10 @@ class AdminEpisodeGeminiServiceTest {
     @Test
     void extractsTourApiStoryAnchorsWithoutPlaceNameOrAddress() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
-        source.getPlaces().get(0).setName("Actual Place Name");
-        source.getPlaces().get(0).setAddress("Actual Address");
-        source.getPlaces().get(0).setResearchSourceSummary("조선 후기 상인 조합의 세금 장부 분쟁 기록이 전해진다");
-        source.getPlaces().get(0).setExternalResearchNotes(List.of("폐쇄된 창고의 봉인 문서와 물품 검수 절차가 남아 있다"));
+        source.getPlaces().get(9).setName("Actual Place Name");
+        source.getPlaces().get(9).setAddress("Actual Address");
+        source.getPlaces().get(9).setResearchSourceSummary("조선 후기 상인 조합의 세금 장부 분쟁 기록이 전해진다");
+        source.getPlaces().get(9).setExternalResearchNotes(List.of("폐쇄된 창고의 봉인 문서와 물품 검수 절차가 남아 있다"));
 
         List<String> anchors = TourApiPlanInputExtractor.extract(source).storyAnchors();
 
@@ -185,18 +179,18 @@ class AdminEpisodeGeminiServiceTest {
     @Test
     void extractsTourApiHistoricalContextWithoutPlaceNameOrAddress() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
-        source.getPlaces().get(0).setName("Actual Restaurant Name");
-        source.getPlaces().get(0).setAddress("Actual Street Address");
-        source.getPlaces().get(0).setDescription("Joseon-era warehouse tax ledger incident");
-        source.getPlaces().get(0).setKeywords(List.of("old harbor", "customs record"));
-        source.getPlaces().get(0).setVerificationNotes(List.of("verified local history marker"));
-        source.getPlaces().get(0).setExternalResearchNotes(List.of("archive note about merchant dispute and sealed account book"));
-        source.getPlaces().get(0).setResearchSourceSummary("TourAPI heritage summary");
+        source.getPlaces().get(9).setName("Actual Restaurant Name");
+        source.getPlaces().get(9).setAddress("Actual Street Address");
+        source.getPlaces().get(9).setDescription("Joseon-era warehouse tax ledger incident");
+        source.getPlaces().get(9).setKeywords(List.of("old harbor", "customs record"));
+        source.getPlaces().get(9).setVerificationNotes(List.of("verified local history marker"));
+        source.getPlaces().get(9).setExternalResearchNotes(List.of("archive note about merchant dispute and sealed account book"));
+        source.getPlaces().get(9).setResearchSourceSummary("TourAPI heritage summary");
 
         String context = TourApiPlanInputExtractor.extract(source).historicalContext();
 
         assertTrue(context.contains("Joseon-era warehouse tax ledger incident"));
-        assertTrue(context.contains("old harbor"));
+        assertFalse(context.contains("old harbor"));
         assertTrue(context.contains("archive note about merchant dispute and sealed account book"));
         assertTrue(context.contains("TourAPI heritage summary"));
         assertFalse(context.contains("Actual Restaurant Name"));
@@ -207,15 +201,15 @@ class AdminEpisodeGeminiServiceTest {
     @Test
     void planPromptUsesHistoricalContextWithoutPlaceNameOrAddress() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
-        source.getPlaces().get(0).setName("Actual Restaurant Name");
-        source.getPlaces().get(0).setAddress("Actual Street Address");
-        source.getPlaces().get(0).setDescription("historic merchant ledger conflict");
-        source.getPlaces().get(0).setResearchSourceSummary("merchant tax ledger dispute");
+        source.getPlaces().get(9).setName("Actual Restaurant Name");
+        source.getPlaces().get(9).setAddress("Actual Street Address");
+        source.getPlaces().get(9).setDescription("historic merchant ledger conflict");
+        source.getPlaces().get(9).setResearchSourceSummary("merchant tax ledger dispute");
 
         String prompt = GeminiAnswerPlanPromptBuilder.build(source);
 
-        assertTrue(prompt.contains("Derive the four final answer values from the TourAPI story anchors"));
-        assertTrue(prompt.contains("TourAPI story anchors to fictionalize"));
+        assertTrue(prompt.contains("Derive the four final answer values from the story anchors"));
+        assertTrue(prompt.contains("Story anchors to fictionalize"));
         assertTrue(prompt.contains("merchant tax ledger dispute"));
         assertTrue(prompt.contains("historic merchant ledger conflict"));
         assertFalse(prompt.contains("Actual Restaurant Name"));
@@ -225,13 +219,13 @@ class AdminEpisodeGeminiServiceTest {
     @Test
     void planPromptExcludesKakaoLocalAndSiteVerificationNoise() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
-        source.getPlaces().get(0).setDescription("historic customs archive dispute 주변 확인 후보: Modern Gallery, Coffee Shop.");
-        source.getPlaces().get(0).setResearchSourceSummary("TourAPI heritage summary about sealed tax records");
-        source.getPlaces().get(0).setAdminMemo("RAG/사이트 보강으로 주변 Kakao Local 신호를 사용했습니다.");
-        source.getPlaces().get(0).setKeywords(List.of("문화전시", "카페쉼터", "customs ledger"));
-        source.getPlaces().get(0).setVerificationNotes(List.of("현장 확인: 간판과 입구 검수 필요"));
-        source.getPlaces().get(0).setSiteVerificationSignals(List.of("Kakao Local 주변 후보는 현장 검수와 동선 확인 전용입니다."));
-        source.getPlaces().get(0).setExternalResearchNotes(List.of(
+        source.getPlaces().get(9).setDescription("historic customs archive dispute 주변 확인 후보: Modern Gallery, Coffee Shop.");
+        source.getPlaces().get(9).setResearchSourceSummary("TourAPI heritage summary about sealed tax records");
+        source.getPlaces().get(9).setAdminMemo("RAG/사이트 보강으로 주변 Kakao Local 신호를 사용했습니다.");
+        source.getPlaces().get(9).setKeywords(List.of("문화전시", "카페쉼터", "customs ledger"));
+        source.getPlaces().get(9).setVerificationNotes(List.of("현장 확인: 간판과 입구 검수 필요"));
+        source.getPlaces().get(9).setSiteVerificationSignals(List.of("Kakao Local 주변 후보는 현장 검수와 동선 확인 전용입니다."));
+        source.getPlaces().get(9).setExternalResearchNotes(List.of(
                 "Selected place context: name=Modern Gallery / nearby=Coffee Shop",
                 "archive note about sealed merchant ledger"
         ));
@@ -241,7 +235,7 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("historic customs archive dispute"));
         assertTrue(prompt.contains("TourAPI heritage summary about sealed tax records"));
         assertTrue(prompt.contains("archive note about sealed merchant ledger"));
-        assertTrue(prompt.contains("customs ledger"));
+        assertFalse(prompt.contains("customs ledger"));
         assertFalse(prompt.contains("Modern Gallery"));
         assertFalse(prompt.contains("Coffee Shop"));
         assertFalse(prompt.contains("Kakao Local"));
@@ -258,6 +252,59 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(excluded.stream().anyMatch(value -> value.contains("Kakao Local")));
         assertTrue(excluded.stream().anyMatch(value -> value.contains("현장 확인")));
         assertTrue(excluded.stream().anyMatch(value -> value.contains("siteVerificationSignals")));
+    }
+
+    @Test
+    void planContextUsesFinalPlaceOnlyAndExcludesMiddleRouteResearch() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getPlaces().get(4).setName("Middle Route Place");
+        source.getPlaces().get(4).setResearchSourceSummary("middle route university archive");
+        source.getPlaces().get(4).setExternalResearchNotes(List.of("middle route alumni record"));
+        source.getPlaces().get(9).setName("Final Destination");
+        source.getPlaces().get(9).setResearchSourceSummary("final destination palace archive");
+        source.getPlaces().get(9).setExternalResearchNotes(List.of("final destination sealed registry"));
+
+        TourApiPlanContext context = TourApiPlanInputExtractor.extract(source);
+        String anchors = String.join(" ", context.storyAnchors());
+        String included = String.join(" ", context.includedInputs());
+        String excluded = String.join(" ", context.excludedInputs());
+        String prompt = GeminiAnswerPlanPromptBuilder.build(source);
+
+        assertTrue(anchors.contains("final destination palace archive"));
+        assertTrue(anchors.contains("final destination sealed registry"));
+        assertFalse(anchors.contains("middle route university archive"));
+        assertFalse(included.contains("middle route university archive"));
+        assertFalse(prompt.contains("middle route university archive"));
+        assertTrue(excluded.contains("middle route university archive"));
+        assertTrue(excluded.contains("non-final route point is not a story anchor"));
+    }
+
+    @Test
+    void planContextPrefersExplicitFinalSpotOverRoutePlaces() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getPlaces().get(9).setName("Route Last Place");
+        source.getPlaces().get(9).setResearchSourceSummary("route last place archive");
+
+        AiEpisodeDraftRequest.PlaceInput finalSpot = new AiEpisodeDraftRequest.PlaceInput();
+        finalSpot.setName("Explicit Final Spot");
+        finalSpot.setResearchSourceSummary("explicit final spot archive");
+        finalSpot.setExternalResearchNotes(List.of("explicit final spot registry"));
+        source.setFinalSpot(finalSpot);
+
+        TourApiPlanContext context = TourApiPlanInputExtractor.extract(source);
+        String anchors = String.join(" ", context.storyAnchors());
+        String included = String.join(" ", context.includedInputs());
+        String excluded = String.join(" ", context.excludedInputs());
+        String prompt = GeminiAnswerPlanPromptBuilder.build(source);
+
+        assertTrue(anchors.contains("explicit final spot archive"));
+        assertTrue(included.contains("explicit final spot archive"));
+        assertTrue(prompt.contains("explicit final spot archive"));
+        assertFalse(anchors.contains("route last place archive"));
+        assertFalse(included.contains("route last place archive"));
+        assertFalse(prompt.contains("route last place archive"));
+        assertTrue(excluded.contains("route last place archive"));
+        assertTrue(excluded.contains("non-final route point is not a story anchor"));
     }
 
     @Test
@@ -867,34 +914,35 @@ class AdminEpisodeGeminiServiceTest {
 
         String prompt = GeminiDraftPromptBuilder.build(source);
 
-        assertFalse(prompt.contains("external archive note about opening ceremony records"));
+        assertTrue(prompt.contains("external archive note about opening ceremony records"));
         assertFalse(prompt.contains("https://example.org/archive/final-place"));
         assertFalse(prompt.contains("finalPlaceMotif"));
         assertFalse(prompt.contains("routePlaces"));
         assertFalse(prompt.contains("솔솥 광화문 케이트윈점"));
         assertFalse(prompt.contains("행복한밥상"));
         assertFalse(prompt.contains("서울 종로구 종로1길 50"));
-        assertTrue(prompt.contains("routePolicy"));
-        assertTrue(prompt.contains("server attaches mission.placeName after draft generation"));
+        assertTrue(prompt.contains("storyAnchors"));
+        assertTrue(prompt.contains("장소는 나중에 미션에 배정될 지도 좌표일 뿐이다."));
+        assertTrue(prompt.contains("actualHistorySummary는 허구 사건 해설이 아니다."));
         assertTrue(prompt.contains("approvedFinalAnswers"));
         assertTrue(prompt.contains("CULPRIT: 강수진"));
-        assertTrue(prompt.contains("finalTruthSummary must include the approved CULPRIT, WEAPON, MOTIVE, and METHOD values verbatim"));
-        assertTrue(prompt.contains("Slot-specific clue rules"));
-        assertTrue(prompt.contains("Do not write the culprit name"));
-        assertTrue(prompt.contains("Do not create place hints"));
-        assertTrue(prompt.contains("Case blueprint"));
-        assertTrue(prompt.contains("locked-room crime mystery"));
-        assertTrue(prompt.contains("Target story pattern"));
-        assertTrue(prompt.contains("exactly 3 suspects"));
-        assertTrue(prompt.contains("restricted access trace"));
-        assertTrue(prompt.contains("Never reuse stale sample answers or names"));
+        assertTrue(prompt.contains("finalTruthSummary에는 승인된 CULPRIT, WEAPON, MOTIVE, METHOD 값을 그대로 모두 포함한다."));
+        assertTrue(prompt.contains("미션 슬롯"));
+        assertTrue(prompt.contains("rewardClue에 정답 값을 그대로 쓰지 않는다."));
+        assertTrue(prompt.contains("최종 장소를 찾아라"));
+        assertTrue(prompt.contains("크라임씬 사건 작가"));
+        assertTrue(prompt.contains("피해자, 발견 상황, 사망 방식, 제한된 용의자 3명"));
+        assertTrue(prompt.contains("evidences는 8개"));
+        assertTrue(prompt.contains("sourceMissionOrder 2~9"));
+        assertTrue(prompt.contains("조작 순서/접근 경로/실행 가능성"));
         assertFalse(prompt.contains("daily medication habit"));
         assertFalse(prompt.contains("capsule, medication"));
-        assertTrue(prompt.contains("Suspects must include exactly 3 people"));
-        assertTrue(prompt.contains("Evidences must include exactly 8 cards"));
-        assertTrue(prompt.contains("uniquely deducible only after combining all 8 clues"));
-        assertTrue(prompt.contains("Do not use simple mood, scenery, tourism facts"));
-        assertTrue(prompt.contains("Required JSON shape"));
+        assertFalse(prompt.contains("Never reuse stale sample answers or names"));
+        assertTrue(prompt.contains("제한된 용의자 3명"));
+        assertTrue(prompt.contains("evidences는 8개"));
+        assertTrue(prompt.contains("지도 동선은 사건 줄거리와 단서에 사용하지 않는다"));
+        assertTrue(prompt.contains("기록, 지문, 출입 로그, CCTV 공백"));
+        assertTrue(prompt.contains("반환 JSON 필수 필드"));
     }
 
     @Test

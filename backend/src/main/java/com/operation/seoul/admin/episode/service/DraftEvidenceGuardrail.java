@@ -23,7 +23,8 @@ final class DraftEvidenceGuardrail {
         for (int order = 2; order <= 9; order++) {
             if (!orders.contains(order)) return false;
         }
-        return evidences.stream().allMatch(evidence -> evidence != null && !blank(evidence.getTitle()) && !blank(evidence.getTextSummary()));
+        return evidences.stream().allMatch(evidence ->
+                evidence != null && !blank(evidence.getTitle()) && !blank(evidence.getTextSummary()));
     }
 
     static boolean evidencesLeakFinalAnswerValues(AiEpisodeDraftResponse.EpisodeDraft draft) {
@@ -42,21 +43,11 @@ final class DraftEvidenceGuardrail {
         return false;
     }
 
-    static List<AiEpisodeDraftResponse.EvidenceDraft> canonicalEvidences(List<AiEpisodeDraftResponse.MissionDraft> missions) {
-        return safeList(missions).stream()
-                .filter(mission -> mission != null && mission.getOrder() != null && mission.getOrder() >= 2 && mission.getOrder() <= 9)
-                .map(mission -> AiEpisodeDraftResponse.EvidenceDraft.builder()
-                        .title(mission.getOrder() + "번 조사 증거")
-                        .type("STORY_CLUE")
-                        .textSummary(mission.getRewardClue())
-                        .sourceMissionOrder(mission.getOrder())
-                        .build())
-                .toList();
-    }
-
     private static List<String> answerValues(AiEpisodeDraftResponse.EpisodeDraft draft) {
         AiEpisodeDraftResponse.FinalAnswers answers = draft.getFinalAnswers();
-        if (answers != null) return List.of(trim(answers.getCulprit()), trim(answers.getWeapon()), trim(answers.getMotive()), trim(answers.getMethod()));
+        if (answers != null) {
+            return List.of(trim(answers.getCulprit()), trim(answers.getWeapon()), trim(answers.getMotive()), trim(answers.getMethod()));
+        }
         return draft.getFinalAnswerKeywords() == null ? List.of() : draft.getFinalAnswerKeywords();
     }
 
