@@ -39,7 +39,6 @@ public class AdminEpisodeGeminiService {
         validatePlaces(request);
         TourApiPlanContext planContext = TourApiPlanInputExtractor.extract(request);
         ensureApiKey();
-        requireTourApiStoryAnchors(planContext);
         List<AiEpisodePlanResponse.AnswerKeyword> keywords = answerPlanKeywords(request);
         return AnswerPlanResponseFactory.build(planContext, keywords);
     }
@@ -109,12 +108,6 @@ public class AdminEpisodeGeminiService {
 
     private void ensureApiKey() {
         if (blank(geminiApiKey)) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "GEMINI_API_KEY_MISSING", "Gemini API 키가 설정되어 있지 않습니다.");
-    }
-
-    private void requireTourApiStoryAnchors(TourApiPlanContext planContext) {
-        if (planContext == null || planContext.storyAnchors() == null || planContext.storyAnchors().isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "TOURAPI_HISTORY_ANCHOR_REQUIRED", "TourAPI 역사/사건 앵커가 없어 최종 정답 키워드를 생성할 수 없습니다. Kakao/검수 문맥만으로는 생성하지 않습니다.");
-        }
     }
 
     private void validatePlaces(AiEpisodeDraftRequest request) {

@@ -27,13 +27,30 @@ final class GeminiDraftPromptBuilder {
                 - CULPRIT 값은 suspects[0..2].displayName 중 정확히 한 명이어야 한다.
                 - suspect displayName은 한국인 이름만 쓴다. 직업/역할은 relationToVictim 또는 shortDescription에 쓴다.
                 - finalTruthSummary에는 승인된 CULPRIT, WEAPON, MOTIVE, METHOD 값을 그대로 모두 포함한다.
-                - fictionSynopsis는 경로 설명이 아니라 사건 개요다. 피해자, 발견 상황, 사망 방식, 제한된 용의자 3명, 갈등 배경, 수사해야 할 핵심 의문을 포함한다.
+                - fictionSynopsis는 경로 설명이 아니라 크라임씬 사건 줄거리다. 피해자 신원, 시신/사건 발견 상황, 직접적인 사망 방식, 밀접한 용의자 3명, 각자의 이해관계, 은폐된 갈등, 수사해야 할 핵심 의문을 포함한다.
+                - fictionSynopsis에는 "북창동먹자골목에서 흔적이 발견되었습니다"처럼 장소 나열형 문장을 쓰지 않는다. 사건은 특정 시설 내부, 사무실, 보관실, 작업 공간, 회의실, 통로, 계단, 창고, 기록실 같은 허구의 사건 공간에서 벌어진다.
                 - actualHistorySummary는 허구 사건 해설이 아니다. 아래 storyAnchors/historicalContext가 있으면 그 실제 배경이 사건 모티브로 어떻게 변환됐는지 설명한다. 직접 역사 사건이 부족하면 "직접 역사 사건이 아니라 지역/시대/공간 성격을 모티브로 삼았다"고 명확히 쓴다.
                 - missions는 10개다. 1번 START, 2~9번 ANSWER_HINT, 10번 FINAL.
+                - suspects는 정확히 3명이다. 세 명 모두 피해자와의 관계, 알리바이, 의심 지점이 서로 달라야 한다.
                 - 2~9번 rewardClue는 각각 구체적인 증거 문장이어야 한다. 기록, 지문, 출입 로그, CCTV 공백, 물증 상태, 분석 결과, 계약/문서, 목격 진술처럼 수사 자료로 쓴다.
                 - rewardClue에 정답 값을 그대로 쓰지 않는다. 특히 범인 이름, 흉기명, 동기 문구, 방법 문장을 직접 노출하지 않는다.
                 - evidences는 8개이며 sourceMissionOrder 2~9에 각각 연결한다.
                 - "단순 사고", "반복되는 숫자", "방향 표식", "최종 장소를 찾아라", "장소를 비교하라", "TourAPI", "RAG", "Kakao" 같은 표현은 쓰지 않는다.
+
+                사건 구성 품질:
+                - 승인된 METHOD가 독살/오염/접촉이 아니라면 독성, 오염, 잉크, 약품, 피부 접촉, 호흡기 질환을 새로 추가하지 않는다.
+                - 승인된 WEAPON 또는 METHOD에 없는 별도 도구, 별도 약품, 별도 화학물질을 새로 만들지 않는다.
+                - 사망 방식은 승인된 METHOD에 맞춘다. 추락, 교살, 익사, 충돌, 감금/동사, 폭발, 감전, 알레르기, 둔기 가격, 자상, 독살 중 METHOD가 암시하는 방식을 선택해 사건 전체에 일관되게 반영한다.
+                - METHOD가 짧거나 압축된 표현이어도, finalTruthSummary와 단서에서는 "피해자가 무엇을 하던 중", "WEAPON의 어떤 상태가", "어떤 물리적 결과로 이어졌는지"를 구체적으로 설명한다.
+                - 역사/지역 배경은 사건의 동기, 숨긴 자료, 갈등의 종류, 물건의 성격을 정하는 소재로만 쓴다. 실제 역사 사건을 살인 사건처럼 꾸미지 않는다.
+                - 직접 역사 사건이 부족하면 지역의 시대성, 상업 변화, 행정 기록, 보존 대상, 이동 동선, 관광화, 오래된 건물 재사용 같은 배경을 골라 허구의 갈등으로 바꾼다.
+
+                JSON 작성 규칙:
+                - 미션과 증거 카드는 서로 같은 말을 반복하지 않는다.
+                - 각 rewardClue는 하나의 관찰 사실이나 분석 결과만 말한다.
+                - evidences[i].textSummary는 같은 sourceMissionOrder의 rewardClue를 더 구체화하되, 최종 정답 값을 직접 말하지 않는다.
+                - START 미션은 사건 파일 개봉과 조사 기준 안내다. FINAL 미션은 최종 정답 입력 지점이며 단서를 제공하지 않는다.
+                - missionDescription은 "8개의 조사 단서로 범인, 흉기, 동기, 방법을 검증한다"는 플레이 목표를 짧게 쓴다.
 
                 미션 슬롯:
                 - order 2: targetKeywordType CULPRIT, 접근/권한/기회 증거
@@ -61,16 +78,16 @@ final class GeminiDraftPromptBuilder {
         appendApprovedAnswers(builder, request);
         appendTourApiContext(builder, request);
         builder.append("missionOrders:\n");
-        builder.append("- 1 START\n");
-        builder.append("- 2 ANSWER_HINT CULPRIT access/opportunity clue\n");
-        builder.append("- 3 ANSWER_HINT CULPRIT alibi/trace clue\n");
-        builder.append("- 4 ANSWER_HINT WEAPON material/analysis clue\n");
-        builder.append("- 5 ANSWER_HINT WEAPON object/container clue\n");
-        builder.append("- 6 ANSWER_HINT MOTIVE conflict/document clue\n");
-        builder.append("- 7 ANSWER_HINT MOTIVE pressure/message clue\n");
-        builder.append("- 8 ANSWER_HINT METHOD routine/timing clue\n");
-        builder.append("- 9 ANSWER_HINT METHOD tampering/sequence clue\n");
-        builder.append("- 10 FINAL unlocks after all investigation missions\n");
+        builder.append("- 1 START: 사건 파일, 피해자 발견 상황, 조사 규칙\n");
+        builder.append("- 2 ANSWER_HINT CULPRIT: 범행 장소 접근 권한 또는 기회\n");
+        builder.append("- 3 ANSWER_HINT CULPRIT: 알리바이 균열, CCTV 공백, 지문/동선 대조\n");
+        builder.append("- 4 ANSWER_HINT WEAPON: 흉기의 손상 상태, 재질, 흔적, 분석 결과\n");
+        builder.append("- 5 ANSWER_HINT WEAPON: 흉기의 보관 위치, 이동, 누락, 사용 흔적\n");
+        builder.append("- 6 ANSWER_HINT MOTIVE: 계약, 소유권, 기록, 책임, 거래, 평판 관련 갈등 문서\n");
+        builder.append("- 7 ANSWER_HINT MOTIVE: 압박 메시지, 삭제 흔적, 목격 진술, 이익 구조\n");
+        builder.append("- 8 ANSWER_HINT METHOD: 피해자의 루틴, 사건 직전 행동, 시간표\n");
+        builder.append("- 9 ANSWER_HINT METHOD: 조작 순서, 접근 경로, 실행 가능성 교차 검증\n");
+        builder.append("- 10 FINAL: all 8 investigation missions cleared 후 정답 입력\n");
         return builder.toString();
     }
 
