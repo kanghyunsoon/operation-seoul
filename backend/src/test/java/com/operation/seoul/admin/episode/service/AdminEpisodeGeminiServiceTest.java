@@ -10,7 +10,6 @@ import com.operation.seoul.admin.episode.dto.AiEpisodePlanResponse;
 import com.operation.seoul.global.exception.ApiException;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,15 +44,11 @@ class AdminEpisodeGeminiServiceTest {
         source.setFinalAnswerKeywordItems(List.of());
         source.setFinalAnswers(null);
 
-        Method normalize = AdminEpisodeGeminiService.class.getDeclaredMethod("normalizeFinalAnswerKeywordItems", AiEpisodeDraftRequest.class);
-        normalize.setAccessible(true);
-        normalize.invoke(service, source);
+        FinalAnswerContractSupport.normalizeFinalAnswerKeywordItems(source);
 
-        Method validate = AdminEpisodeGeminiService.class.getDeclaredMethod("validateFinalAnswerContract", AiEpisodeDraftRequest.class);
-        validate.setAccessible(true);
-        Exception thrown = assertThrows(Exception.class, () -> validate.invoke(service, source));
+        ApiException thrown = assertThrows(ApiException.class, () -> FinalAnswerContractSupport.validateFinalAnswerContract(source));
 
-        assertTrue(thrown.getCause() instanceof ApiException);
+        assertEquals("INVALID_FINAL_ANSWER_KEYWORDS", thrown.getCode());
         assertTrue(source.getFinalAnswerKeywordItems() == null || source.getFinalAnswerKeywordItems().isEmpty());
     }
 
@@ -73,11 +68,9 @@ class AdminEpisodeGeminiServiceTest {
         answers.setMethod("함");
         source.setFinalAnswers(answers);
 
-        Method validate = AdminEpisodeGeminiService.class.getDeclaredMethod("validateFinalAnswerContract", AiEpisodeDraftRequest.class);
-        validate.setAccessible(true);
-        Exception thrown = assertThrows(Exception.class, () -> validate.invoke(service, source));
+        ApiException thrown = assertThrows(ApiException.class, () -> FinalAnswerContractSupport.validateFinalAnswerContract(source));
 
-        assertTrue(thrown.getCause() instanceof ApiException);
+        assertEquals("WEAK_FINAL_ANSWER_KEYWORDS", thrown.getCode());
     }
 
     @Test
@@ -96,9 +89,7 @@ class AdminEpisodeGeminiServiceTest {
         answers.setMethod("독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴");
         source.setFinalAnswers(answers);
 
-        Method validate = AdminEpisodeGeminiService.class.getDeclaredMethod("validateFinalAnswerContract", AiEpisodeDraftRequest.class);
-        validate.setAccessible(true);
-        validate.invoke(service, source);
+        FinalAnswerContractSupport.validateFinalAnswerContract(source);
     }
 
     @Test
@@ -117,12 +108,8 @@ class AdminEpisodeGeminiServiceTest {
         answers.setMethod("오염시킴");
         source.setFinalAnswers(answers);
 
-        Method repair = AdminEpisodeGeminiService.class.getDeclaredMethod("repairWeakFinalAnswerKeywords", AiEpisodeDraftRequest.class);
-        repair.setAccessible(true);
-        repair.invoke(service, source);
-        Method validate = AdminEpisodeGeminiService.class.getDeclaredMethod("validateFinalAnswerContract", AiEpisodeDraftRequest.class);
-        validate.setAccessible(true);
-        validate.invoke(service, source);
+        FinalAnswerContractSupport.repairWeakFinalAnswerKeywords(source);
+        FinalAnswerContractSupport.validateFinalAnswerContract(source);
 
         assertEquals("독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴", source.getFinalAnswers().getMethod());
         assertEquals("독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴", source.getFinalAnswerKeywordItems().get(3).getKeyword());
@@ -153,9 +140,7 @@ class AdminEpisodeGeminiServiceTest {
     void planPromptRejectsRoleOnlyAndGenericKeywordExamples() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildPlanPrompt", AiEpisodeDraftRequest.class);
-        method.setAccessible(true);
-        String prompt = (String) method.invoke(service, source);
+        String prompt = GeminiAnswerPlanPromptBuilder.build(source);
 
         assertTrue(prompt.contains("Bad example: CULPRIT=\"관리자\", WEAPON=\"봉투\", MOTIVE=\"은폐\", METHOD=\"함\""));
         assertTrue(prompt.contains("Never reuse stale sample answers or names"));
@@ -227,9 +212,7 @@ class AdminEpisodeGeminiServiceTest {
         source.getPlaces().get(0).setDescription("historic merchant ledger conflict");
         source.getPlaces().get(0).setResearchSourceSummary("merchant tax ledger dispute");
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildPlanPrompt", AiEpisodeDraftRequest.class);
-        method.setAccessible(true);
-        String prompt = (String) method.invoke(service, source);
+        String prompt = GeminiAnswerPlanPromptBuilder.build(source);
 
         assertTrue(prompt.contains("Derive the four final answer values from the TourAPI story anchors"));
         assertTrue(prompt.contains("TourAPI story anchors to fictionalize"));
@@ -253,9 +236,7 @@ class AdminEpisodeGeminiServiceTest {
                 "archive note about sealed merchant ledger"
         ));
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildPlanPrompt", AiEpisodeDraftRequest.class);
-        method.setAccessible(true);
-        String prompt = (String) method.invoke(service, source);
+        String prompt = GeminiAnswerPlanPromptBuilder.build(source);
 
         assertTrue(prompt.contains("historic customs archive dispute"));
         assertTrue(prompt.contains("TourAPI heritage summary about sealed tax records"));
@@ -507,14 +488,7 @@ class AdminEpisodeGeminiServiceTest {
         draft.getMissions().get(3).setTargetKeywordType("WEAPON");
         draft.setFinalTruthSummary("정답 설명이 부족합니다.");
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "applyDeterministicCrimeMysteryGuardrail",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        method.invoke(service, draft, source, new ArrayList<String>());
+        DraftCrimeMysteryGuardrailApplier.apply(draft, source, new ArrayList<>(), (ignoredDraft, ignoredIssues) -> {});
 
         AiEpisodeDraftValidationRequest request = new AiEpisodeDraftValidationRequest();
         request.setDraft(draft);
@@ -555,14 +529,7 @@ class AdminEpisodeGeminiServiceTest {
         AiEpisodeDraftValidationResponse before = service.validateDraft(beforeRequest);
         assertFalse(before.isValid());
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "applyDeterministicCrimeMysteryGuardrail",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        method.invoke(service, draft, source, new ArrayList<String>());
+        DraftCrimeMysteryGuardrailApplier.apply(draft, source, new ArrayList<>(), (ignoredDraft, ignoredIssues) -> {});
 
         AiEpisodeDraftValidationRequest afterRequest = new AiEpisodeDraftValidationRequest();
         afterRequest.setDraft(draft);
@@ -588,15 +555,7 @@ class AdminEpisodeGeminiServiceTest {
         draft.getMissions().get(1).setRewardClue("강수진이 박진우의 집 근처 CCTV에 포착되었다.");
         draft.getMissions().get(3).setRewardClue("해고 통보 문서가 발견되었다.");
         draft.getMissions().get(3).setTargetKeywordType("WEAPON");
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getPublishable());
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY"));
@@ -618,15 +577,7 @@ class AdminEpisodeGeminiServiceTest {
         for (int i = 0; i < investigation.size(); i++) {
             investigation.get(i).setRewardClue("leaked answer value: " + answerValues.get(i % answerValues.size()));
         }
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getPublishable());
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES"));
@@ -648,15 +599,7 @@ class AdminEpisodeGeminiServiceTest {
                 suspect("강수진", "회의 기록을 확인했다고 주장합니다.", "피해자와 갈등이 있었습니다."),
                 suspect("강수진", "전시 준비를 했다고 주장합니다.", "동선 공백이 있습니다.")
         ));
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getPublishable());
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_SUSPECTS"));
@@ -696,15 +639,7 @@ class AdminEpisodeGeminiServiceTest {
         for (AiEpisodeDraftResponse.MissionDraft mission : draft.getMissions()) {
             mission.setStoryText(null);
         }
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getDraft().getFictionSynopsis().contains("항만 물류 감사관"));
         assertTrue(response.getDraft().getFictionSynopsis().contains("자료 검토실"));
@@ -727,15 +662,7 @@ class AdminEpisodeGeminiServiceTest {
         draft.getMissions().get(1).setStoryText("행복한밥상에서 발견된 기록을 비교합니다.");
         draft.getMissions().get(1).setRewardClue("행복한밥상 출입 기록에 공백이 있습니다.");
         draft.getEvidences().get(0).setTextSummary("행복한밥상 기록과 연결된 사건 자료입니다.");
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_REAL_PLACE_NAMES"));
         assertEquals("솔솥 광화문 케이트윈점", response.getDraft().getMissions().get(0).getPlaceName());
@@ -756,15 +683,7 @@ class AdminEpisodeGeminiServiceTest {
         applyApprovedContract(draft, source);
         draft.getEvidences().get(0).setTextSummary("추가 지문이 강수진의 지문과 일치한다.");
         draft.getEvidences().get(1).setTextSummary("흉기는 독성 캡슐이다.");
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getPublishable());
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_EVIDENCES"));
@@ -792,15 +711,7 @@ class AdminEpisodeGeminiServiceTest {
             mission.setRewardClue("leaked answer value: 한지원");
         }
         draft.setEvidences(List.of());
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         List<String> repairedClues = investigationMissions(response.getDraft()).stream()
                 .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
@@ -832,15 +743,7 @@ class AdminEpisodeGeminiServiceTest {
         for (int i = 0; i < investigation.size(); i++) {
             investigation.get(i).setRewardClue(distinctClues.get(i));
         }
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getPublishable());
         assertFalse(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
@@ -856,15 +759,7 @@ class AdminEpisodeGeminiServiceTest {
         applyApprovedContract(draft, source);
         investigationMissions(draft).get(0)
                 .setRewardClue("현장에서 발견된 지문 중 피해자의 것과 일치하지 않는 하나의 추가 지문이 용의자 세 명의 것과 모두 다르다는 사실이 밝혀졌다.");
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getPublishable());
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
@@ -901,15 +796,7 @@ class AdminEpisodeGeminiServiceTest {
         for (int i = 0; i < investigation.size(); i++) {
             investigation.get(i).setRewardClue(clues.get(i));
         }
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getPublishable());
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES"));
@@ -933,15 +820,7 @@ class AdminEpisodeGeminiServiceTest {
                 .setRewardClue("CCTV 기록상 특정 용의자의 출입 기록 일부가 누락되었다.");
         draft.getEvidences().get(0)
                 .setTextSummary("사건 당일 특정 용의자가 사무실에 있었던 기록이 남아 있다.");
-
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "buildDraftResponse",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        AiEpisodeDraftResponse response = (AiEpisodeDraftResponse) method.invoke(service, draft, source, new ArrayList<String>());
+        AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
         assertTrue(response.getPublishable());
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REWROTE_GENERIC_SUSPECT_REFERENCES"));
@@ -971,15 +850,8 @@ class AdminEpisodeGeminiServiceTest {
         assertEquals("범죄 미스터리", draft.getGenre());
     }
 
-    private void applyApprovedContract(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest source) throws Exception {
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "applyApprovedFinalAnswerContract",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        method.invoke(service, draft, source, new ArrayList<String>());
+    private void applyApprovedContract(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest source) {
+        DraftFinalAnswerContractApplier.apply(draft, source);
     }
 
     @Test
@@ -1041,14 +913,7 @@ class AdminEpisodeGeminiServiceTest {
         AiEpisodeDraftValidationResponse before = service.validateDraft(beforeRequest);
         assertFalse(before.isValid());
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod(
-                "applyDeterministicCrimeMysteryGuardrail",
-                AiEpisodeDraftResponse.EpisodeDraft.class,
-                AiEpisodeDraftRequest.class,
-                List.class
-        );
-        method.setAccessible(true);
-        method.invoke(service, draft, source, new ArrayList<String>());
+        DraftCrimeMysteryGuardrailApplier.apply(draft, source, new ArrayList<>(), (ignoredDraft, ignoredIssues) -> {});
 
         AiEpisodeDraftValidationRequest afterRequest = new AiEpisodeDraftValidationRequest();
         afterRequest.setDraft(draft);
@@ -1087,6 +952,10 @@ class AdminEpisodeGeminiServiceTest {
         return draft.getMissions().stream()
                 .filter(mission -> mission.getOrder() != null && mission.getOrder() >= 2 && mission.getOrder() <= 9)
                 .toList();
+    }
+
+    private AiEpisodeDraftResponse buildDraftResponse(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest source) {
+        return DraftResponseAssembler.build(draft, source, new ArrayList<>(), service::validateDraft, (ignoredDraft, ignoredIssues) -> {});
     }
 
     private AiEpisodeDraftRequest sourceInput() {
@@ -1244,3 +1113,4 @@ class AdminEpisodeGeminiServiceTest {
         return value == null ? "" : value;
     }
 }
+
