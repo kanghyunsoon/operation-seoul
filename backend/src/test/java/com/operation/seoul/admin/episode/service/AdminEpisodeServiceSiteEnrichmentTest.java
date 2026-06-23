@@ -1,6 +1,7 @@
 package com.operation.seoul.admin.episode.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.operation.seoul.admin.episode.dto.AdminPlaceCandidateResponse;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftRequest;
 import com.operation.seoul.admin.episode.repository.AdminEpisodeRepository;
 import com.operation.seoul.game.service.TourApiService;
@@ -13,6 +14,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
@@ -115,6 +118,53 @@ class AdminEpisodeServiceSiteEnrichmentTest {
         assertTrue(place.getExternalResearchNotes().get(0).contains("Selected place context"));
         assertTrue(place.getExternalResearchNotes().get(0).contains("Ewha Museum"));
         assertEquals("Selected place context used because no direct external reference page matched.", place.getResearchSourceSummary());
+    }
+
+    @Test
+    void enrichSiteDataKeepsKakaoSignalsOutOfStoryFields() {
+        ExternalPlaceResearchService externalResearchService = mock(ExternalPlaceResearchService.class);
+        when(externalResearchService.research(any(AiEpisodeDraftRequest.PlaceInput.class)))
+                .thenReturn(new ExternalPlaceResearchService.ResearchResult(
+                        List.of("Reference: archive - cultural background"),
+                        List.of(),
+                        "external reference summary"
+                ));
+        KakaoLocalCandidateService kakaoLocalCandidateService = mock(KakaoLocalCandidateService.class);
+        when(kakaoLocalCandidateService.getNearbyCandidates(anyDouble(), anyDouble(), anyInt()))
+                .thenReturn(List.of(AdminPlaceCandidateResponse.builder()
+                        .title("Nearby Modern Gallery")
+                        .address("Seoul Jung-gu 1")
+                        .latitude(37.501)
+                        .longitude(126.901)
+                        .source("KakaoLocal:CT1")
+                        .description("Kakao Local nearby culture candidate")
+                        .build()));
+        AdminEpisodeService service = new AdminEpisodeService(
+                mock(AdminEpisodeRepository.class),
+                new ObjectMapper(),
+                mock(TourApiService.class),
+                mock(OperationAreaResolver.class),
+                kakaoLocalCandidateService,
+                externalResearchService
+        );
+        AiEpisodeDraftRequest request = new AiEpisodeDraftRequest();
+        AiEpisodeDraftRequest.PlaceInput source = place("Archive Hall");
+        source.setLatitude(37.5);
+        source.setLongitude(126.9);
+        source.setDescription("Original TourAPI place description");
+        source.setKeywords(List.of("archive", "ledger"));
+        source.setAdminMemo("Operator memo");
+        source.setVisibleElements(List.of("old stone marker"));
+        request.setPlaces(new ArrayList<>(List.of(source)));
+
+        AiEpisodeDraftRequest.PlaceInput enriched = service.enrichSiteData(request).getPlaces().get(0);
+
+        assertEquals("Original TourAPI place description", enriched.getDescription());
+        assertEquals(List.of("archive", "ledger"), enriched.getKeywords());
+        assertEquals(List.of("old stone marker"), enriched.getVisibleElements());
+        assertEquals("Operator memo", enriched.getAdminMemo());
+        assertTrue(enriched.getSiteVerificationSignals().stream().anyMatch(value -> value.contains("Nearby Modern Gallery")));
+        assertTrue(enriched.getSiteVerificationSignals().stream().anyMatch(value -> value.contains("현장 검수")));
     }
 
     private AiEpisodeDraftRequest.PlaceInput place(String name) {

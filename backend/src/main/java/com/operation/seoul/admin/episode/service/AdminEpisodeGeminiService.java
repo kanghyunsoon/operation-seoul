@@ -68,6 +68,8 @@ public class AdminEpisodeGeminiService {
     public AiEpisodePlanResponse createAnswerPlan(AiEpisodeDraftRequest request) {
         validatePlaces(request);
         List<String> storyAnchors = extractTourApiStoryAnchors(request);
+        List<String> planInputs = tourApiPlanInputs(request);
+        List<String> excludedPlanInputs = excludedTourApiPlanInputs(request);
         List<AiEpisodePlanResponse.AnswerKeyword> keywords = answerPlanKeywords(request);
         attachPlanSourceBasis(keywords, storyAnchors);
         return AiEpisodePlanResponse.builder()
@@ -82,6 +84,8 @@ public class AdminEpisodeGeminiService {
                         ? "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 선택 장소의 검수 문맥을 바탕으로 구체화합니다."
                         : "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/사건 앵커를 바탕으로 구체화합니다.")
                 .tourApiStoryAnchors(storyAnchors)
+                .tourApiPlanInputs(planInputs)
+                .excludedPlanInputs(excludedPlanInputs)
                 .planReviewRequired(false)
                 .reviewReason("")
                 .fieldVerificationRecommended(true)
@@ -1618,7 +1622,7 @@ public class AdminEpisodeGeminiService {
         if (request == null) return;
         Map<String, String> values = approvedAnswers(request);
         String method = values.get("METHOD");
-        if (weakMethodKeyword(compact(method))) {
+        if (weakFinalAnswerKeyword("METHOD", method)) {
             updateFinalAnswerKeyword(request, "METHOD", concreteMethodFor(values.get("WEAPON"), values.get("MOTIVE"), method));
         }
     }
@@ -1769,16 +1773,15 @@ public class AdminEpisodeGeminiService {
     private String tourApiAnswerSeedContextForPlace(AiEpisodeDraftRequest.PlaceInput place) {
         List<String> fragments = new ArrayList<>();
         Stream.of(place.getResearchSourceSummary())
-                .map(this::safePromptText)
+                .map(this::cleanTourApiPlanResearchText)
                 .filter(value -> !blank(value))
                 .forEach(fragments::add);
         Stream.of(
                         place.getKeywords(),
-                        place.getVerificationNotes(),
                         place.getExternalResearchNotes()
                 )
                 .flatMap(values -> safeList(values).stream())
-                .map(this::safePromptText)
+                .map(this::cleanTourApiPlanResearchText)
                 .filter(value -> !blank(value))
                 .forEach(fragments::add);
         return safePromptText(String.join(" ", fragments));
@@ -1791,15 +1794,13 @@ public class AdminEpisodeGeminiService {
             if (place == null) continue;
             Stream.of(
                             place.getResearchSourceSummary(),
-                            place.getDescription(),
-                            place.getAdminMemo()
+                            place.getDescription()
                     )
                     .map(this::cleanStoryAnchor)
                     .filter(value -> !blank(value))
                     .forEach(anchors::add);
             Stream.of(
                             place.getExternalResearchNotes(),
-                            place.getVerificationNotes(),
                             place.getKeywords()
                     )
                     .flatMap(values -> safeList(values).stream())
@@ -1812,10 +1813,115 @@ public class AdminEpisodeGeminiService {
     }
 
     private String cleanStoryAnchor(String value) {
-        String text = safePromptText(value);
+        String text = cleanTourApiPlanResearchText(value);
         if (blank(text)) return "";
         text = text.replaceAll("\\s+", " ").trim();
         return text.length() > 120 ? text.substring(0, 120).trim() : text;
+    }
+
+    private String cleanTourApiPlanResearchText(String value) {
+        String text = safePromptText(value);
+        if (blank(text)) return "";
+        text = stripKakaoSiteSignalSuffix(text);
+        text = text.replaceAll("\\s+", " ").trim();
+        if (blank(text) || isKakaoOrSiteVerificationNoise(text)) return "";
+        return text;
+    }
+
+    private List<String> tourApiPlanInputs(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null) return List.of();
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < request.getPlaces().size(); i++) {
+            AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(i);
+            if (place == null) continue;
+            int placeIndex = i;
+            appendIncludedPlanInput(result, placeIndex, "researchSourceSummary", place.getResearchSourceSummary());
+            appendIncludedPlanInput(result, placeIndex, "description", place.getDescription());
+            safeList(place.getExternalResearchNotes()).forEach(value -> appendIncludedPlanInput(result, placeIndex, "externalResearchNotes", value));
+            safeList(place.getKeywords()).forEach(value -> appendIncludedPlanInput(result, placeIndex, "keywords", value));
+        }
+        return result.stream().limit(20).toList();
+    }
+
+    private void appendIncludedPlanInput(List<String> result, int placeIndex, String source, String value) {
+        String cleaned = cleanTourApiPlanResearchText(value);
+        if (!blank(cleaned)) {
+            result.add("place " + (placeIndex + 1) + " " + source + ": " + cleaned);
+        }
+    }
+
+    private List<String> excludedTourApiPlanInputs(AiEpisodeDraftRequest request) {
+        if (request == null || request.getPlaces() == null) return List.of();
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < request.getPlaces().size(); i++) {
+            AiEpisodeDraftRequest.PlaceInput place = request.getPlaces().get(i);
+            if (place == null) continue;
+            int placeIndex = i;
+            appendExcludedPlanInput(result, placeIndex, "adminMemo", place.getAdminMemo(), "admin memo is site-review only");
+            safeList(place.getVerificationNotes()).forEach(value -> appendExcludedPlanInput(result, placeIndex, "verificationNotes", value, "verification note is site-review only"));
+            appendExcludedPlanInput(result, placeIndex, "researchSourceSummary", place.getResearchSourceSummary(), "filtered as Kakao/site noise");
+            appendExcludedPlanInput(result, placeIndex, "description", place.getDescription(), "filtered as Kakao/site noise");
+            safeList(place.getExternalResearchNotes()).forEach(value -> appendExcludedPlanInput(result, placeIndex, "externalResearchNotes", value, "filtered as Kakao/site noise"));
+            safeList(place.getKeywords()).forEach(value -> appendExcludedPlanInput(result, placeIndex, "keywords", value, "filtered as Kakao/site noise"));
+        }
+        return result.stream().limit(30).toList();
+    }
+
+    private void appendExcludedPlanInput(List<String> result, int placeIndex, String source, String value, String reason) {
+        String raw = safePromptText(value);
+        if (blank(raw)) return;
+        if ("adminMemo".equals(source) || "verificationNotes".equals(source) || blank(cleanTourApiPlanResearchText(raw))) {
+            result.add("place " + (placeIndex + 1) + " " + source + " excluded (" + reason + "): " + abbreviateForLog(raw, 160));
+        }
+    }
+
+    private String stripKakaoSiteSignalSuffix(String value) {
+        String text = trim(value);
+        for (String marker : List.of(
+                "주변 확인 후보:",
+                "주요 확인 후보:",
+                "nearby=",
+                "Nearby:",
+                "Kakao Local",
+                "RAG/사이트 보강",
+                "RAG/site enrichment"
+        )) {
+            int index = text.toLowerCase(Locale.ROOT).indexOf(marker.toLowerCase(Locale.ROOT));
+            if (index > 0) {
+                text = text.substring(0, index).trim();
+            }
+        }
+        return text;
+    }
+
+    private boolean isKakaoOrSiteVerificationNoise(String value) {
+        String compacted = compact(value);
+        return containsAny(compacted,
+                "kakaolocal",
+                "ragsite",
+                "rag/사이트",
+                "사이트보강",
+                "현장확인",
+                "관리자확인",
+                "검수",
+                "간판",
+                "입구",
+                "영업시간",
+                "주변후보",
+                "확인후보",
+                "현장단서",
+                "동선흔적",
+                "카페쉼터",
+                "식당상권",
+                "문화전시",
+                "관광명소",
+                "selectedplacecontext",
+                "external-search-failed",
+                "rag_error",
+                "verification",
+                "siteverification",
+                "nearbyfamousplacesignal"
+        );
     }
 
     private void attachPlanSourceBasis(List<AiEpisodePlanResponse.AnswerKeyword> keywords, List<String> storyAnchors) {
@@ -1843,16 +1949,15 @@ public class AdminEpisodeGeminiService {
                         place.getDescription(),
                         place.getResearchSourceSummary()
                 )
-                .map(this::safePromptText)
+                .map(this::cleanTourApiPlanResearchText)
                 .filter(value -> !blank(value))
                 .forEach(fragments::add);
         Stream.of(
                         place.getKeywords(),
-                        place.getVerificationNotes(),
                         place.getExternalResearchNotes()
                 )
                 .flatMap(values -> safeList(values).stream())
-                .map(this::safePromptText)
+                .map(this::cleanTourApiPlanResearchText)
                 .filter(value -> !blank(value))
                 .forEach(fragments::add);
         return safePromptText(String.join(" ", fragments));
@@ -1965,69 +2070,7 @@ public class AdminEpisodeGeminiService {
     }
 
     private boolean weakFinalAnswerKeyword(String slot, String value) {
-        String compacted = compact(value);
-        if (blank(compacted)) return true;
-        return switch (slot) {
-            case "CULPRIT" -> weakCulpritKeyword(compacted);
-            case "WEAPON" -> weakWeaponKeyword(compacted);
-            case "MOTIVE" -> weakKeyword(compacted, 6, "범죄", "복수", "돈", "질투", "은폐", "원한", "분노", "실수", "협박", "비밀");
-            case "METHOD" -> weakMethodKeyword(compacted);
-            default -> false;
-        };
-    }
-
-    private boolean weakCulpritKeyword(String compacted) {
-        return !isSpecificKoreanPersonName(compacted);
-    }
-
-    private boolean weakWeaponKeyword(String compacted) {
-        if (containsAny(compacted, "독성", "마취", "진정", "수면", "청산", "시안", "오염", "섞인", "묻힌", "주입", "변조", "유독", "환각")
-                && containsAny(compacted, "약", "독", "캡슐", "병", "컵", "잔", "보온병", "향수", "시약", "분말", "액체", "주사", "칼", "도구", "붓펜", "펜", "잉크", "마커", "붓", "카드", "접착제", "소독제", "장갑", "안료", "스프레이", "세척제", "세척통")) {
-            return false;
-        }
-        if (weakKeyword(compacted, 5, "약", "독", "흉기", "도구", "칼", "약물", "고산병약", "수면제", "캡슐", "향수병", "약병", "컵", "잔", "보온병", "붓펜", "펜", "연필", "마커", "붓", "카드", "접착제", "소독제", "장갑", "안료", "스프레이", "세척제", "세척통")) {
-            return true;
-        }
-        return containsAny(compacted, "병", "컵", "잔", "보온병", "봉투", "상자", "붓펜", "펜", "연필", "마커", "붓", "카드", "접착제", "소독제", "장갑", "안료", "스프레이", "세척제", "세척통")
-                && !containsAny(compacted, "독성", "마취", "진정", "수면", "청산", "시안", "오염", "섞인", "묻힌", "주입", "변조", "유독", "환각");
-    }
-
-    private boolean weakMethodKeyword(String compacted) {
-        if (List.of("함", "넣기", "투여", "주입", "교체", "은폐", "조작", "살해", "독살", "바꿔치기", "유인", "방치", "사용", "사용함", "실행", "실행함", "시도", "시도함").contains(compacted)) {
-            return true;
-        }
-        if (containsAny(compacted, "혼란을야기", "몰래투여", "정신을잃게", "상태를악화", "의식을잃게", "쓰러지게함")) {
-            return true;
-        }
-        if (containsAny(compacted, "내용물섭취유도", "이식하여", "몰래이식", "사용하게함", "접촉하게함")
-                && !containsAny(compacted, "피해자", "서명란", "손", "호흡", "흡입", "개봉", "장부", "문서", "봉투", "컵", "잔", "음료", "약")) {
-            return true;
-        }
-        if (compacted.length() < 6) {
-            return true;
-        }
-        boolean hasAction = containsAny(compacted, "넣", "섞", "바꿔", "교체", "투여", "분사", "주입", "묻혀", "먹여", "마시게", "흡입", "접촉", "조작", "유인", "오염", "서명", "바름", "발라", "칠함");
-        boolean hasObjectOrVictim = containsAny(compacted, "피해자", "약", "캡슐", "병", "컵", "잔", "보온병", "향수", "음료", "시약", "문서", "서명", "서명란", "붓펜", "펜", "잉크", "마커", "봉투", "열쇠", "서랍", "준비물", "카드", "접착제", "소독제", "장갑", "안료", "스프레이", "세척제", "세척통");
-        return !hasAction || !hasObjectOrVictim;
-    }
-
-    private boolean weakKeyword(String compacted, int minLength, String... genericValues) {
-        if (compacted.length() < minLength) return true;
-        for (String generic : genericValues) {
-            if (compacted.equals(compact(generic))) return true;
-        }
-        return false;
-    }
-
-    private boolean isSpecificKoreanPersonName(String compacted) {
-        Set<String> forbiddenNames = Set.of("이몽룡", "성춘향", "춘향", "몽룡", "홍길동", "임꺽정", "장보고", "유관순", "세종대왕", "이순신", "안중근", "김구");
-        if (forbiddenNames.contains(compacted)) return false;
-        Set<String> genericRoles = Set.of("여행사직원", "사업파트너", "피해자", "용의자", "관계자", "관리자", "직원", "가이드", "비서", "조카", "동료", "연구원", "큐레이터", "투자자", "운영자");
-        if (genericRoles.contains(compacted)) return false;
-        String namePattern = "(김|이|박|최|정|강|조|윤|장|임|한|오|서|신|권|황|안|송|전|홍|유|고|문|양|손|배|백|허|남|심|노|하|곽|성|차|주|우|구|민|류|나|진|지|엄|채|원|천|방|공|현|함|변|염|여|추|도|소|석|선|설|마|길|위|표|명|기|반|왕|금|옥|육|인|맹|제|모|탁|국|어|은|편|용|예|경|봉|사|부|가|복|태|목|형|계|피|두)[가-힣]{1,2}";
-        return compacted.matches("^" + namePattern + "$")
-                || compacted.matches("^" + namePattern + "\\([가-힣A-Za-z0-9·/\\-]+\\)$")
-                || compacted.matches("^" + namePattern + "(팀장|대표|실장|매니저|가이드|직원|비서|교수|연구원|관리자|기자|작가|큐레이터|조교|의사|간호사|변호사|파트너)$");
+        return FinalAnswerKeywordValidator.weakFinalAnswerKeyword(slot, value);
     }
 
     private NameRole splitNameRole(String value) {

@@ -515,6 +515,14 @@
               <b>TourAPI 사건/역사 앵커</b>
               <span v-for="anchor in draftPlan.tourApiStoryAnchors" :key="anchor">{{ anchor }}</span>
             </div>
+            <div v-if="draftPlan.tourApiPlanInputs?.length" class="mini-list debug-list">
+              <b>임시 확인: 키워드 생성에 포함된 TourAPI/역사 입력</b>
+              <span v-for="input in draftPlan.tourApiPlanInputs" :key="`included-${input}`">{{ input }}</span>
+            </div>
+            <div v-if="draftPlan.excludedPlanInputs?.length" class="mini-list debug-list muted">
+              <b>임시 확인: 키워드 생성에서 제외된 Kakao/검수 노이즈</b>
+              <span v-for="input in draftPlan.excludedPlanInputs" :key="`excluded-${input}`">{{ input }}</span>
+            </div>
             <div v-if="draftPlan.finalAnswerKeywordItems?.length || draftPlan.finalAnswerKeywords?.length" class="mini-list">
               <b>키워드 생성 근거</b>
               <span v-for="item in (draftPlan.finalAnswerKeywordItems || draftPlan.finalAnswerKeywords || [])" :key="`${item.slotId || item.type}-${item.keyword}`">
@@ -700,6 +708,10 @@
                   <strong>{{ candidate.title }}</strong>
                   <span :class="roleForCandidate(index)">{{ roleLabel(roleForCandidate(index)) }}</span>
                   <em v-if="isAnchorCandidate(candidate)">공공 장소 후보</em>
+                  <details v-if="candidate.siteVerificationSignals?.length" class="route-debug-signals">
+                    <summary>임시 확인: Kakao/현장 검수 신호</summary>
+                    <small v-for="signal in candidate.siteVerificationSignals" :key="signal">{{ signal }}</small>
+                  </details>
                 </li>
               </ol>
               <p>최종 장소는 조사 미션 8개 완료 시 자동 공개되는 최종 정답 입력 장소입니다. 최종 장소 자체는 추리 대상이 아닙니다.</p>
@@ -1826,6 +1838,7 @@ async function enrichSelectedSiteData() {
         adminMemo: enriched.places[index]?.adminMemo || candidate.adminMemo,
         usablePuzzleSources: enriched.places[index]?.usablePuzzleSources || candidate.usablePuzzleSources,
         verificationNotes: enriched.places[index]?.verificationNotes || candidate.verificationNotes,
+        siteVerificationSignals: enriched.places[index]?.siteVerificationSignals || candidate.siteVerificationSignals,
         externalResearchNotes: enriched.places[index]?.externalResearchNotes || candidate.externalResearchNotes,
         referenceUrls: enriched.places[index]?.referenceUrls || candidate.referenceUrls,
         researchSourceSummary: enriched.places[index]?.researchSourceSummary || candidate.researchSourceSummary
@@ -3589,6 +3602,7 @@ function applyCandidatesToDraft(showMessage = true) {
       adminMemo: `${candidate.source || '장소 후보'} 기반입니다. 실제 현장 간판, 숫자, 조형물은 운영 공개 전 검수하세요.`,
       usablePuzzleSources: candidate.usablePuzzleSources || [],
       verificationNotes: candidate.verificationNotes || [],
+      siteVerificationSignals: candidate.siteVerificationSignals || [],
       externalResearchNotes: candidate.externalResearchNotes || [],
       referenceUrls: candidate.referenceUrls || [],
       researchSourceSummary: candidate.researchSourceSummary || '',
@@ -3732,6 +3746,9 @@ h2, h3 { margin: 0 0 10px; }
 .draft-feedback-panel .mini-list { display: grid; gap: 6px; margin-top: 8px; color: #dbeafe; }
 .draft-feedback-panel .mini-list b { color: #fde68a; }
 .draft-feedback-panel .mini-list span { display: block; padding: 6px 8px; border-radius: 10px; background: rgba(15,23,42,.42); color: #dbeafe; }
+.draft-feedback-panel .debug-list { padding-top: 8px; border-top: 1px dashed rgba(148,163,184,.28); }
+.draft-feedback-panel .debug-list span { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .78rem; line-height: 1.45; }
+.draft-feedback-panel .debug-list.muted span { color: #cbd5e1; background: rgba(71,85,105,.24); }
 .case-builder-next { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; padding: 14px; border: 1px solid rgba(245,158,11,.32); border-radius: 16px; background: linear-gradient(135deg, rgba(120,53,15,.26), rgba(15,23,42,.72)); }
 .case-builder-next strong { color: #fde68a; font-size: 1rem; }
 .case-builder-next p { margin: 5px 0 0; color: #e2e8f0; line-height: 1.5; font-size: .88rem; }
@@ -3921,6 +3938,9 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 
 .selected-route .FINAL { color: #fecaca; background: rgba(127,29,29,.22); }
 .selected-route em { grid-column: 2 / -1; color: #fecaca; font-size: .75rem; font-style: normal; font-weight: 900; }
+.route-debug-signals { grid-column: 1 / -1; margin-top: 6px; color: #cbd5e1; }
+.route-debug-signals summary { cursor: pointer; color: #fde68a; font-weight: 800; }
+.route-debug-signals small { display: block; margin-top: 4px; padding: 5px 7px; border-radius: 8px; background: rgba(15,23,42,.36); line-height: 1.45; }
 .selected-route p { margin: 10px 0 0; color: #cbd5e1; font-size: .82rem; }
 .draft-actions-helper { display: flex; justify-content: space-between; gap: 10px; margin: 14px 0 8px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.22); }
 .draft-actions-helper strong { color: #fde68a; }
