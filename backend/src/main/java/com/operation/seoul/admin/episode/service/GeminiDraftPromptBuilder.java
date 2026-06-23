@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 
 final class GeminiDraftPromptBuilder {
-    private static final List<String> SLOT_IDS = List.of("CULPRIT", "WEAPON", "MOTIVE", "METHOD");
+    private static final List<String> SLOT_IDS = FinalAnswerSlots.IDS;
 
     private GeminiDraftPromptBuilder() {
     }
