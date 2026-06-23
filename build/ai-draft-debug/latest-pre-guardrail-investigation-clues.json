@@ -1,53 +1,53 @@
 {
-  "title" : "그림자의 속삭임",
+  "title" : "그림자의 계약",
   "issues" : [ "SLOT_RELEVANCE" ],
   "missions" : [ {
     "order" : 2,
     "targetKeywordType" : "CULPRIT",
     "supportsKeywordSlots" : [ "CULPRIT" ],
     "issues" : [ ],
-    "rewardClue" : "사건 발생 시각, 메모의 대상자가 연구실 외부에 있었음을 증명하는 CCTV 기록의 일부가 삭제된 흔적이 발견되었습니다."
+    "rewardClue" : "사건 당일, CCTV 사각지대를 통해 피해자의 사무실에 접근한 기록이 발견되었습니다."
   }, {
     "order" : 3,
     "targetKeywordType" : "CULPRIT",
     "supportsKeywordSlots" : [ "CULPRIT" ],
-    "issues" : [ "SLOT_RELEVANCE" ],
-    "rewardClue" : "박선우의 연구실 금고에서 발견된 녹음 파일에는, 한 지원이 최근 자신에게 위작 전시회를 하지 말라고 협박하는 내용이 담겨 있었습니다."
+    "issues" : [ ],
+    "rewardClue" : "발견된 지문 중, 사무실 내 특정 서랍에서 검출된 기록 속 인물의 지문과 일치하는 것이 있었습니다."
   }, {
     "order" : 4,
     "targetKeywordType" : "WEAPON",
     "supportsKeywordSlots" : [ "WEAPON" ],
     "issues" : [ ],
-    "rewardClue" : "사망자의 기도에서 미량의 신경 독성 물질이 검출되었으며, 이는 특정 화학 성분과 일치하는 것으로 나타났습니다."
+    "rewardClue" : "피해자의 혈액 검사 결과, 극소량의 고농축 신경독 성분이 검출되었으나, 일반적인 독극물로는 설명되지 않는 독특한 화합물 구조를 보였습니다."
   }, {
     "order" : 5,
     "targetKeywordType" : "WEAPON",
     "supportsKeywordSlots" : [ "WEAPON" ],
     "issues" : [ ],
-    "rewardClue" : "사망자의 책상 위에서 발견된 붓펜의 잉크 샘플을 분석한 결과, 치명적인 독성 물질이 함유되어 있음이 확인되었습니다."
+    "rewardClue" : "피해자의 업무용 만년필에서 미세한 화학적 잔류물이 검출되었으며, 이는 특수하게 제작된 잉크 카트리지임을 시사합니다."
   }, {
     "order" : 6,
     "targetKeywordType" : "MOTIVE",
     "supportsKeywordSlots" : [ "MOTIVE" ],
     "issues" : [ ],
-    "rewardClue" : "박선우가 최근 이서연에게 전달한 미술품 관련 계약서에는, 위작 의혹이 있는 작품의 복원 의뢰를 취소한다는 내용이 명시되어 있었습니다."
+    "rewardClue" : "복구된 금융 거래 기록에서, 피해자의 차명 계좌와 관련된 민감한 거래 내역이 발견되었습니다. 해당 기록은 사건 직전에 삭제가 시도된 흔적이 있었습니다."
   }, {
     "order" : 7,
     "targetKeywordType" : "MOTIVE",
     "supportsKeywordSlots" : [ "MOTIVE" ],
-    "issues" : [ "SLOT_RELEVANCE" ],
-    "rewardClue" : "문서상 이해관계자가 박선우에게 보낸 메일에는, 박선우가 그의 갤러리에서 전시하려는 작품이 위작일 가능성이 높다는 정보를 입수했으며, 이에 대한 진상 규명을 요구하는 내용이 담겨 있었습니다."
+    "issues" : [ ],
+    "rewardClue" : "이해관계가 드러난 인물와 피해자 간의 통화 기록에서, 금전 문제로 인한 심각한 갈등과 압박이 오갔던 내용이 확인되었습니다."
   }, {
     "order" : 8,
     "targetKeywordType" : "METHOD",
     "supportsKeywordSlots" : [ "METHOD" ],
-    "issues" : [ ],
-    "rewardClue" : "박선우의 서명 기록과 붓펜에서 채취한 잉크 성분이 일치했으며, 서명란에만 국소적으로 독성 물질이 검출된 점은 직접적인 접촉을 시사합니다."
+    "issues" : [ "SLOT_RELEVANCE" ],
+    "rewardClue" : "피해자는 매일 아침 업무 시작 시, 해당 만년필로 서류에 서명하는 습관이 있었습니다. 이 과정에서 잉크가 손에 묻을 가능성이 높습니다."
   }, {
     "order" : 9,
     "targetKeywordType" : "METHOD",
     "supportsKeywordSlots" : [ "METHOD" ],
     "issues" : [ ],
-    "rewardClue" : "사건 당일, 동선 기록과 연결된 인물이 사용한 것으로 추정되는 붓펜 용액과 사망자의 연구실에서 발견된 붓펜의 잉크 색상 및 점도가 동일한 것으로 확인되었습니다."
+    "rewardClue" : "사건 현장 주변에서 발견된 폐기물 더미에서, 독성이 강화된 신경독이 주입된 것으로 추정되는 만년필 잉크 카트리지 조각이 발견되었습니다."
   } ]
 }
