@@ -157,12 +157,19 @@ class AdminEpisodeGeminiServiceTest {
         method.setAccessible(true);
         String prompt = (String) method.invoke(service, source);
 
-        assertTrue(prompt.contains("Bad example: CULPRIT=\"큐레이터\", WEAPON=\"붓펜\", MOTIVE=\"은폐\", METHOD=\"함\""));
+        assertTrue(prompt.contains("Bad example: CULPRIT=\"관리자\", WEAPON=\"봉투\", MOTIVE=\"은폐\", METHOD=\"함\""));
         assertTrue(prompt.contains("Never reuse stale sample answers or names"));
-        assertTrue(prompt.contains("독성 잉크가 든 붓펜"));
-        assertTrue(prompt.contains("위작 전시 의혹 은폐"));
+        assertTrue(prompt.contains("독성 분말이 묻은 문서 봉투"));
+        assertTrue(prompt.contains("비공개 계약 문서 은폐"));
         assertTrue(prompt.contains("Never return only an occupation"));
         assertTrue(prompt.contains("never return only an ordinary object or container"));
+        assertTrue(prompt.contains("Before returning JSON, internally verify that every slot would pass these server checks"));
+        assertTrue(prompt.contains("METHOD is at least one complete Korean phrase"));
+        assertTrue(prompt.contains("METHOD must be more specific than WEAPON"));
+        assertTrue(prompt.contains("METHOD should follow this pattern"));
+        assertTrue(prompt.contains("METHOD must be physically plausible"));
+        assertTrue(prompt.contains("pens, brushes, documents, gloves, cards, and tools should use contact"));
+        assertTrue(prompt.contains("내용물 섭취 유도"));
     }
 
     @Test
@@ -265,6 +272,24 @@ class AdminEpisodeGeminiServiceTest {
                   {"slotId":"WEAPON","keyword":"오염된 죽염 안약"},
                   {"slotId":"MOTIVE","keyword":"춘향가 위조본 유통 은폐"},
                   {"slotId":"METHOD","keyword":"눈에 몰래 투여하여 혼란을 야기함"}
+                ]
+                """);
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("sanitizePlanKeywords", JsonNode.class, String.class);
+        method.setAccessible(true);
+
+        Exception thrown = assertThrows(Exception.class, () -> method.invoke(service, node, "GEMINI"));
+
+        assertTrue(thrown.getCause() instanceof ApiException);
+    }
+
+    @Test
+    void rejectsGeminiPlanWithUnclearImplantAndIngestionMethod() throws Exception {
+        JsonNode node = new ObjectMapper().readTree("""
+                [
+                  {"slotId":"CULPRIT","keyword":"박지성"},
+                  {"slotId":"WEAPON","keyword":"강화된 금속 가루가 섞인 붓"},
+                  {"slotId":"MOTIVE","keyword":"미공개 고미술품 거래 은폐"},
+                  {"slotId":"METHOD","keyword":"필기구에 몰래 이식하여 내용물 섭취 유도"}
                 ]
                 """);
         Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("sanitizePlanKeywords", JsonNode.class, String.class);
