@@ -14,14 +14,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,8 +26,6 @@ import java.nio.file.Path;
 @Slf4j
 public class AdminEpisodeGeminiService {
     private static final String GENRE_NAME = "범죄 미스터리";
-    private static final List<String> SLOT_IDS = FinalAnswerSlots.IDS;
-    private static final Map<String, String> SLOT_LABELS = FinalAnswerSlots.LABELS;
     private final ObjectMapper objectMapper;
     private final GeminiContentClient geminiContentClient;
 
@@ -106,37 +100,7 @@ public class AdminEpisodeGeminiService {
 
 
     private void applyApprovedFinalAnswerContract(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request, List<String> warnings) {
-        if (draft == null) return;
-        FinalAnswerContractSupport.normalizeFinalAnswerKeywordItems(request);
-        FinalAnswerContractSupport.repairWeakFinalAnswerKeywords(request);
-        Map<String, String> approved = FinalAnswerContractSupport.approvedAnswers(request);
-        FinalAnswerContractSupport.NameRole culprit = FinalAnswerContractSupport.splitNameRole(approved.get("CULPRIT"));
-        approved.put("CULPRIT", culprit.name());
-        List<String> values = SLOT_IDS.stream().map(approved::get).toList();
-        draft.setGenre(GENRE_NAME);
-        draft.setSelectedGenre(GENRE_NAME);
-        draft.setFinalAnswerKeywords(values);
-        draft.setFinalAnswerKeywordItems(SLOT_IDS.stream()
-                .map(slot -> AiEpisodeDraftResponse.AnswerKeywordItem.builder()
-                        .slotId(slot).type(slot).displayType(SLOT_LABELS.get(slot)).label(SLOT_LABELS.get(slot))
-                        .keyword(approved.get(slot)).value(approved.get(slot))
-                        .personName("CULPRIT".equals(slot) ? culprit.name() : "")
-                        .personRole("CULPRIT".equals(slot) ? culprit.role() : "")
-                        .role("CULPRIT".equals(slot) ? culprit.role() : "")
-                        .aliases(List.of()).build())
-                .toList());
-        draft.setFinalAnswers(AiEpisodeDraftResponse.FinalAnswers.builder()
-                .culprit(approved.get("CULPRIT")).weapon(approved.get("WEAPON"))
-                .motive(approved.get("MOTIVE")).method(approved.get("METHOD"))
-                .relatedPerson(approved.get("CULPRIT")).coreClue(approved.get("WEAPON"))
-                .finalLocation(approved.get("METHOD")).build());
-        draft.setFinalAnswer(String.format("%s: %s / %s: %s / %s: %s / %s: %s",
-                SLOT_LABELS.get("CULPRIT"), approved.get("CULPRIT"),
-                SLOT_LABELS.get("WEAPON"), approved.get("WEAPON"),
-                SLOT_LABELS.get("MOTIVE"), approved.get("MOTIVE"),
-                SLOT_LABELS.get("METHOD"), approved.get("METHOD")));
-        draft.setFinalAnswerType("CASE_TRUTH");
-        draft.setFinalQuestion(defaultIfBlank(draft.getFinalQuestion(), "범인, 흉기, 동기, 방법을 각각 입력하세요."));
+        DraftFinalAnswerContractApplier.apply(draft, request);
     }
 
 
@@ -157,7 +121,7 @@ public class AdminEpisodeGeminiService {
         draft.setFictionSynopsis(defaultIfBlank(draft.getFictionSynopsis(),
                 "중요한 행사 전날 밤 피해자가 제한된 공간에서 숨진 채 발견되었다. 외부 침입 흔적은 없고, 사건 시간대에 의미 있는 접근 권한을 가진 인물은 세 명뿐이었다. 조사 단서는 피해자의 " + routineLabel + ", 접근 기록, 독성 분석, 알리바이의 빈틈을 따라 하나의 진실로 수렴한다."));
         draft.setMissionDescription("8개 조사 단서로 범인, 흉기, 동기, 방법을 종합해 최종 진실을 판단합니다.");
-        if (!finalTruthExplainsAnswers(draft, culprit, weapon, motive, method)) {
+        if (!DraftFinalTruthGuardrail.explainsAnswers(draft, culprit, weapon, motive, method)) {
             draft.setFinalTruthSummary(String.format(
                     "범인: %s. 흉기: %s. 동기: %s. 방법: %s. 피해자의 %s, %s 접근 흔적, 독성 성분 분석, %s와 알리바이 검증 결과가 서로 맞물리며 이 네 가지 정답으로 수렴합니다.",
                     culprit, weapon, motive, method, routineLabel, containerLabel, motiveDocument));
@@ -177,16 +141,16 @@ public class AdminEpisodeGeminiService {
         if (DraftNarrativeGuardrail.normalizeSuspectVictimReferences(draft)) {
             safeWarnings.add("GUARDRAIL_NORMALIZED_SUSPECT_VICTIM_REFERENCES");
         }
-        if (redactSuspectNamesFromInvestigationClues(draft)) {
+        if (DraftInvestigationCluePolicy.redactSuspectNames(draft)) {
             safeWarnings.add("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES");
         }
-        if (rewriteGenericSuspectReferences(draft)) {
+        if (DraftInvestigationCluePolicy.rewriteGenericSuspectReferences(draft)) {
             safeWarnings.add("GUARDRAIL_REWROTE_GENERIC_SUSPECT_REFERENCES");
         }
-        if (redactFinalAnswerValuesFromInvestigationClues(draft)) {
+        if (DraftInvestigationCluePolicy.redactFinalAnswerValues(draft)) {
             safeWarnings.add("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES");
         }
-        List<String> investigationClueIssues = investigationClueIssues(draft);
+        List<String> investigationClueIssues = DraftInvestigationCluePolicy.investigationClueIssues(draft);
         if (!investigationClueIssues.isEmpty()) {
             logInvestigationClueRepairSnapshot(draft, investigationClueIssues);
             DraftInvestigationClueGuardrail.applyCanonicalInvestigationClues(draft, request);
@@ -197,269 +161,6 @@ public class AdminEpisodeGeminiService {
             draft.setEvidences(DraftEvidenceGuardrail.canonicalEvidences(draft.getMissions()));
             safeWarnings.add("GUARDRAIL_REPAIRED_EVIDENCES");
         }
-    }
-
-    private boolean finalTruthExplainsAnswers(AiEpisodeDraftResponse.EpisodeDraft draft, String culprit, String weapon, String motive, String method) {
-        String truth = compact(draft.getFinalTruthSummary());
-        return Stream.of(culprit, weapon, motive, method)
-                .allMatch(value -> !blank(value) && truth.contains(compact(value)));
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    private boolean hasUsableInvestigationClues(AiEpisodeDraftResponse.EpisodeDraft draft) {
-        return investigationClueIssues(draft).isEmpty();
-    }
-
-    private List<String> investigationClueIssues(AiEpisodeDraftResponse.EpisodeDraft draft) {
-        Set<String> issues = new LinkedHashSet<>();
-        List<AiEpisodeDraftResponse.MissionDraft> investigation = safeList(draft.getMissions()).stream()
-                .filter(mission -> mission != null)
-                .filter(mission -> !"START".equals(normalize(mission.getMarkerType())))
-                .filter(mission -> !Boolean.TRUE.equals(mission.getFinalPlace()))
-                .filter(mission -> !"FINAL".equals(normalize(mission.getMarkerType())))
-                .toList();
-        if (investigation.size() != 8) issues.add("COUNT");
-        Set<String> clues = new LinkedHashSet<>();
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        SLOT_IDS.forEach(slot -> counts.put(slot, 0));
-        List<String> answers = answerValues(draft);
-        for (AiEpisodeDraftResponse.MissionDraft mission : investigation) {
-            String clue = trim(mission.getRewardClue());
-            if (blank(clue) || clue.length() < 10) issues.add("BLANK_OR_SHORT");
-            if (!blank(clue) && isGenericFallbackClue(clue)) issues.add("GENERIC");
-            if (!blank(clue) && !clues.add(compact(clue))) issues.add("DUPLICATE");
-            if (!blank(clue) && answers.stream().anyMatch(value -> !blank(value) && compact(clue).contains(compact(value)))) {
-                issues.add("DIRECT_ANSWER_LEAK");
-            }
-            String target = normalize(mission.getTargetKeywordType());
-            if (!SLOT_IDS.contains(target)) {
-                issues.add("TARGET_SLOT");
-            } else {
-                if ("CULPRIT".equals(target) && contradictsCulpritWithinSuspects(clue)) issues.add("CULPRIT_OUTSIDE_SUSPECTS");
-                if (!isSlotRelevantClue(target, clue)) issues.add("SLOT_RELEVANCE");
-                counts.computeIfPresent(target, (key, count) -> count + 1);
-            }
-            List<String> supports = safeList(mission.getSupportsKeywordSlots()).stream()
-                    .map(this::normalize)
-                    .filter(value -> !value.isBlank())
-                    .toList();
-            if (supports.size() != 1 || !supports.contains(target)) issues.add("SUPPORT_SLOT");
-            if (containsForbiddenPlaceHint(mission)) issues.add("PLACE_HINT");
-        }
-        if (!SLOT_IDS.stream().allMatch(slot -> counts.getOrDefault(slot, 0) == 2)) issues.add("SLOT_BALANCE");
-        return new ArrayList<>(issues);
-    }
-
-    private boolean redactFinalAnswerValuesFromInvestigationClues(AiEpisodeDraftResponse.EpisodeDraft draft) {
-        List<String> answers = answerValues(draft);
-        if (answers.stream().allMatch(this::blank)) return false;
-        boolean changed = false;
-        for (AiEpisodeDraftResponse.MissionDraft mission : safeList(draft.getMissions())) {
-            if (mission == null || "START".equals(normalize(mission.getMarkerType())) || Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equals(normalize(mission.getMarkerType()))) {
-                continue;
-            }
-            String clue = mission.getRewardClue();
-            if (blank(clue)) continue;
-            String redacted = clue;
-            for (int i = 0; i < SLOT_IDS.size() && i < answers.size(); i++) {
-                String answer = answers.get(i);
-                if (blank(answer)) continue;
-                redacted = redactAnswerValue(redacted, answer, indirectAnswerReference(SLOT_IDS.get(i)));
-            }
-            if (!redacted.equals(clue)) {
-                mission.setRewardClue(redacted);
-                changed = true;
-            }
-        }
-        return changed;
-    }
-
-    private boolean redactSuspectNamesFromInvestigationClues(AiEpisodeDraftResponse.EpisodeDraft draft) {
-        List<AiEpisodeDraftResponse.SuspectDraft> suspects = safeList(draft.getSuspects());
-        if (suspects.isEmpty()) return false;
-        boolean changed = false;
-        for (AiEpisodeDraftResponse.MissionDraft mission : safeList(draft.getMissions())) {
-            if (mission == null || "START".equals(normalize(mission.getMarkerType())) || Boolean.TRUE.equals(mission.getFinalPlace()) || "FINAL".equals(normalize(mission.getMarkerType()))) {
-                continue;
-            }
-            String clue = mission.getRewardClue();
-            if (blank(clue)) continue;
-            String redacted = clue;
-            for (int i = 0; i < suspects.size(); i++) {
-                AiEpisodeDraftResponse.SuspectDraft suspect = suspects.get(i);
-                if (suspect == null || blank(suspect.getDisplayName())) continue;
-                redacted = redactAnswerValue(redacted, suspect.getDisplayName(), suspectReference(mission.getTargetKeywordType()));
-            }
-            if (!redacted.equals(clue)) {
-                mission.setRewardClue(redacted);
-                changed = true;
-            }
-        }
-        return changed;
-    }
-
-    private boolean rewriteGenericSuspectReferences(AiEpisodeDraftResponse.EpisodeDraft draft) {
-        boolean changed = false;
-        Map<Integer, String> targetByOrder = new LinkedHashMap<>();
-        for (AiEpisodeDraftResponse.MissionDraft mission : safeList(draft.getMissions())) {
-            if (mission == null) continue;
-            Integer order = mission.getOrder();
-            String target = mission.getTargetKeywordType();
-            if (order != null && !blank(target)) targetByOrder.put(order, target);
-            if (mission.getRewardClue() == null || isNonInvestigationMission(mission)) continue;
-            String rewritten = rewriteGenericSuspectReference(mission.getRewardClue(), target);
-            if (!rewritten.equals(mission.getRewardClue())) {
-                mission.setRewardClue(rewritten);
-                changed = true;
-            }
-        }
-        for (AiEpisodeDraftResponse.EvidenceDraft evidence : safeList(draft.getEvidences())) {
-            if (evidence == null || evidence.getTextSummary() == null) continue;
-            String rewritten = rewriteGenericSuspectReference(evidence.getTextSummary(), targetByOrder.get(evidence.getSourceMissionOrder()));
-            if (!rewritten.equals(evidence.getTextSummary())) {
-                evidence.setTextSummary(rewritten);
-                changed = true;
-            }
-        }
-        return changed;
-    }
-
-    private boolean isNonInvestigationMission(AiEpisodeDraftResponse.MissionDraft mission) {
-        return "START".equals(normalize(mission.getMarkerType()))
-                || Boolean.TRUE.equals(mission.getFinalPlace())
-                || "FINAL".equals(normalize(mission.getMarkerType()));
-    }
-
-    private String rewriteGenericSuspectReference(String text, String targetKeywordType) {
-        if (blank(text)) return text;
-        String replacement = genericSuspectReference(targetKeywordType);
-        String result = text
-                .replace("특정 용의자", replacement)
-                .replace("용의자 중 한 명", replacement)
-                .replace("용의자 중 하나", replacement)
-                .replace("해당 용의자", replacement)
-                .replace("해고 통보를 받은 용의자", replacement)
-                .replace("용의자의 재직 기록", replacement + "의 재직 기록")
-                .replace("용의자의 개인 소지품", replacement + "의 개인 소지품")
-                .replace("용의자가 피해자에게", replacement + "가 피해자에게")
-                .replace("용의자가 피해자의", replacement + "가 피해자의")
-                .replace("용의자의 동선", replacement + "의 동선")
-                .replace("문서에 언급된 인물 사이에", replacement + " 사이에")
-                .replace("문서에 언급된 인물는", replacement + "은")
-                .replace("문서에 언급된 인물이", replacement + "이")
-                .replace("문서에 언급된 인물의", replacement + "의");
-        return naturalizeRedactedSuspectReferences(normalizePersonReferenceParticles(result));
-    }
-
-    private String genericSuspectReference(String targetKeywordType) {
-        return switch (normalize(targetKeywordType)) {
-            case "CULPRIT" -> "기록 속 인물";
-            case "WEAPON" -> "물증과 연결된 인물";
-            case "MOTIVE" -> "이해관계가 드러난 인물";
-            case "METHOD" -> "동선이 겹친 인물";
-            default -> "사건 기록 속 인물";
-        };
-    }
-
-    private String redactAnswerValue(String text, String answer, String replacement) {
-        String result = text.replace("용의자 " + answer, replacement);
-        result = result.replace(answer + "은", replacement + "는");
-        result = result.replace(answer + "는", replacement + "는");
-        result = result.replace(answer + "이", replacement + "가");
-        result = result.replace(answer + "가", replacement + "가");
-        result = result.replace(answer + "을", replacement + "을");
-        result = result.replace(answer + "를", replacement + "를");
-        result = result.replace(answer + "에게", replacement + "에게");
-        result = result.replace(answer + "의", replacement + "의");
-        result = result.replace(answer + "와", replacement + "와");
-        result = result.replace(answer + "과", replacement + "과");
-        return naturalizeRedactedSuspectReferences(normalizePersonReferenceParticles(result.replace(answer, replacement)));
-    }
-
-    private String normalizePersonReferenceParticles(String text) {
-        if (blank(text)) {
-            return text;
-        }
-        return text
-                .replace("관련 인물가", "관련 인물이")
-                .replace("기록 속 인물가", "기록 속 인물이")
-                .replace("기록 속 인물는", "기록 속 인물은")
-                .replace("물증과 연결된 인물가", "물증과 연결된 인물이")
-                .replace("물증과 연결된 인물는", "물증과 연결된 인물은")
-                .replace("이해관계가 드러난 인물가", "이해관계가 드러난 인물이")
-                .replace("이해관계가 드러난 인물는", "이해관계가 드러난 인물은")
-                .replace("동선이 겹친 인물가", "동선이 겹친 인물이")
-                .replace("동선이 겹친 인물는", "동선이 겹친 인물은")
-                .replace("문서에 언급된 인물가", "문서에 언급된 인물이")
-                .replace("문서에 언급된 인물는", "문서에 언급된 인물은")
-                .replace("관련 인물가", "관련 인물이")
-                .replace("관련 인물는", "관련 인물은")
-                .replace("사건 기록 속 인물가", "사건 기록 속 인물이")
-                .replace("사건 기록 속 인물는", "사건 기록 속 인물은");
-    }
-
-    private String naturalizeRedactedSuspectReferences(String text) {
-        if (blank(text)) {
-            return text;
-        }
-        return text
-                .replace("CCTV에는 기록 속 인물이", "CCTV에는 동일 인물이")
-                .replace("집 외부 CCTV에는 기록 속 인물이", "집 외부 CCTV에는 동일 인물이")
-                .replace("'기록 속 인물,", "'메모의 대상자,")
-                .replace("기록 속 인물이 박 회장에 대해", "메모의 대상자가 박 회장에 대해")
-                .replace("기록 속 인물이 피해자에 대해", "메모의 대상자가 피해자에 대해")
-                .replace("기록 속 인물은", "메모의 대상자는")
-                .replace("기록 속 인물이", "메모의 대상자가")
-                .replace("이해관계가 드러난 인물이 박 회장에게 보낸 문자", "문자 발신자가 박 회장에게 보낸 문자")
-                .replace("이해관계가 드러난 인물이 피해자에게 보낸 문자", "문자 발신자가 피해자에게 보낸 문자")
-                .replace("유언장에 따르면, 이해관계가 드러난 인물은", "유언장에 따르면, 해당 당사자는")
-                .replace("이해관계가 드러난 인물은", "해당 당사자는")
-                .replace("이해관계가 드러난 인물이", "문서상 이해관계자가")
-                .replace("동선이 겹친 인물이 사용한 것으로 추정되는 특정 화학 물질에 대한 온라인 구매 기록", "동선 기록과 연결된 계정에서 특정 화학 물질을 온라인으로 구매한 기록")
-                .replace("동선이 겹친 인물이", "동선 기록과 연결된 인물이");
-    }
-
-    private String suspectReference(String targetKeywordType) {
-        return switch (normalize(targetKeywordType)) {
-            case "CULPRIT" -> "기록 속 인물";
-            case "WEAPON" -> "물증과 연결된 인물";
-            case "MOTIVE" -> "이해관계가 드러난 인물";
-            case "METHOD" -> "동선이 겹친 인물";
-            default -> "사건 기록 속 인물";
-        };
-    }
-
-    private String indirectAnswerReference(String slot) {
-        return switch (normalize(slot)) {
-            case "CULPRIT" -> "기록 속 인물";
-            case "WEAPON" -> "해당 물증";
-            case "MOTIVE" -> "해당 동기";
-            case "METHOD" -> "해당 실행 방식";
-            default -> "해당 단서";
-        };
     }
 
 
@@ -473,20 +174,15 @@ public class AdminEpisodeGeminiService {
     }
 
     private String writeInvestigationClueRepairSnapshot(AiEpisodeDraftResponse.EpisodeDraft draft, List<String> issues) {
-        List<AiEpisodeDraftResponse.MissionDraft> investigation = safeList(draft.getMissions()).stream()
-                .filter(mission -> mission != null)
-                .filter(mission -> !"START".equals(normalize(mission.getMarkerType())))
-                .filter(mission -> !Boolean.TRUE.equals(mission.getFinalPlace()))
-                .filter(mission -> !"FINAL".equals(normalize(mission.getMarkerType())))
-                .toList();
-        List<String> answers = answerValues(draft);
+        List<AiEpisodeDraftResponse.MissionDraft> investigation = DraftInvestigationCluePolicy.investigationMissions(draft);
+        List<String> answers = DraftInvestigationCluePolicy.answerValues(draft);
         List<Map<String, Object>> missions = investigation.stream()
                 .map(mission -> {
                     Map<String, Object> item = new LinkedHashMap<>();
                     item.put("order", mission.getOrder());
                     item.put("targetKeywordType", normalize(mission.getTargetKeywordType()));
                     item.put("supportsKeywordSlots", safeList(mission.getSupportsKeywordSlots()).stream().map(this::normalize).toList());
-                    item.put("issues", investigationClueMissionIssues(mission, answers));
+                    item.put("issues", DraftInvestigationCluePolicy.missionIssues(mission, answers));
                     item.put("rewardClue", trim(mission.getRewardClue()));
                     return item;
                 })
@@ -505,47 +201,6 @@ public class AdminEpisodeGeminiService {
             return "WRITE_FAILED";
         }
     }
-
-    private List<String> investigationClueMissionIssues(AiEpisodeDraftResponse.MissionDraft mission, List<String> answers) {
-        Set<String> issues = new LinkedHashSet<>();
-        if (mission == null) return List.of("NULL_MISSION");
-        String clue = trim(mission.getRewardClue());
-        if (blank(clue) || clue.length() < 10) issues.add("BLANK_OR_SHORT");
-        if (!blank(clue) && isGenericFallbackClue(clue)) issues.add("GENERIC");
-        if (!blank(clue) && safeList(answers).stream().anyMatch(value -> !blank(value) && compact(clue).contains(compact(value)))) {
-            issues.add("DIRECT_ANSWER_LEAK");
-        }
-        String target = normalize(mission.getTargetKeywordType());
-        if (!SLOT_IDS.contains(target)) {
-            issues.add("TARGET_SLOT");
-        } else {
-            if ("CULPRIT".equals(target) && contradictsCulpritWithinSuspects(clue)) issues.add("CULPRIT_OUTSIDE_SUSPECTS");
-            if (!isSlotRelevantClue(target, clue)) issues.add("SLOT_RELEVANCE");
-        }
-        List<String> supports = safeList(mission.getSupportsKeywordSlots()).stream()
-                .map(this::normalize)
-                .filter(value -> !value.isBlank())
-                .toList();
-        if (supports.size() != 1 || !supports.contains(target)) issues.add("SUPPORT_SLOT");
-        if (containsForbiddenPlaceHint(mission)) issues.add("PLACE_HINT");
-        return new ArrayList<>(issues);
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -649,27 +304,9 @@ public class AdminEpisodeGeminiService {
 
 
 
-    private String answerKeywordItemValue(AiEpisodeDraftResponse.AnswerKeywordItem item) {
-        return FinalAnswerContractSupport.answerKeywordItemValue(item);
-    }
-
-
-
-
     private List<AiEpisodePlanResponse.AnswerKeyword> answerPlanKeywords(AiEpisodeDraftRequest request) {
         ensureApiKey();
         return new GeminiAnswerPlanGenerator(objectMapper, this::callGemini).generate(request);
-    }
-
-    private List<String> answerValues(AiEpisodeDraftResponse.EpisodeDraft draft) {
-        AiEpisodeDraftResponse.FinalAnswers answers = draft.getFinalAnswers();
-        if (answers != null) return List.of(trim(answers.getCulprit()), trim(answers.getWeapon()), trim(answers.getMotive()), trim(answers.getMethod()));
-        return draft.getFinalAnswerKeywords() == null ? List.of() : draft.getFinalAnswerKeywords();
-    }
-
-    private boolean containsForbiddenPlaceHint(AiEpisodeDraftResponse.MissionDraft mission) {
-        String text = String.join(" ", trim(mission.getMarkerType()), trim(mission.getPublicMarkerType()), trim(mission.getClueRole()), trim(mission.getRewardClueSlotId()), trim(mission.getRewardClue()), trim(mission.getQuestionText()), trim(mission.getStoryText()), trim(mission.getPuzzleAnswerSource()));
-        return containsAny(text, "DESTINATION_HINT", "DESTINATION_CLUE", "FINAL_DESTINATION", "PLACE_HINT", "장소 힌트", "장소 정답", "최종 장소를 찾", "최종 목적지를 찾");
     }
 
     private boolean weakFinalAnswerKeyword(String slot, String value) {
