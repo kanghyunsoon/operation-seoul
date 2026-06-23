@@ -189,10 +189,7 @@ class AdminEpisodeGeminiServiceTest {
         source.getPlaces().get(0).setResearchSourceSummary("조선 후기 상인 조합의 세금 장부 분쟁 기록이 전해진다");
         source.getPlaces().get(0).setExternalResearchNotes(List.of("폐쇄된 창고의 봉인 문서와 물품 검수 절차가 남아 있다"));
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("extractTourApiStoryAnchors", AiEpisodeDraftRequest.class);
-        method.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<String> anchors = (List<String>) method.invoke(service, source);
+        List<String> anchors = TourApiPlanInputExtractor.extract(source).storyAnchors();
 
         assertFalse(anchors.isEmpty());
         assertTrue(anchors.get(0).contains("세금 장부 분쟁"));
@@ -211,9 +208,7 @@ class AdminEpisodeGeminiServiceTest {
         source.getPlaces().get(0).setExternalResearchNotes(List.of("archive note about merchant dispute and sealed account book"));
         source.getPlaces().get(0).setResearchSourceSummary("TourAPI heritage summary");
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildTourApiHistoricalContext", AiEpisodeDraftRequest.class);
-        method.setAccessible(true);
-        String context = (String) method.invoke(service, source);
+        String context = TourApiPlanInputExtractor.extract(source).historicalContext();
 
         assertTrue(context.contains("Joseon-era warehouse tax ledger incident"));
         assertTrue(context.contains("old harbor"));
@@ -252,6 +247,7 @@ class AdminEpisodeGeminiServiceTest {
         source.getPlaces().get(0).setAdminMemo("RAG/사이트 보강으로 주변 Kakao Local 신호를 사용했습니다.");
         source.getPlaces().get(0).setKeywords(List.of("문화전시", "카페쉼터", "customs ledger"));
         source.getPlaces().get(0).setVerificationNotes(List.of("현장 확인: 간판과 입구 검수 필요"));
+        source.getPlaces().get(0).setSiteVerificationSignals(List.of("Kakao Local 주변 후보는 현장 검수와 동선 확인 전용입니다."));
         source.getPlaces().get(0).setExternalResearchNotes(List.of(
                 "Selected place context: name=Modern Gallery / nearby=Coffee Shop",
                 "archive note about sealed merchant ledger"
@@ -273,18 +269,14 @@ class AdminEpisodeGeminiServiceTest {
         assertFalse(prompt.contains("현장 확인"));
         assertFalse(prompt.contains("Selected place context"));
 
-        Method includedMethod = AdminEpisodeGeminiService.class.getDeclaredMethod("tourApiPlanInputs", AiEpisodeDraftRequest.class);
-        includedMethod.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<String> included = (List<String>) includedMethod.invoke(service, source);
-        Method excludedMethod = AdminEpisodeGeminiService.class.getDeclaredMethod("excludedTourApiPlanInputs", AiEpisodeDraftRequest.class);
-        excludedMethod.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<String> excluded = (List<String>) excludedMethod.invoke(service, source);
+        TourApiPlanContext planContext = TourApiPlanInputExtractor.extract(source);
+        List<String> included = planContext.includedInputs();
+        List<String> excluded = planContext.excludedInputs();
 
         assertTrue(included.stream().anyMatch(value -> value.contains("TourAPI heritage summary")));
         assertTrue(excluded.stream().anyMatch(value -> value.contains("Kakao Local")));
         assertTrue(excluded.stream().anyMatch(value -> value.contains("현장 확인")));
+        assertTrue(excluded.stream().anyMatch(value -> value.contains("siteVerificationSignals")));
     }
 
     @Test
@@ -297,14 +289,11 @@ class AdminEpisodeGeminiServiceTest {
                   {"slotId":"METHOD","keyword":"감정용 장갑 안쪽에 독성 안료를 묻혀 피해자가 작품을 확인하며 접촉하게 함"}
                 ]
                 """);
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("sanitizePlanKeywords", JsonNode.class, String.class);
-        method.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<AiEpisodePlanResponse.AnswerKeyword> keywords = (List<AiEpisodePlanResponse.AnswerKeyword>) method.invoke(service, node, "GEMINI");
+        List<AiEpisodePlanResponse.AnswerKeyword> keywords = new GeminiAnswerPlanGenerator(new ObjectMapper(), prompt -> "{}")
+                .sanitizePlanKeywords(node);
 
         assertEquals("한지원", keywords.get(0).getKeyword());
         assertEquals("한지원", keywords.get(0).getPersonName());
-        assertEquals("GEMINI", keywords.get(0).getSourceType());
     }
 
     @Test
@@ -317,12 +306,11 @@ class AdminEpisodeGeminiServiceTest {
                   {"slotId":"METHOD","keyword":"눈에 몰래 투여하여 혼란을 야기함"}
                 ]
                 """);
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("sanitizePlanKeywords", JsonNode.class, String.class);
-        method.setAccessible(true);
+        GeminiAnswerPlanGenerator generator = new GeminiAnswerPlanGenerator(new ObjectMapper(), prompt -> "{}");
 
-        Exception thrown = assertThrows(Exception.class, () -> method.invoke(service, node, "GEMINI"));
+        ApiException thrown = assertThrows(ApiException.class, () -> generator.sanitizePlanKeywords(node));
 
-        assertTrue(thrown.getCause() instanceof ApiException);
+        assertEquals("GEMINI_PLAN_INVALID", thrown.getCode());
     }
 
     @Test
@@ -335,12 +323,11 @@ class AdminEpisodeGeminiServiceTest {
                   {"slotId":"METHOD","keyword":"필기구에 몰래 이식하여 내용물 섭취 유도"}
                 ]
                 """);
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("sanitizePlanKeywords", JsonNode.class, String.class);
-        method.setAccessible(true);
+        GeminiAnswerPlanGenerator generator = new GeminiAnswerPlanGenerator(new ObjectMapper(), prompt -> "{}");
 
-        Exception thrown = assertThrows(Exception.class, () -> method.invoke(service, node, "GEMINI"));
+        ApiException thrown = assertThrows(ApiException.class, () -> generator.sanitizePlanKeywords(node));
 
-        assertTrue(thrown.getCause() instanceof ApiException);
+        assertEquals("GEMINI_PLAN_INVALID", thrown.getCode());
     }
 
     @Test
