@@ -42,12 +42,6 @@ final class FinalAnswerContractSupport {
         if (FinalAnswerSlots.IDS.stream().anyMatch(slot -> blank(values.get(slot)))) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FINAL_ANSWER_KEYWORDS", "최종 정답 키워드는 범인, 흉기, 동기, 방법 4개를 모두 포함해야 합니다.");
         }
-        List<String> weakSlots = FinalAnswerSlots.IDS.stream()
-                .filter(slot -> weakFinalAnswerKeyword(slot, values.get(slot)))
-                .toList();
-        if (!weakSlots.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "WEAK_FINAL_ANSWER_KEYWORDS", "최종 정답 키워드는 구체적인 인물, 물건, 동기, 범행 과정이어야 합니다: " + String.join(", ", weakSlots));
-        }
     }
 
     static Map<String, String> approvedAnswers(AiEpisodeDraftRequest request) {

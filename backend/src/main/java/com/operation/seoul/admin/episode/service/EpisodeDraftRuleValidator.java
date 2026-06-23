@@ -46,13 +46,6 @@ final class EpisodeDraftRuleValidator implements AiEpisodeDraftValidator.DraftRu
         if (items.size() != 4 || !itemSlots.equals(new LinkedHashSet<>(SLOT_IDS)) || items.stream().anyMatch(item -> blank(FinalAnswerContractSupport.answerKeywordItemValue(item)))) {
             addFinding(findings, "ERROR", "FOUR_FINAL_KEYWORD_ITEMS_REQUIRED", "finalAnswerKeywordItems must contain exactly CULPRIT, WEAPON, MOTIVE, METHOD with non-empty values.", null, "finalAnswerKeywordItems");
         }
-        for (AiEpisodeDraftResponse.AnswerKeywordItem item : items) {
-            String slot = normalize(defaultIfBlank(item.getSlotId(), item.getType()));
-            String value = FinalAnswerContractSupport.answerKeywordItemValue(item);
-            if (SLOT_IDS.contains(slot) && weakFinalAnswerKeyword(slot, value)) {
-                addFinding(findings, "ERROR", "CONCRETE_FINAL_KEYWORD_REQUIRED", "최종 정답 키워드는 구체적인 인물, 물건, 동기, 범행 과정이어야 합니다.", null, "finalAnswerKeywordItems");
-            }
-        }
     }
 
     private void validateMissions(AiEpisodeDraftResponse.EpisodeDraft draft, List<AiEpisodeDraftValidationResponse.Finding> findings) {
@@ -243,10 +236,6 @@ final class EpisodeDraftRuleValidator implements AiEpisodeDraftValidator.DraftRu
     private boolean containsForbiddenPlaceHint(AiEpisodeDraftResponse.MissionDraft mission) {
         String text = String.join(" ", trim(mission.getMarkerType()), trim(mission.getPublicMarkerType()), trim(mission.getClueRole()), trim(mission.getRewardClueSlotId()), trim(mission.getRewardClue()), trim(mission.getQuestionText()), trim(mission.getStoryText()), trim(mission.getPuzzleAnswerSource()));
         return containsAny(text, "DESTINATION_HINT", "DESTINATION_CLUE", "FINAL_DESTINATION", "PLACE_HINT", "장소 힌트", "장소 정답", "최종 장소를 찾", "최종 목적지를 찾");
-    }
-
-    private boolean weakFinalAnswerKeyword(String slot, String value) {
-        return FinalAnswerContractSupport.weakFinalAnswerKeyword(slot, value);
     }
 
     private boolean playerFacingTextContainsImmersionBreakingText(AiEpisodeDraftResponse.EpisodeDraft draft) {

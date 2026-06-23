@@ -74,18 +74,6 @@ final class GeminiAnswerPlanGenerator {
             log.warn("Gemini answer plan invalid: missing final answer slot. values={}", values);
             throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_INVALID", "Gemini가 범인, 흉기, 동기, 방법 4개 정답 키워드를 모두 생성하지 못했습니다.");
         }
-        List<String> weakSlots = objectShape
-                ? weakStructuredSlots(values, sourceTexts)
-                : new ArrayList<>(SLOT_IDS.stream()
-                        .filter(slot -> FinalAnswerKeywordValidator.weakFinalAnswerKeyword(slot, values.get(slot)))
-                        .toList());
-        if (objectShape && weakMethodSentence(values.get("WEAPON"), sourceTexts.get("METHOD")) && !weakSlots.contains("METHOD")) {
-            weakSlots.add("METHOD");
-        }
-        if (!weakSlots.isEmpty()) {
-            log.warn("Gemini answer plan invalid: weakSlots={} values={}", weakSlots, values);
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_INVALID", "Gemini가 구체적인 최종 정답 키워드를 생성하지 못했습니다: " + String.join(", ", weakSlots));
-        }
         List<AiEpisodePlanResponse.AnswerKeyword> result = new ArrayList<>();
         for (String slot : SLOT_IDS) {
             String value = values.get(slot);
@@ -104,20 +92,6 @@ final class GeminiAnswerPlanGenerator {
         return result;
     }
 
-    private List<String> weakStructuredSlots(Map<String, String> values, Map<String, String> sourceTexts) {
-        List<String> weakSlots = new ArrayList<>();
-        for (String slot : SLOT_IDS) {
-            if ("METHOD".equals(slot)) {
-                if (weakMethodKeywordLabel(values.get(slot), sourceTexts.get(slot))) {
-                    weakSlots.add(slot);
-                }
-            } else if (FinalAnswerKeywordValidator.weakFinalAnswerKeyword(slot, values.get(slot))) {
-                weakSlots.add(slot);
-            }
-        }
-        return weakSlots;
-    }
-
     private void putObjectAnswer(Map<String, String> values, String slot, String value) {
         if (!blank(value)) {
             values.put(slot, trim(value));
@@ -127,31 +101,6 @@ final class GeminiAnswerPlanGenerator {
     private List<String> aliasesFor(String slot, String value, Map<String, List<String>> aliases) {
         if ("CULPRIT".equals(slot)) return List.of(value);
         return aliases.getOrDefault(slot, List.of());
-    }
-
-    private boolean weakMethodSentence(String weaponValue, String methodValue) {
-        String weapon = trim(weaponValue);
-        String method = trim(methodValue);
-        if (blank(method)) return true;
-        if (method.length() < 25) return true;
-        if (FinalAnswerKeywordValidator.weakFinalAnswerKeyword("METHOD", method)) return true;
-        return !blank(weapon) && !method.contains(weapon);
-    }
-
-    private boolean weakMethodKeywordLabel(String keywordValue, String sentenceValue) {
-        String keyword = compact(keywordValue);
-        if (blank(keyword)) return true;
-        if (keyword.length() < 5) return true;
-        if (List.of("함", "넣기", "투여", "주입", "교체", "은폐", "조작", "살해", "독살", "유인", "방치", "사용", "실행", "시도").contains(keyword)) {
-            return true;
-        }
-        if (keyword.endsWith("함") || keyword.contains("하게함") || keyword.contains("되도록함")) {
-            return true;
-        }
-        String sentence = compact(sentenceValue);
-        boolean sharesAnchor = !blank(sentence) && keyword.length() >= 2 && sentence.contains(keyword.substring(0, Math.min(2, keyword.length())));
-        boolean hasMethodNoun = containsAny(keyword, "접촉", "노출", "개봉", "열람", "서명", "봉인", "오염", "교체", "독살", "중독", "훼손", "은닉");
-        return !sharesAnchor && !hasMethodNoun;
     }
 
     private String textField(JsonNode node, String... fieldNames) {
@@ -210,18 +159,6 @@ final class GeminiAnswerPlanGenerator {
 
     private String trim(String value) {
         return value == null ? "" : value.trim();
-    }
-
-    private String compact(String value) {
-        return value == null ? "" : value.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
-    }
-
-    private boolean containsAny(String text, String... targets) {
-        if (blank(text) || targets == null) return false;
-        for (String target : targets) {
-            if (!blank(target) && text.contains(target)) return true;
-        }
-        return false;
     }
 
     private boolean blank(String value) {

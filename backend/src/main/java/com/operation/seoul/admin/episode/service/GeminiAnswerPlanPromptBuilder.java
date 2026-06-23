@@ -13,7 +13,7 @@ final class GeminiAnswerPlanPromptBuilder {
                 Return JSON only.
                 Genre is fixed to CRIME_MYSTERY.
                 Final answers are exactly four slots: CULPRIT, WEAPON, MOTIVE, METHOD.
-                Every final answer keyword must be concrete and playable.
+                Final answer values may be short Korean keywords when they are playable, such as 칼, 망치, 톱, 독살, 교살, 추락, or 투여.
                 Derive the four final answer values from the story anchors below: TourAPI historical incidents, cultural conflicts, records, materials, rituals, industries, disputes, preservation facts, or fallback regional/era/theme background when direct incidents are unavailable.
                 Do not choose a generic domain template just because a place is a museum, gallery, cafe, market, mountain, or station.
                 The answer values should feel like a fictionalized case built from the anchors' concrete nouns and conflicts.
@@ -33,23 +33,13 @@ final class GeminiAnswerPlanPromptBuilder {
                 - Harmful state must be a condition of the carrier: loosened, broken, sharpened, weighted, locked, jammed, rigged, hidden, swapped, weakened, contaminated, mislabeled, sealed, damaged, coated, or residue-covered.
                 METHOD output rules:
                 - Return two method fields: method_keyword and method_sentence.
-                - method_keyword is a compressed Korean label for the method, not the final METHOD answer.
-                - method_keyword must compress method_sentence into a short noun phrase built from the same carrier or interaction plus the crime mechanism.
-                - method_keyword must not be a full sentence and must not end with action endings such as 함, 하게 함, or 되도록 함.
-                - method_keyword must not introduce a different carrier, different contact route, or different crime mechanism from method_sentence.
-                - method_sentence is the final METHOD answer. It must be one complete Korean sentence of at least 25 characters.
-                - method_sentence must contain the exact weapon string from the weapon field without changing or shortening it.
-                - method_sentence must contain these four concrete elements: weapon/carrier, altered_part_or_state, victim_routine, and death_or_attack_route.
-                - carrier means the object, fixture, tool, route element, storage object, vehicle-related object, water/height/locked-space element, or handled material used in the mechanism.
-                - altered_part_or_state means the changed part or condition, such as loosened railing, jammed lock, sharpened edge, weighted object, hidden obstruction, broken step, swapped sign, locked chamber, exposed wire, allergen-coated item, or contaminated surface.
-                - victim_routine must be a normal action the victim performs, such as checking, opening, signing, passing, climbing, leaning, moving, following a route, storing, retrieving, entering, or inspecting.
-                - death_or_attack_route must name the fatal route, such as strangulation, fall, stabbing/cutting, blunt-force impact, drowning, collision, freezing/confinement, explosion, allergy reaction, poisoning, or coerced self-harm.
-                - method_sentence should follow this shape: "<weapon>를/을 피해자가 <routine>할 때 <death_or_attack_route>로 이어지게 함".
-                - METHOD must not be a short result phrase such as "피부에 닿게 함", "호흡기 질환을 유발", "추락하게 함", or "죽게 함".
-                CULPRIT must be a new fictional modern Korean person name, not a role, occupation, historical name, literary name, mythic name, or public figure.
-                WEAPON must include both an anchor-supported carrier object and the harmful altered state.
-                MOTIVE must be a concrete pressure, secret, dispute, contract, record, debt, ownership issue, or cover-up reason anchored in the TourAPI motifs.
-                method_sentence must be more specific than weapon and must not merely restate weapon or describe only the final result.
+                - method_keyword is the final METHOD answer and may be a short Korean keyword or phrase.
+                - method_sentence may add detail for downstream story writing, but it is not used to reject short method_keyword values.
+                CULPRIT must be a Korean person name only, such as 김도윤 or 한서윤.
+                CULPRIT must not be a job, role, relationship, organization, title, or generic label such as 기록 보관 담당자, 관리자, 연구원, 재단 이사장, 관계자, 용의자, or 피해자의 동료.
+                If the culprit concept starts from a role, invent a Korean name for that person and keep the role only as background for the later suspect card.
+                WEAPON may be a short playable object keyword.
+                MOTIVE may be a short motive keyword or phrase.
                 Avoid copying any sample-like answer. Generate fresh values from the current story anchors only.
                 Do not create place hints, destination clues, or final-place guessing.
                 Use the selected places and research context only as background motifs.

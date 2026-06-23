@@ -1,53 +1,53 @@
 {
-  "title" : "그림자의 계약",
-  "issues" : [ "SLOT_RELEVANCE" ],
+  "title" : "기록실의 침묵: 잊힌 증거",
+  "issues" : [ "BLANK_OR_SHORT" ],
   "missions" : [ {
     "order" : 2,
     "targetKeywordType" : "CULPRIT",
     "supportsKeywordSlots" : [ "CULPRIT" ],
-    "issues" : [ ],
-    "rewardClue" : "사건 당일, CCTV 사각지대를 통해 피해자의 사무실에 접근한 기록이 발견되었습니다."
+    "issues" : [ "BLANK_OR_SHORT" ],
+    "rewardClue" : ""
   }, {
     "order" : 3,
     "targetKeywordType" : "CULPRIT",
     "supportsKeywordSlots" : [ "CULPRIT" ],
-    "issues" : [ ],
-    "rewardClue" : "발견된 지문 중, 사무실 내 특정 서랍에서 검출된 기록 속 인물의 지문과 일치하는 것이 있었습니다."
+    "issues" : [ "BLANK_OR_SHORT" ],
+    "rewardClue" : ""
   }, {
     "order" : 4,
     "targetKeywordType" : "WEAPON",
     "supportsKeywordSlots" : [ "WEAPON" ],
-    "issues" : [ ],
-    "rewardClue" : "피해자의 혈액 검사 결과, 극소량의 고농축 신경독 성분이 검출되었으나, 일반적인 독극물로는 설명되지 않는 독특한 화합물 구조를 보였습니다."
+    "issues" : [ "BLANK_OR_SHORT" ],
+    "rewardClue" : ""
   }, {
     "order" : 5,
     "targetKeywordType" : "WEAPON",
     "supportsKeywordSlots" : [ "WEAPON" ],
-    "issues" : [ ],
-    "rewardClue" : "피해자의 업무용 만년필에서 미세한 화학적 잔류물이 검출되었으며, 이는 특수하게 제작된 잉크 카트리지임을 시사합니다."
+    "issues" : [ "BLANK_OR_SHORT" ],
+    "rewardClue" : ""
   }, {
     "order" : 6,
     "targetKeywordType" : "MOTIVE",
     "supportsKeywordSlots" : [ "MOTIVE" ],
-    "issues" : [ ],
-    "rewardClue" : "복구된 금융 거래 기록에서, 피해자의 차명 계좌와 관련된 민감한 거래 내역이 발견되었습니다. 해당 기록은 사건 직전에 삭제가 시도된 흔적이 있었습니다."
+    "issues" : [ "BLANK_OR_SHORT" ],
+    "rewardClue" : ""
   }, {
     "order" : 7,
     "targetKeywordType" : "MOTIVE",
     "supportsKeywordSlots" : [ "MOTIVE" ],
-    "issues" : [ ],
-    "rewardClue" : "이해관계가 드러난 인물와 피해자 간의 통화 기록에서, 금전 문제로 인한 심각한 갈등과 압박이 오갔던 내용이 확인되었습니다."
+    "issues" : [ "BLANK_OR_SHORT" ],
+    "rewardClue" : ""
   }, {
     "order" : 8,
     "targetKeywordType" : "METHOD",
     "supportsKeywordSlots" : [ "METHOD" ],
-    "issues" : [ "SLOT_RELEVANCE" ],
-    "rewardClue" : "피해자는 매일 아침 업무 시작 시, 해당 만년필로 서류에 서명하는 습관이 있었습니다. 이 과정에서 잉크가 손에 묻을 가능성이 높습니다."
+    "issues" : [ "BLANK_OR_SHORT" ],
+    "rewardClue" : ""
   }, {
     "order" : 9,
     "targetKeywordType" : "METHOD",
     "supportsKeywordSlots" : [ "METHOD" ],
-    "issues" : [ ],
-    "rewardClue" : "사건 현장 주변에서 발견된 폐기물 더미에서, 독성이 강화된 신경독이 주입된 것으로 추정되는 만년필 잉크 카트리지 조각이 발견되었습니다."
+    "issues" : [ "BLANK_OR_SHORT" ],
+    "rewardClue" : ""
   } ]
 }

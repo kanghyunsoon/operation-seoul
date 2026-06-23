@@ -53,24 +53,22 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void rejectsWeakApprovedFinalAnswerKeywords() throws Exception {
+    void acceptsShortApprovedFinalAnswerKeywords() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         source.setFinalAnswerKeywordItems(List.of(
-                keyword("CULPRIT", "범인", "박선우(관장)"),
-                keyword("WEAPON", "흉기", "붓펜"),
-                keyword("MOTIVE", "동기", "위작 전시 의혹 은폐"),
-                keyword("METHOD", "방법", "함")
+                keyword("CULPRIT", "범인", "박선우"),
+                keyword("WEAPON", "흉기", "칼"),
+                keyword("MOTIVE", "동기", "은폐"),
+                keyword("METHOD", "방법", "독살")
         ));
         AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
-        answers.setCulprit("박선우(관장)");
-        answers.setWeapon("붓펜");
-        answers.setMotive("위작 전시 의혹 은폐");
-        answers.setMethod("함");
+        answers.setCulprit("박선우");
+        answers.setWeapon("칼");
+        answers.setMotive("은폐");
+        answers.setMethod("독살");
         source.setFinalAnswers(answers);
 
-        ApiException thrown = assertThrows(ApiException.class, () -> FinalAnswerContractSupport.validateFinalAnswerContract(source));
-
-        assertEquals("WEAK_FINAL_ANSWER_KEYWORDS", thrown.getCode());
+        FinalAnswerContractSupport.validateFinalAnswerContract(source);
     }
 
     @Test
@@ -93,35 +91,34 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void rejectsShortMethodKeywordWithoutServerRepair() throws Exception {
+    void acceptsShortMethodKeywordWithoutServerRepair() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         source.setFinalAnswerKeywordItems(List.of(
                 keyword("CULPRIT", "범인", "최서윤(큐레이터)"),
-                keyword("WEAPON", "흉기", "독성 잉크가 든 붓펜"),
+                keyword("WEAPON", "흉기", "망치"),
                 keyword("MOTIVE", "동기", "위작 전시 은폐"),
-                keyword("METHOD", "방법", "만지게 함")
+                keyword("METHOD", "방법", "교살")
         ));
         AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
         answers.setCulprit("최서윤(큐레이터)");
-        answers.setWeapon("독성 잉크가 든 붓펜");
+        answers.setWeapon("망치");
         answers.setMotive("위작 전시 은폐");
-        answers.setMethod("만지게 함");
+        answers.setMethod("교살");
         source.setFinalAnswers(answers);
 
-        ApiException exception = assertThrows(ApiException.class, () -> FinalAnswerContractSupport.validateFinalAnswerContract(source));
+        FinalAnswerContractSupport.validateFinalAnswerContract(source);
 
-        assertEquals("WEAK_FINAL_ANSWER_KEYWORDS", exception.getCode());
-        assertEquals("만지게 함", source.getFinalAnswers().getMethod());
-        assertEquals("만지게 함", source.getFinalAnswerKeywordItems().get(3).getKeyword());
+        assertEquals("교살", source.getFinalAnswers().getMethod());
+        assertEquals("교살", source.getFinalAnswerKeywordItems().get(3).getKeyword());
     }
     @Test
-    void draftValidationRejectsWeakFinalAnswerKeywords() throws Exception {
+    void draftValidationAllowsShortFinalAnswerKeywords() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
         applyApprovedContract(draft, source);
         draft.setFinalAnswerKeywordItems(List.of(
                 answerKeywordItem("CULPRIT", "여행사 직원"),
-                answerKeywordItem("WEAPON", "고산병 약"),
+                answerKeywordItem("WEAPON", "톱"),
                 answerKeywordItem("MOTIVE", "범죄"),
                 answerKeywordItem("METHOD", "투여")
         ));
@@ -131,12 +128,11 @@ class AdminEpisodeGeminiServiceTest {
 
         AiEpisodeDraftValidationResponse result = service.validateDraft(request);
 
-        assertFalse(result.isValid());
-        assertTrue(result.getFindings().stream().anyMatch(finding -> "CONCRETE_FINAL_KEYWORD_REQUIRED".equals(finding.getCode())));
+        assertFalse(result.getFindings().stream().anyMatch(finding -> "CONCRETE_FINAL_KEYWORD_REQUIRED".equals(finding.getCode())));
     }
 
     @Test
-    void planPromptRejectsRoleOnlyAndGenericKeywordExamples() throws Exception {
+    void planPromptBuildsAnswerPlanGuidanceWithoutExamples() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
 
         String prompt = GeminiAnswerPlanPromptBuilder.build(source);
@@ -146,6 +142,10 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("Do not default to poisoning, contamination, toxic residue, or skin contact"));
         assertTrue(prompt.contains("method_keyword"));
         assertTrue(prompt.contains("method_sentence"));
+        assertTrue(prompt.contains("CULPRIT must be a Korean person name only"));
+        assertTrue(prompt.contains("CULPRIT must not be a job, role, relationship, organization, title, or generic label"));
+        assertTrue(prompt.contains("기록 보관 담당자"));
+        assertTrue(prompt.contains("If the culprit concept starts from a role, invent a Korean name"));
         assertTrue(prompt.contains("Never reuse stale sample answers or names"));
         assertFalse(prompt.contains("Bad example:"));
         assertFalse(prompt.contains("Good example:"));
@@ -325,37 +325,40 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void rejectsGeminiPlanWithLiteraryCulpritAndVagueMethod() throws Exception {
+    void acceptsGeminiPlanWithShortOrGenericKeywords() throws Exception {
         JsonNode node = new ObjectMapper().readTree("""
                 [
                   {"slotId":"CULPRIT","keyword":"이몽룡"},
-                  {"slotId":"WEAPON","keyword":"오염된 죽염 안약"},
-                  {"slotId":"MOTIVE","keyword":"춘향가 위조본 유통 은폐"},
-                  {"slotId":"METHOD","keyword":"눈에 몰래 투여하여 혼란을 야기함"}
+                  {"slotId":"WEAPON","keyword":"칼"},
+                  {"slotId":"MOTIVE","keyword":"은폐"},
+                  {"slotId":"METHOD","keyword":"독살"}
                 ]
                 """);
         GeminiAnswerPlanGenerator generator = new GeminiAnswerPlanGenerator(new ObjectMapper(), prompt -> "{}");
 
-        ApiException thrown = assertThrows(ApiException.class, () -> generator.sanitizePlanKeywords(node));
+        List<AiEpisodePlanResponse.AnswerKeyword> keywords = generator.sanitizePlanKeywords(node);
 
-        assertEquals("GEMINI_PLAN_INVALID", thrown.getCode());
+        assertEquals("이몽룡", keywords.get(0).getKeyword());
+        assertEquals("칼", keywords.get(1).getKeyword());
+        assertEquals("독살", keywords.get(3).getKeyword());
     }
 
     @Test
-    void rejectsGeminiPlanWithUnclearImplantAndIngestionMethod() throws Exception {
+    void acceptsGeminiPlanWithUnclearImplantAndIngestionMethod() throws Exception {
         JsonNode node = new ObjectMapper().readTree("""
                 [
                   {"slotId":"CULPRIT","keyword":"박지성"},
-                  {"slotId":"WEAPON","keyword":"강화된 금속 가루가 섞인 붓"},
+                  {"slotId":"WEAPON","keyword":"톱"},
                   {"slotId":"MOTIVE","keyword":"미공개 고미술품 거래 은폐"},
                   {"slotId":"METHOD","keyword":"필기구에 몰래 이식하여 내용물 섭취 유도"}
                 ]
                 """);
         GeminiAnswerPlanGenerator generator = new GeminiAnswerPlanGenerator(new ObjectMapper(), prompt -> "{}");
 
-        ApiException thrown = assertThrows(ApiException.class, () -> generator.sanitizePlanKeywords(node));
+        List<AiEpisodePlanResponse.AnswerKeyword> keywords = generator.sanitizePlanKeywords(node);
 
-        assertEquals("GEMINI_PLAN_INVALID", thrown.getCode());
+        assertEquals("톱", keywords.get(1).getKeyword());
+        assertEquals("필기구에 몰래 이식하여 내용물 섭취 유도", keywords.get(3).getKeyword());
     }
 
     @Test
@@ -931,6 +934,12 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("rewardClue에 정답 값을 그대로 쓰지 않는다."));
         assertTrue(prompt.contains("최종 장소를 찾아라"));
         assertTrue(prompt.contains("크라임씬 사건 작가"));
+        assertTrue(prompt.contains("CULPRIT 값은 한국인 인명이어야 하며"));
+        assertTrue(prompt.contains("alias에는 직업이나 역할을 쓴다"));
+        assertTrue(prompt.contains("shortDescription에는 현재 의심 포인트처럼 보이는 구체적 정황을 쓰지 않는다"));
+        assertTrue(prompt.contains("suspiciousPoint에는 지금 shortDescription에 넣고 싶은 의심 정황을 넣는다"));
+        assertTrue(prompt.contains("alibiSummary는 반드시 한국어 문장으로 쓰고"));
+        assertTrue(prompt.contains("영어 템플릿 문장이나 \"There is...\" 문장을 절대 쓰지 않는다"));
         assertTrue(prompt.contains("피해자 신원, 시신/사건 발견 상황, 직접적인 사망 방식"));
         assertTrue(prompt.contains("승인된 METHOD가 독살/오염/접촉이 아니라면"));
         assertTrue(prompt.contains("실제 역사 사건을 살인 사건처럼 꾸미지 않는다"));

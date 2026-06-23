@@ -24,14 +24,20 @@ final class GeminiDraftPromptBuilder {
                 장소는 나중에 미션에 배정될 지도 좌표일 뿐이다.
 
                 반드시 지킬 것:
-                - CULPRIT 값은 suspects[0..2].displayName 중 정확히 한 명이어야 한다.
-                - suspect displayName은 한국인 이름만 쓴다. 직업/역할은 relationToVictim 또는 shortDescription에 쓴다.
+                - CULPRIT 값은 한국인 인명이어야 하며 suspects[0..2].displayName 중 정확히 한 명과 완전히 일치해야 한다.
+                - CULPRIT에 직업/역할/관계 표현이 들어오면 그대로 쓰지 말고, 그 역할을 가진 한국인 이름을 범인으로 설정한다. 예: "기록 보관 담당자"가 범인 개념이면 displayName과 CULPRIT는 "한서윤"처럼 이름이고 alias는 "기록 보관 담당자"다.
+                - suspect displayName은 반드시 한국인 이름만 쓴다. "수석 연구원", "재단 이사장", "기록 보관 담당자" 같은 직업/직함/관계/역할은 displayName에 쓰지 않는다.
+                - suspect alias에는 직업이나 역할을 쓴다. 예: "기록 보관 담당자", "수석 연구원", "재단 이사장".
+                - suspect relationToVictim에는 피해자와의 관계를 쓴다. 예: "피해자의 동료 연구원", "외부 연구 지원 재단 관계자".
+                - suspect shortDescription에는 현재 의심 포인트처럼 보이는 구체적 정황을 쓰지 않는다. 직업/역할, 사건 배경상 위치, 피해자와 얽힌 공식 업무만 짧게 쓴다.
+                - suspect suspiciousPoint에는 지금 shortDescription에 넣고 싶은 의심 정황을 넣는다. 예: "최근 내부 비리 의혹에 휘말려 기록 보관실 접근 기록을 숨겼다."
+                - suspect alibiSummary는 반드시 한국어 문장으로 쓰고, 사건 시간대에 어디서 무엇을 했다고 주장하는지 스토리에 맞게 구체화한다. 영어 템플릿 문장이나 "There is..." 문장을 절대 쓰지 않는다.
                 - finalTruthSummary에는 승인된 CULPRIT, WEAPON, MOTIVE, METHOD 값을 그대로 모두 포함한다.
                 - fictionSynopsis는 경로 설명이 아니라 크라임씬 사건 줄거리다. 피해자 신원, 시신/사건 발견 상황, 직접적인 사망 방식, 밀접한 용의자 3명, 각자의 이해관계, 은폐된 갈등, 수사해야 할 핵심 의문을 포함한다.
                 - fictionSynopsis에는 "북창동먹자골목에서 흔적이 발견되었습니다"처럼 장소 나열형 문장을 쓰지 않는다. 사건은 특정 시설 내부, 사무실, 보관실, 작업 공간, 회의실, 통로, 계단, 창고, 기록실 같은 허구의 사건 공간에서 벌어진다.
                 - actualHistorySummary는 허구 사건 해설이 아니다. 아래 storyAnchors/historicalContext가 있으면 그 실제 배경이 사건 모티브로 어떻게 변환됐는지 설명한다. 직접 역사 사건이 부족하면 "직접 역사 사건이 아니라 지역/시대/공간 성격을 모티브로 삼았다"고 명확히 쓴다.
                 - missions는 10개다. 1번 START, 2~9번 ANSWER_HINT, 10번 FINAL.
-                - suspects는 정확히 3명이다. 세 명 모두 피해자와의 관계, 알리바이, 의심 지점이 서로 달라야 한다.
+                - suspects는 정확히 3명이다. 세 명 모두 displayName, alias, shortDescription, relationToVictim, suspiciousPoint, alibiSummary를 채운다. 세 명 모두 피해자와의 관계, 알리바이, 의심 지점이 서로 달라야 한다.
                 - 2~9번 rewardClue는 각각 구체적인 증거 문장이어야 한다. 기록, 지문, 출입 로그, CCTV 공백, 물증 상태, 분석 결과, 계약/문서, 목격 진술처럼 수사 자료로 쓴다.
                 - rewardClue에 정답 값을 그대로 쓰지 않는다. 특히 범인 이름, 흉기명, 동기 문구, 방법 문장을 직접 노출하지 않는다.
                 - evidences는 8개이며 sourceMissionOrder 2~9에 각각 연결한다.
