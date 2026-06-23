@@ -3079,14 +3079,15 @@ public class AdminEpisodeService {
         target.setAddress(source.getAddress());
         target.setLatitude(source.getLatitude());
         target.setLongitude(source.getLongitude());
-        target.setDescription(enrichedDescription(source, rankedNearby));
-        target.setVisibleElements(mergeDistinct(source.getVisibleElements(), inferredVisibleElements(rankedNearby)));
+        target.setDescription(source.getDescription());
+        target.setVisibleElements(source.getVisibleElements() == null ? List.of() : source.getVisibleElements());
         target.setNumbers(source.getNumbers() == null ? List.of() : source.getNumbers());
-        target.setKeywords(mergeDistinct(source.getKeywords(), focusedKeywords(source, rankedNearby)));
-        target.setAdminMemo(enrichedAdminMemo(source, rankedNearby));
+        target.setKeywords(source.getKeywords() == null ? List.of() : source.getKeywords());
+        target.setAdminMemo(source.getAdminMemo());
         target.setRole(source.getRole());
         target.setPublicMarkerType(source.getPublicMarkerType());
         target.setArrivalRadius(source.getArrivalRadius());
+        target.setSiteVerificationSignals(mergeDistinct(source.getSiteVerificationSignals(), siteVerificationSignals(source, rankedNearby)));
         target.setExternalResearchNotes(mergeDistinct(source.getExternalResearchNotes(), externalResearch.notes()));
         target.setReferenceUrls(mergeDistinct(source.getReferenceUrls(), externalResearch.referenceUrls()));
         target.setResearchSourceSummary(firstNonBlank(source.getResearchSourceSummary(), externalResearch.summary()));
@@ -3109,14 +3110,6 @@ public class AdminEpisodeService {
         }
         if (!missing(source.getAdminMemo())) {
             parts.add("memo=" + source.getAdminMemo().trim());
-        }
-        String nearby = rankedNearby == null ? "" : rankedNearby.stream()
-                .filter(candidate -> !missing(candidate.getTitle()) && !"RAG_ERROR".equals(candidate.getSource()))
-                .limit(3)
-                .map(AdminPlaceCandidateResponse::getTitle)
-                .collect(Collectors.joining(", "));
-        if (!nearby.isBlank()) {
-            parts.add("nearby=" + nearby);
         }
         if (!parts.isEmpty()) {
             notes.add("Selected place context: " + String.join(" / ", parts));
@@ -3273,6 +3266,36 @@ public class AdminEpisodeService {
         }
         memo.add("권장 퍼즐 근거: 현장 확인 후 관리자가 확정한 visibleElements/numbers만 사용하세요. 그 전에는 AI가 실제 관찰 사실이 아닌 스토리 단서와 확인용 임시 단서만 만듭니다.");
         return String.join("\n", memo);
+    }
+
+    private List<String> siteVerificationSignals(AiEpisodeDraftRequest.PlaceInput place, List<AdminPlaceCandidateResponse> rankedNearby) {
+        List<String> signals = new ArrayList<>();
+        signals.add("Kakao Local 주변 후보는 현장 검수와 동선 확인 전용입니다. TourAPI 역사 기반 키워드 생성 근거로 사용하지 않습니다.");
+        if (place.getLatitude() == null || place.getLongitude() == null) {
+            signals.add("좌표가 없어 주변 후보를 조회하지 못했습니다. 공개 전 위도/경도를 확인하세요.");
+            return signals;
+        }
+        if (rankedNearby == null || rankedNearby.isEmpty()) {
+            signals.add("900m 이내에서 주변 후보를 찾지 못했습니다. 현장 메모를 수동으로 보강하세요.");
+            return signals;
+        }
+        List<AdminPlaceCandidateResponse> usable = rankedNearby.stream()
+                .filter(candidate -> !"RAG_ERROR".equals(candidate.getSource()))
+                .limit(5)
+                .toList();
+        if (usable.isEmpty()) {
+            rankedNearby.stream().findFirst()
+                    .ifPresent(candidate -> signals.add(candidate.getTitle() + " - " + blank(candidate.getDescription(), "외부 검색 실패")));
+            return signals;
+        }
+        for (int i = 0; i < usable.size(); i++) {
+            AdminPlaceCandidateResponse candidate = usable.get(i);
+            signals.add((i + 1) + ". " + candidate.getTitle()
+                    + " / " + categoryKeyword(candidate)
+                    + " / 약 " + Math.round(distanceMeters(place.getLatitude(), place.getLongitude(), candidate.getLatitude(), candidate.getLongitude())) + "m"
+                    + " / 확인 대상: " + categoryVisibleElement(candidate));
+        }
+        return signals;
     }
 
     private String categoryKeyword(AdminPlaceCandidateResponse candidate) {

@@ -217,11 +217,11 @@ class AdminEpisodeGeminiServiceTest {
 
         assertTrue(context.contains("Joseon-era warehouse tax ledger incident"));
         assertTrue(context.contains("old harbor"));
-        assertTrue(context.contains("verified local history marker"));
         assertTrue(context.contains("archive note about merchant dispute and sealed account book"));
         assertTrue(context.contains("TourAPI heritage summary"));
         assertFalse(context.contains("Actual Restaurant Name"));
         assertFalse(context.contains("Actual Street Address"));
+        assertFalse(context.contains("verified local history marker"));
     }
 
     @Test
@@ -242,6 +242,49 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("historic merchant ledger conflict"));
         assertFalse(prompt.contains("Actual Restaurant Name"));
         assertFalse(prompt.contains("Actual Street Address"));
+    }
+
+    @Test
+    void planPromptExcludesKakaoLocalAndSiteVerificationNoise() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        source.getPlaces().get(0).setDescription("historic customs archive dispute 주변 확인 후보: Modern Gallery, Coffee Shop.");
+        source.getPlaces().get(0).setResearchSourceSummary("TourAPI heritage summary about sealed tax records");
+        source.getPlaces().get(0).setAdminMemo("RAG/사이트 보강으로 주변 Kakao Local 신호를 사용했습니다.");
+        source.getPlaces().get(0).setKeywords(List.of("문화전시", "카페쉼터", "customs ledger"));
+        source.getPlaces().get(0).setVerificationNotes(List.of("현장 확인: 간판과 입구 검수 필요"));
+        source.getPlaces().get(0).setExternalResearchNotes(List.of(
+                "Selected place context: name=Modern Gallery / nearby=Coffee Shop",
+                "archive note about sealed merchant ledger"
+        ));
+
+        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildPlanPrompt", AiEpisodeDraftRequest.class);
+        method.setAccessible(true);
+        String prompt = (String) method.invoke(service, source);
+
+        assertTrue(prompt.contains("historic customs archive dispute"));
+        assertTrue(prompt.contains("TourAPI heritage summary about sealed tax records"));
+        assertTrue(prompt.contains("archive note about sealed merchant ledger"));
+        assertTrue(prompt.contains("customs ledger"));
+        assertFalse(prompt.contains("Modern Gallery"));
+        assertFalse(prompt.contains("Coffee Shop"));
+        assertFalse(prompt.contains("Kakao Local"));
+        assertFalse(prompt.contains("문화전시"));
+        assertFalse(prompt.contains("카페쉼터"));
+        assertFalse(prompt.contains("현장 확인"));
+        assertFalse(prompt.contains("Selected place context"));
+
+        Method includedMethod = AdminEpisodeGeminiService.class.getDeclaredMethod("tourApiPlanInputs", AiEpisodeDraftRequest.class);
+        includedMethod.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<String> included = (List<String>) includedMethod.invoke(service, source);
+        Method excludedMethod = AdminEpisodeGeminiService.class.getDeclaredMethod("excludedTourApiPlanInputs", AiEpisodeDraftRequest.class);
+        excludedMethod.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<String> excluded = (List<String>) excludedMethod.invoke(service, source);
+
+        assertTrue(included.stream().anyMatch(value -> value.contains("TourAPI heritage summary")));
+        assertTrue(excluded.stream().anyMatch(value -> value.contains("Kakao Local")));
+        assertTrue(excluded.stream().anyMatch(value -> value.contains("현장 확인")));
     }
 
     @Test
