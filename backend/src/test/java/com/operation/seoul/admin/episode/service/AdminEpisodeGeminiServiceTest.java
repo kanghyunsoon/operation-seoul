@@ -964,13 +964,11 @@ class AdminEpisodeGeminiServiceTest {
                   }
                 }
                 """);
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("draftJsonNode", JsonNode.class);
-        method.setAccessible(true);
+        AiEpisodeDraftResponse.EpisodeDraft draft = new GeminiDraftGenerator(mapper, prompt -> root.toString())
+                .generate(sourceInput());
 
-        JsonNode draftNode = (JsonNode) method.invoke(service, root);
-
-        assertEquals("정동의 봉인된 기록", draftNode.path("episodeTitle").asText());
-        assertEquals("범죄 미스터리", draftNode.path("genre").asText());
+        assertEquals("정동의 봉인된 기록", draft.getEpisodeTitle());
+        assertEquals("범죄 미스터리", draft.getGenre());
     }
 
     private void applyApprovedContract(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest source) throws Exception {
@@ -995,9 +993,7 @@ class AdminEpisodeGeminiServiceTest {
         source.getPlaces().get(9).setReferenceUrls(List.of("https://example.org/archive/final-place"));
         source.getPlaces().get(9).setResearchSourceSummary("external web and document notes");
 
-        Method method = AdminEpisodeGeminiService.class.getDeclaredMethod("buildDraftPrompt", AiEpisodeDraftRequest.class);
-        method.setAccessible(true);
-        String prompt = (String) method.invoke(service, source);
+        String prompt = GeminiDraftPromptBuilder.build(source);
 
         assertFalse(prompt.contains("external archive note about opening ceremony records"));
         assertFalse(prompt.contains("https://example.org/archive/final-place"));
