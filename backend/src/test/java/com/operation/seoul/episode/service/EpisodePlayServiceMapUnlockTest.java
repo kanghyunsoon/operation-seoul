@@ -34,7 +34,8 @@ class EpisodePlayServiceMapUnlockTest {
             mock(OperationAreaResolver.class),
             mock(MinigameProofValidator.class),
             mock(MinigameRetryVariantFactory.class),
-            mock(PuzzleAttemptGuard.class)
+            mock(PuzzleAttemptGuard.class),
+            mock(DeductionAiService.class)
     );
 
     @Test

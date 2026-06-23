@@ -83,6 +83,11 @@ public class EpisodePlayController {
         return ResponseEntity.ok(ApiResponse.ok("추리 질문 답변입니다.", episodePlayService.askDeduction(sessionId, request, currentUserResolver.requireCurrentUser())));
     }
 
+    @PostMapping("/deduction/{sessionId}/hypothesis")
+    public ResponseEntity<ApiResponse<DeductionHypothesisResponse>> verifyDeductionHypothesis(@PathVariable Long sessionId, @Valid @RequestBody DeductionHypothesisRequest request) {
+        DeductionHypothesisResponse response = episodePlayService.verifyDeductionHypothesis(sessionId, request, currentUserResolver.requireCurrentUser());
+        return ResponseEntity.ok(ApiResponse.ok(response.getMessage(), response));
+    }
     @GetMapping("/deduction/{sessionId}/questions")
     public ResponseEntity<ApiResponse<List<DeductionQuestionResponse>>> getDeductionQuestions(@PathVariable Long sessionId) {
         return ResponseEntity.ok(ApiResponse.ok("추리 질문 기록입니다.", episodePlayService.getDeductionQuestions(sessionId, currentUserResolver.requireCurrentUser())));

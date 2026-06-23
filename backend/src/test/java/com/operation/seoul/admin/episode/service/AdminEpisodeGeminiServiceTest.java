@@ -144,9 +144,15 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("method_sentence"));
         assertTrue(prompt.contains("CULPRIT must be a Korean person name only"));
         assertTrue(prompt.contains("CULPRIT must not be a job, role, relationship, organization, title, or generic label"));
-        assertTrue(prompt.contains("기록 보관 담당자"));
         assertTrue(prompt.contains("If the culprit concept starts from a role, invent a Korean name"));
         assertTrue(prompt.contains("Never reuse stale sample answers or names"));
+        assertTrue(prompt.contains("Do not overuse any single domain template"));
+        assertTrue(prompt.contains("Never return generic one-word abstractions"));
+        assertTrue(prompt.contains("Avoid repeating common stale names, role labels, or abstract keywords"));
+        assertFalse(prompt.contains("박준호"));
+        assertFalse(prompt.contains("김도윤"));
+        assertFalse(prompt.contains("한서윤"));
+        assertFalse(prompt.contains("기록 보관 담당자"));
         assertFalse(prompt.contains("Bad example:"));
         assertFalse(prompt.contains("Good example:"));
     }
@@ -341,6 +347,41 @@ class AdminEpisodeGeminiServiceTest {
         assertEquals("이몽룡", keywords.get(0).getKeyword());
         assertEquals("칼", keywords.get(1).getKeyword());
         assertEquals("독살", keywords.get(3).getKeyword());
+    }
+
+    @Test
+    void rejectsRecordTemplatePlanWhenCurrentAnchorIsNotRecordBased() {
+        AiEpisodeDraftRequest source = new AiEpisodeDraftRequest();
+        source.setArea("강원권");
+        source.setEra("현대에 남은 오래된 기록");
+        source.setTheme("범죄 미스터리");
+        source.setPlaces(List.of());
+        GeminiAnswerPlanGenerator generator = new GeminiAnswerPlanGenerator(new ObjectMapper(), prompt -> """
+                [
+                  {"slotId":"CULPRIT","keyword":"박현우"},
+                  {"slotId":"WEAPON","keyword":"고서 보관함 잠금장치"},
+                  {"slotId":"MOTIVE","keyword":"기록물 소유권 분쟁"},
+                  {"slotId":"METHOD","keyword":"압사"}
+                ]
+                """);
+
+        ApiException thrown = assertThrows(ApiException.class, () -> generator.generate(source));
+
+        assertEquals("GEMINI_PLAN_RECORD_TEMPLATE", thrown.getCode());
+    }
+
+    @Test
+    void tourApiPlanContextNormalizesStaleRecordEraFallback() {
+        AiEpisodeDraftRequest source = new AiEpisodeDraftRequest();
+        source.setArea("강원권");
+        source.setEra("현대에 남은 오래된 기록");
+        source.setTheme("범죄 미스터리");
+        source.setPlaces(List.of());
+
+        String anchors = String.join(" ", TourApiPlanInputExtractor.extract(source).storyAnchors());
+
+        assertTrue(anchors.contains("현대"));
+        assertFalse(anchors.contains("오래된 기록"));
     }
 
     @Test
@@ -926,16 +967,26 @@ class AdminEpisodeGeminiServiceTest {
         assertFalse(prompt.contains("서울 종로구 종로1길 50"));
         assertTrue(prompt.contains("storyAnchors"));
         assertTrue(prompt.contains("장소는 나중에 미션에 배정될 지도 좌표일 뿐이다."));
-        assertTrue(prompt.contains("actualHistorySummary는 허구 사건 해설이 아니다."));
+        assertTrue(prompt.contains("actualHistorySummary는 TourAPI/외부조사에서 온 실제 장소 해설이다."));
+        assertTrue(prompt.contains("장소의 건축적 특징, 행정/상업/문화 기능, 보존 가치, 시대적 배경, 지역적 맥락"));
+        assertTrue(prompt.contains("본 사건은 직접적인 역사 사건을 다루지 않습니다"));
+        assertTrue(prompt.contains("방어적 문구를 쓰지 않는다"));
+        assertTrue(prompt.contains("era: "));
         assertTrue(prompt.contains("approvedFinalAnswers"));
         assertTrue(prompt.contains("CULPRIT: 강수진"));
         assertTrue(prompt.contains("finalTruthSummary에는 승인된 CULPRIT, WEAPON, MOTIVE, METHOD 값을 그대로 모두 포함한다."));
+        assertTrue(prompt.contains("finalTruthSummary는 짧은 정답 요약이 아니라 진실 파일이다."));
+        assertTrue(prompt.contains("MOTIVE는 한 구절로 끝내지 않는다"));
+        assertTrue(prompt.contains("범인이 무엇을 잃을 위기였는지"));
+        assertTrue(prompt.contains("관광지 개발 이권 다툼"));
+        assertTrue(prompt.contains("7~10문장"));
+        assertTrue(prompt.contains("사건의 전 과정이 시간 순서로 읽히는 완결된 범죄 서사"));
         assertTrue(prompt.contains("미션 슬롯"));
         assertTrue(prompt.contains("rewardClue에 정답 값을 그대로 쓰지 않는다."));
         assertTrue(prompt.contains("최종 장소를 찾아라"));
         assertTrue(prompt.contains("크라임씬 사건 작가"));
         assertTrue(prompt.contains("CULPRIT 값은 한국인 인명이어야 하며"));
-        assertTrue(prompt.contains("alias에는 직업이나 역할을 쓴다"));
+        assertTrue(prompt.contains("suspect alias에는 현재 사건 배경에서 자연스러운 직업이나 역할을 쓴다"));
         assertTrue(prompt.contains("shortDescription에는 현재 의심 포인트처럼 보이는 구체적 정황을 쓰지 않는다"));
         assertTrue(prompt.contains("suspiciousPoint에는 지금 shortDescription에 넣고 싶은 의심 정황을 넣는다"));
         assertTrue(prompt.contains("alibiSummary는 반드시 한국어 문장으로 쓰고"));
@@ -943,17 +994,23 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("피해자 신원, 시신/사건 발견 상황, 직접적인 사망 방식"));
         assertTrue(prompt.contains("승인된 METHOD가 독살/오염/접촉이 아니라면"));
         assertTrue(prompt.contains("실제 역사 사건을 살인 사건처럼 꾸미지 않는다"));
+        assertTrue(prompt.contains("시대와 소재를 섞은 설명형 문장을 era에 쓰지 않는다"));
         assertTrue(prompt.contains("suspects는 정확히 3명"));
         assertTrue(prompt.contains("evidences는 8개"));
         assertTrue(prompt.contains("sourceMissionOrder 2~9"));
+        assertTrue(prompt.contains("Suspect design must support elimination, not equal suspicion"));
+        assertTrue(prompt.contains("Do not make all three suspects look equally guilty"));
+        assertTrue(prompt.contains("The two CULPRIT rewardClues must narrow the culprit"));
+        assertTrue(prompt.contains("At least two clue/evidence pairs should help eliminate red herrings"));
         assertTrue(prompt.contains("조작 순서/접근 경로/실행 가능성"));
         assertFalse(prompt.contains("daily medication habit"));
         assertFalse(prompt.contains("capsule, medication"));
         assertFalse(prompt.contains("Never reuse stale sample answers or names"));
+        assertFalse(prompt.contains("직접 역사 사건 앵커가 부족해"));
         assertTrue(prompt.contains("용의자 3명, 각자의 이해관계"));
         assertTrue(prompt.contains("evidences는 8개"));
         assertTrue(prompt.contains("지도 동선은 사건 줄거리와 단서에 사용하지 않는다"));
-        assertTrue(prompt.contains("기록, 지문, 출입 로그, CCTV 공백"));
+        assertTrue(prompt.contains("지문, 출입 흔적, CCTV 공백"));
         assertTrue(prompt.contains("반환 JSON 필수 필드"));
     }
 

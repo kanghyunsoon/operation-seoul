@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.auth.domain.User;
 import com.operation.seoul.casefile.domain.CaseEvidence;
+import com.operation.seoul.casefile.domain.CaseSuspect;
 import com.operation.seoul.casefile.repository.CaseFileRepository;
 import com.operation.seoul.episode.domain.*;
 import com.operation.seoul.episode.dto.*;
@@ -39,8 +40,14 @@ import java.util.stream.Stream;
 public class EpisodePlayService {
     private static final TypeReference<List<Long>> LONG_LIST = new TypeReference<>() {};
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
+    private static final int HYPOTHESIS_LIMIT = 2;
+    private static final int ADMIN_HYPOTHESIS_LIMIT = 999;
+    private static final int ADMIN_QUESTION_LIMIT = 999;
+    private static final int QUESTION_PENALTY_SECONDS = 60;
+    private static final int HYPOTHESIS_PENALTY_SECONDS = 300;
+    private static final int WRONG_FINAL_ANSWER_PENALTY_SECONDS = 300;
     private static final Set<String> ALLOWED_DEDUCTION_ANSWER_TYPES = Set.of(
-            "YES", "NO", "RELATED", "NOT_RELATED", "PARTIAL", "AMBIGUOUS", "INSUFFICIENT_CLUE", "REFUSED_DIRECT_REVEAL"
+            "YES", "NO", "RELATED", "NOT_RELATED", "PARTIAL", "UNKNOWN", "AMBIGUOUS", "INSUFFICIENT_CLUE", "REFUSED_DIRECT_REVEAL"
     );
     private final EpisodeRepository episodeRepository;
     private final CaseFileRepository caseFileRepository;
@@ -50,6 +57,7 @@ public class EpisodePlayService {
     private final MinigameProofValidator minigameProofValidator;
     private final MinigameRetryVariantFactory minigameRetryVariantFactory;
     private final PuzzleAttemptGuard puzzleAttemptGuard;
+    private final DeductionAiService deductionAiService;
 
     @Value("${app.dev-mode.arrival-enabled:false}")
     private boolean arrivalDevModeEnabled;
@@ -588,12 +596,15 @@ public class EpisodePlayService {
         }
         List<String> clues = allClues(progress);
         String message = clues.size() < 3
-                ? "?⑥꽌媛 遺議깊빀?덈떎. ???뺥솗??吏덈Ц???꾪빐 愿?⑥옄/?듭떖 ?⑥꽌 誘몄뀡????議곗궗??二쇱꽭??"
-                : "理쒖쥌 異붾━ 梨꾪똿???쒖옉?섏뿀?듬땲??";
+                ? "단서가 아직 적습니다. 질문은 가능하지만 답변이 제한될 수 있습니다."
+                : "최종 추리를 시작할 수 있습니다.";
         return DeductionStartResponse.builder()
                 .sessionId(session.getId())
-                .maxQuestionCount(maxQuestions(episode))
+                .maxQuestionCount(maxQuestions(episode, user))
                 .currentQuestionCount(value(session.getQuestionCount()))
+                .maxHypothesisCount(maxHypothesisCount(user))
+                .currentHypothesisCount(value(session.getHypothesisCount()))
+                .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
                 .collectedClues(clues)
                 .finalQuestion(episode.getFinalQuestion())
                 .message(message)
@@ -603,10 +614,11 @@ public class EpisodePlayService {
     public DeductionAskResponse askDeduction(Long sessionId, DeductionAskRequest request, User user) {
         FinalDeductionSession session = requireSession(sessionId, user);
         Episode episode = requireEpisode(session.getEpisodeId());
-        int maxQuestions = maxQuestions(episode);
+        int maxQuestions = maxQuestions(episode, user);
         int current = value(session.getQuestionCount());
-        if (current >= maxQuestions) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_LIMIT_EXCEEDED", "?ъ슜 媛?ν븳 吏덈Ц ?잛닔瑜?紐⑤몢 ?ъ슜?덉뒿?덈떎.");
+        boolean adminBypass = user != null && user.isAdmin();
+        if (!adminBypass && current >= maxQuestions) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_LIMIT_EXCEEDED", "사용 가능한 질문 횟수를 모두 사용했습니다.");
         }
         UserEpisodeProgress progress = requireProgress(user.getId(), session.getEpisodeId());
         String question = request.getQuestion() == null ? "" : request.getQuestion().trim();
@@ -614,7 +626,8 @@ public class EpisodePlayService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "吏덈Ц???낅젰??二쇱꽭??");
         }
 
-        DeductionAnswer answer = sanitizeDeductionAnswer(episode, answerDeductionQuestion(episode, progress, question));
+        List<FinalDeductionQuestion> history = episodeRepository.findDeductionQuestions(sessionId);
+        DeductionAnswer answer = sanitizeDeductionAnswer(episode, answerDeductionQuestion(episode, progress, history, question));
         FinalDeductionQuestion saved = new FinalDeductionQuestion();
         saved.setSessionId(sessionId);
         saved.setUserQuestion(question);
@@ -625,14 +638,52 @@ public class EpisodePlayService {
         session.setQuestionCount(current + 1);
         episodeRepository.updateDeductionSession(session);
         progress.setDeductionQuestionCount(value(progress.getDeductionQuestionCount()) + 1);
+        addClearTimePenalty(progress, QUESTION_PENALTY_SECONDS);
         episodeRepository.updateProgress(progress);
 
         return DeductionAskResponse.builder()
                 .answerType(answer.type())
                 .answerText(answer.text())
                 .questionCount(current + 1)
-                .remainingQuestionCount(Math.max(0, maxQuestions - current - 1))
+                .remainingQuestionCount(adminBypass ? ADMIN_QUESTION_LIMIT : Math.max(0, maxQuestions - current - 1))
+                .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
                 .build();
+    }
+
+    public DeductionHypothesisResponse verifyDeductionHypothesis(Long sessionId, DeductionHypothesisRequest request, User user) {
+        FinalDeductionSession session = requireSession(sessionId, user);
+        Episode episode = requireEpisode(session.getEpisodeId());
+        UserEpisodeProgress progress = requireProgress(user.getId(), session.getEpisodeId());
+        int current = value(session.getHypothesisCount());
+        boolean adminBypass = user != null && user.isAdmin();
+        if (!adminBypass && current >= HYPOTHESIS_LIMIT) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "HYPOTHESIS_LIMIT_EXCEEDED", "가설 검증 횟수를 모두 사용했습니다.");
+        }
+        String hypothesis = request.getHypothesis() == null ? "" : request.getHypothesis().trim();
+        if (hypothesis.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "가설을 입력해 주세요.");
+        }
+
+        int matchedSlotCount = matchedFinalAnswerSlotCount(episode, hypothesis);
+        int next = current + 1;
+        session.setHypothesisCount(next);
+        episodeRepository.updateDeductionSession(session);
+        progress.setHypothesisCount(value(progress.getHypothesisCount()) + 1);
+        addClearTimePenalty(progress, HYPOTHESIS_PENALTY_SECONDS);
+        episodeRepository.updateProgress(progress);
+
+        return DeductionHypothesisResponse.builder()
+                .matchedSlotCount(matchedSlotCount)
+                .totalSlotCount(totalFinalAnswerSlotCount(episode))
+                .hypothesisCount(next)
+                .remainingHypothesisCount(adminBypass ? ADMIN_HYPOTHESIS_LIMIT : Math.max(0, HYPOTHESIS_LIMIT - next))
+                .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
+                .message("4개 정답 요소 중 " + matchedSlotCount + "개가 맞습니다.")
+                .build();
+    }
+
+    private int maxHypothesisCount(User user) {
+        return user != null && user.isAdmin() ? ADMIN_HYPOTHESIS_LIMIT : HYPOTHESIS_LIMIT;
     }
 
     public List<DeductionQuestionResponse> getDeductionQuestions(Long sessionId, User user) {
@@ -653,13 +704,14 @@ public class EpisodePlayService {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (progress.getFinalArrivedSpotId() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "理쒖쥌 ?뺣떟???쒖텧?섍린 ?꾩뿉 議곗궗 ?μ냼瑜??뺤씤?댁빞 ?⑸땲??");
+            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "최종 장소에 도착한 뒤 최종 정답을 제출할 수 있습니다.");
         }
         FinalDeductionSession session = request.getSessionId() == null ? null : requireSession(request.getSessionId(), user);
         boolean correct = isFinalAnswerCorrect(episode, request.getFinalAnswer());
         progress.setFinalGuessCount(value(progress.getFinalGuessCount()) + 1);
         if (!correct) {
             progress.setWrongAnswerCount(value(progress.getWrongAnswerCount()) + 1);
+            addClearTimePenalty(progress, WRONG_FINAL_ANSWER_PENALTY_SECONDS);
             if (session != null) {
                 session.setFinalGuessCount(value(session.getFinalGuessCount()) + 1);
                 episodeRepository.updateDeductionSession(session);
@@ -669,7 +721,8 @@ public class EpisodePlayService {
                     .correct(false)
                     .status(progress.getStatus())
                     .score(progress.getScore())
-                    .message("?뺣떟???꾨떃?덈떎. ?⑥꽌 蹂대뱶? 吏덈Ц 湲곕줉???ㅼ떆 ?뺤씤??二쇱꽭??")
+                    .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
+                    .message("정답이 아닙니다. 단서 보드와 질문 기록을 다시 확인해 주세요.")
                     .build();
         }
 
@@ -687,10 +740,10 @@ public class EpisodePlayService {
                 .correct(true)
                 .status("CLEARED")
                 .score(progress.getScore())
-                .message("?ш굔???닿껐?덉뒿?덈떎. ?대━??由ы룷?몃? ?뺤씤?????덉뒿?덈떎.")
+                .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
+                .message("정답입니다. 사건의 진실을 밝혀냈습니다.")
                 .build();
-    }
-    public ClearReportResponse getClearReport(Long episodeId, User user) {
+    }    public ClearReportResponse getClearReport(Long episodeId, User user) {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (!"CLEARED".equals(progress.getStatus()) || progress.getClearedAt() == null) {
@@ -707,7 +760,8 @@ public class EpisodePlayService {
         List<String> destinationClues = readStringList(progress.getCollectedDestinationClues()).stream().map(this::clueValueWithoutSlot).toList();
         List<String> storyClues = readStringList(progress.getCollectedStoryClues()).stream().map(this::clueValueWithoutSlot).toList();
         MissionSpot finalArrivedSpot = progress.getFinalArrivedSpotId() == null ? null : episodeRepository.findSpotById(progress.getFinalArrivedSpotId());
-        Long elapsedSeconds = progress.getStartedAt() == null ? null : Duration.between(progress.getStartedAt(), progress.getClearedAt()).getSeconds();
+        Long elapsedSeconds = progress.getStartedAt() == null ? null
+                : Duration.between(progress.getStartedAt(), progress.getClearedAt()).getSeconds() + value(progress.getClearTimePenaltySeconds());
 
         return ClearReportResponse.builder()
                 .episodeId(episodeId)
@@ -719,6 +773,7 @@ public class EpisodePlayService {
                 .startedAt(progress.getStartedAt())
                 .clearedAt(progress.getClearedAt())
                 .elapsedSeconds(elapsedSeconds)
+                .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
                 .finalTruthSummary(episode.getFinalTruthSummary())
                 .actualHistorySummary(episode.getActualHistorySummary())
                 .visitedSpotCount(visitedSpotIds.size())
@@ -790,6 +845,8 @@ public class EpisodePlayService {
         created.setUnlockedSuspectIds("[]");
         created.setClearedSuspectIds("[]");
         created.setUnlockedEvidenceIds("[]");
+        created.setHypothesisCount(0);
+        created.setClearTimePenaltySeconds(0);
         created.setStatus("IN_PROGRESS");
         episodeRepository.insertProgress(created);
         return episodeRepository.findProgress(userId, episodeId);
@@ -1161,85 +1218,52 @@ public class EpisodePlayService {
         return writeJson(values);
     }
 
-    private DeductionAnswer answerDeductionQuestion(Episode episode, UserEpisodeProgress progress, String question) {
+    private DeductionAnswer answerDeductionQuestion(Episode episode, UserEpisodeProgress progress, List<FinalDeductionQuestion> history, String question) {
         String normalizedQuestion = normalizeAnswer(question);
-        if (acceptedFinalAnswers(episode).stream().anyMatch(normalizedQuestion::contains)) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "정답값을 직접 확인하는 질문에는 답할 수 없습니다. 수집한 단서를 조합해 추론하세요.");
+        if (containsDirectFinalAnswerKeyword(episode, normalizedQuestion)) {
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "정답 키워드를 직접 확인하는 질문에는 답할 수 없습니다. 수집한 단서를 조합해 추론하세요.");
         }
-        if (containsAny(normalizedQuestion, "finalplace", "actualplace", "answerplace", "destination", "where", "정답장소", "장소정답")) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "최종 장소는 정답 추리 대상이 아닙니다. 조사 단서를 모두 완료하면 자동 공개됩니다.");
+        if (containsAny(normalizedQuestion, "finalplace", "actualplace", "answerplace", "destination", "where", "정답장소", "장소정답", "최종장소")) {
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "최종 장소는 정답 추리 대상이 아닙니다. 사건의 범인, 흉기, 동기, 방법에 집중하세요.");
         }
         if (allClues(progress).size() < 2) {
-            return new DeductionAnswer("INSUFFICIENT_CLUE", "단서가 부족합니다. 먼저 조사 장소의 사건 단서를 더 수집하세요.");
+            return new DeductionAnswer("UNKNOWN", "아직 단서가 부족해 확답하기 어렵습니다. 조사 장소의 사건 단서를 더 수집하세요.");
         }
-        if (containsAny(normalizedQuestion, "culprit", "범인", "용의자", "알리바이", "지문")) {
-            return new DeductionAnswer("RELATED", "범인 추론과 관련 있습니다. 알리바이, 접근 권한, 지문 단서를 함께 비교하세요.");
-        }
-        if (containsAny(normalizedQuestion, "weapon", "흉기", "독", "캡슐", "약")) {
-            return new DeductionAnswer("PARTIAL", "흉기 추론과 관련 있습니다. 도구 자체와 사용 방법을 분리해 확인하세요.");
-        }
-        if (containsAny(normalizedQuestion, "motive", "동기", "해고", "분쟁", "상속")) {
-            return new DeductionAnswer("RELATED", "동기 추론과 관련 있습니다. 이익을 얻는 사람과 실제 실행 가능성을 분리해 보세요.");
-        }
-        if (question.length() < 6) {
-            return new DeductionAnswer("AMBIGUOUS", "질문이 모호합니다. 범인, 흉기, 동기, 방법 중 하나를 구체적으로 물어보세요.");
-        }
-        return new DeductionAnswer("AMBIGUOUS", "어떤 단서와 연결되는지 더 구체적으로 질문해 주세요.");
+        DeductionAiService.Result aiAnswer = deductionAiService.answer(episode, allClues(progress), history, question);
+        return new DeductionAnswer(aiAnswer.answerType(), aiAnswer.answerText());
     }
     private DeductionAnswer sanitizeDeductionAnswer(Episode episode, DeductionAnswer answer) {
-        String type = ALLOWED_DEDUCTION_ANSWER_TYPES.contains(answer.type()) ? answer.type() : "AMBIGUOUS";
+        String type = ALLOWED_DEDUCTION_ANSWER_TYPES.contains(answer.type()) ? answer.type() : "UNKNOWN";
         String text = localizeDeductionAnswer(type, answer.text());
         String normalizedText = normalizeAnswer(text);
-        boolean revealsAnswer = acceptedFinalAnswers(episode).stream()
+        boolean revealsAnswer = Stream.concat(acceptedFinalAnswers(episode).stream(), requiredFinalAnswerKeywords(episode).stream().map(this::normalizeAnswer))
                 .filter(value -> !value.isBlank())
                 .anyMatch(normalizedText::contains);
-        boolean revealsFinalPlace = containsAny(normalizedText, "finalplace", "actualplace", "answerplace", "理쒖쥌?μ냼", "?ㅼ젣?μ냼", "?뺣떟?μ냼");
+        boolean revealsFinalPlace = containsAny(normalizedText, "finalplace", "actualplace", "answerplace", "정답장소", "장소정답", "최종장소");
         if (revealsAnswer || revealsFinalPlace) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "?뺣떟?대굹 議곗궗 吏?먯쓣 吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.");
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "정답을 직접 드러낼 수는 없습니다. 수집한 단서 사이의 관계로 좁혀 보세요.");
         }
         return new DeductionAnswer(type, text);
     }
 
     private String localizeDeductionAnswer(String type, String text) {
         String value = text == null ? "" : text.trim();
-        if (value.isBlank()) {
+        if (value.isBlank() || isEnglishSentence(value)) {
             return fallbackDeductionAnswer(type);
         }
-        String normalized = value.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "that question would reveal the answer directly, so i cannot answer it." ->
-                    "洹?吏덈Ц? ?뺣떟??吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.";
-            case "that question would reveal the investigation site directly, so i cannot answer it." ->
-                    "洹?吏덈Ц? 議곗궗 ?μ냼瑜?吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.";
-            case "that question would reveal the answer or investigation site directly, so i cannot answer it." ->
-                    "?뺣떟?대굹 議곗궗 吏?먯쓣 吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.";
-            case "not enough clues. investigate more answer-hint sites first." ->
-                    "?⑥꽌媛 遺議깊빀?덈떎. 癒쇱? 愿?⑥옄/?듭떖 ?⑥꽌 誘몄뀡????議곗궗??二쇱꽭??";
-            case "related. compare it with the answer-hint clues." ->
-                    "愿???덉뒿?덈떎. ?듭떖 ?⑥꽌 ?뚰듃?ㅺ낵 ?④퍡 鍮꾧탳??蹂댁꽭??";
-            case "partially correct. the direction is right, but the final answer is a more specific object." ->
-                    "遺遺꾩쟻?쇰줈 留욎뒿?덈떎. 諛⑺뼢? 留욎?留?理쒖쥌 ?뺣떟? ??援ъ껜?곸씤 臾쇨굔?낅땲??";
-            case "no. it does not directly match the collected clues." ->
-                    "?꾨떃?덈떎. ?섏쭛???⑥꽌? 吏곸젒 留욌Ъ由ъ????딆뒿?덈떎.";
-            case "the question is ambiguous. ask again about a suspect, motive, or evidence." ->
-                    "吏덈Ц??紐⑦샇?⑸땲?? ?⑹쓽?? ?숆린, 利앷굅 以??섎굹瑜???援ъ껜?곸쑝濡?臾쇱뼱遊?二쇱꽭??";
-            case "the question is ambiguous. ask more specifically which collected clue it connects to." ->
-                    "吏덈Ц??紐⑦샇?⑸땲?? ?대뼡 ?섏쭛 ?⑥꽌? ?곌껐?섎뒗吏 ??援ъ껜?곸쑝濡?臾쇱뼱遊?二쇱꽭??";
-            default -> isEnglishSentence(value) ? fallbackDeductionAnswer(type) : value;
-        };
+        return value;
     }
 
     private String fallbackDeductionAnswer(String type) {
         return switch (type) {
-            case "YES", "RELATED" -> "愿???덉뒿?덈떎. ?섏쭛???⑥꽌? ?④퍡 鍮꾧탳??蹂댁꽭??";
-            case "NO", "NOT_RELATED" -> "?꾨떃?덈떎. ?섏쭛???⑥꽌? 吏곸젒 留욌Ъ由ъ????딆뒿?덈떎.";
-            case "PARTIAL" -> "遺遺꾩쟻?쇰줈 留욎뒿?덈떎. 諛⑺뼢? 留욎?留???援ъ껜?곸씤 ?⑥꽌媛 ?꾩슂?⑸땲??";
-            case "INSUFFICIENT_CLUE" -> "?⑥꽌媛 遺議깊빀?덈떎. 癒쇱? 愿?⑥옄/?듭떖 ?⑥꽌 誘몄뀡????議곗궗??二쇱꽭??";
-            case "REFUSED_DIRECT_REVEAL" -> "?뺣떟?대굹 議곗궗 吏?먯쓣 吏곸젒 ?몄텧?????덉뼱 ?듬??????놁뒿?덈떎.";
-            default -> "吏덈Ц??紐⑦샇?⑸땲?? ?대뼡 ?섏쭛 ?⑥꽌? ?곌껐?섎뒗吏 ??援ъ껜?곸쑝濡?臾쇱뼱遊?二쇱꽭??";
+            case "YES", "RELATED" -> "예. 수집한 단서와 관련이 있습니다.";
+            case "NO", "NOT_RELATED" -> "아니오. 현재 단서와 직접 맞지 않습니다.";
+            case "PARTIAL" -> "부분적으로 맞습니다. 방향은 맞지만 더 구체적인 단서 조합이 필요합니다.";
+            case "INSUFFICIENT_CLUE", "UNKNOWN" -> "판정하기 어렵습니다. 어떤 단서와 연결되는지 더 구체적으로 질문해 주세요.";
+            case "REFUSED_DIRECT_REVEAL" -> "정답을 직접 확인하는 질문에는 답할 수 없습니다.";
+            default -> "판정하기 어렵습니다. 질문을 더 구체화해 주세요.";
         };
     }
-
     private boolean isEnglishSentence(String value) {
         long alphabetCount = value == null ? 0 : value.chars()
                 .filter(ch -> (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
@@ -1287,9 +1311,123 @@ public class EpisodePlayService {
         List<String> requiredKeywords = requiredFinalAnswerKeywords(episode);
         return !requiredKeywords.isEmpty()
                 && requiredKeywords.stream()
-                .map(this::normalizeAnswer)
+                .allMatch(keyword -> keywordMatchesText(submittedAnswer, keyword));
+    }
+
+    private int matchedFinalAnswerSlotCount(Episode episode, String submittedAnswer) {
+        List<String> requiredKeywords = requiredFinalAnswerKeywords(episode);
+        if (requiredKeywords.isEmpty()) {
+            return isFinalAnswerCorrect(episode, submittedAnswer) ? 4 : 0;
+        }
+        int matched = 0;
+        for (String keyword : requiredKeywords) {
+            if (keywordMatchesText(submittedAnswer, keyword)) {
+                matched++;
+            }
+        }
+        return matched;
+    }
+
+    private int totalFinalAnswerSlotCount(Episode episode) {
+        int count = requiredFinalAnswerKeywords(episode).size();
+        return count == 0 ? 4 : count;
+    }
+
+    private boolean containsDirectFinalAnswerKeyword(Episode episode, String normalizedQuestion) {
+        return Stream.concat(
+                        Stream.concat(acceptedFinalAnswers(episode).stream(), requiredFinalAnswerKeywords(episode).stream().map(this::normalizeAnswer)),
+                        directSuspectKeywords(episode).stream()
+                )
                 .filter(value -> !value.isBlank())
-                .allMatch(normalizedSubmitted::contains);
+                .anyMatch(normalizedQuestion::contains);
+    }
+
+    private List<String> directSuspectKeywords(Episode episode) {
+        if (episode == null || episode.getId() == null) {
+            return List.of();
+        }
+        try {
+            return caseFileRepository.findSuspects(episode.getId()).stream()
+                    .flatMap(suspect -> Stream.of(suspect.getDisplayName(), suspect.getAlias()))
+                    .map(this::normalizeAnswer)
+                    .filter(value -> value.length() >= 2)
+                    .distinct()
+                    .toList();
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    private boolean keywordMatchesText(String text, String keyword) {
+        String normalizedText = normalizeAnswer(text);
+        String normalizedKeyword = normalizeAnswer(keyword);
+        if (normalizedText.isBlank() || normalizedKeyword.isBlank()) {
+            return false;
+        }
+        if (normalizedText.contains(normalizedKeyword)) {
+            return true;
+        }
+        if (normalizedKeyword.length() >= 2 && normalizedKeyword.contains(normalizedText)) {
+            return true;
+        }
+        if (semanticEquivalent(normalizedText, normalizedKeyword)) {
+            return true;
+        }
+        if (significantKeywordFragments(normalizedKeyword).stream().anyMatch(normalizedText::contains)) {
+            return true;
+        }
+        List<String> keywordTokens = answerTokens(keyword);
+        if (keywordTokens.isEmpty()) {
+            return false;
+        }
+        long matchedTokens = keywordTokens.stream()
+                .filter(normalizedText::contains)
+                .count();
+        return matchedTokens > 0 && matchedTokens >= Math.ceil(keywordTokens.size() * 0.5);
+    }
+
+    private List<String> significantKeywordFragments(String normalizedKeyword) {
+        if (normalizedKeyword == null || normalizedKeyword.length() < 4) {
+            return List.of();
+        }
+        List<String> fragments = new ArrayList<>();
+        for (int start = 1; start <= normalizedKeyword.length() - 3; start++) {
+            fragments.add(normalizedKeyword.substring(start));
+        }
+        return fragments;
+    }
+
+    private boolean semanticEquivalent(String normalizedText, String normalizedKeyword) {
+        return semanticGroupMatches(normalizedText, normalizedKeyword, "압사", "깔려죽", "깔림", "깔려", "짓눌", "눌려", "압박사망")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "교살", "목졸", "목을졸", "질식")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "독살", "독", "중독", "투여", "먹임", "마시게")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "추락", "떨어", "밀어", "낙하")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "익사", "물에빠", "수장")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "감전", "전기")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "자상", "찔", "칼")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "둔기", "망치", "때려", "가격")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "폭발", "폭파", "터뜨")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "감금", "가둠", "갇히", "잠금");
+    }
+
+    private boolean semanticGroupMatches(String normalizedText, String normalizedKeyword, String... terms) {
+        boolean textMatches = Arrays.stream(terms).map(this::normalizeAnswer).anyMatch(normalizedText::contains);
+        boolean keywordMatches = Arrays.stream(terms).map(this::normalizeAnswer).anyMatch(normalizedKeyword::contains);
+        return textMatches && keywordMatches;
+    }
+
+    private List<String> answerTokens(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.split("[^\\p{IsHangul}\\p{Alnum}]+"))
+                .map(this::normalizeAnswer)
+                .filter(token -> token.length() >= 2)
+                .toList();
+    }
+
+    private void addClearTimePenalty(UserEpisodeProgress progress, int seconds) {
+        progress.setClearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()) + seconds);
     }
 
     private List<String> requiredFinalAnswerKeywords(Episode episode) {
@@ -1300,9 +1438,17 @@ public class EpisodePlayService {
                 .map(String::trim)
                 .filter(value -> value.startsWith("KW:"))
                 .flatMap(value -> Arrays.stream(value.substring(3).split("\\|")))
+                .map(this::stripAnswerSlotLabel)
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .toList();
+    }
+
+    private String stripAnswerSlotLabel(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().replaceFirst("(?i)^(CULPRIT|WEAPON|MOTIVE|METHOD|범인|흉기|동기|방법|범행방법)\\s*[:=]\\s*", "");
     }
 
     private List<String> allClues(UserEpisodeProgress progress) {
@@ -1318,6 +1464,10 @@ public class EpisodePlayService {
 
     private int maxQuestions(Episode episode) {
         return episode.getMaxDeductionQuestions() == null ? 20 : episode.getMaxDeductionQuestions();
+    }
+
+    private int maxQuestions(Episode episode, User user) {
+        return user != null && user.isAdmin() ? ADMIN_QUESTION_LIMIT : maxQuestions(episode);
     }
 
     private int value(Integer value) {

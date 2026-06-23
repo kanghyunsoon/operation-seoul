@@ -2387,7 +2387,7 @@ function suggestedDraftEra(draft) {
   if (source.includes('대한제국') || source.includes('정동') || source.includes('1905') || source.includes('1897')) return '대한제국 말기';
   if (source.includes('조선') || source.includes('궁') || source.includes('한양')) return '조선 후기';
   if (source.includes('근대') || source.includes('개화') || source.includes('일제')) return '근대 전환기';
-  return '현대에 남은 오래된 기록';
+  return '현대';
 }
 
 function sourceCandidateForMission(mission) {
@@ -3430,7 +3430,7 @@ function inferEraFromCandidates(candidates = []) {
   if (source.includes('대한제국') || source.includes('정동') || source.includes('1905') || source.includes('1897')) return '대한제국 말기';
   if (source.includes('조선') || source.includes('궁') || source.includes('한양')) return '조선 후기';
   if (source.includes('근대') || source.includes('개화') || source.includes('일제')) return '근대 전환기';
-  return '현대에 남은 오래된 기록';
+  return '현대';
 }
 
 function setMessage(text, type = 'success') {

@@ -18,6 +18,7 @@ final class DraftStructureNormalizer {
     static void normalizeDraft(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {
         draft.setGenre(GENRE_NAME);
         draft.setSelectedGenre(GENRE_NAME);
+        draft.setEra(resolveEra(draft.getEra(), request == null ? null : request.getEra()));
         draft.setFinalAnswerType("CASE_TRUTH");
         draft.setMaxDeductionQuestions(draft.getMaxDeductionQuestions() == null ? 20 : draft.getMaxDeductionQuestions());
         if (!blank(draft.getActualHistorySummary())) {
@@ -42,7 +43,7 @@ final class DraftStructureNormalizer {
             mission.setClueRole(start ? "START" : finalPlace ? "FINAL_PLACE" : "ANSWER_HINT");
             mission.setFinalPlace(finalPlace);
             mission.setPuzzleType(defaultIfBlank(mission.getPuzzleType(), "STORY_COMBINATION"));
-            mission.setQuestionText(defaultIfBlank(mission.getQuestionText(), "현장 기록과 사건 자료를 비교해 답하세요."));
+            mission.setQuestionText(defaultIfBlank(mission.getQuestionText(), "현장 흔적과 사건 단서를 비교해 답하세요."));
             mission.setAnswer(defaultIfBlank(mission.getAnswer(), "단서" + (i + 1)));
             mission.setAnswerFormat(defaultIfBlank(mission.getAnswerFormat(), "TEXT"));
             mission.setHints(ensureThreeHints(mission.getHints()));
@@ -84,6 +85,26 @@ final class DraftStructureNormalizer {
         List<String> result = new ArrayList<>(safeList(hints).stream().filter(value -> !blank(value)).limit(3).toList());
         while (result.size() < 3) result.add("시간, 접근 권한, 물질 흔적을 비교하세요.");
         return result;
+    }
+
+    private static String resolveEra(String draftEra, String requestEra) {
+        String requested = defaultIfBlank(requestEra, "");
+        String candidate = defaultIfBlank(draftEra, "");
+        if (!blank(requested) && (blank(candidate) || ambiguousEra(candidate))) {
+            return requested;
+        }
+        return candidate;
+    }
+
+    private static boolean ambiguousEra(String value) {
+        String compact = value == null ? "" : value.replaceAll("\\s+", "");
+        return compact.contains("현대의오래된")
+                || compact.contains("현대에남은")
+                || compact.contains("오래된기록")
+                || compact.contains("낡은기록")
+                || compact.contains("과거와현재")
+                || compact.contains("시대미상")
+                || compact.contains("시대확인필요");
     }
 
     private static <T> List<T> safeList(List<T> values) { return values == null ? List.of() : values; }

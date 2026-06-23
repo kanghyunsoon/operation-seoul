@@ -67,7 +67,7 @@ const start = async () => {
   try {
     const started = await episodeApi.startEpisode(episodeId);
     setMessage('에피소드를 시작했습니다.');
-    router.push({ name: 'EpisodeCaseFile', params: { episodeId: started.id } });
+    router.push({ name: 'EpisodeMissionBriefing', params: { episodeId: started.id } });
   } catch (err) {
     setMessage(err.userMessage || '에피소드를 시작하지 못했습니다.', 'error');
   }

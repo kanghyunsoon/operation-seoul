@@ -10,4 +10,5 @@ public class DeductionAskResponse {
     private String answerText;
     private Integer questionCount;
     private Integer remainingQuestionCount;
+    private Integer clearTimePenaltySeconds;
 }

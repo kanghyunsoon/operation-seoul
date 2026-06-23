@@ -11,6 +11,9 @@ public class DeductionStartResponse {
     private Long sessionId;
     private Integer maxQuestionCount;
     private Integer currentQuestionCount;
+    private Integer maxHypothesisCount;
+    private Integer currentHypothesisCount;
+    private Integer clearTimePenaltySeconds;
     private List<String> collectedClues;
     private String finalQuestion;
     private String message;

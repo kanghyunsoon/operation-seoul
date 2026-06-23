@@ -10,9 +10,11 @@ import PlansView from '@/views/PlansView.vue';
 import GroupsView from '@/views/GroupsView.vue';
 import EpisodeListView from '@/views/EpisodeListView.vue';
 import EpisodeDetailView from '@/views/EpisodeDetailView.vue';
+import EpisodeMissionBriefingView from '@/views/EpisodeMissionBriefingView.vue';
 import EpisodeMapView from '@/views/EpisodeMapView.vue';
 import EpisodeCaseFileView from '@/views/EpisodeCaseFileView.vue';
 import FinalDeductionView from '@/views/FinalDeductionView.vue';
+import EpisodeDebriefingView from '@/views/EpisodeDebriefingView.vue';
 import ClearReportView from '@/views/ClearReportView.vue';
 import MyPageView from '@/views/MyPageView.vue';
 import AdminReviewsView from '@/views/AdminReviewsView.vue';
@@ -33,10 +35,11 @@ const routes = [
   { path: '/groups', name: 'Groups', component: GroupsView, meta: { requiresAuth: true } },
   { path: '/episodes', name: 'EpisodeList', component: EpisodeListView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId', name: 'EpisodeDetail', component: EpisodeDetailView, meta: { requiresAuth: true } },
-  { path: '/episodes/:episodeId/briefing', redirect: (to) => ({ name: 'EpisodeCaseFile', params: { episodeId: to.params.episodeId } }) },
+  { path: '/episodes/:episodeId/briefing', name: 'EpisodeMissionBriefing', component: EpisodeMissionBriefingView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/map', name: 'EpisodeMap', component: EpisodeMapView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/case-file', name: 'EpisodeCaseFile', component: EpisodeCaseFileView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/deduction', name: 'FinalDeduction', component: FinalDeductionView, meta: { requiresAuth: true } },
+  { path: '/episodes/:episodeId/debriefing', name: 'EpisodeDebriefing', component: EpisodeDebriefingView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/clear-report', name: 'EpisodeClearReport', component: ClearReportView, meta: { requiresAuth: true } },
   { path: '/me', name: 'MyPage', component: MyPageView, meta: { requiresAuth: true } },
   { path: '/admin/users', name: 'AdminUsers', component: AdminUsersView, meta: { requiresAuth: true, requiresAdmin: true } },

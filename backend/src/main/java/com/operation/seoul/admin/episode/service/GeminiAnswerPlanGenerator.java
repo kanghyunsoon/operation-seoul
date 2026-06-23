@@ -31,13 +31,40 @@ final class GeminiAnswerPlanGenerator {
     List<AiEpisodePlanResponse.AnswerKeyword> generate(AiEpisodeDraftRequest request) {
         try {
             JsonNode root = parseJson(geminiCaller.apply(GeminiAnswerPlanPromptBuilder.build(request)));
-            return sanitizePlanKeywords(root, "GEMINI");
+            List<AiEpisodePlanResponse.AnswerKeyword> keywords = sanitizePlanKeywords(root, "GEMINI");
+            rejectRecordTemplatePlanWithoutRecordAnchor(keywords, request);
+            return keywords;
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
             log.warn("Gemini answer plan generation failed. reason={}", e.getMessage());
             throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_FAILED", "Gemini 최종 정답 키워드 생성에 실패했습니다. 서버 템플릿으로 대체하지 않습니다.");
         }
+    }
+
+    private void rejectRecordTemplatePlanWithoutRecordAnchor(List<AiEpisodePlanResponse.AnswerKeyword> keywords, AiEpisodeDraftRequest request) {
+        if (!usesRecordTemplateKeyword(keywords) || hasRecordAnchor(request)) {
+            return;
+        }
+        throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_RECORD_TEMPLATE", "Gemini가 현재 장소 앵커와 무관한 기록 중심 정답 키워드를 생성했습니다. 다시 생성해 주세요.");
+    }
+
+    private boolean usesRecordTemplateKeyword(List<AiEpisodePlanResponse.AnswerKeyword> keywords) {
+        return keywords.stream()
+                .filter(keyword -> "WEAPON".equals(normalize(keyword.getSlotId())) || "MOTIVE".equals(normalize(keyword.getSlotId())))
+                .map(AiEpisodePlanResponse.AnswerKeyword::getKeyword)
+                .map(this::compact)
+                .anyMatch(value -> containsAny(value, "기록물", "기록", "문서", "자료", "장부", "소유권", "고서", "보관함"));
+    }
+
+    private boolean hasRecordAnchor(AiEpisodeDraftRequest request) {
+        TourApiPlanContext context = TourApiPlanInputExtractor.extract(request);
+        String text = compact(String.join(" ",
+                String.join(" ", context.storyAnchors()),
+                context.historicalContext(),
+                context.answerSeedContext()
+        ));
+        return containsAny(text, "기록", "문서", "자료", "장부", "고서", "보관", "수장", "아카이브", "archive", "record", "document", "ledger", "storage", "cabinet");
     }
 
     List<AiEpisodePlanResponse.AnswerKeyword> sanitizePlanKeywords(JsonNode node) {
@@ -155,6 +182,20 @@ final class GeminiAnswerPlanGenerator {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String compact(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+    }
+
+    private boolean containsAny(String text, String... targets) {
+        if (blank(text) || targets == null) return false;
+        for (String target : targets) {
+            if (!blank(target) && text.contains(target.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String trim(String value) {

@@ -2,7 +2,7 @@
   <div class="game-nav-shell">
     <button type="button" class="game-home" @click="router.push({ name: 'EpisodeList' })">홈</button>
     <nav class="case-tabs" aria-label="플레이 화면 전환">
-      <button type="button" :class="{ active: active === 'case' }" @click="go('EpisodeCaseFile')">미션 메모</button>
+      <button type="button" :class="{ active: active === 'case' }" @click="go('EpisodeCaseFile')">사건 파일</button>
       <button type="button" :class="{ active: active === 'map' }" @click="go('EpisodeMap')">지도</button>
       <button type="button" :class="{ active: active === 'deduction' }" @click="go('FinalDeduction')">최종추리</button>
     </nav>

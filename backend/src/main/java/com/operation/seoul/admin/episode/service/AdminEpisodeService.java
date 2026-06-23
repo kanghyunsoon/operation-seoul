@@ -644,7 +644,7 @@ public class AdminEpisodeService {
         Episode episode = new Episode();
         episode.setTitle(title);
         episode.setSubtitle(blank(draft.getSubtitle(), "AI 사건파일 초안"));
-        episode.setEra(blank(draft.getEra(), "시대 확인 필요"));
+        episode.setEra(resolveDraftEra(draft.getEra(), request == null ? null : request.getSourceInput()));
         episode.setGenre(requireAllowedGenre(draft.getGenre()));
         episode.setDifficulty("NORMAL");
         episode.setEstimatedTime("90~120분");
@@ -984,7 +984,7 @@ public class AdminEpisodeService {
         if (usedDisplayNames.add(compact(displayName))) {
             return displayName;
         }
-        for (String fallback : suspectFallbackNames(index)) {
+        for (String fallback : suspectFallbackNames(candidate, index)) {
             if (!relatedPersonSlot && !missing(relatedPersonKeyword) && same(fallback, relatedPersonKeyword)) {
                 continue;
             }
@@ -1031,16 +1031,13 @@ public class AdminEpisodeService {
 
     private record NameRole(String name, String role) {}
 
-    private List<String> suspectFallbackNames(int index) {
+    private List<String> suspectFallbackNames(String candidate, int index) {
         List<String> names = List.of(
-                "\uC11C\uBBFC\uC7AC",
-                "\uD64D\uC9C0\uC601",
-                "\uBC15\uD0DC\uC900",
-                "\uC774\uD604\uC6B0",
-                "\uD55C\uC9C0\uC6D0",
-                "\uC624\uB3C4\uC724"
+                "서민재", "홍지영", "이현우", "한지원", "오도윤", "유서하",
+                "문태오", "차이준", "권나린", "임도현", "배하윤", "정이안",
+                "송가온", "남서율", "류하진", "최이든", "신유겸", "하서진"
         );
-        int start = Math.floorMod(index, names.size());
+        int start = Math.floorMod((blank(candidate, "") + ":" + index).hashCode(), names.size());
         List<String> rotated = new ArrayList<>();
         for (int i = 0; i < names.size(); i++) {
             rotated.add(names.get((start + i) % names.size()));
@@ -1075,13 +1072,29 @@ public class AdminEpisodeService {
     private String safeSuspectDisplayName(String value, int index) {
         String name = blank(value, "");
         if (missing(name) || looksLikeSuspectAlias(name)) {
-            return switch (Math.floorMod(index, 3)) {
-                case 0 -> "한서윤";
-                case 1 -> "강도윤";
-                default -> "윤재하";
-            };
+            return suspectFallbackNames(name, index).get(0);
         }
         return name;
+    }
+
+    private String resolveDraftEra(String draftEra, AiEpisodeDraftRequest sourceInput) {
+        String requestedEra = blank(sourceInput == null ? null : sourceInput.getEra(), "");
+        String candidate = blank(draftEra, "");
+        if (!missing(requestedEra) && (missing(candidate) || looksLikeAmbiguousEra(candidate))) {
+            return requestedEra;
+        }
+        return missing(candidate) ? blank(requestedEra, "시대 확인 필요") : candidate;
+    }
+
+    private boolean looksLikeAmbiguousEra(String value) {
+        String compactValue = compact(value);
+        return containsCompact(compactValue, "현대의오래된")
+                || containsCompact(compactValue, "현대에남은")
+                || containsCompact(compactValue, "오래된기록")
+                || containsCompact(compactValue, "낡은기록")
+                || containsCompact(compactValue, "과거와현재")
+                || containsCompact(compactValue, "시대미상")
+                || containsCompact(compactValue, "시대확인필요");
     }
 
     private boolean looksLikeSuspectAlias(String value) {

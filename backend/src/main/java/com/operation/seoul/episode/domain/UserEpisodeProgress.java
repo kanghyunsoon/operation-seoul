@@ -18,7 +18,9 @@ public class UserEpisodeProgress {
     private Integer hintUsedCount;
     private Integer wrongAnswerCount;
     private Integer deductionQuestionCount;
+    private Integer hypothesisCount;
     private Integer finalGuessCount;
+    private Integer clearTimePenaltySeconds;
     private Integer score;
     private LocalDateTime startedAt;
     private LocalDateTime lastPlayedAt;

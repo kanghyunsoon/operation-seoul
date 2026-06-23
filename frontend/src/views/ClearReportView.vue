@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="report-page">
     <section v-if="loading" class="report shell">클리어 리포트를 불러오는 중입니다.</section>
     <section v-else-if="errorMessage" class="report shell">
@@ -18,18 +18,9 @@
       <p class="question">{{ report.finalQuestion }}</p>
 
       <div class="score-card">
-        <div>
-          <span>최종 점수</span>
-          <strong>{{ report.score || 0 }}점</strong>
-        </div>
-        <div>
-          <span>소요 시간</span>
-          <strong>{{ formatElapsed(report.elapsedSeconds) }}</strong>
-        </div>
-        <div>
-          <span>최종 조사 지점</span>
-          <strong>{{ report.finalArrivedSpotName || '기록 없음' }}</strong>
-        </div>
+        <div><span>최종 점수</span><strong>{{ report.score || 0 }}점</strong></div>
+        <div><span>소요 시간</span><strong>{{ formatElapsed(report.elapsedSeconds) }}</strong></div>
+        <div><span>최종 조사 지점</span><strong>{{ report.finalArrivedSpotName || '기록 없음' }}</strong></div>
       </div>
 
       <div class="metric-grid">
@@ -48,24 +39,25 @@
       </article>
 
       <article class="paper-block fact-block">
-        <h2>2. 실제 사건 해설</h2>
+        <h2>2. 실제 장소 해설</h2>
         <p v-for="paragraph in historyExplanationParagraphs" :key="paragraph">{{ paragraph }}</p>
-      </article>
-
-      <article class="paper-block fact-block">
-        <h2>3. 픽션과 역사의 매칭 (디브리핑)</h2>
-        <p v-for="line in fictionHistoryMappingLines" :key="line">{{ line }}</p>
       </article>
 
       <article class="paper-block">
         <h2>수집한 단서</h2>
         <div v-for="slot in deductionSlots" :key="slot.id" class="clue-section">
           <h3>{{ slot.label }} 추리</h3>
-          <div class="chips"><span v-for="clue in slot.clues" :key="`${slot.id}-${clue}`">{{ clue }}</span><em v-if="!slot.clues.length">분류된 단서 없음</em></div>
+          <div class="chips">
+            <span v-for="clue in slot.clues" :key="`${slot.id}-${clue}`">{{ clue }}</span>
+            <em v-if="!slot.clues.length">분류된 단서 없음</em>
+          </div>
         </div>
         <div class="clue-section">
           <h3>스토리 단서</h3>
-          <div class="chips"><span v-for="clue in report.storyClues || []" :key="`s-${clue}`">{{ clue }}</span><em v-if="!(report.storyClues || []).length">없음</em></div>
+          <div class="chips">
+            <span v-for="clue in report.storyClues || []" :key="`s-${clue}`">{{ clue }}</span>
+            <em v-if="!(report.storyClues || []).length">없음</em>
+          </div>
         </div>
       </article>
 
@@ -106,7 +98,6 @@ const errorMessage = ref('');
 
 const motifSection = computed(() => sectionText(report.value?.actualHistorySummary, '1. 모티브 공개', '2. 실제 사건 해설'));
 const historySection = computed(() => sectionText(report.value?.actualHistorySummary, '2. 실제 사건 해설'));
-const mappingSection = computed(() => sectionText(report.value?.finalTruthSummary, '3. 픽션과 역사의 매칭 (디브리핑)'));
 const deductionSlots = computed(() => {
   const fallback = uniqueClues(report.value?.answerClues);
   return [
@@ -117,6 +108,20 @@ const deductionSlots = computed(() => {
   ];
 });
 
+const motifDisclosure = computed(() => {
+  if (motifSection.value) return motifSection.value;
+  const finalPlace = report.value?.finalArrivedSpotName || '최종 장소';
+  return `이 임무는 [${finalPlace}]의 실제 장소성과 지역적 분위기를 배경 모티브로 구성되었습니다.`;
+});
+
+const historyExplanationParagraphs = computed(() => {
+  const paragraphs = splitBlocks(historySection.value || report.value?.actualHistorySummary)
+    .filter((paragraph) => !paragraph.includes('이 임무의 실제'));
+  return paragraphs.length ? paragraphs : ['실제 장소 해설이 아직 등록되지 않았습니다.'];
+});
+
+onMounted(loadReport);
+
 function reportSlot(id, label, explicit, fallback, offset) {
   const clues = uniqueClues(explicit);
   return { id, label, clues: clues.length ? clues : fallback.filter((_, index) => index % 4 === offset) };
@@ -125,25 +130,6 @@ function reportSlot(id, label, explicit, fallback, offset) {
 function uniqueClues(values = []) {
   return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
 }
-const motifDisclosure = computed(() => {
-  if (motifSection.value) return motifSection.value;
-  const finalPlace = report.value?.finalArrivedSpotName || '최종 장소';
-  return `이 임무는 [${finalPlace}]의 역사적 기록과 문화적 분위기를 배경 모티브로 제작되었습니다.`;
-});
-const historyExplanationParagraphs = computed(() => {
-  const paragraphs = splitBlocks(historySection.value || report.value?.actualHistorySummary)
-    .filter((paragraph) => !paragraph.includes('이 임무는 실제'));
-  return paragraphs.length ? paragraphs : ['역사 해설이 아직 등록되지 않았습니다.'];
-});
-const fictionHistoryMappingLines = computed(() => {
-  const lines = splitBlocks(mappingSection.value || report.value?.finalTruthSummary)
-    .flatMap((paragraph) => paragraph.split('\n'))
-    .map((line) => line.trim())
-    .filter(Boolean);
-  return lines.length ? lines : ['픽션과 실제 역사의 매칭 해설이 아직 등록되지 않았습니다.'];
-});
-
-onMounted(loadReport);
 
 async function loadReport() {
   loading.value = true;
@@ -221,3 +207,6 @@ button.ghost { border: 1px solid rgba(36,24,13,.24); background: transparent; co
 @media (min-width: 640px) { .score-card { grid-template-columns: repeat(3, 1fr); } .score-card div { display: grid; } .metric-grid { grid-template-columns: repeat(3, 1fr); } .actions { grid-template-columns: 1fr 1fr 1fr; } }
 @media (max-width: 370px) { .report { padding: 18px; } .metric-grid { grid-template-columns: 1fr; } }
 </style>
+
+
+

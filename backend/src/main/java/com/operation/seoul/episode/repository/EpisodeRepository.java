@@ -138,7 +138,8 @@ public interface EpisodeRepository {
     @Select("""
             select id, user_id, episode_id, visited_spot_ids, completed_spot_ids, collected_answer_clues,
                    collected_destination_clues, collected_story_clues, final_arrived_spot_id, hint_used_count,
-                   wrong_answer_count, deduction_question_count, final_guess_count, score, started_at, last_played_at,
+                   wrong_answer_count, deduction_question_count, hypothesis_count, final_guess_count,
+                   clear_time_penalty_seconds, score, started_at, last_played_at,
                    cleared_at, status, unlocked_suspect_ids, cleared_suspect_ids, unlocked_evidence_ids
             from user_episode_progress
             where user_id = #{userId} and episode_id = #{episodeId}
@@ -151,7 +152,8 @@ public interface EpisodeRepository {
             @Result(property = "collectedDestinationClues", column = "collected_destination_clues"), @Result(property = "collectedStoryClues", column = "collected_story_clues"),
             @Result(property = "finalArrivedSpotId", column = "final_arrived_spot_id"), @Result(property = "hintUsedCount", column = "hint_used_count"),
             @Result(property = "wrongAnswerCount", column = "wrong_answer_count"), @Result(property = "deductionQuestionCount", column = "deduction_question_count"),
-            @Result(property = "finalGuessCount", column = "final_guess_count"), @Result(property = "score", column = "score"),
+            @Result(property = "hypothesisCount", column = "hypothesis_count"), @Result(property = "finalGuessCount", column = "final_guess_count"),
+            @Result(property = "clearTimePenaltySeconds", column = "clear_time_penalty_seconds"), @Result(property = "score", column = "score"),
             @Result(property = "startedAt", column = "started_at"), @Result(property = "lastPlayedAt", column = "last_played_at"),
             @Result(property = "clearedAt", column = "cleared_at"), @Result(property = "status", column = "status"),
             @Result(property = "unlockedSuspectIds", column = "unlocked_suspect_ids"), @Result(property = "clearedSuspectIds", column = "cleared_suspect_ids"),
@@ -162,10 +164,11 @@ public interface EpisodeRepository {
     @Insert("""
             insert into user_episode_progress (user_id, episode_id, visited_spot_ids, completed_spot_ids,
             collected_answer_clues, collected_destination_clues, collected_story_clues, hint_used_count,
-            wrong_answer_count, deduction_question_count, final_guess_count, score, started_at, last_played_at,
+            wrong_answer_count, deduction_question_count, hypothesis_count, final_guess_count,
+            clear_time_penalty_seconds, score, started_at, last_played_at,
             unlocked_suspect_ids, cleared_suspect_ids, unlocked_evidence_ids, status)
             values (#{userId}, #{episodeId}, #{visitedSpotIds}, #{completedSpotIds}, #{collectedAnswerClues},
-            #{collectedDestinationClues}, #{collectedStoryClues}, 0, 0, 0, 0, 0, current_timestamp, current_timestamp,
+            #{collectedDestinationClues}, #{collectedStoryClues}, 0, 0, 0, 0, 0, 0, null, current_timestamp, current_timestamp,
             #{unlockedSuspectIds}, #{clearedSuspectIds}, #{unlockedEvidenceIds}, #{status})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -177,7 +180,8 @@ public interface EpisodeRepository {
                 collected_answer_clues = #{collectedAnswerClues}, collected_destination_clues = #{collectedDestinationClues},
                 collected_story_clues = #{collectedStoryClues}, final_arrived_spot_id = #{finalArrivedSpotId},
                 hint_used_count = #{hintUsedCount}, wrong_answer_count = #{wrongAnswerCount},
-                deduction_question_count = #{deductionQuestionCount}, final_guess_count = #{finalGuessCount},
+                deduction_question_count = #{deductionQuestionCount}, hypothesis_count = #{hypothesisCount},
+                final_guess_count = #{finalGuessCount}, clear_time_penalty_seconds = #{clearTimePenaltySeconds},
                 score = #{score}, last_played_at = current_timestamp, cleared_at = #{clearedAt}, status = #{status},
                 unlocked_suspect_ids = #{unlockedSuspectIds}, cleared_suspect_ids = #{clearedSuspectIds},
                 unlocked_evidence_ids = #{unlockedEvidenceIds}
@@ -190,7 +194,8 @@ public interface EpisodeRepository {
             @Result(property = "id", column = "id", id = true), @Result(property = "userId", column = "user_id"),
             @Result(property = "episodeId", column = "episode_id"), @Result(property = "startedAt", column = "started_at"),
             @Result(property = "completedAt", column = "completed_at"), @Result(property = "questionCount", column = "question_count"),
-            @Result(property = "finalGuessCount", column = "final_guess_count"), @Result(property = "status", column = "status")
+            @Result(property = "hypothesisCount", column = "hypothesis_count"), @Result(property = "finalGuessCount", column = "final_guess_count"),
+            @Result(property = "status", column = "status")
     })
     FinalDeductionSession findDeductionSession(Long id);
 
@@ -199,15 +204,16 @@ public interface EpisodeRepository {
     FinalDeductionSession findOpenDeductionSession(@Param("userId") Long userId, @Param("episodeId") Long episodeId);
 
     @Insert("""
-            insert into final_deduction_sessions (user_id, episode_id, started_at, question_count, final_guess_count, status)
-            values (#{userId}, #{episodeId}, current_timestamp, 0, 0, 'OPEN')
+            insert into final_deduction_sessions (user_id, episode_id, started_at, question_count, hypothesis_count, final_guess_count, status)
+            values (#{userId}, #{episodeId}, current_timestamp, 0, 0, 0, 'OPEN')
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertDeductionSession(FinalDeductionSession session);
 
     @Update("""
             update final_deduction_sessions
-            set completed_at = #{completedAt}, question_count = #{questionCount}, final_guess_count = #{finalGuessCount}, status = #{status}
+            set completed_at = #{completedAt}, question_count = #{questionCount}, hypothesis_count = #{hypothesisCount},
+                final_guess_count = #{finalGuessCount}, status = #{status}
             where id = #{id}
             """)
     int updateDeductionSession(FinalDeductionSession session);

@@ -118,7 +118,7 @@ final class TourApiPlanInputExtractor {
         if (!blank(era)) fragments.add("시대 기반: " + era);
         if (!blank(theme)) fragments.add("테마 기반: " + theme);
         if (fragments.isEmpty()) return List.of();
-        return List.of("직접 역사 사건 앵커가 부족해 지역/시대/테마 기반 배경으로 생성: " + String.join(" / ", fragments));
+        return List.of("지역/시대/테마 기반 배경: " + String.join(" / ", fragments));
     }
 
     private static String historicalContextForPlace(AiEpisodeDraftRequest.PlaceInput place) {
@@ -234,7 +234,16 @@ final class TourApiPlanInputExtractor {
         if (blank(text)) return "";
         text = text.replaceAll("\\s+", " ").trim();
         if (blank(text) || isKakaoOrSiteVerificationNoise(text)) return "";
+        text = normalizeEraLikeRegionalText(text);
         return text;
+    }
+
+    private static String normalizeEraLikeRegionalText(String value) {
+        String compacted = compact(value);
+        if (containsAny(compacted, "현대에남은오래된기록", "현대의오래된기록", "현대오래된기록", "오래된기록")) {
+            return "현대";
+        }
+        return value;
     }
 
     private static String stripKakaoSiteSignalSuffix(String value) {

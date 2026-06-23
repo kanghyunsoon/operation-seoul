@@ -18,6 +18,7 @@ public class ClearReportResponse {
     private LocalDateTime startedAt;
     private LocalDateTime clearedAt;
     private Long elapsedSeconds;
+    private Integer clearTimePenaltySeconds;
     private String finalTruthSummary;
     private String actualHistorySummary;
     private Integer visitedSpotCount;

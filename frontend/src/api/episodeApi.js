@@ -36,6 +36,9 @@ export const episodeApi = {
   async askDeduction(sessionId, question) {
     return unwrap(await apiClient.post(`/v1/deduction/${sessionId}/ask`, { question }));
   },
+  async verifyDeductionHypothesis(sessionId, hypothesis) {
+    return unwrap(await apiClient.post(`/v1/deduction/${sessionId}/hypothesis`, { hypothesis }));
+  },
   async getDeductionQuestions(sessionId) {
     return unwrap(await apiClient.get(`/v1/deduction/${sessionId}/questions`));
   },

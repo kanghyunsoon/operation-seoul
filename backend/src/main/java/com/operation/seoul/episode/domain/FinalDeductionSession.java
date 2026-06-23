@@ -12,6 +12,7 @@ public class FinalDeductionSession {
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
     private Integer questionCount;
+    private Integer hypothesisCount;
     private Integer finalGuessCount;
     private String status;
 }

@@ -9,5 +9,6 @@ public class FinalAnswerResponse {
     private boolean correct;
     private String status;
     private Integer score;
+    private Integer clearTimePenaltySeconds;
     private String message;
 }

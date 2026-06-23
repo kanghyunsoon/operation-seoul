@@ -308,7 +308,9 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     hint_used_count int not null default 0,
                     wrong_answer_count int not null default 0,
                     deduction_question_count int not null default 0,
+                    hypothesis_count int not null default 0,
                     final_guess_count int not null default 0,
+                    clear_time_penalty_seconds int not null default 0,
                     score int null,
                     started_at datetime null,
                     cleared_at datetime null,
@@ -328,6 +330,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     started_at datetime not null default current_timestamp,
                     completed_at datetime null,
                     question_count int not null default 0,
+                    hypothesis_count int not null default 0,
                     final_guess_count int not null default 0,
                     status varchar(32) not null default 'OPEN',
                     primary key (id),
@@ -429,9 +432,12 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         addColumnIfMissing("mission_spots", "field_verified", "alter table mission_spots add column field_verified boolean not null default false");
         addColumnIfMissing("mission_spots", "field_verification_note", "alter table mission_spots add column field_verification_note text null");
         addColumnIfMissing("user_episode_progress", "last_played_at", "alter table user_episode_progress add column last_played_at datetime null");
+        addColumnIfMissing("user_episode_progress", "hypothesis_count", "alter table user_episode_progress add column hypothesis_count int not null default 0");
+        addColumnIfMissing("user_episode_progress", "clear_time_penalty_seconds", "alter table user_episode_progress add column clear_time_penalty_seconds int not null default 0");
         addColumnIfMissing("user_episode_progress", "unlocked_suspect_ids", "alter table user_episode_progress add column unlocked_suspect_ids text null");
         addColumnIfMissing("user_episode_progress", "cleared_suspect_ids", "alter table user_episode_progress add column cleared_suspect_ids text null");
         addColumnIfMissing("user_episode_progress", "unlocked_evidence_ids", "alter table user_episode_progress add column unlocked_evidence_ids text null");
+        addColumnIfMissing("final_deduction_sessions", "hypothesis_count", "alter table final_deduction_sessions add column hypothesis_count int not null default 0");
     }
 
     private void createCaseFileTables() {
