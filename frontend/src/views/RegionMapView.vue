@@ -19,38 +19,51 @@
 
     <section class="region-shell">
       <div class="map-card">
-        <div class="map-title">
-          <strong>대전/수도권 조사 권역</strong>
-          <span>서울 포함 10개 권역</span>
-        </div>
-        <svg viewBox="60 20 330 540" role="img" aria-label="대전/수도권 권역 선택 지도">
+        
+        <svg :viewBox="regionMapMeta.viewBox" role="img" aria-label="대한민국 권역 선택 지도">
           <defs>
             <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#020617" flood-opacity="0.35" />
             </filter>
           </defs>
-          <button
-            v-for="area in regionAreas"
-            :key="area.code"
-            type="button"
-            class="region-hit"
-            :aria-label="`${area.label} 선택`"
-            @click="openRegion(area.code)"
-          >
-            <rect :x="area.x" :y="area.y" :width="area.w" :height="area.h" rx="18" :fill="area.color" filter="url(#shadow)" />
-            <text :x="area.x + area.w / 2" :y="area.y + area.h / 2 - 4" text-anchor="middle">{{ area.label }}</text>
-            <text :x="area.x + area.w / 2" :y="area.y + area.h / 2 + 16" text-anchor="middle" class="small">{{ area.includes }}</text>
-          </button>
-          <path
-            d="M112 64 C154 22 250 30 318 82 C378 132 382 238 352 326 C322 414 260 456 206 452 C142 448 84 396 78 306 C72 202 62 112 112 64Z"
-            fill="none"
-            stroke="rgba(255,255,255,.42)"
-            stroke-width="5"
-            stroke-linejoin="round"
-          />
+          <g :transform="regionMapMeta.transform">
+            <path
+              v-for="area in regionAreas"
+              :key="area.code"
+              :d="area.path"
+              class="region-path"
+              :class="{
+                hovered: hoveredAreaCode === area.code,
+                active: activeAreaCode === area.code
+              }"
+              :fill="area.color"
+              :aria-label="`${area.label} 선택`"
+              role="button"
+              tabindex="0"
+              @mouseenter="hoveredAreaCode = area.code"
+              @mouseleave="hoveredAreaCode = ''"
+              @focus="hoveredAreaCode = area.code"
+              @blur="hoveredAreaCode = ''"
+              @click="openRegion(area.code)"
+              @keydown.enter.prevent="openRegion(area.code)"
+              @keydown.space.prevent="openRegion(area.code)"
+            />
+            <g class="region-labels" aria-hidden="true">
+              <text
+                v-for="area in regionAreas"
+                :key="`${area.code}-label`"
+                :x="area.labelX"
+                :y="area.labelY"
+                :font-size="area.labelSize || 64"
+                text-anchor="start"
+              >
+                {{ area.label }}
+              </text>
+            </g>
+          </g>
         </svg>
         <p class="map-note">
-          현재 지도는 서비스 권역 선택용 의식 지도입니다. 운영 단계에서 행정 경계 GeoJSON으로 교체하면 더 정확하게 표시할 수 있습니다.
+          권역을 선택하면 해당 권역에 공개된 미션 파일 목록으로 이동합니다.
         </p>
       </div>
 
@@ -69,14 +82,20 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router';
+import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore.js';
-import { regionAreas } from '@/constants/regionAreas.js';
+import { regionAreas, regionMapMeta } from '@/constants/regionAreas.js';
 
 const router = useRouter();
+const route = useRoute();
 const sessionStore = useSessionStore();
+const hoveredAreaCode = ref('');
+const selectedAreaCode = ref('');
+const activeAreaCode = computed(() => selectedAreaCode.value || route.query.areaCode || '');
 
 function openRegion(areaCode) {
+  selectedAreaCode.value = areaCode;
   router.push({ name: 'EpisodeList', query: { areaCode } });
 }
 
@@ -106,11 +125,11 @@ button.danger { background: #7f1d1d; }
 .map-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 12px; color: #bfdbfe; }
 .map-title span, .map-note, .region-main small { color: #cbd5e1; }
 svg { width: 100%; min-height: 560px; border-radius: 22px; background: linear-gradient(180deg, rgba(8,47,73,.68), rgba(2,6,23,.78)); }
-.region-hit { all: unset; cursor: pointer; }
-.region-hit rect { stroke: rgba(255,255,255,.72); stroke-width: 3; transition: transform .16s ease, opacity .16s ease; transform-box: fill-box; transform-origin: center; opacity: .9; }
-.region-hit:hover rect { transform: scale(1.04); opacity: 1; }
-.region-hit text { pointer-events: none; fill: white; font-size: 14px; font-weight: 900; paint-order: stroke; stroke: rgba(2,6,23,.45); stroke-width: 3px; }
-.region-hit text.small { font-size: 9px; font-weight: 800; }
+.region-path { cursor: pointer; stroke: #fff; stroke-width: 3.07949; stroke-linejoin: round; stroke-miterlimit: 10; filter: url(#shadow); opacity: 1; fill-opacity: 1; transform-box: fill-box; transform-origin: center; transition: filter .16s ease, opacity .16s ease, stroke .16s ease, stroke-width .16s ease, transform .16s ease; }
+.region-path.hovered, .region-path:hover, .region-path:focus-visible { opacity: 1; fill-opacity: 1; stroke: #f8fafc; stroke-width: 7; transform: scale(1.01); outline: none; }
+.region-path.active { opacity: 1; stroke: #facc15; stroke-width: 8; }
+.region-labels { pointer-events: none; }
+.region-labels text { fill: #fff; font-family: 'Noto Sans KR', Pretendard, sans-serif; font-weight: 900; paint-order: stroke; stroke: rgba(2,6,23,.55); stroke-width: 8px; }
 .map-note { margin: 12px 2px 0; font-size: .82rem; line-height: 1.5; }
 .region-list { display: grid; gap: 10px; padding: 14px; }
 .region-card { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; padding: 0; border: 1px solid rgba(148,163,184,.16); border-radius: 16px; background: rgba(2,6,23,.42); }
