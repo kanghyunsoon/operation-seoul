@@ -1,6 +1,7 @@
 package com.operation.seoul.recommendation.service;
 
 import com.operation.seoul.auth.domain.User;
+import com.operation.seoul.ai.service.UserAiInsightService;
 import com.operation.seoul.recommendation.dto.EpisodeRecommendationResponse;
 import com.operation.seoul.recommendation.repository.EpisodeRecommendationRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,17 +14,33 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EpisodeRecommendationService {
     private final EpisodeRecommendationRepository recommendationRepository;
+    private final UserAiInsightService userAiInsightService;
 
     public List<EpisodeRecommendationResponse> getRecommendations(User user, Integer limit) {
         int safeLimit = Math.max(1, Math.min(limit == null ? 6 : limit, 20));
         int clearedCount = recommendationRepository.countCleared(user.getId());
-        return recommendationRepository.findCandidates(user.getId()).stream()
+        List<EpisodeRecommendationResponse> recommendations = recommendationRepository.findCandidates(user.getId()).stream()
                 .peek(candidate -> enrich(user, candidate, clearedCount))
                 .sorted(Comparator
                         .comparing(EpisodeRecommendationResponse::getScore, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(EpisodeRecommendationResponse::getEpisodeId))
                 .limit(safeLimit)
                 .toList();
+        applyAiReasons(recommendations, clearedCount);
+        return recommendations;
+    }
+
+    private void applyAiReasons(List<EpisodeRecommendationResponse> recommendations, int clearedCount) {
+        List<String> aiReasons = userAiInsightService.recommendationReasons(recommendations, clearedCount);
+        if (aiReasons.size() != recommendations.size()) {
+            return;
+        }
+        for (int i = 0; i < recommendations.size(); i++) {
+            String reason = aiReasons.get(i);
+            if (reason != null && !reason.isBlank()) {
+                recommendations.get(i).setReason(reason);
+            }
+        }
     }
 
     private void enrich(User user, EpisodeRecommendationResponse candidate, int clearedCount) {

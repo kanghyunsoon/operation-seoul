@@ -15,17 +15,17 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 
-final class GeminiContentClient {
+public final class GeminiContentClient {
     private static final String API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate(requestFactory());
 
-    GeminiContentClient(ObjectMapper objectMapper) {
+    public GeminiContentClient(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
-    String generateContent(String prompt, String model, String apiKey) {
+    public String generateContent(String prompt, String model, String apiKey) {
         String url = API_BASE_URL + "/models/" + model + ":generateContent?key=" + apiKey;
         Map<String, Object> body = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
         HttpHeaders headers = new HttpHeaders();

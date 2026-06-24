@@ -2,9 +2,9 @@
   <main class="coaching-page">
     <header class="hero">
       <div>
-        <p>PLAY COACH</p>
+        <p>AI PLAY COACH</p>
         <h1>플레이 코칭</h1>
-        <span>클리어 기록과 진행 데이터를 분석해 다음 플레이 전략을 제안합니다.</span>
+        <span>클리어 기록과 진행 데이터를 AI가 분석해 다음 플레이 전략을 제안합니다.</span>
       </div>
       <div class="hero-actions">
         <button type="button" @click="router.push({ name: 'Recommendations' })">추천 보기</button>

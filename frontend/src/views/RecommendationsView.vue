@@ -2,9 +2,9 @@
   <main class="recommend-page">
     <header class="hero">
       <div>
-        <p>RULE CURATION</p>
+        <p>AI CURATION</p>
         <h1>맞춤 추천</h1>
-        <span>관심, 일정, 클리어 기록을 바탕으로 다음 사건 파일을 추천합니다.</span>
+        <span>관심, 일정, 클리어 기록을 바탕으로 AI가 다음 사건 파일을 추천합니다.</span>
       </div>
       <div class="hero-actions">
         <button type="button" @click="router.push({ name: 'EpisodeList' })">전체 사건</button>

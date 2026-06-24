@@ -1,6 +1,7 @@
 package com.operation.seoul.coaching.service;
 
 import com.operation.seoul.auth.domain.User;
+import com.operation.seoul.ai.service.UserAiInsightService;
 import com.operation.seoul.coaching.dto.CoachingReportResponse;
 import com.operation.seoul.coaching.dto.CoachingSummaryResponse;
 import com.operation.seoul.coaching.repository.CoachingRepository;
@@ -16,6 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CoachingService {
     private final CoachingRepository coachingRepository;
+    private final UserAiInsightService userAiInsightService;
 
     public CoachingSummaryResponse getSummary(User user) {
         List<CoachingReportResponse> reports = coachingRepository.findReports(user.getId()).stream()
@@ -28,6 +30,17 @@ public class CoachingService {
         int totalWrong = coachingRepository.sumWrongAnswers(user.getId());
         int totalQuestions = coachingRepository.sumDeductionQuestions(user.getId());
         int averageScore = coachingRepository.averageScore(user.getId());
+        String playStyle = playStyle(totalCleared, totalHints, totalWrong, totalQuestions);
+        List<String> fallbackAdvice = globalAdvice(totalStarted, totalCleared, totalHints, totalWrong, totalQuestions);
+        List<String> aiAdvice = userAiInsightService.coachingAdvice(
+                totalStarted,
+                totalCleared,
+                averageScore,
+                totalHints,
+                totalWrong,
+                totalQuestions,
+                playStyle,
+                fallbackAdvice);
         return CoachingSummaryResponse.builder()
                 .totalStarted(totalStarted)
                 .totalCleared(totalCleared)
@@ -35,8 +48,8 @@ public class CoachingService {
                 .totalHints(totalHints)
                 .totalWrongAnswers(totalWrong)
                 .totalDeductionQuestions(totalQuestions)
-                .playStyle(playStyle(totalCleared, totalHints, totalWrong, totalQuestions))
-                .globalAdvice(globalAdvice(totalStarted, totalCleared, totalHints, totalWrong, totalQuestions))
+                .playStyle(playStyle)
+                .globalAdvice(aiAdvice.isEmpty() ? fallbackAdvice : aiAdvice)
                 .recentReports(reports)
                 .build();
     }
@@ -55,6 +68,7 @@ public class CoachingService {
         report.setStrengths(strengths(report));
         report.setImprovements(improvements(report));
         report.setNextActions(nextActions(report));
+        userAiInsightService.episodeCoachingSummary(report).ifPresent(report::setSummary);
         return report;
     }
 
