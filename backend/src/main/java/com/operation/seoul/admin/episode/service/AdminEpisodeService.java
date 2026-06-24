@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.admin.episode.domain.AdminEpisodeProgressStats;
 import com.operation.seoul.admin.episode.dto.AdminEpisodeDetailResponse;
 import com.operation.seoul.admin.episode.dto.AdminEpisodeListResponse;
+import com.operation.seoul.admin.episode.dto.AdminEpisodePageResponse;
 import com.operation.seoul.admin.episode.dto.AdminEpisodeUpdateRequest;
 import com.operation.seoul.admin.episode.dto.AdminEvidenceUpdateRequest;
 import com.operation.seoul.admin.episode.dto.AdminPartnerRewardUpdateRequest;
@@ -123,29 +124,47 @@ public class AdminEpisodeService {
     private final KakaoLocalCandidateService kakaoLocalCandidateService;
     private final ExternalPlaceResearchService externalPlaceResearchService;
 
-    public List<AdminEpisodeListResponse> getEpisodes() {
-        return adminEpisodeRepository.findAllEpisodes().stream()
-                .map(episode -> {
-                    AdminEpisodeProgressStats stats = safeStats(episode.getId());
-                    return AdminEpisodeListResponse.builder()
-                            .id(episode.getId())
-                            .title(episode.getTitle())
-                            .subtitle(episode.getSubtitle())
-                            .genre(episode.getGenre())
-                            .era(episode.getEra())
-                            .difficulty(episode.getDifficulty())
-                            .status(episode.getStatus())
-                            .finalAnswerType(episode.getFinalAnswerType())
-                            .spotCount(adminEpisodeRepository.countSpots(episode.getId()))
-                            .puzzleCount(adminEpisodeRepository.countPuzzles(episode.getId()))
-                            .suspectCount(adminEpisodeRepository.countSuspects(episode.getId()))
-                            .evidenceCount(adminEpisodeRepository.countEvidences(episode.getId()))
-                            .partnerRewardCount(adminEpisodeRepository.countPartnerRewards(episode.getId()))
-                            .totalPlayers(value(stats.getTotalPlayers()))
-                            .clearedPlayers(value(stats.getClearedPlayers()))
-                            .build();
-                })
+    public AdminEpisodePageResponse getEpisodes(String search, int limit, int offset) {
+        int pageLimit = Math.min(50, Math.max(1, limit));
+        int pageOffset = Math.max(0, offset);
+        String keyword = normalizeSearchKeyword(search);
+        List<AdminEpisodeListResponse> items = adminEpisodeRepository.findEpisodePage(keyword, pageLimit, pageOffset).stream()
+                .map(this::toListResponse)
                 .toList();
+        int totalCount = adminEpisodeRepository.countEpisodePage(keyword);
+        return AdminEpisodePageResponse.builder()
+                .items(items)
+                .limit(pageLimit)
+                .offset(pageOffset)
+                .hasMore(pageOffset + items.size() < totalCount)
+                .totalCount(totalCount)
+                .build();
+    }
+
+    private String normalizeSearchKeyword(String search) {
+        if (search == null || search.isBlank()) return null;
+        return search.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private AdminEpisodeListResponse toListResponse(Episode episode) {
+        AdminEpisodeProgressStats stats = safeStats(episode.getId());
+        return AdminEpisodeListResponse.builder()
+                .id(episode.getId())
+                .title(episode.getTitle())
+                .subtitle(episode.getSubtitle())
+                .genre(episode.getGenre())
+                .era(episode.getEra())
+                .difficulty(episode.getDifficulty())
+                .status(episode.getStatus())
+                .finalAnswerType(episode.getFinalAnswerType())
+                .spotCount(adminEpisodeRepository.countSpots(episode.getId()))
+                .puzzleCount(adminEpisodeRepository.countPuzzles(episode.getId()))
+                .suspectCount(adminEpisodeRepository.countSuspects(episode.getId()))
+                .evidenceCount(adminEpisodeRepository.countEvidences(episode.getId()))
+                .partnerRewardCount(adminEpisodeRepository.countPartnerRewards(episode.getId()))
+                .totalPlayers(value(stats.getTotalPlayers()))
+                .clearedPlayers(value(stats.getClearedPlayers()))
+                .build();
     }
 
     public List<AdminPlaceCandidateResponse> getPlaceCandidates(String areaCode) {
@@ -309,8 +328,8 @@ public class AdminEpisodeService {
         episode.setDifficulty(text(request.getDifficulty(), episode.getDifficulty()));
         episode.setEstimatedTime(text(request.getEstimatedTime(), episode.getEstimatedTime()));
         episode.setEstimatedDistance(text(request.getEstimatedDistance(), episode.getEstimatedDistance()));
-        episode.setFictionSynopsis(text(request.getFictionSynopsis(), episode.getFictionSynopsis()));
-        episode.setMissionDescription(text(request.getMissionDescription(), episode.getMissionDescription()));
+        episode.setFictionSynopsis(DraftPlayerTextSanitizer.sanitizeText(text(request.getFictionSynopsis(), episode.getFictionSynopsis())));
+        episode.setMissionDescription(DraftPlayerTextSanitizer.sanitizeText(text(request.getMissionDescription(), episode.getMissionDescription())));
         episode.setFinalAnswerType(text(request.getFinalAnswerType(), episode.getFinalAnswerType()));
         episode.setFinalAnswer(text(request.getFinalAnswer(), episode.getFinalAnswer()));
         episode.setFinalAnswerAliases(text(request.getFinalAnswerAliases(), episode.getFinalAnswerAliases()));
@@ -726,7 +745,7 @@ public class AdminEpisodeService {
         normalizeDraftCulpritRoleBeforeSave(draft);
         List<String> placeNames = draftPlaceNames(draft, sourceInput);
         draft.setFictionSynopsis(redactPlaceNames(draft.getFictionSynopsis(), placeNames, "조사 지점"));
-        draft.setMissionDescription("8개 조사 단서를 대조해 범인, 흉기, 동기, 방법을 종합해 최종 진실을 판단합니다.");
+        draft.setMissionDescription("8개 조사 단서를 대조해 범인, 흉기, 동기, 사인을 종합해 최종 진실을 판단합니다.");
         draft.setActualHistorySummary(redactPlaceNames(draft.getActualHistorySummary(), placeNames, "선택 지점"));
         for (AiEpisodeDraftResponse.MissionDraft mission : safeList(draft.getMissions())) {
             if (mission == null) continue;
@@ -2537,10 +2556,14 @@ public class AdminEpisodeService {
             if (spot.getArrivalRadius() == null || spot.getArrivalRadius() < 10) errors.add("도착 반경은 10m 이상이어야 합니다: " + spot.getPlaceName());
             if (same(episode.getFinalAnswer(), spot.getPlaceName())) errors.add("최종 정답은 실제 장소명과 같으면 안 됩니다: " + spot.getPlaceName());
             Puzzle puzzle = adminEpisodeRepository.findPuzzleBySpotId(spot.getId());
+            boolean spotIsFinalPlace = Boolean.TRUE.equals(spot.getFinalPlace())
+                    || "FINAL".equals(spot.getMarkerType())
+                    || "FINAL_PLACE".equals(spot.getClueRole());
+            if (puzzle == null && spotIsFinalPlace) { continue; }
             if (puzzle == null) { errors.add("퍼즐이 없는 장소가 있습니다: " + spot.getPlaceName()); continue; }
             if (missing(puzzle.getQuestionText())) errors.add("퍼즐 문제가 비어 있습니다: " + spot.getPlaceName());
             if (missing(puzzle.getAnswer())) errors.add("퍼즐 정답이 비어 있습니다: " + spot.getPlaceName());
-            if (!"START".equals(spot.getMarkerType()) && missing(puzzle.getRewardClue())) errors.add("보상 단서가 비어 있습니다: " + spot.getPlaceName());
+            if (!spotIsFinalPlace && !"START".equals(spot.getMarkerType()) && missing(puzzle.getRewardClue())) errors.add("보상 단서가 비어 있습니다: " + spot.getPlaceName());
             if (same(puzzle.getAnswer(), puzzle.getRewardClue())) errors.add("퍼즐 정답과 보상 단서는 달라야 합니다: " + spot.getPlaceName());
             if (adminEpisodeRepository.findHints(puzzle.getId()).size() < 3) errors.add("퍼즐 힌트는 3개가 필요합니다: " + spot.getPlaceName());
             if (containsCompact(puzzle.getQuestionText(), episode.getFinalAnswer())) errors.add("퍼즐 문제가 최종 정답을 노출합니다: " + spot.getPlaceName());
@@ -3213,7 +3236,7 @@ public class AdminEpisodeService {
             return List.of();
         }
         List<String> types = List.of("CULPRIT", "WEAPON", "MOTIVE", "METHOD");
-        List<String> labels = List.of("범인", "흉기", "동기", "방법");
+        List<String> labels = List.of("범인", "흉기", "동기", "사인");
         List<AdminEpisodeDetailResponse.FinalAnswerKeywordItem> items = new ArrayList<>();
         for (int i = 0; i < types.size(); i++) {
             String value = "CULPRIT".equals(types.get(i)) ? splitNameRole(values.get(i)).name() : values.get(i);

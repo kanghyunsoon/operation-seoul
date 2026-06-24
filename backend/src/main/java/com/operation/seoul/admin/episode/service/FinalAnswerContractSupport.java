@@ -40,7 +40,7 @@ final class FinalAnswerContractSupport {
     static void validateFinalAnswerContract(AiEpisodeDraftRequest request) {
         Map<String, String> values = approvedAnswers(request);
         if (FinalAnswerSlots.IDS.stream().anyMatch(slot -> blank(values.get(slot)))) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FINAL_ANSWER_KEYWORDS", "최종 정답 키워드는 범인, 흉기, 동기, 방법 4개를 모두 포함해야 합니다.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FINAL_ANSWER_KEYWORDS", "최종 정답 키워드는 범인, 흉기, 동기, 사인 4개를 모두 포함해야 합니다.");
         }
     }
 

@@ -94,6 +94,7 @@ class EpisodePlayServiceMapUnlockTest {
         assertTrue(response.isArrived());
         assertTrue(response.isActualFinalArrived());
         assertTrue(response.isCanStartDeduction());
+        assertFalse(response.isCanOpenPuzzle());
     }
 
     private void mockMapState(UserEpisodeProgress progress) {

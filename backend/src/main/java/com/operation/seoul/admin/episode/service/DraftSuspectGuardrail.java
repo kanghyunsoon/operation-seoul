@@ -23,11 +23,7 @@ final class DraftSuspectGuardrail {
             if (!names.add(compact(suspect.getDisplayName()))) {
                 return false;
             }
-            String suspectText = compact(String.join(" ",
-                    trim(suspect.getDisplayName()),
-                    trim(suspect.getAlias()),
-                    trim(suspect.getRelationToVictim())));
-            hasCulprit = hasCulprit || suspectText.contains(compact(culprit));
+            hasCulprit = hasCulprit || compact(trim(suspect.getDisplayName())).equals(compact(culprit));
         }
         return hasCulprit;
     }

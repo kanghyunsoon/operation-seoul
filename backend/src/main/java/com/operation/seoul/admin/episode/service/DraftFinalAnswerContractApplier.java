@@ -47,7 +47,7 @@ final class DraftFinalAnswerContractApplier {
                 SLOT_LABELS.get("MOTIVE"), approved.get("MOTIVE"),
                 SLOT_LABELS.get("METHOD"), approved.get("METHOD")));
         draft.setFinalAnswerType("CASE_TRUTH");
-        draft.setFinalQuestion(defaultIfBlank(draft.getFinalQuestion(), "범인, 흉기, 동기, 방법을 각각 입력하세요."));
+        draft.setFinalQuestion(defaultIfBlank(draft.getFinalQuestion(), "범인, 흉기, 동기, 사인을 각각 입력하세요."));
     }
 
     private static boolean blank(String value) {

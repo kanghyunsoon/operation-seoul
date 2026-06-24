@@ -8,7 +8,7 @@
       <button type="button" @click="$emit('close')">닫기</button>
     </header>
 
-    <p class="guide">8개의 서로 다른 정보를 종합해 범인, 흉기, 동기, 방법을 추리하세요. 정답 값은 단서에 직접 표시되지 않습니다.</p>
+    <p class="guide">8개의 서로 다른 정보를 종합해 범인, 흉기, 동기, 사인을 추리하세요. 정답 값은 단서에 직접 표시되지 않습니다.</p>
 
     <section v-for="slot in clueSlots" :key="slot.id" :class="`slot-${slot.id.toLowerCase()}`">
       <h3>{{ slot.label }} <span>{{ slot.clues.length }}</span></h3>
@@ -30,18 +30,17 @@ const props = defineProps({ board: { type: Object, default: null }, open: { type
 defineEmits(['close']);
 
 const clueSlots = computed(() => {
-  const fallback = displayClues(props.board?.answerClues);
   return [
-    slot('CULPRIT', '범인 추리', props.board?.culpritClues, fallback, 0, '범인의 접근 권한과 알리바이를 좁힐 단서가 아직 없습니다.'),
-    slot('WEAPON', '흉기 추리', props.board?.weaponClues, fallback, 1, '범행에 사용된 물질이나 도구를 좁힐 단서가 아직 없습니다.'),
-    slot('MOTIVE', '동기 추리', props.board?.motiveClues, fallback, 2, '범행 동기와 이익 관계를 좁힐 단서가 아직 없습니다.'),
-    slot('METHOD', '방법 추리', props.board?.methodClues, fallback, 3, '범행이 실행된 수법을 좁힐 단서가 아직 없습니다.')
+    slot('CULPRIT', '범인 추리', props.board?.culpritClues, '범인의 접근 권한과 알리바이를 좁힐 단서가 아직 없습니다.'),
+    slot('WEAPON', '흉기 추리', props.board?.weaponClues, '범행에 사용된 물질이나 도구를 좁힐 단서가 아직 없습니다.'),
+    slot('MOTIVE', '동기 추리', props.board?.motiveClues, '범행 동기와 이익 관계를 좁힐 단서가 아직 없습니다.'),
+    slot('METHOD', '사인 추리', props.board?.methodClues, '피해자의 직접 사인을 좁힐 단서가 아직 없습니다.')
   ];
 });
 
-function slot(id, label, explicit, fallback, offset, empty) {
+function slot(id, label, explicit, empty) {
   const clues = displayClues(explicit);
-  return { id, label, clues: clues.length ? clues : fallback.filter((_, index) => index % 4 === offset), empty };
+  return { id, label, clues, empty };
 }
 
 function displayClues(clues = []) {

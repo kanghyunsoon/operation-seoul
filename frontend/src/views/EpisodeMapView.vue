@@ -24,63 +24,33 @@
         </div>
 
         <div ref="mapContainer" class="kakao-map">
+          <div class="elapsed-timer" aria-live="polite">
+            <span>CLUE TIME</span>
+            <strong>{{ activeElapsedLabel }}</strong>
+          </div>
           <div v-if="mapLoadFailed" class="map-error">
             <strong>지도를 불러오지 못했습니다.</strong>
             <p>{{ mapLoadMessage }}</p>
           </div>
+          <SpotBottomSheet
+            v-if="selectedSpot && selectedSpotMapStyle"
+            :class="['map-popover', `map-popover--${selectedSpotPopoverPlacement}`]"
+            :style="selectedSpotMapStyle"
+            :spot="selectedSpot"
+            :arrival-result="isFinalPlaceMarker(selectedSpot) ? finalArrivalResult : arrivalResults[selectedSpot?.spotId]"
+            @navigate="navigateToSpot"
+            @arrive="arriveAtSpot"
+            @close="closeSpotSheet"
+          />
         </div>
 
         <p class="map-caption">
-          8개의 조사 미션을 모두 해결하면 최종 장소가 자동으로 공개됩니다. 각 미션에서 범인, 흉기, 동기, 방법을 좁히는 서로 다른 단서를 수집하세요.
+          8개의 조사 미션을 모두 해결하면 최종 장소가 자동으로 공개됩니다. 각 미션에서 범인, 흉기, 동기, 사인을 좁히는 서로 다른 단서를 수집하세요.
         </p>
       </section>
-
-      <aside class="route-panel">
-        <div class="route-panel-head">
-          <p>INVESTIGATION ROUTE</p>
-          <strong>{{ mapData?.spots?.length || 0 }}개 단서 지점</strong>
-        </div>
-        <div class="spot-list" aria-label="조사 장소 목록">
-          <button
-            v-for="spot in mapData?.spots || []"
-            :key="spot.spotId"
-            type="button"
-            class="spot-list-item"
-            :class="[spot.publicMarkerType, { selected: selectedSpot?.spotId === spot.spotId, done: spot.completed, visited: spot.visited }]"
-            @click="selectSpot(spot)"
-          >
-            <span>{{ shortLabel(spot.publicMarkerType) }}</span>
-            <strong>{{ spot.placeName }}</strong>
-            <small>{{ markerLabel(spot.publicMarkerType) }}</small>
-          </button>
-        </div>
-      </aside>
     </section>
 
-    <button class="floating clue" type="button" @click="showClues = true">단서</button>
-    <button class="floating refresh" type="button" @click="loadAll">갱신</button>
-    <button v-if="sessionStore.isAdmin && selectedSpot" class="floating admin-skip" type="button" @click="adminSkipArrival(selectedSpot)">
-      관리자 스킵
-    </button>
-    <button v-if="sessionStore.isAdmin && mapData?.adminFinalSpot" class="floating admin-final" type="button" @click="adminMoveToFinalSpot">
-      최종 GPS 이동
-    </button>
-    <button v-if="mapData?.finalDestinationUnlocked" class="floating final-check" type="button" @click="arriveAtFinalPlace">
-      추리 장소 확인
-    </button>
-
     <PuzzleCard :puzzle="puzzle" :message="puzzleMessage" :correct="puzzleCorrect" :explanation="puzzleExplanation" @submit="submitPuzzle" @close="closePuzzle" />
-
-    <SpotBottomSheet
-      :spot="selectedSpot"
-      :arrival-result="arrivalResults[selectedSpot?.spotId]"
-      :puzzle-open="Boolean(puzzle && puzzle.spotId === selectedSpot?.spotId)"
-      @navigate="navigateToSpot"
-      @arrive="arriveAtSpot"
-      @open-puzzle="openPuzzle"
-      @close-puzzle="closePuzzle"
-      @start-deduction="goDeduction"
-    />
 
     <ClueBoard :board="clueBoard" :open="showClues" @close="showClues = false" />
 
@@ -88,7 +58,7 @@
       <section v-if="rewardPopup.visible" class="reward-pop-overlay" aria-live="polite">
         <article class="reward-pop-card" :class="{ fly: rewardPopup.flying }">
           <span class="reward-kicker">MISSION CLEAR</span>
-          <h2>단서를 획득했습니다</h2>
+          <h2>{{ rewardPopup.title }}</h2>
           <span v-if="rewardPopup.typeLabel" class="reward-type">{{ rewardPopup.typeLabel }}</span>
           <p class="reward-clue">{{ rewardPopup.clue }}</p>
           <div v-if="rewardPopup.items.length" class="reward-items">
@@ -104,10 +74,9 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { episodeApi } from '@/api/episodeApi';
-import { useSessionStore } from '@/stores/sessionStore';
 import SpotBottomSheet from '@/components/episode/SpotBottomSheet.vue';
 import PuzzleCard from '@/components/episode/PuzzleCard.vue';
 import ClueBoard from '@/components/episode/ClueBoard.vue';
@@ -115,13 +84,14 @@ import CaseFileTabMenu from '@/components/episode/CaseFileTabMenu.vue';
 
 const route = useRoute();
 const router = useRouter();
-const sessionStore = useSessionStore();
 const episodeId = route.params.episodeId;
 
 const mapContainer = ref(null);
 const mapData = ref(null);
 const clueBoard = ref(null);
 const selectedSpot = ref(null);
+const selectedSpotMapStyle = ref(null);
+const selectedSpotPopoverPlacement = ref('above');
 const puzzle = ref(null);
 const puzzleMessage = ref('');
 const puzzleCorrect = ref(null);
@@ -135,9 +105,11 @@ const finalArrivalResult = ref(null);
 const mapLoadFailed = ref(false);
 const mapLoadMessage = ref('');
 const currentPosition = ref(null);
+const activeElapsedSeconds = ref(0);
 const rewardPopup = ref({
   visible: false,
   flying: false,
+  title: '단서를 획득했습니다',
   typeLabel: '',
   clue: '',
   items: []
@@ -150,16 +122,22 @@ const markerTypes = ['START', 'ANSWER_HINT', 'FINAL'];
 
 let kakaoMap = null;
 let overlays = [];
+let markerElements = new Map();
 let routeLine = null;
 let currentPositionOverlay = null;
 let sdkPromise = null;
 let rewardPopupTimer = null;
 let rewardPopupClearTimer = null;
+let mapResizeObserver = null;
+let elapsedTimer = null;
+let elapsedSaveTimer = null;
 
 onMounted(async () => {
   try {
     await loadAll();
     await initializeKakaoMap();
+    startElapsedTimer();
+    window.addEventListener('visibilitychange', handleElapsedVisibility);
   } catch (error) {
     setStatus(error.userMessage || error.message || '지도 화면을 초기화할 수 없습니다.', 'error');
   }
@@ -168,16 +146,101 @@ onMounted(async () => {
 onUnmounted(() => {
   clearOverlays();
   clearRewardPopupTimers();
+  stopElapsedTimer();
+  mapResizeObserver?.disconnect();
+  mapResizeObserver = null;
+  window.removeEventListener('visibilitychange', handleElapsedVisibility);
+  window.removeEventListener('resize', handleMapResize);
 });
+
+const totalElapsedSeconds = computed(() => activeElapsedSeconds.value + Number(mapData.value?.clearTimePenaltySeconds || 0));
+const activeElapsedLabel = computed(() => formatElapsed(totalElapsedSeconds.value));
 
 async function loadAll() {
   mapData.value = await episodeApi.getMap(episodeId);
+  syncElapsedFromMapData();
   clueBoard.value = await episodeApi.getClueBoard(episodeId);
-  if (!selectedSpot.value && mapData.value?.spots?.length) selectedSpot.value = mapData.value.spots[0];
   if (selectedSpot.value) {
-    selectedSpot.value = mapData.value.spots.find((spot) => spot.spotId === selectedSpot.value.spotId) || selectedSpot.value;
+    selectedSpot.value = mapData.value?.spots?.find((spot) => spot.spotId === selectedSpot.value.spotId) || null;
   }
   await renderMarkers();
+  updateSelectedSpotMapStyle();
+  reconcileElapsedTimer();
+}
+
+function elapsedStorageKey() {
+  return `operation-seoul:episode:${episodeId}:active-elapsed-seconds`;
+}
+
+function syncElapsedFromMapData() {
+  const serverElapsed = Number(mapData.value?.activeElapsedSeconds || 0);
+  const localElapsed = Number(window.localStorage.getItem(elapsedStorageKey()) || 0);
+  activeElapsedSeconds.value = Math.max(Number(activeElapsedSeconds.value || 0), serverElapsed, localElapsed);
+  window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+  if (mapData.value?.progressStatus === 'CLEARED') {
+    window.localStorage.removeItem(elapsedStorageKey());
+  }
+}
+
+function reconcileElapsedTimer() {
+  if (mapData.value?.progressStatus === 'CLEARED') {
+    stopElapsedTimer(false);
+  } else if (!elapsedTimer) {
+    startElapsedTimer();
+  }
+}
+
+function startElapsedTimer() {
+  if (mapData.value?.progressStatus === 'CLEARED' || elapsedTimer || document.hidden) return;
+  elapsedTimer = window.setInterval(() => {
+    activeElapsedSeconds.value += 1;
+    window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+  }, 1000);
+  elapsedSaveTimer = window.setInterval(() => {
+    persistElapsedTime();
+  }, 10000);
+}
+
+function handleElapsedVisibility() {
+  if (document.hidden) {
+    stopElapsedTimer();
+  } else {
+    syncElapsedFromMapData();
+    startElapsedTimer();
+  }
+}
+
+function stopElapsedTimer(shouldPersist = true) {
+  clearInterval(elapsedTimer);
+  clearInterval(elapsedSaveTimer);
+  elapsedTimer = null;
+  elapsedSaveTimer = null;
+  window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+  if (shouldPersist) persistElapsedTime();
+}
+
+async function persistElapsedTime() {
+  if (mapData.value?.progressStatus === 'CLEARED') return;
+  const elapsedSeconds = Math.max(0, Math.floor(Number(activeElapsedSeconds.value || 0)));
+  try {
+    const updated = await episodeApi.updateElapsedTime(episodeId, elapsedSeconds);
+    const serverElapsed = Number(updated?.activeElapsedSeconds || 0);
+    if (serverElapsed > activeElapsedSeconds.value) {
+      activeElapsedSeconds.value = serverElapsed;
+      window.localStorage.setItem(elapsedStorageKey(), String(serverElapsed));
+    }
+  } catch {
+    window.localStorage.setItem(elapsedStorageKey(), String(elapsedSeconds));
+  }
+}
+
+function formatElapsed(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds || 0)));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainSeconds = total % 60;
+  if (hours > 0) return `${hours}시간 ${String(minutes).padStart(2, '0')}분 ${String(remainSeconds).padStart(2, '0')}초`;
+  return `${minutes}분 ${String(remainSeconds).padStart(2, '0')}초`;
 }
 
 async function initializeKakaoMap() {
@@ -188,8 +251,12 @@ async function initializeKakaoMap() {
     const centerSpot = spots[0];
     const center = new maps.LatLng(centerSpot?.latitude || 37.5665, centerSpot?.longitude || 126.9780);
     kakaoMap = new maps.Map(mapContainer.value, { center, level: 5 });
+    maps.event.addListener(kakaoMap, 'bounds_changed', updateSelectedSpotMapStyle);
+    maps.event.addListener(kakaoMap, 'idle', updateSelectedSpotMapStyle);
+    setupMapResizeObserver();
     await renderMarkers();
     fitMapBounds();
+    updateSelectedSpotMapStyle();
   } catch (error) {
     mapLoadFailed.value = true;
     mapLoadMessage.value = error.message || 'Kakao Maps SDK 초기화에 실패했습니다.';
@@ -239,6 +306,7 @@ async function renderMarkers() {
     content.textContent = shortLabel(spot.publicMarkerType);
     content.setAttribute('aria-label', `${spot.placeName} ${markerLabel(spot.publicMarkerType)}`);
     content.addEventListener('click', () => selectSpot(spot));
+    markerElements.set(spot.spotId, content);
     const overlay = new maps.CustomOverlay({ position, content, yAnchor: 0.5, xAnchor: 0.5, zIndex: spot.completed ? 4 : 3 });
     overlay.setMap(kakaoMap);
     overlays.push(overlay);
@@ -249,6 +317,7 @@ async function renderMarkers() {
 function clearOverlays() {
   overlays.forEach((overlay) => overlay.setMap(null));
   overlays = [];
+  markerElements.clear();
   if (routeLine) {
     routeLine.setMap(null);
     routeLine = null;
@@ -267,11 +336,73 @@ function fitMapBounds() {
   kakaoMap.setBounds(bounds, 36, 36, 36, 36);
 }
 
+function setupMapResizeObserver() {
+  mapResizeObserver?.disconnect();
+  if (window.ResizeObserver && mapContainer.value) {
+    mapResizeObserver = new ResizeObserver(handleMapResize);
+    mapResizeObserver.observe(mapContainer.value);
+  }
+  window.removeEventListener('resize', handleMapResize);
+  window.addEventListener('resize', handleMapResize);
+}
+
+function handleMapResize() {
+  if (kakaoMap?.relayout) kakaoMap.relayout();
+  updateSelectedSpotMapStyle();
+  nextTick(updateSelectedSpotMapStyle);
+}
+
+function updateSelectedSpotMapStyle() {
+  if (!selectedSpot.value || !kakaoMap || !window.kakao?.maps || !mapContainer.value) {
+    selectedSpotMapStyle.value = null;
+    return;
+  }
+  const markerElement = markerElements.get(selectedSpot.value.spotId);
+  const mapRect = mapContainer.value.getBoundingClientRect();
+  let markerX = null;
+  let markerY = null;
+  if (markerElement) {
+    const markerRect = markerElement.getBoundingClientRect();
+    markerX = markerRect.left - mapRect.left + markerRect.width / 2;
+    markerY = markerRect.top - mapRect.top + markerRect.height / 2;
+  } else {
+    const projection = kakaoMap.getProjection?.();
+    const markerPoint = projection?.containerPointFromCoords?.(
+      new window.kakao.maps.LatLng(Number(selectedSpot.value.latitude), Number(selectedSpot.value.longitude))
+    );
+    if (!markerPoint) return;
+    markerX = Number(markerPoint.x || 0);
+    markerY = Number(markerPoint.y || 0);
+  }
+  const containerWidth = mapContainer.value.clientWidth || 0;
+  const popoverWidth = Math.min(300, Math.max(220, containerWidth - 24));
+
+  selectedSpotMapStyle.value = {
+    left: `${markerX}px`,
+    top: `${markerY}px`,
+    width: `${popoverWidth}px`
+  };
+}
+
 function selectSpot(spot) {
   selectedSpot.value = spot;
   puzzle.value = null;
   puzzleMessage.value = '';
   puzzleCorrect.value = null;
+  if (kakaoMap && window.kakao?.maps) {
+    kakaoMap.panTo(new window.kakao.maps.LatLng(Number(spot.latitude), Number(spot.longitude)));
+  }
+  updateSelectedSpotMapStyle();
+  nextTick(updateSelectedSpotMapStyle);
+  window.setTimeout(updateSelectedSpotMapStyle, 0);
+  window.setTimeout(updateSelectedSpotMapStyle, 80);
+  window.setTimeout(updateSelectedSpotMapStyle, 260);
+}
+
+function closeSpotSheet() {
+  selectedSpot.value = null;
+  selectedSpotMapStyle.value = null;
+  selectedSpotPopoverPlacement.value = 'above';
 }
 
 async function navigateToSpot(spot) {
@@ -294,6 +425,10 @@ async function navigateToSpot(spot) {
 }
 
 async function arriveAtSpot(spot) {
+  if (isFinalPlaceMarker(spot)) {
+    await arriveAtFinalPlace(spot);
+    return;
+  }
   try {
     const position = await getPosition(spot);
     const result = await episodeApi.arrive(episodeId, spot.spotId, { userLat: position.lat, userLng: position.lng, devMode: devArrival });
@@ -312,14 +447,15 @@ async function arriveAtSpot(spot) {
   }
 }
 
-async function arriveAtFinalPlace() {
+async function arriveAtFinalPlace(spot = selectedSpot.value) {
   try {
-    const position = await getCurrentPositionForFinalCheck();
+    const position = spot ? await getPosition(spot) : await getCurrentPositionForFinalCheck();
     const result = await episodeApi.arriveFinalPlace(episodeId, { userLat: position.lat, userLng: position.lng, devMode: devArrival });
     finalArrivalResult.value = result;
     setStatus(result.message, result.canStartDeduction ? 'success' : 'info');
     if (result.canStartDeduction) {
       await loadAll();
+      goDeduction();
     }
   } catch (error) {
     setStatus(error.userMessage || error.message || '추리 장소 확인을 진행할 수 없습니다.', 'error');
@@ -406,14 +542,26 @@ async function submitPuzzle(answer) {
 }
 
 function rewardPopupData(result, unlockedTypes = []) {
+  const newlyUnlockedItems = Array.isArray(result.newlyUnlockedItems) ? result.newlyUnlockedItems : [];
+  const suspectUnlocked = unlockedTypes.includes('SUSPECT_UNLOCK')
+    || newlyUnlockedItems.some((item) => item.rewardType === 'SUSPECT_UNLOCK' || item.itemType === 'SUSPECT');
+  if (suspectUnlocked) {
+    return {
+      title: '첫 미션 클리어',
+      typeLabel: '',
+      clue: '용의자 정보가 해금되었습니다. 미션 파일에서 용의자 정보를 확인하세요',
+      items: []
+    };
+  }
   const typeLabel = hintTypeLabel(unlockedTypes);
   const clue = String(result.rewardClue || '').trim()
     || unlockedTypes.map(rewardTypeLabel).filter(Boolean).join(' · ')
-    || '새로운 현장 단서';
+    || '용의자 정보가 해금되었습니다. 미션파일에서 용의자 정보를 확인하세요.';
   return {
+    title: '단서를 획득했습니다',
     typeLabel,
     clue,
-    items: Array.isArray(result.newlyUnlockedItems) ? result.newlyUnlockedItems : []
+    items: newlyUnlockedItems
   };
 }
 
@@ -422,6 +570,7 @@ function showRewardPopup(data) {
   rewardPopup.value = {
     visible: true,
     flying: false,
+    title: data.title || '단서를 획득했습니다',
     typeLabel: data.typeLabel || '',
     clue: data.clue,
     items: data.items
@@ -430,7 +579,7 @@ function showRewardPopup(data) {
     rewardPopup.value = { ...rewardPopup.value, flying: true };
   }, 1150);
   rewardPopupClearTimer = window.setTimeout(() => {
-    rewardPopup.value = { visible: false, flying: false, typeLabel: '', clue: '', items: [] };
+    rewardPopup.value = { visible: false, flying: false, title: '단서를 획득했습니다', typeLabel: '', clue: '', items: [] };
   }, 2150);
 }
 
@@ -637,7 +786,7 @@ const rewardItemLabel = (item) => {
 .map-page { min-height: 100vh; box-sizing: border-box; padding: 18px 16px 260px; background: linear-gradient(180deg, #0f172a, #020617); color: #f8fafc; font-family: 'Noto Sans KR', sans-serif; }
 .topbar, .status-message, .map-shell { width: min(100%, 1180px); margin: 0 auto 12px; }
 .topbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.topbar p, .route-panel-head p { margin: 0; color: #67e8f9; font-size: .7rem; font-weight: 900; letter-spacing: .12em; }
+.topbar p { margin: 0; color: #67e8f9; font-size: .7rem; font-weight: 900; letter-spacing: .12em; }
 h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .topbar button, .status-message button { border: 1px solid rgba(103,232,249,.35); border-radius: 999px; background: rgba(8,47,73,.5); color: #a5f3fc; padding: 9px 12px; font-weight: 900; }
 .status-message { display: flex; align-items: center; justify-content: space-between; gap: 8px; box-sizing: border-box; padding: 10px 12px; border-radius: 14px; font-size: .9rem; font-weight: 900; }
@@ -645,7 +794,7 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .status-message.success { border: 1px solid rgba(34,197,94,.32); background: rgba(20,83,45,.3); color: #bbf7d0; }
 .status-message.error { border: 1px solid rgba(248,113,113,.38); background: rgba(127,29,29,.32); color: #fecaca; }
 .map-shell { display: grid; gap: 12px; }
-.map-panel, .route-panel { border: 1px solid rgba(148,163,184,.18); border-radius: 24px; background: rgba(15,23,42,.64); padding: 12px; }
+.map-panel { border: 1px solid rgba(148,163,184,.18); border-radius: 24px; background: rgba(15,23,42,.64); padding: 12px; }
 .legend { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
 .legend span { flex: 0 0 auto; border-radius: 999px; padding: 6px 9px; font-size: .72rem; font-weight: 900; background: rgba(30,41,59,.8); }
 .legend .START { color: #60a5fa; }
@@ -658,28 +807,12 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .legend .STORY { color: #4ade80; }
 .legend .FINAL_CANDIDATE { color: #cbd5e1; }
 .kakao-map { position: relative; height: min(62vh, 620px); min-height: 430px; overflow: hidden; border: 1px solid rgba(148,163,184,.2); border-radius: 20px; background: #0f172a; }
+.elapsed-timer { position: absolute; top: 12px; right: 12px; z-index: 10; display: grid; gap: 2px; min-width: 126px; box-sizing: border-box; padding: 9px 11px; border: 1px solid rgba(103,232,249,.34); border-radius: 14px; background: rgba(2,6,23,.82); color: #e0f2fe; box-shadow: 0 12px 28px rgba(0,0,0,.28); text-align: right; pointer-events: none; }
+.elapsed-timer span { color: #67e8f9; font-size: .66rem; font-weight: 1000; letter-spacing: .12em; }
+.elapsed-timer strong { color: #fff; font-size: .96rem; font-weight: 1000; }
 .map-error { position: absolute; inset: 0; display: grid; place-content: center; gap: 8px; padding: 24px; text-align: center; background: rgba(15,23,42,.92); color: #cbd5e1; z-index: 2; }
 .map-error strong { color: #fecaca; }
 .map-caption { box-sizing: border-box; margin: 8px 0 0; padding: 10px 12px; border-radius: 14px; background: rgba(2,6,23,.72); color: #cbd5e1; font-size: .82rem; line-height: 1.45; }
-.route-panel-head { display: flex; align-items: end; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
-.spot-list { display: grid; gap: 8px; max-height: 620px; overflow: auto; }
-.spot-list-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 52px; border: 1px solid rgba(148,163,184,.2); border-radius: 14px; background: rgba(15,23,42,.72); color: #f8fafc; text-align: left; }
-.spot-list-item span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 999px; color: #fff; font-weight: 1000; }
-.spot-list-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.spot-list-item small { color: #cbd5e1; font-weight: 900; font-size: .72rem; }
-.spot-list-item.START span { background: #2563eb; }
-.spot-list-item.KEYWORD_1 span { background: #ea580c; }
-.spot-list-item.KEYWORD_2 span { background: #0891b2; }
-.spot-list-item.KEYWORD_3 span { background: #65a30d; }
-.spot-list-item.ANSWER_HINT span { background: #ea580c; }
-.spot-list-item.FINAL span { background: #020617; border: 1px solid rgba(255,255,255,.7); }
-.spot-list-item.FINAL_DESTINATION span { background: #020617; border: 1px solid rgba(255,255,255,.7); }
-.spot-list-item.STORY span { background: #15803d; }
-.spot-list-item.FINAL_CANDIDATE span { background: #1f2937; }
-.spot-list-item.selected { border-color: rgba(251,146,60,.62); box-shadow: 0 0 0 3px rgba(251,146,60,.14); }
-.spot-list-item.visited { outline: 1px solid rgba(56,189,248,.35); }
-.spot-list-item.done { outline: 1px solid rgba(34,197,94,.5); opacity: .58; background: rgba(20,83,45,.24); }
-.spot-list-item.done strong { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: rgba(134,239,172,.7); }
 :deep(.case-marker) { position: relative; width: 42px; height: 42px; border: 3px solid rgba(255,255,255,.72); border-radius: 999px; color: #fff; font-weight: 1000; box-shadow: 0 10px 18px rgba(0,0,0,.3); cursor: pointer; }
 :deep(.case-marker.START) { background: #2563eb; }
 :deep(.case-marker.KEYWORD_1) { background: #ea580c; }
@@ -695,12 +828,6 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 :deep(.case-marker.completed::after) { content: '✓'; position: absolute; right: -5px; bottom: -7px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 999px; background: #16a34a; color: #fff; font-size: 13px; }
 :deep(.gps-marker) { min-width: 72px; min-height: 30px; display: grid; place-items: center; padding: 0 10px; border: 2px solid rgba(255,255,255,.82); border-radius: 999px; background: #0284c7; color: #fff; font-size: 12px; font-weight: 1000; box-shadow: 0 10px 18px rgba(0,0,0,.34); white-space: nowrap; }
 :deep(.gps-marker.temporary) { background: #b45309; }
-.floating { position: fixed; z-index: 25; right: 14px; border: 0; border-radius: 999px; min-width: 54px; min-height: 46px; color: #fff; font-weight: 900; box-shadow: 0 12px 24px rgba(0,0,0,.32); }
-.floating.clue { bottom: 250px; background: #b45309; }
-.floating.refresh { bottom: 304px; background: #0369a1; }
-.floating.admin-skip { bottom: 358px; background: #15803d; padding: 0 14px; }
-.floating.admin-final { bottom: 412px; background: #7c3aed; padding: 0 14px; }
-.floating.final-check { bottom: 466px; background: #991b1b; padding: 0 14px; }
 .reward-pop-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; pointer-events: none; background: radial-gradient(circle at 50% 42%, rgba(251,191,36,.18), transparent 34%); }
 .reward-pop-card { width: min(calc(100vw - 34px), 390px); box-sizing: border-box; padding: 18px; border: 1px solid rgba(251,191,36,.5); border-radius: 22px; background: linear-gradient(145deg, rgba(120,53,15,.96), rgba(15,23,42,.98)); color: #fff7ed; box-shadow: 0 30px 90px rgba(0,0,0,.52), 0 0 0 8px rgba(251,191,36,.08); transform-origin: 50% 20%; animation: reward-pop-in .34s cubic-bezier(.2, .9, .2, 1.15) both; }
 .reward-pop-card.fly { animation: reward-file-fly .92s cubic-bezier(.56, -.02, .2, 1) forwards; }
@@ -722,17 +849,8 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 }
 @media (min-width: 900px) {
   .map-page { padding-bottom: 32px; }
-  .map-shell { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
-  .floating { right: 430px; }
-  .floating.clue { bottom: 34px; }
-  .floating.refresh { bottom: 88px; }
-  .floating.admin-skip { bottom: 142px; }
-  .floating.admin-final { bottom: 196px; }
-  .floating.final-check { bottom: 250px; }
 }
 @media (max-width: 370px) {
   .map-page { padding-bottom: 300px; }
-  .spot-list-item { grid-template-columns: 30px 1fr; }
-  .spot-list-item small { grid-column: 2; }
 }
 </style>

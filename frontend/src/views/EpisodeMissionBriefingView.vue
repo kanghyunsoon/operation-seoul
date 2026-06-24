@@ -57,7 +57,7 @@ async function loadBriefing() {
       '',
       episode.value?.fictionSynopsis || episode.value?.missionDescription || '사건 개요가 아직 등록되지 않았습니다.',
       '',
-      '요원은 현장 단서를 수집해 범인, 흉기, 동기, 범행 방법을 확정해야 합니다.'
+      '요원은 현장 단서를 수집해 범인, 흉기, 동기, 사인을 확정해야 합니다.'
     ].filter(Boolean).join('\n');
     typingBuffer.reset();
     typingBuffer.addChunk(briefing);

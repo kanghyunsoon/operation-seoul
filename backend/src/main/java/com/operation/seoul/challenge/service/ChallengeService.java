@@ -17,13 +17,27 @@ public class ChallengeService {
 
     public List<ChallengeResponse> getChallenges(User user) {
         List<ChallengeResponse> challenges = challengeRepository.findActiveChallenges(user.getId());
-        challenges.forEach(challenge -> refreshCompletion(user, challenge));
+        boolean changed = false;
+        for (ChallengeResponse challenge : challenges) {
+            changed = refreshCompletion(user, challenge) || changed;
+        }
+        if (changed) {
+            challenges = challengeRepository.findActiveChallenges(user.getId());
+            challenges.forEach(this::applyComputedFields);
+        }
         return challenges;
     }
 
     public List<ChallengeResponse> getMyChallenges(User user) {
         List<ChallengeResponse> challenges = challengeRepository.findMyChallenges(user.getId());
-        challenges.forEach(challenge -> refreshCompletion(user, challenge));
+        boolean changed = false;
+        for (ChallengeResponse challenge : challenges) {
+            changed = refreshCompletion(user, challenge) || changed;
+        }
+        if (changed) {
+            challenges = challengeRepository.findMyChallenges(user.getId());
+            challenges.forEach(this::applyComputedFields);
+        }
         return challenges;
     }
 
@@ -47,12 +61,19 @@ public class ChallengeService {
         return challenge;
     }
 
-    private void refreshCompletion(User user, ChallengeResponse challenge) {
+    private boolean refreshCompletion(User user, ChallengeResponse challenge) {
         applyComputedFields(challenge);
+        boolean changed = false;
         if (Boolean.TRUE.equals(challenge.getJoined()) && Boolean.TRUE.equals(challenge.getCompleted()) && !"COMPLETED".equals(challenge.getEntryStatus())) {
             challengeRepository.complete(challenge.getId(), user.getId());
             challenge.setEntryStatus("COMPLETED");
+            changed = true;
+            Long nextChallengeId = challengeRepository.findNextHigherChallengeId(user.getId(), challenge.getTargetCount() == null ? 0 : challenge.getTargetCount());
+            if (nextChallengeId != null) {
+                challengeRepository.join(nextChallengeId, user.getId());
+            }
         }
+        return changed;
     }
 
     private void applyComputedFields(ChallengeResponse challenge) {

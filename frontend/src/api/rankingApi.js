@@ -8,5 +8,8 @@ export const rankingApi = {
   },
   async getMyRankings(params = {}) {
     return unwrap(await apiClient.get('/v1/rankings/me', { params }));
+  },
+  async getPlayerRankings(params = {}) {
+    return unwrap(await apiClient.get('/v1/rankings/players', { params }));
   }
 };

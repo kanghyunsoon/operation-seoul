@@ -62,23 +62,76 @@ public class EpisodePlayService {
     @Value("${app.dev-mode.arrival-enabled:false}")
     private boolean arrivalDevModeEnabled;
 
-    public List<EpisodeListItemResponse> getEpisodes(User user, String areaCode) {
+    public EpisodePageResponse getEpisodes(User user, String areaCode, int limit, int offset) {
+        int pageLimit = Math.min(30, Math.max(1, limit));
+        int pageOffset = Math.max(0, offset);
         Set<Long> favoriteEpisodeIds = new LinkedHashSet<>(favoriteRepository.findEpisodeIdsByUserId(user.getId()));
         String normalizedAreaCode = areaCode == null || areaCode.isBlank() ? null : operationAreaResolver.normalizeAreaCode(areaCode);
-        return episodeRepository.findPublishedEpisodes().stream()
-                .filter(episode -> normalizedAreaCode == null || episodeMatchesArea(episode.getId(), normalizedAreaCode))
-                .map(episode -> EpisodeListItemResponse.builder()
-                        .id(episode.getId())
-                        .title(episode.getTitle())
-                        .subtitle(episode.getSubtitle())
-                        .era(episode.getEra())
-                        .genre(episode.getGenre())
-                        .difficulty(episode.getDifficulty())
-                        .estimatedTime(localizeEstimatedTime(episode.getEstimatedTime()))
-                        .estimatedDistance(localizeEstimatedDistance(episode.getEstimatedDistance()))
-                        .favorited(favoriteEpisodeIds.contains(episode.getId()))
-                        .build())
-                .toList();
+        if (normalizedAreaCode == null) {
+            List<Episode> page = episodeRepository.findPublishedEpisodesPage(pageLimit, pageOffset);
+            int totalCount = episodeRepository.countPublishedEpisodes();
+            return EpisodePageResponse.builder()
+                    .items(page.stream().map(episode -> toEpisodeListItem(episode, favoriteEpisodeIds, user.getId())).toList())
+                    .limit(pageLimit)
+                    .offset(pageOffset)
+                    .hasMore(pageOffset + page.size() < totalCount)
+                    .totalCount(totalCount)
+                    .build();
+        }
+
+        return getAreaFilteredEpisodesPage(normalizedAreaCode, favoriteEpisodeIds, user.getId(), pageLimit, pageOffset);
+    }
+
+    private EpisodePageResponse getAreaFilteredEpisodesPage(String areaCode, Set<Long> favoriteEpisodeIds, Long userId, int limit, int offset) {
+        int dbOffset = 0;
+        int matchedCount = 0;
+        boolean hasMore = false;
+        List<EpisodeListItemResponse> items = new ArrayList<>();
+        int batchSize = Math.max(limit * 2, 12);
+
+        while (true) {
+            List<Episode> candidates = episodeRepository.findPublishedEpisodesPage(batchSize, dbOffset);
+            if (candidates.isEmpty()) break;
+            dbOffset += candidates.size();
+
+            for (Episode episode : candidates) {
+                if (!episodeMatchesArea(episode.getId(), areaCode)) continue;
+                if (matchedCount++ < offset) continue;
+                if (items.size() < limit) {
+                    items.add(toEpisodeListItem(episode, favoriteEpisodeIds, userId));
+                } else {
+                    hasMore = true;
+                    break;
+                }
+            }
+            if (hasMore || candidates.size() < batchSize) break;
+        }
+
+        return EpisodePageResponse.builder()
+                .items(items)
+                .limit(limit)
+                .offset(offset)
+                .hasMore(hasMore)
+                .totalCount(null)
+                .build();
+    }
+
+    private EpisodeListItemResponse toEpisodeListItem(Episode episode, Set<Long> favoriteEpisodeIds, Long userId) {
+        UserEpisodeProgress progress = findProgress(userId, episode.getId());
+        String progressStatus = progress == null ? "NOT_STARTED" : progress.getStatus();
+        return EpisodeListItemResponse.builder()
+                .id(episode.getId())
+                .title(episode.getTitle())
+                .subtitle(episode.getSubtitle())
+                .era(episode.getEra())
+                .genre(episode.getGenre())
+                .difficulty(episode.getDifficulty())
+                .estimatedTime(localizeEstimatedTime(episode.getEstimatedTime()))
+                .estimatedDistance(localizeEstimatedDistance(episode.getEstimatedDistance()))
+                .favorited(favoriteEpisodeIds.contains(episode.getId()))
+                .progressStatus(progressStatus)
+                .cleared("CLEARED".equals(progressStatus))
+                .build();
     }
 
     private boolean episodeMatchesArea(Long episodeId, String areaCode) {
@@ -179,6 +232,8 @@ public class EpisodePlayService {
                 .episodeId(episode.getId())
                 .title(episode.getTitle())
                 .progressStatus(progress.getStatus())
+                .activeElapsedSeconds(value(progress.getActiveElapsedSeconds()))
+                .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
                 .hintUsedCount(value(progress.getHintUsedCount()))
                 .wrongAnswerCount(value(progress.getWrongAnswerCount()))
                 .deductionQuestionCount(value(progress.getDeductionQuestionCount()))
@@ -189,6 +244,7 @@ public class EpisodePlayService {
     }
 
     private SpotMarkerResponse toSpotMarker(MissionSpot spot, String publicMarkerType, List<Long> visited, List<Long> completed) {
+        boolean finalPlace = Boolean.TRUE.equals(spot.getFinalPlace());
         return SpotMarkerResponse.builder()
                 .spotId(spot.getId())
                 .placeName(spot.getPlaceName())
@@ -196,12 +252,12 @@ public class EpisodePlayService {
                 .latitude(spot.getLatitude())
                 .longitude(spot.getLongitude())
                 .publicMarkerType(publicMarkerType)
-                .finalPlace(Boolean.TRUE.equals(spot.getFinalPlace()))
+                .finalPlace(finalPlace)
                 .storyText(sanitizeCategoryCodes(spot.getStoryText()))
                 .visited(visited.contains(spot.getId()))
                 .completed(completed.contains(spot.getId()))
                 .rewardClueCollected(completed.contains(spot.getId()))
-                .canOpenPuzzle(visited.contains(spot.getId()))
+                .canOpenPuzzle(!finalPlace && visited.contains(spot.getId()))
                 .canNavigate(true)
                 .build();
     }
@@ -285,7 +341,7 @@ public class EpisodePlayService {
         return ArriveResponse.builder()
                 .arrived(true)
                 .distance(distance)
-                .canOpenPuzzle(true)
+                .canOpenPuzzle(!actualFinal)
                 .isActualFinalArrived(actualFinal)
                 .canStartDeduction(actualFinal)
                 .message(message)
@@ -604,6 +660,7 @@ public class EpisodePlayService {
                 .currentQuestionCount(value(session.getQuestionCount()))
                 .maxHypothesisCount(maxHypothesisCount(user))
                 .currentHypothesisCount(value(session.getHypothesisCount()))
+                .activeElapsedSeconds(value(progress.getActiveElapsedSeconds()))
                 .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
                 .collectedClues(clues)
                 .finalQuestion(episode.getFinalQuestion())
@@ -760,8 +817,10 @@ public class EpisodePlayService {
         List<String> destinationClues = readStringList(progress.getCollectedDestinationClues()).stream().map(this::clueValueWithoutSlot).toList();
         List<String> storyClues = readStringList(progress.getCollectedStoryClues()).stream().map(this::clueValueWithoutSlot).toList();
         MissionSpot finalArrivedSpot = progress.getFinalArrivedSpotId() == null ? null : episodeRepository.findSpotById(progress.getFinalArrivedSpotId());
-        Long elapsedSeconds = progress.getStartedAt() == null ? null
-                : Duration.between(progress.getStartedAt(), progress.getClearedAt()).getSeconds() + value(progress.getClearTimePenaltySeconds());
+        Long elapsedSeconds = value(progress.getActiveElapsedSeconds()) > 0
+                ? (long) value(progress.getActiveElapsedSeconds()) + value(progress.getClearTimePenaltySeconds())
+                : (progress.getStartedAt() == null ? null
+                        : Duration.between(progress.getStartedAt(), progress.getClearedAt()).getSeconds() + value(progress.getClearTimePenaltySeconds()));
 
         return ClearReportResponse.builder()
                 .episodeId(episodeId)
@@ -846,6 +905,7 @@ public class EpisodePlayService {
         created.setClearedSuspectIds("[]");
         created.setUnlockedEvidenceIds("[]");
         created.setHypothesisCount(0);
+        created.setActiveElapsedSeconds(0);
         created.setClearTimePenaltySeconds(0);
         created.setStatus("IN_PROGRESS");
         episodeRepository.insertProgress(created);
@@ -955,9 +1015,9 @@ public class EpisodePlayService {
         }
         String clean = sanitizeCategoryCodes(clue.trim());
         if ("ANSWER_HINT".equals(spot.getClueRole())) {
-            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), typedClueValue(inferAnswerSlot(spot, clean), clean)));
+            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), typedClueValue("", clean)));
         } else if ("DESTINATION_HINT".equals(spot.getClueRole()) || "FINAL_PLACE".equals(spot.getClueRole())) {
-            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), typedClueValue(inferAnswerSlot(spot, clean), clean)));
+            progress.setCollectedAnswerClues(addString(progress.getCollectedAnswerClues(), typedClueValue("", clean)));
         } else {
             progress.setCollectedStoryClues(addString(progress.getCollectedStoryClues(), clean));
         }
@@ -1032,9 +1092,9 @@ public class EpisodePlayService {
 
     private boolean applyReward(UserEpisodeProgress progress, MissionSpot spot, String type, String value, String slotId, Long targetId) {
         return switch (type) {
-            case "ANSWER_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue(slotId.isBlank() ? inferAnswerSlot(spot, value) : slotId, value), progress::setCollectedAnswerClues);
+            case "ANSWER_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue(slotId, value), progress::setCollectedAnswerClues);
             case "SUSPECT_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue("RELATED_PERSON", value), progress::setCollectedAnswerClues);
-            case "DESTINATION_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue(slotId.isBlank() ? inferAnswerSlot(spot, value) : slotId, value), progress::setCollectedAnswerClues);
+            case "DESTINATION_CLUE" -> addStringReward(progress.getCollectedAnswerClues(), typedClueValue(slotId, value), progress::setCollectedAnswerClues);
             case "STORY_CLUE" -> addStringReward(progress.getCollectedStoryClues(), value, progress::setCollectedStoryClues);
             case "EVIDENCE_UNLOCK", "PHOTO_UNLOCK" -> targetId != null && addLongReward(progress.getUnlockedEvidenceIds(), targetId, progress::setUnlockedEvidenceIds);
             case "MEMO_UNLOCK" -> applyMemoUnlock(progress, value, targetId);
@@ -1097,18 +1157,6 @@ public class EpisodePlayService {
         return false;
     }
 
-    private String inferAnswerSlot(MissionSpot spot, String clue) {
-        String marker = normalize(spot == null ? null : spot.getPublicMarkerType());
-        if ("KEYWORD_1".equals(marker)) return "CULPRIT";
-        if ("KEYWORD_2".equals(marker)) return "WEAPON";
-        int order = spot == null || spot.getId() == null ? normalize(clue).hashCode() : spot.getId().intValue();
-        return switch (Math.floorMod(order, 4)) {
-            case 0 -> "CULPRIT";
-            case 1 -> "WEAPON";
-            case 2 -> "MOTIVE";
-            default -> "METHOD";
-        };
-    }
     private String normalizeRewardSlot(String value) {
         String normalized = normalize(value);
         return switch (normalized) {
@@ -1169,10 +1217,17 @@ public class EpisodePlayService {
     private String slotIdForRewardType(String type) {
         return switch (type) {
             case "SUSPECT_CLUE" -> "RELATED_PERSON";
-            case "ANSWER_CLUE" -> "ANSWER_CLUE";
-            case "DESTINATION_CLUE" -> "ANSWER_CLUE";
             default -> "";
         };
+    }
+
+    public EpisodeMapResponse updateElapsedTime(Long episodeId, Integer elapsedSeconds, User user) {
+        requireEpisode(episodeId);
+        UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
+        int sanitizedElapsedSeconds = Math.max(0, elapsedSeconds == null ? 0 : elapsedSeconds);
+        episodeRepository.updateActiveElapsedSeconds(user.getId(), episodeId, sanitizedElapsedSeconds);
+        progress.setActiveElapsedSeconds(Math.max(value(progress.getActiveElapsedSeconds()), sanitizedElapsedSeconds));
+        return getMap(episodeId, user);
     }
 
     private String itemType(String rewardType) {
@@ -1224,7 +1279,7 @@ public class EpisodePlayService {
             return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "정답 키워드를 직접 확인하는 질문에는 답할 수 없습니다. 수집한 단서를 조합해 추론하세요.");
         }
         if (containsAny(normalizedQuestion, "finalplace", "actualplace", "answerplace", "destination", "where", "정답장소", "장소정답", "최종장소")) {
-            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "최종 장소는 정답 추리 대상이 아닙니다. 사건의 범인, 흉기, 동기, 방법에 집중하세요.");
+            return new DeductionAnswer("REFUSED_DIRECT_REVEAL", "최종 장소는 정답 추리 대상이 아닙니다. 사건의 범인, 흉기, 동기, 사인에 집중하세요.");
         }
         if (allClues(progress).size() < 2) {
             return new DeductionAnswer("UNKNOWN", "아직 단서가 부족해 확답하기 어렵습니다. 조사 장소의 사건 단서를 더 수집하세요.");
@@ -1404,6 +1459,7 @@ public class EpisodePlayService {
                 || semanticGroupMatches(normalizedText, normalizedKeyword, "추락", "떨어", "밀어", "낙하")
                 || semanticGroupMatches(normalizedText, normalizedKeyword, "익사", "물에빠", "수장")
                 || semanticGroupMatches(normalizedText, normalizedKeyword, "감전", "전기")
+                || semanticGroupMatches(normalizedText, normalizedKeyword, "과다출혈", "출혈", "자상", "찔", "관통", "관통상")
                 || semanticGroupMatches(normalizedText, normalizedKeyword, "자상", "찔", "칼")
                 || semanticGroupMatches(normalizedText, normalizedKeyword, "둔기", "망치", "때려", "가격")
                 || semanticGroupMatches(normalizedText, normalizedKeyword, "폭발", "폭파", "터뜨")
@@ -1448,7 +1504,7 @@ public class EpisodePlayService {
         if (value == null) {
             return "";
         }
-        return value.trim().replaceFirst("(?i)^(CULPRIT|WEAPON|MOTIVE|METHOD|범인|흉기|동기|방법|범행방법)\\s*[:=]\\s*", "");
+        return value.trim().replaceFirst("(?i)^(CULPRIT|WEAPON|MOTIVE|METHOD|범인|흉기|동기|방법|범행방법|사인|사망원인|직접사인)\\s*[:=]\\s*", "");
     }
 
     private List<String> allClues(UserEpisodeProgress progress) {
@@ -1534,6 +1590,3 @@ public class EpisodePlayService {
     }
 
 }
-
-
-

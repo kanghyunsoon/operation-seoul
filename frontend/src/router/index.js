@@ -9,6 +9,9 @@ import CoachingView from '@/views/CoachingView.vue';
 import PlansView from '@/views/PlansView.vue';
 import GroupsView from '@/views/GroupsView.vue';
 import EpisodeListView from '@/views/EpisodeListView.vue';
+import FavoriteEpisodesView from '@/views/FavoriteEpisodesView.vue';
+import ClearMapView from '@/views/ClearMapView.vue';
+import CommunityHubView from '@/views/CommunityHubView.vue';
 import EpisodeDetailView from '@/views/EpisodeDetailView.vue';
 import EpisodeMissionBriefingView from '@/views/EpisodeMissionBriefingView.vue';
 import EpisodeMapView from '@/views/EpisodeMapView.vue';
@@ -34,6 +37,9 @@ const routes = [
   { path: '/plans', name: 'Plans', component: PlansView, meta: { requiresAuth: true } },
   { path: '/groups', name: 'Groups', component: GroupsView, meta: { requiresAuth: true } },
   { path: '/episodes', name: 'EpisodeList', component: EpisodeListView, meta: { requiresAuth: true } },
+  { path: '/favorites', name: 'Favorites', component: FavoriteEpisodesView, meta: { requiresAuth: true } },
+  { path: '/clear-map', name: 'ClearMap', component: ClearMapView, meta: { requiresAuth: true } },
+  { path: '/community', name: 'CommunityHub', component: CommunityHubView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId', name: 'EpisodeDetail', component: EpisodeDetailView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/briefing', name: 'EpisodeMissionBriefing', component: EpisodeMissionBriefingView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/map', name: 'EpisodeMap', component: EpisodeMapView, meta: { requiresAuth: true } },

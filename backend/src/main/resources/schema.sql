@@ -265,6 +265,49 @@ create table if not exists user_plans (
         on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
+create table if not exists episode_reviews (
+    id bigint not null auto_increment,
+    episode_id bigint not null,
+    user_id bigint not null,
+    rating int not null,
+    difficulty_rating int not null,
+    content text not null,
+    spoiler boolean not null default false,
+    status varchar(32) not null default 'VISIBLE',
+    created_at datetime not null default current_timestamp,
+    updated_at datetime null,
+    primary key (id),
+    unique key uk_episode_reviews_episode_user (episode_id, user_id),
+    index idx_episode_reviews_episode_created (episode_id, created_at),
+    index idx_episode_reviews_episode_rating (episode_id, rating),
+    constraint fk_episode_reviews_episode
+        foreign key (episode_id) references episodes (id)
+        on delete cascade,
+    constraint fk_episode_reviews_user
+        foreign key (user_id) references users (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists episode_review_comments (
+    id bigint not null auto_increment,
+    review_id bigint not null,
+    user_id bigint not null,
+    content text not null,
+    spoiler boolean not null default false,
+    status varchar(32) not null default 'VISIBLE',
+    created_at datetime not null default current_timestamp,
+    updated_at datetime null,
+    primary key (id),
+    index idx_episode_review_comments_review_created (review_id, created_at),
+    index idx_episode_review_comments_user (user_id),
+    constraint fk_episode_review_comments_review
+        foreign key (review_id) references episode_reviews (id)
+        on delete cascade,
+    constraint fk_episode_review_comments_user
+        foreign key (user_id) references users (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
 create table if not exists user_groups (
     id bigint not null auto_increment,
     name varchar(80) not null,

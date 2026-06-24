@@ -2,6 +2,8 @@ package com.operation.seoul.review.controller;
 
 import com.operation.seoul.auth.security.CurrentUserResolver;
 import com.operation.seoul.global.dto.ApiResponse;
+import com.operation.seoul.review.dto.EpisodeReviewCommentRequest;
+import com.operation.seoul.review.dto.EpisodeReviewCommentResponse;
 import com.operation.seoul.review.dto.EpisodeReviewListResponse;
 import com.operation.seoul.review.dto.EpisodeReviewRequest;
 import com.operation.seoul.review.dto.EpisodeReviewResponse;
@@ -52,5 +54,22 @@ public class EpisodeReviewController {
     public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long reviewId) {
         reviewService.deleteReview(reviewId, currentUserResolver.requireCurrentUser());
         return ResponseEntity.ok(ApiResponse.ok("리뷰가 삭제되었습니다."));
+    }
+
+    @PostMapping("/reviews/{reviewId}/comments")
+    public ResponseEntity<ApiResponse<EpisodeReviewCommentResponse>> createComment(@PathVariable Long reviewId, @RequestBody EpisodeReviewCommentRequest request) {
+        EpisodeReviewCommentResponse response = reviewService.createComment(reviewId, request, currentUserResolver.requireCurrentUser());
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("댓글이 등록되었습니다.", response));
+    }
+
+    @PutMapping("/review-comments/{commentId}")
+    public ResponseEntity<ApiResponse<EpisodeReviewCommentResponse>> updateComment(@PathVariable Long commentId, @RequestBody EpisodeReviewCommentRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("댓글이 수정되었습니다.", reviewService.updateComment(commentId, request, currentUserResolver.requireCurrentUser())));
+    }
+
+    @DeleteMapping("/review-comments/{commentId}")
+    public ResponseEntity<ApiResponse<Void>> deleteComment(@PathVariable Long commentId) {
+        reviewService.deleteComment(commentId, currentUserResolver.requireCurrentUser());
+        return ResponseEntity.ok(ApiResponse.ok("댓글이 삭제되었습니다."));
     }
 }

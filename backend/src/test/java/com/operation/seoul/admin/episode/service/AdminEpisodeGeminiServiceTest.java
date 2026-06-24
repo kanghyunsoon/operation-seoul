@@ -132,6 +132,23 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
+    void draftValidationRequiresCulpritToMatchSuspectDisplayNameExactly() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        applyApprovedContract(draft, source);
+        draft.getSuspects().get(0).setDisplayName("박민호");
+        draft.getSuspects().get(0).setAlias(source.getFinalAnswers().getCulprit());
+
+        AiEpisodeDraftValidationRequest request = new AiEpisodeDraftValidationRequest();
+        request.setDraft(draft);
+
+        AiEpisodeDraftValidationResponse result = service.validateDraft(request);
+
+        assertFalse(result.isValid());
+        assertTrue(result.getFindings().stream().anyMatch(finding -> "CULPRIT_MUST_BE_SUSPECT".equals(finding.getCode())));
+    }
+
+    @Test
     void planPromptBuildsAnswerPlanGuidanceWithoutExamples() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
 
@@ -139,7 +156,11 @@ class AdminEpisodeGeminiServiceTest {
 
         assertTrue(prompt.contains("Before returning JSON, internally follow this generation process"));
         assertTrue(prompt.contains("Choose one murder mechanism that fits the anchor domain"));
-        assertTrue(prompt.contains("Do not default to poisoning, contamination, toxic residue, or skin contact"));
+        assertTrue(prompt.contains("Do not default to poisoning, contamination, toxic residue, skin contact, fall, release-device"));
+        assertTrue(prompt.contains("A fall mechanism is allowed only when the current anchors specifically make an elevated fixture"));
+        assertTrue(prompt.contains("Do not select it from generic route, architecture, old building, stairs, or tourism words alone"));
+        assertTrue(prompt.contains("If several mechanisms fit equally well, choose the one tied to the most concrete noun"));
+        assertFalse(prompt.contains("such as 칼, 망치, 톱, 독살, 교살, 추락, or 투여"));
         assertTrue(prompt.contains("method_keyword"));
         assertTrue(prompt.contains("method_sentence"));
         assertTrue(prompt.contains("CULPRIT must be a Korean person name only"));
@@ -148,6 +169,11 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("Never reuse stale sample answers or names"));
         assertTrue(prompt.contains("Do not overuse any single domain template"));
         assertTrue(prompt.contains("Never return generic one-word abstractions"));
+        assertTrue(prompt.contains("Never return vague final answer values"));
+        assertTrue(prompt.contains("MOTIVE must name the concrete loss or exposure pressure"));
+        assertTrue(prompt.contains("METHOD must name the cause-of-death answer"));
+        assertTrue(prompt.contains("method_keyword is the final METHOD answer shown to players as \"사인\""));
+        assertTrue(prompt.contains("복부 자상 과다출혈"));
         assertTrue(prompt.contains("Avoid repeating common stale names, role labels, or abstract keywords"));
         assertFalse(prompt.contains("박준호"));
         assertFalse(prompt.contains("김도윤"));
@@ -656,7 +682,9 @@ class AdminEpisodeGeminiServiceTest {
         afterRequest.setDraft(draft);
         AiEpisodeDraftValidationResponse after = service.validateDraft(afterRequest);
 
-        assertTrue(after.isValid());
+        assertTrue(after.isValid(), () -> after.getFindings().stream()
+                .map(finding -> finding.getCode() + ": " + finding.getMessage())
+                .collect(java.util.stream.Collectors.joining(" / ")));
         assertTrue(draft.getFinalTruthSummary().contains("범인: 강수진"));
         assertEquals(List.of("CULPRIT", "CULPRIT", "WEAPON", "WEAPON", "MOTIVE", "MOTIVE", "METHOD", "METHOD"),
                 draft.getMissions().stream()
@@ -732,6 +760,33 @@ class AdminEpisodeGeminiServiceTest {
         assertFalse(response.getDraft().getFictionSynopsis().contains("테스트 장소"));
         assertTrue(response.getDraft().getFictionSynopsis().contains("외부 침입"));
         assertTrue(response.getDraft().getFictionSynopsis().contains("세 명"));
+    }
+
+    @Test
+    void synopsisMayMentionSuspectsByRoleInsteadOfCulpritName() throws Exception {
+        AiEpisodeDraftRequest source = sourceInput();
+        AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
+        draft.setFictionSynopsis("한태준이 잠긴 집무실에서 숨진 채 발견되었고 외부 침입 흔적은 없었다. 사건 시간대에 접근 권한을 가진 용의자는 행사 기록 담당자, 약병 관리 책임자, CCTV 보안 담당자 세 명이었다.");
+        draft.setSuspects(List.of(
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .displayName("강수진")
+                        .alias("행사 기록 담당자")
+                        .relationToVictim("피해자의 행사 기록 담당자")
+                        .build(),
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .displayName("박도윤")
+                        .alias("약병 관리 책임자")
+                        .relationToVictim("피해자의 약병 관리 책임자")
+                        .build(),
+                AiEpisodeDraftResponse.SuspectDraft.builder()
+                        .displayName("이재민")
+                        .alias("CCTV 보안 담당자")
+                        .relationToVictim("피해자의 CCTV 보안 담당자")
+                        .build()
+        ));
+
+        assertTrue(DraftNarrativeGuardrail.synopsisMentionsAllSuspects(draft));
+        assertFalse(draft.getFictionSynopsis().contains("강수진"));
     }
 
     @Test
@@ -1023,13 +1078,19 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("storyAnchors"));
         assertTrue(prompt.contains("장소는 나중에 미션에 배정될 지도 좌표일 뿐이다."));
         assertTrue(prompt.contains("actualHistorySummary는 TourAPI/외부조사에서 온 실제 장소 해설이다."));
-        assertTrue(prompt.contains("장소의 건축적 특징, 행정/상업/문화 기능, 보존 가치, 시대적 배경, 지역적 맥락"));
+        assertTrue(prompt.contains("실제 역사 사건, 관련 인물, 제도적 의미"));
+        assertTrue(prompt.contains("건축적 특징, 행정/상업/문화 기능, 보존 가치, 시대적 배경, 지역적 맥락"));
+        assertTrue(prompt.contains("특정 인물, 가문, 정치 사건"));
+        assertTrue(prompt.contains("장소 분위기만 말하는 문장으로 대체하지 않는다"));
         assertTrue(prompt.contains("본 사건은 직접적인 역사 사건을 다루지 않습니다"));
         assertTrue(prompt.contains("방어적 문구를 쓰지 않는다"));
         assertTrue(prompt.contains("era: "));
         assertTrue(prompt.contains("approvedFinalAnswers"));
         assertTrue(prompt.contains("CULPRIT: 강수진"));
         assertTrue(prompt.contains("finalTruthSummary에는 승인된 CULPRIT, WEAPON, MOTIVE, METHOD 값을 그대로 모두 포함한다."));
+        assertTrue(prompt.contains("승인된 MOTIVE가 \"산업 스파이\", \"은폐\", \"갈등\""));
+        assertTrue(prompt.contains("승인된 METHOD가 \"은폐\", \"조작\", \"침입\""));
+        assertTrue(prompt.contains("2~9번 rewardClue는 1문장, 45~90자 안팎으로 압축한다"));
         assertTrue(prompt.contains("finalTruthSummary는 짧은 정답 요약이 아니라 진실 파일이다."));
         assertTrue(prompt.contains("MOTIVE는 한 구절로 끝내지 않는다"));
         assertTrue(prompt.contains("범인이 무엇을 잃을 위기였는지"));
@@ -1038,9 +1099,25 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("사건의 전 과정이 시간 순서로 읽히는 완결된 범죄 서사"));
         assertTrue(prompt.contains("미션 슬롯"));
         assertTrue(prompt.contains("rewardClue에 정답 값을 그대로 쓰지 않는다."));
+        assertTrue(prompt.contains("단서 슬롯 분리 규칙"));
+        assertTrue(prompt.contains("WEAPON 단서는 \"무엇이 살해 도구로 쓰였는가\"만 답한다."));
+        assertTrue(prompt.contains("금지 정보는 특정 용의자의 알리바이, 협박 메시지, 채무/계약/평판 갈등, 범행 조작 순서 전체다."));
+        assertTrue(prompt.contains("각 rewardClue는 자기 targetKeywordType의 질문 하나만 답한다."));
+        assertTrue(prompt.contains("부검/감정/감식 관점의 상처 형태, 파손면, 재질, 성분"));
+        assertTrue(prompt.contains("MOTIVE 단서가 부실해지지 않도록 order 6과 order 7에는 반드시 손실 또는 폭로 위험"));
+        assertTrue(prompt.contains("METHOD 단서가 부실해지지 않도록 order 8과 order 9에는 반드시 피해자 루틴 또는 사건 직전 행동"));
+        assertTrue(prompt.contains("최종 해설에 새 물건을 갑자기 추가하지 않는다."));
+        assertTrue(prompt.contains("WEAPON-1 부검 결과서/현장 감식표형 단서"));
+        assertTrue(prompt.contains("WEAPON-2 감정서/물증 분석형 단서"));
+        assertTrue(prompt.contains("최종 키워드를 직접 말하지 않고도 플레이어가 CULPRIT, WEAPON, MOTIVE, METHOD 중 해당 슬롯의 후보를 실제로 좁힐 수 있을 만큼 구체적"));
+        assertTrue(prompt.contains("METHOD-2 조작 순서/접근 경로/실행 가능성 교차 검증과 사망에 이른 물리적 과정"));
         assertTrue(prompt.contains("최종 장소를 찾아라"));
         assertTrue(prompt.contains("크라임씬 사건 작가"));
         assertTrue(prompt.contains("CULPRIT 값은 한국인 인명이어야 하며"));
+        assertTrue(prompt.contains("CULPRIT identity contract"));
+        assertTrue(prompt.contains("approvedFinalAnswers.CULPRIT is locked"));
+        assertTrue(prompt.contains("Exactly one suspect displayName must be byte-for-byte identical to approvedFinalAnswers.CULPRIT"));
+        assertTrue(prompt.contains("Do not rename, translate, mask, alias, or replace it with another person name"));
         assertTrue(prompt.contains("suspect alias에는 현재 사건 배경에서 자연스러운 직업이나 역할을 쓴다"));
         assertTrue(prompt.contains("shortDescription에는 현재 의심 포인트처럼 보이는 구체적 정황을 쓰지 않는다"));
         assertTrue(prompt.contains("suspiciousPoint에는 지금 shortDescription에 넣고 싶은 의심 정황을 넣는다"));
@@ -1056,6 +1133,11 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("Suspect design must support elimination, not equal suspicion"));
         assertTrue(prompt.contains("Do not make all three suspects look equally guilty"));
         assertTrue(prompt.contains("The two CULPRIT rewardClues must narrow the culprit"));
+        assertTrue(prompt.contains("WEAPON clue generation is prompt-first, not fallback"));
+        assertTrue(prompt.contains("If WEAPON is \"톱날\", the clue should include a word like \"공구\""));
+        assertTrue(prompt.contains("If WEAPON is \"칼\", the clue should mention an everyday cutting use"));
+        assertTrue(prompt.contains("Do not write useless WEAPON clues"));
+        assertTrue(prompt.contains("WEAPON clue writing rule: use approvedFinalAnswers.WEAPON to derive category/use/physical traits"));
         assertTrue(prompt.contains("At least two clue/evidence pairs should help eliminate red herrings"));
         assertTrue(prompt.contains("조작 순서/접근 경로/실행 가능성"));
         assertFalse(prompt.contains("daily medication habit"));
@@ -1065,6 +1147,8 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("용의자 3명, 각자의 이해관계"));
         assertTrue(prompt.contains("evidences는 8개"));
         assertTrue(prompt.contains("지도 동선은 사건 줄거리와 단서에 사용하지 않는다"));
+        assertTrue(prompt.contains("최종 범인 이름을 직접 노출하면 정답이 새므로"));
+        assertTrue(prompt.contains("\"핵심 단서\" 같은 마스킹 문구를 인물명 자리에 쓰지 않는다"));
         assertTrue(prompt.contains("지문, 출입 흔적, CCTV 공백"));
         assertTrue(prompt.contains("반환 JSON 필수 필드"));
     }

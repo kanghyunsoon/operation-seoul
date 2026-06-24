@@ -34,9 +34,18 @@ final class DraftNarrativeGuardrail {
         if (suspects.size() != 3) return false;
         return suspects.stream()
                 .filter(Objects::nonNull)
-                .map(AiEpisodeDraftResponse.SuspectDraft::getDisplayName)
-                .filter(name -> !blank(name))
-                .allMatch(name -> synopsis.contains(compact(name)));
+                .allMatch(suspect -> synopsisMentionsSuspect(synopsis, suspect));
+    }
+
+    private static boolean synopsisMentionsSuspect(String synopsis, AiEpisodeDraftResponse.SuspectDraft suspect) {
+        return containsCompact(synopsis, suspect.getDisplayName())
+                || containsCompact(synopsis, suspect.getAlias())
+                || containsCompact(synopsis, suspect.getRelationToVictim());
+    }
+
+    private static boolean containsCompact(String source, String value) {
+        String compacted = compact(value);
+        return !blank(compacted) && source.contains(compacted);
     }
 
     static boolean redactRealPlaceNamesFromStoryFields(AiEpisodeDraftResponse.EpisodeDraft draft, AiEpisodeDraftRequest request) {

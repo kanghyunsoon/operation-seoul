@@ -98,12 +98,14 @@
         </div>
       </article>
     </section>
+    <MainBottomNav />
   </main>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import MainBottomNav from '@/components/MainBottomNav.vue';
 import { regionCommunityApi } from '@/api/regionCommunityApi';
 import { regionAreas, regionLabel } from '@/constants/regionAreas';
 
@@ -253,7 +255,7 @@ function setMessage(text, type = 'success') {
 </script>
 
 <style scoped>
-.community-page { min-height: 100vh; box-sizing: border-box; padding: 24px 16px 70px; background: radial-gradient(circle at 12% 10%, rgba(34,197,94,.22), transparent 30%), linear-gradient(150deg, #082f49, #111827 58%, #030712); color: #f8fafc; font-family: 'Noto Sans KR', Georgia, serif; }
+.community-page { min-height: 100vh; box-sizing: border-box; padding: 24px 16px 126px; background: radial-gradient(circle at 12% 10%, rgba(34,197,94,.22), transparent 30%), linear-gradient(150deg, #082f49, #111827 58%, #030712); color: #f8fafc; font-family: 'Noto Sans KR', Georgia, serif; }
 .hero, .layout, .toast { width: min(100%, 1180px); margin-left: auto; margin-right: auto; }
 .hero { margin-bottom: 16px; padding: 22px; border: 1px solid rgba(125,211,252,.22); border-radius: 24px; background: rgba(15,23,42,.72); }
 .ghost { background: rgba(15,23,42,.8); border: 1px solid rgba(148,163,184,.28); color: #cbd5e1; }

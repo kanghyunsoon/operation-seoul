@@ -15,4 +15,6 @@ public class EpisodeListItemResponse {
     private String estimatedTime;
     private String estimatedDistance;
     private Boolean favorited;
+    private String progressStatus;
+    private Boolean cleared;
 }

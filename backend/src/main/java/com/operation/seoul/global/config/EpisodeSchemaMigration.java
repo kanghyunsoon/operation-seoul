@@ -310,6 +310,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     deduction_question_count int not null default 0,
                     hypothesis_count int not null default 0,
                     final_guess_count int not null default 0,
+                    active_elapsed_seconds int not null default 0,
                     clear_time_penalty_seconds int not null default 0,
                     score int null,
                     started_at datetime null,
@@ -433,6 +434,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         addColumnIfMissing("mission_spots", "field_verification_note", "alter table mission_spots add column field_verification_note text null");
         addColumnIfMissing("user_episode_progress", "last_played_at", "alter table user_episode_progress add column last_played_at datetime null");
         addColumnIfMissing("user_episode_progress", "hypothesis_count", "alter table user_episode_progress add column hypothesis_count int not null default 0");
+        addColumnIfMissing("user_episode_progress", "active_elapsed_seconds", "alter table user_episode_progress add column active_elapsed_seconds int not null default 0");
         addColumnIfMissing("user_episode_progress", "clear_time_penalty_seconds", "alter table user_episode_progress add column clear_time_penalty_seconds int not null default 0");
         addColumnIfMissing("user_episode_progress", "unlocked_suspect_ids", "alter table user_episode_progress add column unlocked_suspect_ids text null");
         addColumnIfMissing("user_episode_progress", "cleared_suspect_ids", "alter table user_episode_progress add column cleared_suspect_ids text null");

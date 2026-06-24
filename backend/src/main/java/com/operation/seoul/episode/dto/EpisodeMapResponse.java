@@ -11,6 +11,8 @@ public class EpisodeMapResponse {
     private Long episodeId;
     private String title;
     private String progressStatus;
+    private Integer activeElapsedSeconds;
+    private Integer clearTimePenaltySeconds;
     private Integer hintUsedCount;
     private Integer wrongAnswerCount;
     private Integer deductionQuestionCount;

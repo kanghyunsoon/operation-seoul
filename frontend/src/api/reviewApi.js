@@ -15,6 +15,15 @@ export const reviewApi = {
   async deleteReview(reviewId) {
     return unwrap(await apiClient.delete(`/v1/reviews/${reviewId}`));
   },
+  async createReviewComment(reviewId, payload) {
+    return unwrap(await apiClient.post(`/v1/reviews/${reviewId}/comments`, payload));
+  },
+  async updateReviewComment(commentId, payload) {
+    return unwrap(await apiClient.put(`/v1/review-comments/${commentId}`, payload));
+  },
+  async deleteReviewComment(commentId) {
+    return unwrap(await apiClient.delete(`/v1/review-comments/${commentId}`));
+  },
   async getMyReviews() {
     return unwrap(await apiClient.get('/v1/users/me/reviews'));
   }

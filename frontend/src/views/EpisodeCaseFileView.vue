@@ -75,7 +75,7 @@
           <div>
             <p class="section-label">증거 / 메모 / 사진 카드</p>
             <h3>{{ caseFile.progressSummary.unlockedEvidenceCount }}/{{ caseFile.progressSummary.totalEvidenceCount }}개 해금</h3>
-            <p class="section-help">각 카드는 범인, 흉기, 동기, 방법을 좁히는 사건 근거입니다. 해금 순서와 용의자의 알리바이를 함께 대조하세요.</p>
+            <p class="section-help">각 카드는 범인, 흉기, 동기, 사인을 좁히는 사건 근거입니다. 해금 순서와 용의자의 알리바이를 함께 대조하세요.</p>
           </div>
         </div>
         <div class="evidence-grid">

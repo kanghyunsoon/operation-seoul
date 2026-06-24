@@ -25,10 +25,10 @@ final class DraftCrimeMysteryGuardrailApplier {
         String motive = approved.get("MOTIVE");
         String method = approved.get("METHOD");
 
-        draft.setMissionDescription("8개 조사 단서로 범인, 흉기, 동기, 방법을 종합해 최종 진실을 판단합니다.");
+        draft.setMissionDescription("8개 조사 단서로 범인, 흉기, 동기, 사인을 종합해 최종 진실을 판단합니다.");
 
         if (!DraftFinalTruthGuardrail.explainsAnswers(draft, culprit, weapon, motive, method)) {
-            safeWarnings.add("최종 진실 요약이 범인, 흉기, 동기, 방법을 모두 설명하지 않습니다.");
+            safeWarnings.add("최종 진실 요약이 범인, 흉기, 동기, 사인을 모두 설명하지 않습니다.");
         }
         if (!DraftSuspectGuardrail.hasUsableSuspects(draft, culprit)) {
             safeWarnings.add("용의자 카드가 부족하거나 범인이 용의자 3명 안에 포함되지 않았습니다.");

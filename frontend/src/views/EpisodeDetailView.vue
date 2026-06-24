@@ -6,15 +6,18 @@
     <section v-else-if="episode" class="panel">
       <div class="top-row">
         <p class="eyebrow">{{ episode.era }} · {{ episode.genre }}</p>
-        <button
-          type="button"
-          class="favorite-btn"
-          :class="{ active: episode.favorited }"
-          :disabled="favoriteBusy"
-          @click="toggleFavorite"
-        >
-          {{ episode.favorited ? '♥ 관심 해제' : '♡ 관심 추가' }}
-        </button>
+        <div class="top-actions">
+          <button
+            type="button"
+            class="favorite-btn"
+            :class="{ active: episode.favorited }"
+            :disabled="favoriteBusy"
+            @click="toggleFavorite"
+          >
+            {{ episode.favorited ? '♥ 관심 해제' : '♡ 관심 추가' }}
+          </button>
+          <button type="button" class="ranking-btn" @click="openRanking">🏆 랭킹</button>
+        </div>
       </div>
       <h1>{{ episode.title }}</h1>
       <h2>{{ episode.subtitle }}</h2>
@@ -26,21 +29,28 @@
         <span>정답 유형 <strong>{{ episode.finalAnswerType }}</strong></span>
       </div>
       <div class="actions">
-        <button class="primary" type="button" @click="start">미션 파일 열기</button>
-        <button class="secondary" type="button" :disabled="planBusy" @click="addPlan">내 일정에 추가</button>
-        <button class="secondary" type="button" @click="router.push({ name: 'MyPage' })">내 관심 목록 보기</button>
+        <button class="primary" type="button" @click="openPrimaryAction">
+          {{ cleared ? '클리어 리포트 열기' : '미션 파일 열기' }}
+        </button>
+        <button class="secondary" type="button" @click="showReviews">해당 미션 리뷰 보기</button>
       </div>
       <p v-if="message" class="message" :class="messageType">{{ message }}</p>
+      <EpisodeReviewPanel
+        v-if="reviewsOpen"
+        id="episode-reviews"
+        :episode-id="episodeId"
+        title="미션 리뷰"
+      />
     </section>
   </main>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { episodeApi } from '@/api/episodeApi';
 import { favoriteApi } from '@/api/favoriteApi';
-import { planApi } from '@/api/planApi';
+import EpisodeReviewPanel from '@/components/episode/EpisodeReviewPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -51,7 +61,9 @@ const error = ref('');
 const message = ref('');
 const messageType = ref('success');
 const favoriteBusy = ref(false);
-const planBusy = ref(false);
+const reviewsOpen = ref(false);
+
+const cleared = computed(() => episode.value?.progressStatus === 'CLEARED');
 
 onMounted(async () => {
   try {
@@ -62,6 +74,14 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+async function openPrimaryAction() {
+  if (cleared.value) {
+    router.push({ name: 'EpisodeClearReport', params: { episodeId } });
+    return;
+  }
+  await start();
+}
 
 const start = async () => {
   try {
@@ -93,24 +113,14 @@ async function toggleFavorite() {
   }
 }
 
-async function addPlan() {
-  if (!episode.value) return;
-  planBusy.value = true;
-  try {
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    tomorrow.setSeconds(0, 0);
-    await planApi.createPlan({
-      episodeId: episode.value.id,
-      plannedAt: tomorrow.toISOString().slice(0, 16),
-      memo: '',
-      status: 'PLANNED'
-    });
-    setMessage('내 일정에 추가했습니다.');
-  } catch (err) {
-    setMessage(err.userMessage || '일정에 추가하지 못했습니다.', 'error');
-  } finally {
-    planBusy.value = false;
-  }
+async function showReviews() {
+  reviewsOpen.value = true;
+  await nextTick();
+  document.getElementById('episode-reviews')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function openRanking() {
+  router.push({ name: 'Ranking', query: { episodeId, title: episode.value?.title || '' } });
 }
 
 function setMessage(text, type = 'success') {
@@ -133,16 +143,19 @@ h2 { color: #fde68a; font-size: 1.05rem; }
 .info-grid span { display: flex; justify-content: space-between; gap: 10px; padding: 12px; border-radius: 12px; background: rgba(2,6,23,.34); color: #94a3b8; }
 strong { color: #fff; }
 .actions { display: grid; gap: 10px; }
-.primary, .secondary, .favorite-btn { width: 100%; min-height: 48px; border: 0; border-radius: 14px; color: #fff; font-weight: 900; font: inherit; }
+.primary, .secondary, .favorite-btn, .ranking-btn { width: 100%; min-height: 48px; border: 0; border-radius: 14px; color: #fff; font-weight: 900; font: inherit; }
 .primary { background: #b45309; }
 .secondary { background: #334155; }
+.top-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .favorite-btn { width: auto; min-height: 40px; padding: 0 14px; border: 1px solid rgba(251,191,36,.35); background: rgba(15,23,42,.7); color: #fde68a; white-space: nowrap; }
 .favorite-btn.active { background: #b45309; color: #fff7ed; }
+.ranking-btn { width: auto; min-height: 40px; padding: 0 14px; border: 1px solid rgba(251,191,36,.35); background: rgba(120,53,15,.82); color: #fde68a; white-space: nowrap; }
 .message { border-radius: 12px; padding: 12px; background: rgba(22,101,52,.18); color: #bbf7d0; }
 .message.error { background: rgba(127,29,29,.22); color: #fecaca; }
 @media (max-width: 560px) {
   .panel { padding: 20px; }
   .top-row { display: grid; }
-  .favorite-btn { width: 100%; }
+  .top-actions { display: grid; }
+  .favorite-btn, .ranking-btn { width: 100%; }
 }
 </style>

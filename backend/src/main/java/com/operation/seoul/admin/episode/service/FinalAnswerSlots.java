@@ -9,7 +9,7 @@ final class FinalAnswerSlots {
             "CULPRIT", "범인",
             "WEAPON", "흉기",
             "MOTIVE", "동기",
-            "METHOD", "방법"
+            "METHOD", "사인"
     );
 
     private FinalAnswerSlots() {

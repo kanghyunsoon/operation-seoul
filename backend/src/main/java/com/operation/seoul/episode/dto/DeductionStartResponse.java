@@ -13,6 +13,7 @@ public class DeductionStartResponse {
     private Integer currentQuestionCount;
     private Integer maxHypothesisCount;
     private Integer currentHypothesisCount;
+    private Integer activeElapsedSeconds;
     private Integer clearTimePenaltySeconds;
     private List<String> collectedClues;
     private String finalQuestion;

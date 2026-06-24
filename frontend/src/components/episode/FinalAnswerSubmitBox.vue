@@ -1,7 +1,7 @@
 <template>
   <section class="answer-box">
     <h3>최종 정답 제출</h3>
-    <p>범인, 흉기, 동기, 방법이 모두 들어간 문장으로 제출하세요. 오답은 클리어타임에 5분이 추가됩니다.</p>
+    <p>범인, 흉기, 동기, 사인이 모두 들어간 문장으로 제출하세요. 오답은 클리어타임에 5분이 추가됩니다.</p>
     <form @submit.prevent="submit">
       <input v-model.trim="answer" placeholder="예: 이몽룡이 망치로 은폐를 위해 교살했다." />
       <button type="submit">제출</button>

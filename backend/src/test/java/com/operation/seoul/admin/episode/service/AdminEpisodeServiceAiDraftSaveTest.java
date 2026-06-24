@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.admin.episode.domain.AdminEpisodeProgressStats;
 import com.operation.seoul.admin.episode.dto.AdminEpisodeDetailResponse;
 import com.operation.seoul.admin.episode.dto.AdminEpisodeUpdateRequest;
+import com.operation.seoul.admin.episode.dto.AdminPuzzleUpdateRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftRequest;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftResponse;
 import com.operation.seoul.admin.episode.dto.AiEpisodeDraftSaveRequest;
@@ -81,10 +82,35 @@ class AdminEpisodeServiceAiDraftSaveTest {
         assertEquals("ALL_INVESTIGATION_MISSIONS_CLEARED", finalMission(request.getDraft()).getUnlockCondition());
         assertFalse(saved.getDeductionSecretFacts().isBlank());
         assertFalse(saved.getDeductionForbiddenReveals().isBlank());
+        Long episodeId = saved.getId();
+
+        AdminEpisodeDetailResponse.Spot finalSpot = saved.getSpots().stream()
+                .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
+                .findFirst()
+                .orElseThrow();
+        AdminPuzzleUpdateRequest finalPuzzleRequest = new AdminPuzzleUpdateRequest();
+        finalPuzzleRequest.setPuzzleType(finalSpot.getPuzzle().getPuzzleType());
+        finalPuzzleRequest.setQuestionText(finalSpot.getPuzzle().getQuestionText());
+        finalPuzzleRequest.setAnswer(finalSpot.getPuzzle().getAnswer());
+        finalPuzzleRequest.setAnswerFormat(finalSpot.getPuzzle().getAnswerFormat());
+        finalPuzzleRequest.setRewardClue("");
+        finalPuzzleRequest.setRewardPayload("");
+        finalPuzzleRequest.setDifficulty(finalSpot.getPuzzle().getDifficulty());
+        finalPuzzleRequest.setHints(finalSpot.getPuzzle().getHints().stream()
+                .map(AdminEpisodeDetailResponse.Hint::getHintText)
+                .toList());
+        saved = assertDoesNotThrow(() -> service.updatePuzzle(episodeId, finalSpot.getPuzzle().getPuzzleId(), finalPuzzleRequest));
+        AdminEpisodeDetailResponse.Spot updatedFinalSpot = saved.getSpots().stream()
+                .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("", updatedFinalSpot.getPuzzle().getRewardClue());
+        assertEquals("", updatedFinalSpot.getPuzzle().getRewardPayload());
+        state.removePuzzleForSpot(finalSpot.getSpotId());
 
         AdminEpisodeUpdateRequest publishRequest = new AdminEpisodeUpdateRequest();
         publishRequest.setStatus("PUBLISHED");
-        AdminEpisodeDetailResponse published = assertDoesNotThrow(() -> service.updateEpisode(saved.getId(), publishRequest));
+        AdminEpisodeDetailResponse published = assertDoesNotThrow(() -> service.updateEpisode(episodeId, publishRequest));
         assertEquals("PUBLISHED", published.getStatus());
     }
 
@@ -545,6 +571,7 @@ class AdminEpisodeServiceAiDraftSaveTest {
                     .filter(puzzle -> invocation.<Long>getArgument(0).equals(puzzle.getMissionSpotId()))
                     .findFirst()
                     .orElse(null));
+            when(repository.findPuzzle(anyLong())).thenAnswer(invocation -> puzzles.get(invocation.getArgument(0)));
             when(repository.updatePuzzle(any(Puzzle.class))).thenAnswer(invocation -> {
                 Puzzle puzzle = invocation.getArgument(0);
                 puzzles.put(puzzle.getId(), puzzle);
@@ -589,6 +616,10 @@ class AdminEpisodeServiceAiDraftSaveTest {
                     .filter(reward -> invocation.<Long>getArgument(0).equals(reward.getEpisodeId()))
                     .toList());
             when(repository.findProgressStats(anyLong())).thenReturn(new AdminEpisodeProgressStats());
+        }
+
+        void removePuzzleForSpot(Long spotId) {
+            puzzles.values().removeIf(puzzle -> spotId.equals(puzzle.getMissionSpotId()));
         }
     }
 }

@@ -25,8 +25,12 @@ public class EpisodePlayController {
     private final CurrentUserResolver currentUserResolver;
 
     @GetMapping("/episodes")
-    public ResponseEntity<ApiResponse<List<EpisodeListItemResponse>>> getEpisodes(@RequestParam(required = false) String areaCode) {
-        return ResponseEntity.ok(ApiResponse.ok("에피소드 목록입니다.", episodePlayService.getEpisodes(currentUserResolver.requireCurrentUser(), areaCode)));
+    public ResponseEntity<ApiResponse<EpisodePageResponse>> getEpisodes(
+            @RequestParam(required = false) String areaCode,
+            @RequestParam(defaultValue = "6") int limit,
+            @RequestParam(defaultValue = "0") int offset
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("에피소드 목록입니다.", episodePlayService.getEpisodes(currentUserResolver.requireCurrentUser(), areaCode, limit, offset)));
     }
 
     @GetMapping("/episodes/{episodeId}")
@@ -42,6 +46,11 @@ public class EpisodePlayController {
     @GetMapping("/episodes/{episodeId}/map")
     public ResponseEntity<ApiResponse<EpisodeMapResponse>> getEpisodeMap(@PathVariable Long episodeId) {
         return ResponseEntity.ok(ApiResponse.ok("에피소드 지도입니다.", episodePlayService.getMap(episodeId, currentUserResolver.requireCurrentUser())));
+    }
+
+    @PostMapping("/episodes/{episodeId}/elapsed-time")
+    public ResponseEntity<ApiResponse<EpisodeMapResponse>> updateElapsedTime(@PathVariable Long episodeId, @RequestBody ElapsedTimeRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("elapsed time saved", episodePlayService.updateElapsedTime(episodeId, request.getElapsedSeconds(), currentUserResolver.requireCurrentUser())));
     }
 
     @PostMapping("/episodes/{episodeId}/spots/{spotId}/arrive")

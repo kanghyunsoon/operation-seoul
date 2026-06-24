@@ -5,9 +5,13 @@ import com.operation.seoul.episode.domain.Episode;
 import com.operation.seoul.episode.repository.EpisodeRepository;
 import com.operation.seoul.global.exception.ApiException;
 import com.operation.seoul.review.domain.EpisodeReview;
+import com.operation.seoul.review.domain.EpisodeReviewComment;
+import com.operation.seoul.review.dto.EpisodeReviewCommentRequest;
+import com.operation.seoul.review.dto.EpisodeReviewCommentResponse;
 import com.operation.seoul.review.dto.EpisodeReviewListResponse;
 import com.operation.seoul.review.dto.EpisodeReviewRequest;
 import com.operation.seoul.review.dto.EpisodeReviewResponse;
+import com.operation.seoul.review.repository.EpisodeReviewCommentRepository;
 import com.operation.seoul.review.repository.EpisodeReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EpisodeReviewService {
     private final EpisodeReviewRepository reviewRepository;
+    private final EpisodeReviewCommentRepository commentRepository;
     private final EpisodeRepository episodeRepository;
 
     public EpisodeReviewListResponse getEpisodeReviews(Long episodeId, User user) {
@@ -78,6 +83,30 @@ public class EpisodeReviewService {
         reviewRepository.softDelete(reviewId);
     }
 
+    public EpisodeReviewCommentResponse createComment(Long reviewId, EpisodeReviewCommentRequest request, User user) {
+        requireReview(reviewId);
+        EpisodeReviewComment comment = new EpisodeReviewComment();
+        comment.setReviewId(reviewId);
+        comment.setUserId(user.getId());
+        applyCommentRequest(comment, request);
+        commentRepository.insert(comment);
+        return toCommentResponse(commentRepository.findById(comment.getId()), user);
+    }
+
+    public EpisodeReviewCommentResponse updateComment(Long commentId, EpisodeReviewCommentRequest request, User user) {
+        EpisodeReviewComment comment = requireComment(commentId);
+        requireCommentOwnerOrAdmin(comment, user);
+        applyCommentRequest(comment, request);
+        commentRepository.update(comment);
+        return toCommentResponse(commentRepository.findById(commentId), user);
+    }
+
+    public void deleteComment(Long commentId, User user) {
+        EpisodeReviewComment comment = requireComment(commentId);
+        requireCommentOwnerOrAdmin(comment, user);
+        commentRepository.softDelete(commentId);
+    }
+
     private void requireCleared(Long episodeId, Long userId) {
         if (!canReview(episodeId, userId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "EPISODE_NOT_CLEARED", "클리어한 에피소드에만 리뷰를 작성할 수 있습니다.");
@@ -104,8 +133,22 @@ public class EpisodeReviewService {
         return review;
     }
 
+    private EpisodeReviewComment requireComment(Long commentId) {
+        EpisodeReviewComment comment = commentRepository.findById(commentId);
+        if (comment == null || "DELETED".equals(comment.getStatus())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "REVIEW_COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다.");
+        }
+        return comment;
+    }
+
     private void requireOwnerOrAdmin(EpisodeReview review, User user) {
         if (!review.getUserId().equals(user.getId()) && !user.isAdmin()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "접근 권한이 없습니다.");
+        }
+    }
+
+    private void requireCommentOwnerOrAdmin(EpisodeReviewComment comment, User user) {
+        if (!comment.getUserId().equals(user.getId()) && !user.isAdmin()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "접근 권한이 없습니다.");
         }
     }
@@ -125,6 +168,14 @@ public class EpisodeReviewService {
         review.setSpoiler(Boolean.TRUE.equals(request.getSpoiler()));
     }
 
+    private void applyCommentRequest(EpisodeReviewComment comment, EpisodeReviewCommentRequest request) {
+        if (request.getContent() == null || request.getContent().trim().length() < 2) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COMMENT_CONTENT", "댓글 내용은 2자 이상 입력해 주세요.");
+        }
+        comment.setContent(request.getContent().trim());
+        comment.setSpoiler(Boolean.TRUE.equals(request.getSpoiler()));
+    }
+
     private EpisodeReviewResponse toResponse(EpisodeReview review, User user) {
         return EpisodeReviewResponse.builder()
                 .id(review.getId())
@@ -138,8 +189,25 @@ public class EpisodeReviewService {
                 .spoiler(review.getSpoiler())
                 .status(review.getStatus())
                 .mine(user != null && review.getUserId().equals(user.getId()))
+                .comments(commentRepository.findByReviewId(review.getId()).stream()
+                        .map(comment -> toCommentResponse(comment, user))
+                        .toList())
                 .createdAt(review.getCreatedAt())
                 .updatedAt(review.getUpdatedAt())
+                .build();
+    }
+
+    private EpisodeReviewCommentResponse toCommentResponse(EpisodeReviewComment comment, User user) {
+        return EpisodeReviewCommentResponse.builder()
+                .id(comment.getId())
+                .reviewId(comment.getReviewId())
+                .userId(comment.getUserId())
+                .authorNickname(comment.getAuthorNickname())
+                .content(comment.getContent())
+                .spoiler(comment.getSpoiler())
+                .mine(user != null && comment.getUserId().equals(user.getId()))
+                .createdAt(comment.getCreatedAt())
+                .updatedAt(comment.getUpdatedAt())
                 .build();
     }
 }

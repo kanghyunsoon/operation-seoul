@@ -25,8 +25,12 @@ public class AdminEpisodeController {
     private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<AdminEpisodeListResponse>>> getEpisodes() {
-        return ResponseEntity.ok(ApiResponse.ok("관리자 에피소드 목록입니다.", adminEpisodeService.getEpisodes()));
+    public ResponseEntity<ApiResponse<AdminEpisodePageResponse>> getEpisodes(
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "limit", defaultValue = "7") int limit,
+            @RequestParam(value = "offset", defaultValue = "0") int offset
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("관리자 에피소드 목록입니다.", adminEpisodeService.getEpisodes(search, limit, offset)));
     }
 
     @GetMapping("/place-candidates")

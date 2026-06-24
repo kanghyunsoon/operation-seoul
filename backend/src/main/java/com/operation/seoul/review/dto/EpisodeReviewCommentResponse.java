@@ -4,23 +4,17 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Data
 @Builder
-public class EpisodeReviewResponse {
+public class EpisodeReviewCommentResponse {
     private Long id;
-    private Long episodeId;
-    private String episodeTitle;
+    private Long reviewId;
     private Long userId;
     private String authorNickname;
-    private Integer rating;
-    private Integer difficultyRating;
     private String content;
     private Boolean spoiler;
-    private String status;
-    private boolean mine;
-    private List<EpisodeReviewCommentResponse> comments;
+    private Boolean mine;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -24,12 +24,12 @@
       </div>
 
       <div class="metric-grid">
-        <article><strong>{{ report.completedSpotCount || 0 }}/{{ report.totalSpotCount || 0 }}</strong><span>조사 완료 장소</span></article>
+        <article><strong>{{ report.completedSpotCount || 0 }}/{{ report.totalSpotCount - 1 || 0 }}</strong><span>조사 완료 장소</span></article>
         <article><strong>{{ report.answerClueCount || 0 }}</strong><span>수집한 추리 단서</span></article>
         <article><strong>4</strong><span>도출한 사건 진실</span></article>
         <article><strong>{{ report.deductionQuestionCount || 0 }}</strong><span>최종 추리 질문</span></article>
         <article><strong>{{ report.wrongAnswerCount || 0 }}</strong><span>오답</span></article>
-        <article><strong>{{ report.unlockedEvidenceIds?.length || 0 }}</strong><span>해금 자료</span></article>
+        <article><strong> {{ report.finalGuessCount || 0 }}</strong><span>최종 정답 제출</span></article>
       </div>
 
       <article class="paper-block fact-block">
@@ -53,11 +53,7 @@
           </div>
         </div>
         <div class="clue-section">
-          <h3>스토리 단서</h3>
-          <div class="chips">
-            <span v-for="clue in report.storyClues || []" :key="`s-${clue}`">{{ clue }}</span>
-            <em v-if="!(report.storyClues || []).length">없음</em>
-          </div>
+
         </div>
       </article>
 
@@ -65,7 +61,7 @@
         <h2>조사 기록</h2>
         <p>시작: {{ formatDate(report.startedAt) }}</p>
         <p>클리어: {{ formatDate(report.clearedAt) }}</p>
-        <p>힌트 사용 {{ report.hintUsedCount || 0 }}회 · 최종 정답 제출 {{ report.finalGuessCount || 0 }}회</p>
+
       </article>
 
       <EpisodeReviewPanel v-if="report.canReview" :episode-id="episodeId" />
@@ -104,7 +100,7 @@ const deductionSlots = computed(() => {
     reportSlot('CULPRIT', '범인', report.value?.culpritClues, fallback, 0),
     reportSlot('WEAPON', '흉기', report.value?.weaponClues, fallback, 1),
     reportSlot('MOTIVE', '동기', report.value?.motiveClues, fallback, 2),
-    reportSlot('METHOD', '방법', report.value?.methodClues, fallback, 3)
+    reportSlot('METHOD', '사인', report.value?.methodClues, fallback, 3)
   ];
 });
 

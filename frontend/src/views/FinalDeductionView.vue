@@ -5,6 +5,10 @@
     <section v-if="loading" class="panel">최종 추리 세션을 여는 중입니다.</section>
 
     <section v-else class="panel">
+      <div class="elapsed-timer" aria-live="polite">
+        <span>PLAY TIME</span>
+        <strong>{{ totalElapsedLabel }}</strong>
+      </div>
       <button type="button" class="case-file-fab" @click="clueDialogOpen = true" aria-label="미션 파일 열기">
         <span>📁</span>
         <strong>MISSION FILE</strong>
@@ -16,6 +20,7 @@
       <p class="notice">{{ startData.message || message }}</p>
 
       <div class="counter-row">
+        <div class="counter time-counter">진행 시간 {{ totalElapsedLabel }}</div>
         <div class="counter">질문 {{ startData.currentQuestionCount || 0 }}/{{ isAdminQuestionMode ? '∞' : (startData.maxQuestionCount || 20) }}</div>
         <div class="counter">가설 {{ startData.currentHypothesisCount || 0 }}/{{ startData.maxHypothesisCount || 2 }}</div>
         <div class="counter muted">남은 질문 {{ isAdminQuestionMode ? '관리자 무제한' : remainingQuestions }}</div>
@@ -74,7 +79,7 @@
               <h3>키워드 확인</h3>
               <span>{{ isAdminHypothesisMode ? '관리자 무제한' : `남은 횟수 ${remainingHypotheses}회` }}</span>
             </div>
-            <p>범인, 흉기, 동기, 방법을 한 문장으로 적으면 4개 중 몇 개가 맞았는지만 알려줍니다.</p>
+            <p>범인, 흉기, 동기, 사인을 한 문장으로 적으면 4개 중 몇 개가 맞았는지만 알려줍니다.</p>
             <form @submit.prevent="verifyHypothesis">
               <input v-model.trim="hypothesis" :disabled="!canVerifyHypothesis" placeholder="예: 이몽룡이 망치로 은폐를 위해 교살했다." />
               <span class="penalty-anchor">
@@ -141,7 +146,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { episodeApi } from '@/api/episodeApi';
 import { caseFileApi } from '@/api/caseFileApi';
@@ -158,6 +163,7 @@ const clueDialogOpen = ref(false);
 const caseFile = ref(null);
 const historyRef = ref(null);
 const startData = ref({ collectedClues: [], maxHypothesisCount: 2, currentHypothesisCount: 0, clearTimePenaltySeconds: 0 });
+const activeElapsedSeconds = ref(0);
 const questions = ref([]);
 const question = ref('');
 const hypothesis = ref('');
@@ -167,6 +173,8 @@ const finalCorrect = ref(null);
 const typingTarget = ref(null);
 const typingBuffer = useTypingBuffer(18);
 const penaltyEffects = ref({ question: [], hypothesis: [], final: [] });
+let elapsedTimer = null;
+let elapsedSaveTimer = null;
 
 const remainingQuestions = computed(() => Math.max(0, (startData.value.maxQuestionCount || 20) - (startData.value.currentQuestionCount || 0)));
 const remainingHypotheses = computed(() => Math.max(0, (startData.value.maxHypothesisCount || 2) - (startData.value.currentHypothesisCount || 0)));
@@ -175,11 +183,13 @@ const isAdminHypothesisMode = computed(() => (startData.value.maxHypothesisCount
 const canAskQuestion = computed(() => Boolean(startData.value.sessionId) && (isAdminQuestionMode.value || remainingQuestions.value > 0));
 const canVerifyHypothesis = computed(() => Boolean(startData.value.sessionId) && (isAdminHypothesisMode.value || remainingHypotheses.value > 0));
 const penaltyMinutes = computed(() => Math.floor((startData.value.clearTimePenaltySeconds || 0) / 60));
+const totalElapsedSeconds = computed(() => activeElapsedSeconds.value + (startData.value.clearTimePenaltySeconds || 0));
+const totalElapsedLabel = computed(() => formatElapsed(totalElapsedSeconds.value));
 const finalDeductionTitle = computed(() => {
   if (!startData.value.sessionId) {
     return startData.value.finalQuestion || '최종 추리를 시작할 수 없습니다.';
   }
-  return 'AI 문답 추리를 통해 범인, 흉기, 동기, 범행 방법을 하나씩 밝혀내세요.';
+  return 'AI 문답 추리를 통해 범인, 흉기, 동기, 사인을 하나씩 밝혀내세요.';
 });
 
 const popupClues = computed(() => {
@@ -218,6 +228,9 @@ onMounted(async () => {
   loadCaseFileForPopup();
   try {
     startData.value = await episodeApi.startDeduction(episodeId);
+    syncElapsedFromStartData();
+    startElapsedTimer();
+    window.addEventListener('visibilitychange', handleElapsedVisibility);
     if (startData.value.sessionId) {
       questions.value = await episodeApi.getDeductionQuestions(startData.value.sessionId);
       scrollHistoryToBottom();
@@ -227,6 +240,11 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('visibilitychange', handleElapsedVisibility);
+  stopElapsedTimer();
 });
 
 async function loadCaseFileForPopup() {
@@ -260,6 +278,7 @@ async function ask() {
     placeholder.aiAnswerType = answer.answerType;
     startData.value.currentQuestionCount = answer.questionCount;
     startData.value.clearTimePenaltySeconds = answer.clearTimePenaltySeconds ?? startData.value.clearTimePenaltySeconds;
+    persistElapsedTime();
     triggerPenalty('question', 1);
     typeAnswerInto(placeholder, answer.answerText || '판정 가능한 답변을 생성하지 못했습니다.');
   } catch (error) {
@@ -281,6 +300,7 @@ async function verifyHypothesis() {
     const result = await episodeApi.verifyDeductionHypothesis(startData.value.sessionId, hypothesis.value);
     startData.value.currentHypothesisCount = result.hypothesisCount;
     startData.value.clearTimePenaltySeconds = result.clearTimePenaltySeconds ?? startData.value.clearTimePenaltySeconds;
+    persistElapsedTime();
     hypothesisResult.value = result.message || `4개 정답 요소 중 ${result.matchedSlotCount || 0}개가 맞습니다.`;
     triggerPenalty('hypothesis', 5);
     hypothesis.value = '';
@@ -296,12 +316,14 @@ async function submitFinalAnswer(finalAnswer) {
   try {
     const result = await episodeApi.submitFinalAnswer(episodeId, startData.value.sessionId, finalAnswer);
     startData.value.clearTimePenaltySeconds = result.clearTimePenaltySeconds ?? startData.value.clearTimePenaltySeconds;
+    await persistElapsedTime();
     message.value = result.message;
     finalCorrect.value = result.correct;
     if (!result.correct) {
       triggerPenalty('final', 5);
     }
     if (result.correct) {
+      stopElapsedTimer(false);
       router.push({ name: 'EpisodeDebriefing', params: { episodeId } });
     }
   } catch (error) {
@@ -316,6 +338,69 @@ function triggerPenalty(type, minutes) {
   window.setTimeout(() => {
     penaltyEffects.value[type] = penaltyEffects.value[type].filter((item) => item.id !== id);
   }, 1650);
+}
+
+function elapsedStorageKey() {
+  return `operation-seoul:episode:${episodeId}:active-elapsed-seconds`;
+}
+
+function syncElapsedFromStartData() {
+  const serverElapsed = Number(startData.value?.activeElapsedSeconds || 0);
+  const localElapsed = Number(window.localStorage.getItem(elapsedStorageKey()) || 0);
+  activeElapsedSeconds.value = Math.max(Number(activeElapsedSeconds.value || 0), serverElapsed, localElapsed);
+  window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+}
+
+function startElapsedTimer() {
+  if (!startData.value.sessionId || elapsedTimer || document.hidden) return;
+  elapsedTimer = window.setInterval(() => {
+    activeElapsedSeconds.value += 1;
+    window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+  }, 1000);
+  elapsedSaveTimer = window.setInterval(() => {
+    persistElapsedTime();
+  }, 10000);
+}
+
+function handleElapsedVisibility() {
+  if (document.hidden) {
+    stopElapsedTimer();
+  } else {
+    syncElapsedFromStartData();
+    startElapsedTimer();
+  }
+}
+
+function stopElapsedTimer(shouldPersist = true) {
+  clearInterval(elapsedTimer);
+  clearInterval(elapsedSaveTimer);
+  elapsedTimer = null;
+  elapsedSaveTimer = null;
+  window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+  if (shouldPersist) persistElapsedTime();
+}
+
+async function persistElapsedTime() {
+  const elapsedSeconds = Math.max(0, Math.floor(Number(activeElapsedSeconds.value || 0)));
+  try {
+    const updated = await episodeApi.updateElapsedTime(episodeId, elapsedSeconds);
+    const serverElapsed = Number(updated?.activeElapsedSeconds || 0);
+    if (serverElapsed > activeElapsedSeconds.value) {
+      activeElapsedSeconds.value = serverElapsed;
+      window.localStorage.setItem(elapsedStorageKey(), String(serverElapsed));
+    }
+  } catch {
+    window.localStorage.setItem(elapsedStorageKey(), String(elapsedSeconds));
+  }
+}
+
+function formatElapsed(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds || 0)));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainSeconds = total % 60;
+  if (hours > 0) return `${hours}시간 ${String(minutes).padStart(2, '0')}분 ${String(remainSeconds).padStart(2, '0')}초`;
+  return `${minutes}분 ${String(remainSeconds).padStart(2, '0')}초`;
 }
 
 function scrollHistoryToBottom() {
@@ -358,6 +443,9 @@ function answerTypeLabel(type) {
 <style scoped>
 .deduction-page { min-height: 100vh; box-sizing: border-box; padding: 14px 12px 48px; background: radial-gradient(circle at top, rgba(127,29,29,.24), transparent 34%), #020617; color: #f8fafc; font-family: 'Noto Sans KR', Georgia, serif; overflow-x: hidden; }
 .panel { position: relative; width: min(100%, 1120px); box-sizing: border-box; margin: 0 auto; padding: 24px; border: 1px solid rgba(248,113,113,.24); border-radius: 24px; background: rgba(15,23,42,.86); box-shadow: 0 24px 70px rgba(0,0,0,.34); }
+.elapsed-timer { position: absolute; top: 14px; right: 14px; z-index: 8; display: grid; gap: 2px; min-width: 126px; box-sizing: border-box; padding: 9px 11px; border: 1px solid rgba(103,232,249,.34); border-radius: 14px; background: rgba(2,6,23,.82); color: #e0f2fe; box-shadow: 0 12px 28px rgba(0,0,0,.28); text-align: right; pointer-events: none; }
+.elapsed-timer span { color: #67e8f9; font-size: .66rem; font-weight: 1000; letter-spacing: .12em; }
+.elapsed-timer strong { color: #fff; font-size: .96rem; font-weight: 1000; }
 .eyebrow { margin: 0 0 8px; color: #fca5a5; font-size: .74rem; font-weight: 1000; letter-spacing: .14em; }
 h1 { margin: 0 0 12px; font-size: clamp(1.45rem, 4vw, 2.7rem); line-height: 1.2; word-break: keep-all; overflow-wrap: anywhere; }
 .notice { color: #fed7aa; line-height: 1.55; }
@@ -365,6 +453,7 @@ h1 { margin: 0 0 12px; font-size: clamp(1.45rem, 4vw, 2.7rem); line-height: 1.2;
 .counter { padding: 10px; border-radius: 12px; background: rgba(2,6,23,.36); color: #e2e8f0; font-weight: 900; text-align: center; }
 .counter.muted { color: #cbd5e1; }
 .counter.penalty { color: #fde68a; }
+.counter.time-counter { display: none; }
 .rules, .hypothesis-box { display: grid; gap: 6px; padding: 13px; border: 1px solid rgba(248,113,113,.22); border-radius: 16px; background: rgba(127,29,29,.14); }
 .rules p, .hypothesis-box p { margin: 0; color: #fecaca; font-size: .84rem; line-height: 1.5; }
 .blocked { display: grid; gap: 10px; margin-top: 14px; padding: 14px; border: 1px dashed rgba(248,113,113,.35); border-radius: 16px; background: rgba(127,29,29,.16); }

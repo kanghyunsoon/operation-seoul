@@ -54,7 +54,7 @@ final class GeminiAnswerPlanGenerator {
                 .filter(keyword -> "WEAPON".equals(normalize(keyword.getSlotId())) || "MOTIVE".equals(normalize(keyword.getSlotId())))
                 .map(AiEpisodePlanResponse.AnswerKeyword::getKeyword)
                 .map(this::compact)
-                .anyMatch(value -> containsAny(value, "기록물", "기록", "문서", "자료", "장부", "소유권", "고서", "보관함"));
+                .anyMatch(value -> containsAny(value, "기록물", "기록", "문서", "자료", "장부", "고서"));
     }
 
     private boolean hasRecordAnchor(AiEpisodeDraftRequest request) {
@@ -99,7 +99,7 @@ final class GeminiAnswerPlanGenerator {
         }
         if (!SLOT_IDS.stream().allMatch(slot -> !blank(values.get(slot)))) {
             log.warn("Gemini answer plan invalid: missing final answer slot. values={}", values);
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_INVALID", "Gemini가 범인, 흉기, 동기, 방법 4개 정답 키워드를 모두 생성하지 못했습니다.");
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "GEMINI_PLAN_INVALID", "Gemini가 범인, 흉기, 동기, 사인 4개 정답 키워드를 모두 생성하지 못했습니다.");
         }
         List<AiEpisodePlanResponse.AnswerKeyword> result = new ArrayList<>();
         for (String slot : SLOT_IDS) {

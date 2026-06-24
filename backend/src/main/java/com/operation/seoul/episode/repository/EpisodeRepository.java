@@ -37,6 +37,22 @@ public interface EpisodeRepository {
                    final_truth_summary, actual_history_summary, deduction_secret_facts,
                    deduction_forbidden_reveals, max_deduction_questions, status
             from episodes
+            where status = 'PUBLISHED'
+            order by id desc
+            limit #{limit} offset #{offset}
+            """)
+    @ResultMap("EpisodeMap")
+    List<Episode> findPublishedEpisodesPage(@Param("limit") int limit, @Param("offset") int offset);
+
+    @Select("select count(*) from episodes where status = 'PUBLISHED'")
+    int countPublishedEpisodes();
+
+    @Select("""
+            select id, title, subtitle, region_id, era, genre, difficulty, estimated_time, estimated_distance,
+                   fiction_synopsis, mission_description, final_answer_type, final_answer, final_answer_aliases, final_question,
+                   final_truth_summary, actual_history_summary, deduction_secret_facts,
+                   deduction_forbidden_reveals, max_deduction_questions, status
+            from episodes
             where id = #{id}
             limit 1
             """)
@@ -48,7 +64,7 @@ public interface EpisodeRepository {
                    public_marker_type, story_text, arrival_radius, is_final_place
             from mission_spots
             where episode_id = #{episodeId}
-            order by id asc
+            order by id desc
             """)
     @Results(id = "SpotMap", value = {
             @Result(property = "id", column = "id", id = true), @Result(property = "episodeId", column = "episode_id"),
@@ -139,7 +155,7 @@ public interface EpisodeRepository {
             select id, user_id, episode_id, visited_spot_ids, completed_spot_ids, collected_answer_clues,
                    collected_destination_clues, collected_story_clues, final_arrived_spot_id, hint_used_count,
                    wrong_answer_count, deduction_question_count, hypothesis_count, final_guess_count,
-                   clear_time_penalty_seconds, score, started_at, last_played_at,
+                   active_elapsed_seconds, clear_time_penalty_seconds, score, started_at, last_played_at,
                    cleared_at, status, unlocked_suspect_ids, cleared_suspect_ids, unlocked_evidence_ids
             from user_episode_progress
             where user_id = #{userId} and episode_id = #{episodeId}
@@ -153,6 +169,7 @@ public interface EpisodeRepository {
             @Result(property = "finalArrivedSpotId", column = "final_arrived_spot_id"), @Result(property = "hintUsedCount", column = "hint_used_count"),
             @Result(property = "wrongAnswerCount", column = "wrong_answer_count"), @Result(property = "deductionQuestionCount", column = "deduction_question_count"),
             @Result(property = "hypothesisCount", column = "hypothesis_count"), @Result(property = "finalGuessCount", column = "final_guess_count"),
+            @Result(property = "activeElapsedSeconds", column = "active_elapsed_seconds"),
             @Result(property = "clearTimePenaltySeconds", column = "clear_time_penalty_seconds"), @Result(property = "score", column = "score"),
             @Result(property = "startedAt", column = "started_at"), @Result(property = "lastPlayedAt", column = "last_played_at"),
             @Result(property = "clearedAt", column = "cleared_at"), @Result(property = "status", column = "status"),
@@ -165,10 +182,10 @@ public interface EpisodeRepository {
             insert into user_episode_progress (user_id, episode_id, visited_spot_ids, completed_spot_ids,
             collected_answer_clues, collected_destination_clues, collected_story_clues, hint_used_count,
             wrong_answer_count, deduction_question_count, hypothesis_count, final_guess_count,
-            clear_time_penalty_seconds, score, started_at, last_played_at,
+            active_elapsed_seconds, clear_time_penalty_seconds, score, started_at, last_played_at,
             unlocked_suspect_ids, cleared_suspect_ids, unlocked_evidence_ids, status)
             values (#{userId}, #{episodeId}, #{visitedSpotIds}, #{completedSpotIds}, #{collectedAnswerClues},
-            #{collectedDestinationClues}, #{collectedStoryClues}, 0, 0, 0, 0, 0, 0, null, current_timestamp, current_timestamp,
+            #{collectedDestinationClues}, #{collectedStoryClues}, 0, 0, 0, 0, 0, 0, 0, null, current_timestamp, current_timestamp,
             #{unlockedSuspectIds}, #{clearedSuspectIds}, #{unlockedEvidenceIds}, #{status})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -181,13 +198,24 @@ public interface EpisodeRepository {
                 collected_story_clues = #{collectedStoryClues}, final_arrived_spot_id = #{finalArrivedSpotId},
                 hint_used_count = #{hintUsedCount}, wrong_answer_count = #{wrongAnswerCount},
                 deduction_question_count = #{deductionQuestionCount}, hypothesis_count = #{hypothesisCount},
-                final_guess_count = #{finalGuessCount}, clear_time_penalty_seconds = #{clearTimePenaltySeconds},
+                final_guess_count = #{finalGuessCount}, active_elapsed_seconds = #{activeElapsedSeconds},
+                clear_time_penalty_seconds = #{clearTimePenaltySeconds},
                 score = #{score}, last_played_at = current_timestamp, cleared_at = #{clearedAt}, status = #{status},
                 unlocked_suspect_ids = #{unlockedSuspectIds}, cleared_suspect_ids = #{clearedSuspectIds},
                 unlocked_evidence_ids = #{unlockedEvidenceIds}
             where id = #{id}
             """)
     int updateProgress(UserEpisodeProgress progress);
+
+    @Update("""
+            update user_episode_progress
+            set active_elapsed_seconds = greatest(coalesce(active_elapsed_seconds, 0), #{elapsedSeconds}),
+                last_played_at = current_timestamp
+            where user_id = #{userId}
+              and episode_id = #{episodeId}
+              and status <> 'CLEARED'
+            """)
+    int updateActiveElapsedSeconds(@Param("userId") Long userId, @Param("episodeId") Long episodeId, @Param("elapsedSeconds") int elapsedSeconds);
 
     @Select("select * from final_deduction_sessions where id = #{id} limit 1")
     @Results(id = "DeductionSessionMap", value = {

@@ -8,6 +8,7 @@ import com.operation.seoul.episode.domain.Episode;
 import com.operation.seoul.episode.domain.FinalDeductionQuestion;
 import com.operation.seoul.episode.domain.FinalDeductionSession;
 import com.operation.seoul.episode.domain.UserEpisodeProgress;
+import com.operation.seoul.episode.dto.ClueBoardResponse;
 import com.operation.seoul.episode.dto.DeductionAskRequest;
 import com.operation.seoul.episode.dto.DeductionAskResponse;
 import com.operation.seoul.episode.dto.DeductionHypothesisRequest;
@@ -107,6 +108,22 @@ class EpisodePlayServiceDeductionTest {
 
         assertEquals("REFUSED_DIRECT_REVEAL", response.getAnswerType());
         verifyNoInteractions(deductionAiService);
+    }
+
+    @Test
+    void clueBoardUsesExplicitSlotPrefixesWithoutRedistributingGenericAnswerClues() {
+        UserEpisodeProgress progress = progress(0, 0);
+        progress.setCollectedAnswerClues("[\"WEAPON::부검 결과 압흔의 폭이 좁고 모서리 자국이 남았다.\",\"MOTIVE::피해자가 계약 파기를 통보한 기록이 있다.\",\"슬롯 없는 구형 단서\"]");
+        when(episodeRepository.findEpisodeById(1L)).thenReturn(episode());
+        when(episodeRepository.findProgress(7L, 1L)).thenReturn(progress);
+        when(caseFileRepository.findEvidences(1L)).thenReturn(List.of());
+
+        ClueBoardResponse board = service.getClueBoard(1L, user());
+
+        assertEquals(List.of("부검 결과 압흔의 폭이 좁고 모서리 자국이 남았다."), board.getWeaponClues());
+        assertEquals(List.of("피해자가 계약 파기를 통보한 기록이 있다."), board.getMotiveClues());
+        assertEquals(List.of(), board.getCulpritClues());
+        assertEquals(List.of(), board.getMethodClues());
     }
 
     @Test

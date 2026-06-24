@@ -4,8 +4,8 @@ const unwrap = (response) => response.data?.data ?? response.data;
 const AI_DRAFT_TIMEOUT_MS = 180000;
 
 export const adminEpisodeApi = {
-  async getEpisodes() {
-    return unwrap(await apiClient.get('/v1/admin/episodes'));
+  async getEpisodes(params = {}) {
+    return unwrap(await apiClient.get('/v1/admin/episodes', { params }));
   },
   async getEpisode(episodeId) {
     return unwrap(await apiClient.get(`/v1/admin/episodes/${episodeId}`));

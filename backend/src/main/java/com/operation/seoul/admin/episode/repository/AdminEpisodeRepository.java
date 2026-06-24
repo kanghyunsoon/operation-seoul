@@ -29,7 +29,7 @@ public interface AdminEpisodeRepository {
                    final_truth_summary, actual_history_summary, deduction_secret_facts, deduction_forbidden_reveals,
                    max_deduction_questions, recommended_players, team_role_guide, notice_text, status
             from episodes
-            order by id asc
+            order by id desc
             """)
     @Results(id = "AdminEpisodeMap", value = {
             @Result(property = "id", column = "id", id = true), @Result(property = "title", column = "title"),
@@ -47,6 +47,40 @@ public interface AdminEpisodeRepository {
             @Result(property = "status", column = "status")
     })
     List<Episode> findAllEpisodes();
+
+    @Select("""
+            select id, title, subtitle, region_id, era, genre, difficulty, estimated_time, estimated_distance,
+                   fiction_synopsis, mission_description, final_answer_type, final_answer, final_answer_aliases, final_question,
+                   final_truth_summary, actual_history_summary, deduction_secret_facts, deduction_forbidden_reveals,
+                   max_deduction_questions, recommended_players, team_role_guide, notice_text, status
+            from episodes
+            where (
+                #{keyword} is null
+                or lower(title) like concat('%', #{keyword}, '%')
+                or lower(subtitle) like concat('%', #{keyword}, '%')
+                or lower(genre) like concat('%', #{keyword}, '%')
+                or lower(era) like concat('%', #{keyword}, '%')
+                or lower(status) like concat('%', #{keyword}, '%')
+            )
+            order by id desc
+            limit #{limit} offset #{offset}
+            """)
+    @ResultMap("AdminEpisodeMap")
+    List<Episode> findEpisodePage(@Param("keyword") String keyword, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select("""
+            select count(*)
+            from episodes
+            where (
+                #{keyword} is null
+                or lower(title) like concat('%', #{keyword}, '%')
+                or lower(subtitle) like concat('%', #{keyword}, '%')
+                or lower(genre) like concat('%', #{keyword}, '%')
+                or lower(era) like concat('%', #{keyword}, '%')
+                or lower(status) like concat('%', #{keyword}, '%')
+            )
+            """)
+    int countEpisodePage(@Param("keyword") String keyword);
 
     @Select("""
             select id, title, subtitle, region_id, era, genre, difficulty, estimated_time, estimated_distance,

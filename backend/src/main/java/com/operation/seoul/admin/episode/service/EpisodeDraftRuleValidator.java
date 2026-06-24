@@ -34,7 +34,7 @@ final class EpisodeDraftRuleValidator implements AiEpisodeDraftValidator.DraftRu
     private void validateFinalAnswers(AiEpisodeDraftResponse.EpisodeDraft draft, List<AiEpisodeDraftValidationResponse.Finding> findings) {
         AiEpisodeDraftResponse.FinalAnswers answers = draft.getFinalAnswers();
         if (answers == null || blank(answers.getCulprit()) || blank(answers.getWeapon()) || blank(answers.getMotive()) || blank(answers.getMethod())) {
-            addFinding(findings, "ERROR", "FOUR_FINAL_ANSWERS_REQUIRED", "최종 정답은 범인, 흉기, 동기, 방법 4개입니다.", null, "finalAnswers");
+            addFinding(findings, "ERROR", "FOUR_FINAL_ANSWERS_REQUIRED", "최종 정답은 범인, 흉기, 동기, 사인 4개입니다.", null, "finalAnswers");
         }
         if (draft.getFinalAnswerKeywords() == null || draft.getFinalAnswerKeywords().size() != 4 || draft.getFinalAnswerKeywords().stream().anyMatch(this::blank)) {
             addFinding(findings, "ERROR", "FOUR_FINAL_KEYWORDS_REQUIRED", "최종 정답 키워드는 정확히 4개여야 합니다.", null, "finalAnswerKeywords");
@@ -131,12 +131,9 @@ final class EpisodeDraftRuleValidator implements AiEpisodeDraftValidator.DraftRu
         String culprit = trim(answers.getCulprit());
         if (!blank(culprit)) {
             boolean culpritExists = safeList(draft.getSuspects()).stream().anyMatch(suspect ->
-                    suspect != null && containsAny(compact(String.join(" ",
-                            trim(suspect.getDisplayName()),
-                            trim(suspect.getAlias()),
-                            trim(suspect.getRelationToVictim()))), compact(culprit)));
+                    suspect != null && compact(trim(suspect.getDisplayName())).equals(compact(culprit)));
             if (!culpritExists) {
-                addFinding(findings, "ERROR", "CULPRIT_MUST_BE_SUSPECT", "The culprit answer must be one of the three suspect cards.", null, "suspects");
+                addFinding(findings, "ERROR", "CULPRIT_MUST_BE_SUSPECT", "The culprit answer must exactly match one suspect displayName.", null, "suspects");
             }
         }
         String truth = compact(draft.getFinalTruthSummary());

@@ -32,6 +32,10 @@
             <button type="button" class="ghost-btn" @click="loadEpisodes">새로고침</button>
           </div>
         </div>
+        <form class="episode-search" @submit.prevent="loadAdminEpisodePage(0)">
+          <input v-model.trim="episodeSearchInput" type="search" placeholder="제목, 부제목, 장르, 시대, 상태 검색" />
+          <button type="submit" class="ghost-btn">검색</button>
+        </form>
         <p v-if="loading" class="empty">에피소드를 불러오는 중입니다.</p>
         <article
           v-for="episode in episodes"
@@ -49,6 +53,21 @@
             <em>클리어 {{ episode.clearedPlayers }}/{{ episode.totalPlayers }}</em>
           </div>
         </article>
+        <nav v-if="!loading && episodes.length" class="admin-pagination" aria-label="관리자 사건파일 페이지">
+          <button type="button" :disabled="adminEpisodeOffset <= 0" @click="loadAdminEpisodePage(0)">«</button>
+          <button type="button" :disabled="adminEpisodeOffset <= 0" @click="loadAdminEpisodePage(adminEpisodeOffset - adminEpisodePageSize)">‹</button>
+          <button
+            v-for="page in adminEpisodeVisiblePages"
+            :key="`admin-episode-page-${page}`"
+            type="button"
+            :class="{ active: page === adminEpisodeCurrentPage }"
+            @click="loadAdminEpisodePage((page - 1) * adminEpisodePageSize)"
+          >
+            {{ page }}
+          </button>
+          <button type="button" :disabled="!adminEpisodeHasMore" @click="loadAdminEpisodePage(adminEpisodeOffset + adminEpisodePageSize)">›</button>
+          <button type="button" :disabled="adminEpisodeCurrentPage >= adminEpisodeTotalPages" @click="loadAdminEpisodePage((adminEpisodeTotalPages - 1) * adminEpisodePageSize)">»</button>
+        </nav>
       </aside>
 
       <section v-if="activeAdminTab === 'episodes'" class="detail-panel">
@@ -233,7 +252,6 @@
               <div v-if="isReviewRequiredSpot(spot)" class="review-required-badge">
                 보강필요 초안 · 문제/정답/힌트를 확정해야 합니다
               </div>
-              <p>{{ spot.storyText }}</p>
               <p class="internal" v-if="spot.finalPlace">내부 최종 정답 입력 장소입니다. 조사 8개 완료 전에는 공개되지 않습니다.</p>
               <p v-if="!spot.finalPlace && savedSpotTargetLabel(spot)" class="internal">
                 저장된 정답 슬롯: {{ savedSpotTargetLabel(spot) }}
@@ -267,7 +285,6 @@
                   <label class="wide">주소<input v-model.trim="spot.address" type="text" /></label>
                   <label>위도<input v-model.number="spot.latitude" type="number" step="0.000001" /></label>
                   <label>경도<input v-model.number="spot.longitude" type="number" step="0.000001" /></label>
-                  <label class="wide">사건 문구<textarea v-model="spot.storyText" rows="2"></textarea></label>
                   <label class="check"><input v-model="spot.fieldVerified" type="checkbox" /> 현장 검수 완료</label>
                   <label class="wide">현장 검수 메모<textarea v-model="spot.fieldVerificationNote" rows="2" placeholder="좌표, 안내판/숫자/오브젝트, 접근 가능 여부를 확인한 내용을 기록"></textarea></label>
                 </div>
@@ -500,25 +517,17 @@
             <p v-if="isServerTemplatePlan(draftPlan)" class="plan-warning">
               Gemini 생성이 아니라 서버 폴백 템플릿입니다. TourAPI 기반 생성 QA 통과로 보지 말고 다시 생성하거나 Gemini 설정을 확인하세요.
             </p>
-            <div class="chips">
-              <span>범인: {{ draftPlan.finalAnswers?.culprit }}</span>
-              <span>흉기: {{ draftPlan.finalAnswers?.weapon }}</span>
-              <span>동기: {{ draftPlan.finalAnswers?.motive }}</span>
-              <span>방법: {{ draftPlan.finalAnswers?.method }}</span>
+            <div class="answer-plan-grid">
+              <span><b>범인</b>{{ draftPlan.finalAnswers?.culprit || '-' }}</span>
+              <span><b>흉기</b>{{ draftPlan.finalAnswers?.weapon || '-' }}</span>
+              <span><b>동기</b>{{ draftPlan.finalAnswers?.motive || '-' }}</span>
+              <span><b>사인</b>{{ draftPlan.finalAnswers?.method || '-' }}</span>
             </div>
             <p v-if="draftPlan.finalQuestionGuide">최종 질문 방향: {{ draftPlan.finalQuestionGuide }}</p>
             <p v-if="draftPlan.rationale">{{ draftPlan.rationale }}</p>
             <div v-if="draftPlan.tourApiStoryAnchors?.length" class="mini-list">
               <b>TourAPI 사건/역사 앵커</b>
               <span v-for="anchor in draftPlan.tourApiStoryAnchors" :key="anchor">{{ anchor }}</span>
-            </div>
-            <div v-if="draftPlan.tourApiPlanInputs?.length" class="mini-list debug-list">
-              <b>임시 확인: 키워드 생성에 포함된 TourAPI/역사 입력</b>
-              <span v-for="input in draftPlan.tourApiPlanInputs" :key="`included-${input}`">{{ input }}</span>
-            </div>
-            <div v-if="draftPlan.excludedPlanInputs?.length" class="mini-list debug-list muted">
-              <b>임시 확인: 키워드 생성에서 제외된 Kakao/검수 노이즈</b>
-              <span v-for="input in draftPlan.excludedPlanInputs" :key="`excluded-${input}`">{{ input }}</span>
             </div>
             <div v-if="draftPlan.finalAnswerKeywordItems?.length || draftPlan.finalAnswerKeywords?.length" class="mini-list">
               <b>키워드 생성 근거</b>
@@ -527,22 +536,12 @@
               </span>
             </div>
           </section>
-          <div v-if="draftValidation || draftResult?.validationWarnings?.length || draftResult?.draft" class="draft-feedback-panel" :class="{ invalid: draftValidation && !draftValidation.valid }">
-            <strong>{{ draftValidation ? (draftValidation.valid ? '검증 통과' : '검증 이슈 있음') : '초안 준비 완료' }}</strong>
-            <p v-if="draftValidation">{{ draftValidationSummary }}</p>
-            <p v-else>초안을 확인한 뒤 DRAFT 저장을 누르면 새 에피소드가 생성되고 상단 상세 패널이 해당 에피소드로 전환됩니다.</p>
-            <ul v-if="draftValidation?.findings?.length">
-              <li v-for="finding in draftValidation.findings.slice(0, 6)" :key="`top-${finding.code}-${finding.missionOrder}-${finding.message}`">
-                <b>{{ validationSeverityLabel(finding.severity) }}</b>
-                <span>{{ finding.code }}</span>
-                <em v-if="finding.missionOrder">미션 {{ finding.missionOrder }}</em>
-                {{ finding.message }}
-              </li>
-            </ul>
-            <ul v-else-if="draftWarningSummary.length">
+          <div v-if="draftResult?.validationWarnings?.length || draftResult?.draft" class="draft-feedback-panel">
+            <strong>{{ draftValidation?.valid ? '검증 통과' : '초안 준비 완료' }}</strong>
+            <p>초안을 확인한 뒤 DRAFT 저장을 누르면 새 에피소드가 생성되고 상단 상세 패널이 해당 에피소드로 전환됩니다.</p>
+            <ul v-if="draftWarningSummary.length">
               <li v-for="warning in draftWarningSummary" :key="warning">{{ warningLabel(warning) }}</li>
             </ul>
-            <small v-if="draftValidation?.findings?.length > 6">나머지 이슈는 아래 전체 검증 결과에서 확인하세요.</small>
           </div>
           <div class="ai-mode-grid">
             <article>
@@ -560,7 +559,7 @@
           </div>
           <div class="ops-notice">
             <strong>장르 고정: 범죄 미스터리</strong>
-            <p>신규 AI 생성은 범죄 미스터리로 고정됩니다. 최종 정답은 범인, 흉기, 동기, 방법 4슬롯으로 표시하고 저장합니다.</p>
+            <p>신규 AI 생성은 범죄 미스터리로 고정됩니다. 최종 정답은 범인, 흉기, 동기, 사인 4슬롯으로 표시하고 저장합니다.</p>
           </div>
           <div v-if="draftBusy || draftStatus || draftError" class="draft-status-box" :class="{ error: Boolean(draftError) }">
             <div class="draft-status-head">
@@ -747,7 +746,7 @@
             </details>
             <details open class="draft-edit-block">
               <summary>조사 미션 초안</summary>
-              <p class="draft-section-help">조사 미션 8개는 하나의 사건 진실로 수렴하는 증거 체인입니다. 내부적으로는 범인/흉기/동기/방법 추리를 모두 지원하지만, 최종 장소는 추리 대상이 아니며 조사 8개 완료 시 자동 공개됩니다.</p>
+              <p class="draft-section-help">조사 미션 8개는 하나의 사건 진실로 수렴하는 증거 체인입니다. 내부적으로는 범인/흉기/동기/사인 추리를 모두 지원하지만, 최종 장소는 추리 대상이 아니며 조사 8개 완료 시 자동 공개됩니다.</p>
               <div class="payload-actions compact">
                 <button type="button" class="ghost-btn" @click="normalizeDraftBeforeSave(draftResult.draft, true)">구조 필드 정리</button>
               </div>
@@ -760,7 +759,7 @@
                     </span>
                     <em>{{ mission.finalPlace ? '8개 조사 완료 시 자동 공개' : missionTargetLabel(mission) }}</em>
                   </summary>
-                  <p class="draft-card-preview">{{ mission.storyText || '스토리 문구를 입력하세요.' }}</p>
+                  <p class="draft-card-preview">{{ mission.rewardClue || mission.storyText || '조사 단서를 입력하세요.' }}</p>
                   <div class="draft-mission-tags">
                     <span>{{ markerPreviewLabel(mission.publicMarkerType) }}</span>
                     <span>{{ clueRoleLabel(mission.clueRole) }}</span>
@@ -800,7 +799,6 @@
                     <label class="check"><input v-model="mission.finalPlace" type="checkbox" @change="mission.markerType = mission.finalPlace ? 'FINAL' : 'ANSWER_HINT'; syncDraftMissionRole(mission)" /> 내부 최종 정답 입력 장소</label>
                     <label v-if="!mission.finalPlace && mission.markerType !== 'START'">담당 정답 슬롯<input :value="missionTargetLabel(mission)" type="text" readonly /></label>
                     <label v-if="mission.finalPlace">공개 조건<input :value="unlockConditionLabel(mission.unlockCondition)" type="text" readonly /></label>
-                    <label class="wide">사건 문구<textarea v-model="mission.storyText" rows="2"></textarea></label>
                     <label>퍼즐 유형
                       <select v-model="mission.puzzleType">
                         <option value="OBSERVATION">OBSERVATION</option>
@@ -943,14 +941,14 @@ const commonAnswerSlots = [
   { slotId: 'CULPRIT', field: 'culprit', label: '범인', description: '사건의 가해자에 해당하는 인물', minClueCount: 2 },
   { slotId: 'WEAPON', field: 'weapon', label: '흉기', description: '범행에 사용된 도구, 물질, 장치 또는 조작 대상', minClueCount: 2 },
   { slotId: 'MOTIVE', field: 'motive', label: '동기', description: '범행을 실행하게 만든 구체적인 이유', minClueCount: 2 },
-  { slotId: 'METHOD', field: 'method', label: '방법', description: '범행을 실행한 구체적인 수법', minClueCount: 2 }
+  { slotId: 'METHOD', field: 'method', label: '사인', description: '피해자의 직접 사망 원인과 치명상', minClueCount: 2 }
 ];
 const fixedAnswerSlotIds = ['CULPRIT', 'WEAPON', 'MOTIVE', 'METHOD'];
 const fixedAnswerLabels = {
   CULPRIT: '범인',
   WEAPON: '흉기',
   MOTIVE: '동기',
-  METHOD: '방법'
+  METHOD: '사인'
 };
 const supportedPuzzleTypes = ['OBSERVATION', 'NUMBER_LOCK', 'INITIAL_SOUND', 'PATTERN', 'STORY_COMBINATION'];
 const defaultPuzzleType = 'OBSERVATION';
@@ -984,6 +982,11 @@ const requiredSpotCount = 10;
 const requiredInvestigationCount = 8;
 const investigationTargetDistribution = ['CULPRIT', 'CULPRIT', 'WEAPON', 'WEAPON', 'MOTIVE', 'MOTIVE', 'METHOD', 'METHOD'];
 const episodes = ref([]);
+const adminEpisodePageSize = 7;
+const adminEpisodeOffset = ref(0);
+const adminEpisodeHasMore = ref(false);
+const adminEpisodeTotalCount = ref(0);
+const episodeSearchInput = ref('');
 const selected = ref(null);
 const selectedEpisodeId = ref(null);
 const activeAdminTab = ref('episodes');
@@ -1002,6 +1005,14 @@ const activeAction = ref('');
 const draftStatus = ref('');
 const draftError = ref('');
 const draftElapsedSeconds = ref(0);
+const adminEpisodeCurrentPage = computed(() => Math.floor(adminEpisodeOffset.value / adminEpisodePageSize) + 1);
+const adminEpisodeTotalPages = computed(() => Math.max(1, Math.ceil((adminEpisodeTotalCount.value || 0) / adminEpisodePageSize)));
+const adminEpisodeVisiblePages = computed(() => {
+  const total = adminEpisodeTotalPages.value;
+  const start = Math.max(1, Math.min(adminEpisodeCurrentPage.value - 1, total - 2));
+  const end = Math.min(total, start + 2);
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+});
 const draftProgressStep = ref('');
 let draftTimerId = null;
 const candidateAreaCode = ref('seoul');
@@ -1201,7 +1212,7 @@ function warningLabel(warning) {
     GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES: '조사 단서에서 최종 정답 직접 노출을 제거했습니다.',
     GUARDRAIL_REPAIRED_INVESTIGATION_CLUES: '조사 단서가 부족합니다. 자동 보정하지 않았으니 다시 생성하거나 직접 수정하세요.',
     GUARDRAIL_REPAIRED_EVIDENCES: '증거 카드가 부족하거나 정답을 노출합니다. 다시 생성하거나 직접 수정하세요.',
-    GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY: '최종 진실 요약이 범인, 흉기, 동기, 방법을 모두 설명하지 않습니다.',
+    GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY: '최종 진실 요약이 범인, 흉기, 동기, 사인을 모두 설명하지 않습니다.',
     GUARDRAIL_INVESTIGATION_CLUES_SLOT_RELEVANCE: '일부 조사 단서의 정답 슬롯 관련성이 약합니다.',
     GUARDRAIL_INVESTIGATION_CLUES_DIRECT_ANSWER_LEAK: '일부 조사 단서가 정답을 직접 노출합니다.',
     GUARDRAIL_INVESTIGATION_CLUES_GENERIC: '일부 조사 단서가 너무 일반적입니다.',
@@ -1238,11 +1249,29 @@ function openBuilderTab() {
 }
 
 async function loadEpisodes() {
+  return loadAdminEpisodePage(adminEpisodeOffset.value);
+}
+
+async function loadAdminEpisodePage(offset = 0) {
   loading.value = true;
+  adminEpisodeOffset.value = Math.max(0, offset);
   try {
-    episodes.value = await adminEpisodeApi.getEpisodes();
-    if (!selected.value && episodes.value.length) {
+    const response = await adminEpisodeApi.getEpisodes({
+      search: episodeSearchInput.value || undefined,
+      limit: adminEpisodePageSize,
+      offset: adminEpisodeOffset.value
+    });
+    const page = Array.isArray(response)
+      ? { items: response.slice(adminEpisodeOffset.value, adminEpisodeOffset.value + adminEpisodePageSize), hasMore: adminEpisodeOffset.value + adminEpisodePageSize < response.length, totalCount: response.length }
+      : response;
+    episodes.value = (page.items || []).slice(0, adminEpisodePageSize);
+    adminEpisodeHasMore.value = Boolean(page.hasMore);
+    adminEpisodeTotalCount.value = Number(page.totalCount || 0);
+    if (episodes.value.length && (!selected.value || !episodes.value.some((episode) => episode.id === selectedEpisodeId.value))) {
       await selectEpisode(episodes.value[0].id);
+    } else if (!episodes.value.length) {
+      selected.value = null;
+      selectedEpisodeId.value = null;
     }
   } catch (error) {
     setMessage(error.userMessage || '관리자 에피소드 목록을 불러올 수 없습니다.', 'error');
@@ -1378,7 +1407,7 @@ function fallbackFinalAnswerKeywordValues(episode = {}) {
   const aliases = String(episode.finalAnswerAliases || '').split(',').map(normalizeAnswerKeywordValue).filter(Boolean);
   const answerValues = String(episode.finalAnswer || '')
     .split('/')
-    .map((value) => normalizeAnswerKeywordValue(value.replace(/^(범인|흉기|동기|방법)\s*:\s*/, '')))
+    .map((value) => normalizeAnswerKeywordValue(value.replace(/^(범인|흉기|동기|방법|사인|사망원인)\s*:\s*/, '')))
     .filter(Boolean);
   const source = [...keywords, ...answerValues, ...aliases].map(normalizeAnswerKeywordValue).filter(Boolean);
   return {
@@ -1449,7 +1478,7 @@ function strengthenEpisodeImagePrompts(episode) {
 }
 
 async function refreshEpisodeList() {
-  episodes.value = await adminEpisodeApi.getEpisodes();
+  await loadAdminEpisodePage(adminEpisodeOffset.value);
 }
 
 async function createEpisode() {
@@ -1463,6 +1492,7 @@ async function createEpisode() {
     hydrateEpisodeForm(created);
     publishReadiness.value = null;
     previewOpen.value = false;
+    adminEpisodeOffset.value = 0;
     await refreshEpisodeList();
     setMessage('새 사건파일 DRAFT가 생성되었습니다. 핵심 정보를 수정한 뒤 장소/퍼즐/사건자료를 추가하세요.', 'success');
   } catch (error) {
@@ -1485,6 +1515,9 @@ async function deleteEpisode() {
     publishReadiness.value = null;
     previewOpen.value = false;
     await refreshEpisodeList();
+    if (!episodes.value.length && adminEpisodeOffset.value > 0) {
+      await loadAdminEpisodePage(adminEpisodeOffset.value - adminEpisodePageSize);
+    }
     if (episodes.value.length) {
       await selectEpisode(episodes.value[0].id);
     }
@@ -1918,13 +1951,10 @@ async function validateDraft(useGemini) {
       useGemini
     });
     draftProgressStep.value = 'hydrate';
-    setMessage(
-      draftValidation.value.valid ? '초안 검증을 통과했습니다. 저장 전 현장 검수는 계속 필요합니다.' : '초안에 수정이 필요한 항목이 있습니다.',
-      draftValidation.value.valid ? 'success' : 'error'
-    );
+    setMessage('초안 검증을 완료했습니다. DRAFT 저장 후 공개 준비도에서 최종 점검하세요.', 'success');
     finishDraftProgress(draftValidation.value.valid
       ? '검증을 통과했습니다. 그래도 현장 관찰 요소와 정답 노출 여부는 사람이 확인해야 합니다.'
-      : '검증 이슈가 있습니다. 아래 검증 결과에서 ERROR 항목을 먼저 수정하세요.');
+      : '검증을 완료했습니다. DRAFT 저장은 가능하며 공개 전 최종 점검에서 보완하세요.');
   } catch (error) {
     failDraftProgress(error.userMessage || error.message || '초안을 검증할 수 없습니다.');
     setMessage(draftError.value, 'error');
@@ -2183,7 +2213,7 @@ function inferCaseMotif(draft) {
 }
 
 function finalQuestionForMotif(motif) {
-  return `${motif.setting}와 연결된 여덟 단서를 종합하면 범인, 흉기, 동기, 방법은 무엇인가?`;
+  return `${motif.setting}와 연결된 여덟 단서를 종합하면 범인, 흉기, 동기, 사인은 무엇인가?`;
 }
 
 function inferFinalObjective(draft, motif) {
@@ -2192,7 +2222,7 @@ function inferFinalObjective(draft, motif) {
   const weapon = normalizeAnswerKeywordValue(answers.weapon);
   const motive = normalizeAnswerKeywordValue(answers.motive);
   const method = normalizeAnswerKeywordValue(answers.method);
-  const finalAnswer = `범인: ${culprit} / 흉기: ${weapon} / 동기: ${motive} / 방법: ${method}`;
+  const finalAnswer = `범인: ${culprit} / 흉기: ${weapon} / 동기: ${motive} / 사인: ${method}`;
   return {
     answerType: 'CASE_TRUTH',
     finalAnswer,
@@ -2237,7 +2267,7 @@ function maskDraftKeywordLeaks(draft, keywords) {
   draft.episodeTitle = maskKeywords(draft.episodeTitle, values);
   draft.subtitle = maskKeywords(draft.subtitle, values);
   if (containsKeywordLeak(draft.fictionSynopsis, values) || containsMaskPlaceholder(draft.fictionSynopsis)) {
-    draft.fictionSynopsis = maskKeywords(draft.fictionSynopsis, values);
+    draft.fictionSynopsis = maskSynopsisAnswerLeaks(draft, values);
   }
   if (containsKeywordLeak(draft.missionDescription, values) || containsMaskPlaceholder(draft.missionDescription)) {
     draft.missionDescription = maskKeywords(draft.missionDescription, values);
@@ -2250,11 +2280,58 @@ function maskKeywords(text, keywords) {
   keywords.forEach((keyword) => {
     const clean = String(keyword || '').trim();
     if (!clean) return;
-    const mask = '핵심 단서';
-    result = result.split(clean).join(mask);
-    result = result.split(compactText(clean)).join(mask);
+    result = replaceKeywordWithMask(result, clean, '핵심 단서');
   });
   return result;
+}
+
+function maskSynopsisAnswerLeaks(draft, keywords) {
+  let result = String(draft?.fictionSynopsis || '');
+  const culpritKeyword = normalizeAnswerKeywordValue(
+    draft?.finalAnswerKeywordItems?.find((item) => normalizeAnswerSlotId(item?.slotId || item?.type) === 'CULPRIT')?.keyword
+      || draft?.finalAnswers?.culprit
+      || keywords?.[0]
+  );
+  if (culpritKeyword) {
+    result = replaceKeywordWithMask(result, culpritKeyword, synopsisCulpritMask(draft, culpritKeyword));
+  }
+  const nonCulpritKeywords = (Array.isArray(keywords) ? keywords : [])
+    .filter((keyword) => normalizeAnswerKeywordValue(keyword) !== culpritKeyword);
+  return maskKeywords(result, nonCulpritKeywords);
+}
+
+function replaceKeywordWithMask(text, keyword, mask) {
+  const clean = String(keyword || '').trim();
+  if (!clean) return String(text || '');
+  return String(text || '')
+    .split(clean).join(mask)
+    .split(compactText(clean)).join(mask);
+}
+
+function synopsisCulpritMask(draft, culpritKeyword) {
+  const suspects = Array.isArray(draft?.suspects) ? draft.suspects : [];
+  const culprit = suspects.find((suspect) => sameText(suspect?.displayName, culpritKeyword)
+    || sameText(suspect?.personName, culpritKeyword)
+    || sameText(suspect?.keyword, culpritKeyword));
+  const candidates = [
+    culprit?.alias,
+    culprit?.relationToVictim,
+    culprit?.shortDescription
+  ].map((value) => safeSynopsisRoleMask(value, culpritKeyword));
+  return candidates.find(Boolean) || '해당 용의자';
+}
+
+function safeSynopsisRoleMask(value, culpritKeyword) {
+  const text = String(value || '').trim();
+  if (!text || containsKeywordLeak(text, [culpritKeyword])) return '';
+  if (/^용의자\s*\d+$/i.test(text)) return '';
+  return text.length <= 28 ? text : '';
+}
+
+function sameText(left, right) {
+  const a = compactText(left);
+  const b = compactText(right);
+  return !!a && !!b && a === b;
 }
 
 function normalizeAnswerKeywordValue(keyword) {
@@ -2328,7 +2405,7 @@ function syncDraftFinalAnswerSlots(draft) {
     method: draft.finalAnswerKeywords[3] || ''
   };
   if (draft.finalAnswerKeywords.every((value) => normalizeAnswerKeywordValue(value))) {
-    draft.finalAnswer = `범인: ${draft.finalAnswers.culprit} / 흉기: ${draft.finalAnswers.weapon} / 동기: ${draft.finalAnswers.motive} / 방법: ${draft.finalAnswers.method}`;
+    draft.finalAnswer = `범인: ${draft.finalAnswers.culprit} / 흉기: ${draft.finalAnswers.weapon} / 동기: ${draft.finalAnswers.motive} / 사인: ${draft.finalAnswers.method}`;
   }
 }
 
@@ -2479,7 +2556,7 @@ function sanitizeFinalPlaceStory(storyText) {
   const value = String(storyText || '').trim();
   const forbidden = ['최종 장소', '최종장소', '최종 목적지', '최종목적지', '정답 장소', '정답장소', '최종 추리', '마지막 장소'];
   if (!value || forbidden.some((word) => value.includes(word))) {
-    return '이곳은 조사 미션 8개 완료 후 자동 공개되는 최종 정답 입력 장소입니다. 현장에서는 수집한 사건 단서를 정리하고 범인, 흉기, 동기, 방법을 최종 확인하세요.';
+    return '이곳은 조사 미션 8개 완료 후 자동 공개되는 최종 정답 입력 장소입니다. 현장에서는 수집한 사건 단서를 정리하고 범인, 흉기, 동기, 사인을 최종 확인하세요.';
   }
   return value;
 }
@@ -2723,12 +2800,12 @@ async function generateAnswerPlan() {
     draftPlan.value.finalAnswerKeywords = (draftPlan.value.finalAnswerKeywords || [])
       .map((item) => ({ ...item, keyword: normalizeAnswerKeywordValue(item.keyword) }))
       .filter((item) => item.keyword);
-    draftPlan.value.finalAnswers = {
+    draftPlan.value.finalAnswers = splitLabeledFinalAnswers({
       culprit: normalizeAnswerKeywordValue(draftPlan.value.finalAnswers?.culprit || draftPlan.value.finalAnswers?.relatedPerson),
       weapon: normalizeAnswerKeywordValue(draftPlan.value.finalAnswers?.weapon || draftPlan.value.finalAnswers?.coreClue),
       motive: normalizeAnswerKeywordValue(draftPlan.value.finalAnswers?.motive),
       method: normalizeAnswerKeywordValue(draftPlan.value.finalAnswers?.method || draftPlan.value.finalAnswers?.finalLocation)
-    };
+    });
     payload = applyDraftPlanToPayload(payload);
     draftInput.value = JSON.stringify(payload, null, 2);
     draftProgressStep.value = 'hydrate';
@@ -2765,6 +2842,40 @@ function isServerTemplatePlan(plan) {
   return Array.isArray(items) && items.some((item) => item?.sourceType === 'SERVER_TEMPLATE');
 }
 
+function splitLabeledFinalAnswers(values = {}) {
+  const merged = [
+    values.culprit,
+    values.weapon,
+    values.motive,
+    values.method,
+    values.CULPRIT,
+    values.WEAPON,
+    values.MOTIVE,
+    values.METHOD
+  ].filter(Boolean).join(' ');
+  const parsed = {};
+  const pattern = /(범인|흉기|동기|방법|사인|사망원인)\s*:\s*([\s\S]*?)(?=(?:범인|흉기|동기|방법|사인|사망원인)\s*:|$)/g;
+  let match;
+  while ((match = pattern.exec(merged)) !== null) {
+    const slot = ({ 범인: 'culprit', 흉기: 'weapon', 동기: 'motive', 방법: 'method', 사인: 'method', 사망원인: 'method' })[match[1]];
+    const value = normalizeAnswerKeywordValue(match[2]);
+    if (slot && value) parsed[slot] = value;
+  }
+  const result = {
+    culprit: parsed.culprit || normalizeAnswerKeywordValue(values.culprit || values.CULPRIT),
+    weapon: parsed.weapon || normalizeAnswerKeywordValue(values.weapon || values.WEAPON),
+    motive: parsed.motive || normalizeAnswerKeywordValue(values.motive || values.MOTIVE),
+    method: parsed.method || normalizeAnswerKeywordValue(values.method || values.METHOD)
+  };
+  return {
+    ...result,
+    CULPRIT: result.culprit,
+    WEAPON: result.weapon,
+    MOTIVE: result.motive,
+    METHOD: result.method
+  };
+}
+
 function normalizeFinalAnswerKeywordItemsFromPlan(plan, payload = {}) {
   const sourceItems = plan?.finalAnswerKeywordItems || plan?.finalAnswerKeywords || payload.finalAnswerKeywordItems || payload.finalAnswerKeywords || [];
   const bySlot = {};
@@ -2787,12 +2898,12 @@ function normalizeFinalAnswerKeywordItemsFromPlan(plan, payload = {}) {
     });
   }
   const answers = plan?.finalAnswers || payload.finalAnswers || {};
-  const fallbackValues = {
+  const fallbackValues = splitLabeledFinalAnswers({
     CULPRIT: answers.culprit || answers.relatedPerson || '',
     WEAPON: answers.weapon || answers.coreClue || '',
     MOTIVE: answers.motive || '',
     METHOD: answers.method || answers.finalLocation || ''
-  };
+  });
   return fixedAnswerSlotIds.map((slotId) => bySlot[slotId] || {
     slotId,
     type: slotId,
@@ -3465,12 +3576,20 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .draft-panel.full-width { grid-column: 1 / -1; margin-top: 0; }
 .section-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 h2, h3 { margin: 0 0 10px; }
+.episode-list .section-title h2 { white-space: nowrap; word-break: keep-all; }
+.episode-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin: 6px 0 10px; }
+.episode-search input { min-width: 0; border: 1px solid rgba(148,163,184,.24); border-radius: 10px; background: rgba(2,6,23,.5); color: #f8fafc; padding: 0 10px; font: inherit; min-height: 38px; }
+.episode-search input::placeholder { color: #64748b; }
 .episode-card { padding: 12px; border: 1px solid rgba(148,163,184,.18); border-radius: 14px; background: rgba(2,6,23,.38); margin-top: 10px; cursor: pointer; }
 .episode-card.active { border-color: #f59e0b; box-shadow: 0 0 0 1px rgba(245,158,11,.38) inset; }
 .episode-card strong, .spot-card strong, .mini-grid strong { display: block; }
 .episode-card span, .spot-card span, .mini-grid span { color: #cbd5e1; font-size: .84rem; }
 .metrics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .metrics em { border-radius: 999px; background: rgba(245,158,11,.14); color: #fde68a; padding: 5px 8px; font-style: normal; font-size: .76rem; }
+.admin-pagination { display: flex; flex-wrap: nowrap; justify-content: center; gap: 4px; margin-top: 12px; }
+.admin-pagination button { width: 30px; min-width: 30px; min-height: 32px; padding: 0; border-radius: 6px; background: rgba(30,41,59,.88); border: 1px solid rgba(148,163,184,.28); color: #cbd5e1; }
+.admin-pagination button.active { background: #d97706; border-color: #f59e0b; color: #fff; }
+.admin-pagination button:disabled { opacity: .42; cursor: not-allowed; }
 .message { padding: 10px; border-radius: 12px; margin: 0 0 10px; }
 .global-message { width: min(100%, 1180px); box-sizing: border-box; margin: 0 auto 14px; }
 .message.success { background: rgba(22,101,52,.22); color: #bbf7d0; }
@@ -3480,6 +3599,9 @@ h2, h3 { margin: 0 0 10px; }
 .draft-feedback-panel strong { color: #fde68a; }
 .draft-feedback-panel p { margin: 6px 0; color: #e2e8f0; }
 .draft-feedback-panel .plan-warning { padding: 8px 10px; border: 1px solid rgba(248,113,113,.42); border-radius: 10px; background: rgba(127,29,29,.24); color: #fecaca; font-weight: 800; }
+.answer-plan-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.answer-plan-grid span { display: grid; gap: 3px; padding: 9px 10px; border-radius: 10px; background: rgba(15,23,42,.46); color: #e2e8f0; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; }
+.answer-plan-grid b { color: #fde68a; font-size: .76rem; }
 .draft-feedback-panel ul { margin: 8px 0 0; padding-left: 18px; color: #fecaca; line-height: 1.55; }
 .draft-feedback-panel li b { margin-right: 6px; color: #fbbf24; }
 .draft-feedback-panel li span { margin-right: 6px; color: #bfdbfe; font-weight: 900; }

@@ -90,6 +90,20 @@ public interface ChallengeRepository {
     @ResultMap("ChallengeResponseMap")
     ChallengeResponse findById(@Param("challengeId") Long challengeId, @Param("userId") Long userId);
 
+    @Select("""
+            select c.id
+            from challenges c
+            left join user_challenge_entries e on e.challenge_id = c.id and e.user_id = #{userId}
+            where c.status = 'ACTIVE'
+              and (c.start_at is null or c.start_at <= current_timestamp)
+              and (c.end_at is null or c.end_at >= current_timestamp)
+              and c.target_count > #{targetCount}
+              and e.user_id is null
+            order by c.target_count asc, c.id asc
+            limit 1
+            """)
+    Long findNextHigherChallengeId(@Param("userId") Long userId, @Param("targetCount") int targetCount);
+
     @Insert("""
             insert ignore into user_challenge_entries (challenge_id, user_id, status)
             values (#{challengeId}, #{userId}, 'JOINED')

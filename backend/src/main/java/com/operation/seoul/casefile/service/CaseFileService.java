@@ -377,7 +377,7 @@ public class CaseFileService {
         String setting = synopsis == null ? "제한된 공간에서 한 인물이 쓰러진 채 발견되며 시작됩니다." : synopsis;
         return title + " 사건은 " + setting
                 + " 현장에는 외부 침입 흔적이 뚜렷하지 않고, 사건 시간대 의미 있는 접근 권한을 가진 인물은 세 명으로 압축됩니다."
-                + " 플레이어는 8개 조사 지점에서 알리바이, 물증, 동기 문서, 범행 수법의 흔적을 모아 범인·흉기·동기·방법을 재구성해야 합니다.";
+                + " 플레이어는 8개 조사 지점에서 알리바이, 물증, 동기 문서, 사인의 흔적을 모아 범인·흉기·동기·사인을 재구성해야 합니다.";
     }
 
     private String lockedStorySummary(Episode episode) {
@@ -399,7 +399,7 @@ public class CaseFileService {
     }
 
     private String caseGoal(Episode episode) {
-        return "현장 단서와 사건 자료를 종합해 범인, 흉기, 동기, 방법을 밝혀라.";
+        return "현장 단서와 사건 자료를 종합해 범인, 흉기, 동기, 사인을 밝혀라.";
     }
 
     private String textOrNull(String value) {
@@ -421,7 +421,7 @@ public class CaseFileService {
             case "CULPRIT" -> "범인";
             case "WEAPON" -> "흉기";
             case "MOTIVE" -> "동기";
-            case "METHOD" -> "방법";
+            case "METHOD" -> "사인";
             default -> "사건의 진실";
         };
     }

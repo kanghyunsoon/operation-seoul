@@ -24,7 +24,7 @@ final class AnswerPlanResponseFactory {
                 .finalAnswerKeywords(keywords)
                 .finalAnswerKeywordItems(keywords)
                 .finalAnswers(finalAnswers(keywords))
-                .finalQuestionGuide("조사 미션 8개를 완료한 뒤 범인, 흉기, 동기, 방법을 각각 입력합니다.")
+                .finalQuestionGuide("조사 미션 8개를 완료한 뒤 범인, 흉기, 동기, 사인을 각각 입력합니다.")
                 .rationale(storyAnchors.isEmpty()
                         ? "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/사건 또는 지역·시대 기반 배경을 바탕으로 구체화합니다."
                         : "장르는 범죄 미스터리로 고정하고, 최종 정답 키워드는 TourAPI 역사/사건 또는 지역·시대 기반 앵커를 바탕으로 구체화합니다.")
