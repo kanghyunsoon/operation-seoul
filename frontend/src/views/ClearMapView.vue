@@ -1,7 +1,6 @@
 <template>
   <main class="tab-page">
     <header class="hero">
-      <button type="button" class="back" @click="router.push({ name: 'EpisodeList' })">미션 파일 목록</button>
       <p>CLEAR MAP</p>
       <h1>클리어 맵</h1>
       <span>클리어한 방탈출 기록을 도장 카드로 확인합니다.</span>

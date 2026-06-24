@@ -6,9 +6,6 @@
         <h1>챌린지</h1>
         <span>사건 파일 클리어 기록을 기준으로 자동 진행되는 목표입니다.</span>
       </div>
-      <div class="hero-actions">
-        <button type="button" @click="router.push({ name: 'EpisodeList' })">사건 파일</button>
-      </div>
     </header>
 
     <p v-if="message" class="toast" :class="messageType">{{ message }}</p>
@@ -84,11 +81,9 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import MainBottomNav from '@/components/MainBottomNav.vue';
 import { challengeApi } from '@/api/challengeApi';
 
-const router = useRouter();
 const challenges = ref([]);
 const myChallenges = ref([]);
 const loading = ref(true);
@@ -145,7 +140,6 @@ function setMessage(text, type = 'success') {
 .hero p, .panel-head p { margin: 0 0 8px; color: #fca5a5; font-size: .74rem; font-weight: 1000; letter-spacing: .16em; }
 h1 { margin: 0; font-size: clamp(2.3rem, 9vw, 4.8rem); line-height: .94; }
 .hero span { display: block; margin-top: 10px; color: #cbd5e1; }
-.hero-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button { min-height: 40px; border: 0; border-radius: 12px; background: #b91c1c; color: #fff; font: inherit; font-weight: 900; padding: 0 14px; }
 .ghost { background: #334155; }
 .challenge-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); gap: 14px; }
@@ -169,6 +163,5 @@ small, .empty { color: #94a3b8; }
 .toast.error, .state.error { color: #fecaca; background: rgba(127,29,29,.18); }
 @media (max-width: 820px) {
   .hero, .challenge-grid { display: grid; grid-template-columns: 1fr; }
-  .hero-actions { display: grid; grid-template-columns: 1fr; }
 }
 </style>

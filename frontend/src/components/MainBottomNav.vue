@@ -20,11 +20,11 @@ const route = useRoute();
 const router = useRouter();
 
 const items = [
+  { name: 'EpisodeList', label: '홈', mark: 'H' },
   { name: 'Challenges', label: '챌린지', mark: 'C' },
-  { name: 'Favorites', label: '관심목록', mark: 'L' },
-  { name: 'MyPage', label: '내 정보', mark: 'M' },
-  { name: 'ClearMap', label: '클리어 맵', mark: 'R' },
-  { name: 'CommunityHub', label: '커뮤니티', mark: 'Q' }
+  { name: 'Ranking', label: '랭킹', mark: 'R' },
+  { name: 'CommunityHub', label: '커뮤니티', mark: 'Q' },
+  { name: 'MyPage', label: '내 정보', mark: 'M' }
 ];
 </script>
 

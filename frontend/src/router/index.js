@@ -20,6 +20,8 @@ import FinalDeductionView from '@/views/FinalDeductionView.vue';
 import EpisodeDebriefingView from '@/views/EpisodeDebriefingView.vue';
 import ClearReportView from '@/views/ClearReportView.vue';
 import MyPageView from '@/views/MyPageView.vue';
+import ProfileEditView from '@/views/ProfileEditView.vue';
+import MyReviewsView from '@/views/MyReviewsView.vue';
 import AdminReviewsView from '@/views/AdminReviewsView.vue';
 import AdminUsersView from '@/views/AdminUsersView.vue';
 import AdminEpisodesView from '@/views/AdminEpisodesView.vue';
@@ -48,6 +50,8 @@ const routes = [
   { path: '/episodes/:episodeId/debriefing', name: 'EpisodeDebriefing', component: EpisodeDebriefingView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/clear-report', name: 'EpisodeClearReport', component: ClearReportView, meta: { requiresAuth: true } },
   { path: '/me', name: 'MyPage', component: MyPageView, meta: { requiresAuth: true } },
+  { path: '/me/edit', name: 'ProfileEdit', component: ProfileEditView, meta: { requiresAuth: true } },
+  { path: '/me/reviews', name: 'MyReviews', component: MyReviewsView, meta: { requiresAuth: true } },
   { path: '/admin/users', name: 'AdminUsers', component: AdminUsersView, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/reviews', name: 'AdminReviews', component: AdminReviewsView, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/episodes', name: 'AdminEpisodes', component: AdminEpisodesView, meta: { requiresAuth: true, requiresAdmin: true } },

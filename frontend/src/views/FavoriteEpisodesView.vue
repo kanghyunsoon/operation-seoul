@@ -1,7 +1,7 @@
 <template>
   <main class="tab-page">
     <header class="hero">
-      <button type="button" class="back" @click="router.push({ name: 'EpisodeList' })">미션 파일 목록</button>
+      <button type="button" class="back" @click="router.push({ name: 'MyPage' })">뒤로가기</button>
       <p>LIKED FILES</p>
       <h1>관심목록</h1>
       <span>좋아요를 누른 미션 파일을 모아봅니다.</span>
