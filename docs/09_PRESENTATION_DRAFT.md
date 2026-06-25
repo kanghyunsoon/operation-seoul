@@ -1,119 +1,109 @@
 # 발표 자료 초안
 
-작성일: 2026-06-25
-
 ## Slide 1. 제목
 
-Operation KOREA  
-실제 장소 기반 야외 방탈출/미션 파일 서비스
+Operation Seoul  
+실제 장소 기반 미션 메모형 야외 방탈출 서비스
 
 ## Slide 2. 문제 정의
 
-- 일반 관광 앱은 장소 설명 중심이라 몰입도가 낮다.
-- 사용자가 실제 장소를 이동하며 콘텐츠를 경험하는 서비스가 필요하다.
-- 팀 프로젝트 요구사항인 CRUD, 회원, 리뷰, 추가 기능, AI/외부 API 활용을 하나의 도메인에 통합했다.
+- 일반 관광 앱은 장소 정보 제공에 머무르는 경우가 많다.
+- 사용자가 직접 이동하고 판단하는 몰입형 경험이 부족하다.
+- 장소 데이터와 AI를 활용해 콘텐츠 제작 효율을 높일 필요가 있다.
 
-## Slide 3. 서비스 소개
+## Slide 3. 서비스 목표
 
-- 권역별 미션 파일 선택.
-- 실제 장소 지도 이동.
-- GPS 도착 판정.
-- 현장 퍼즐 풀이.
-- 단서 해금과 최종 추리.
-- 클리어 리포트와 리뷰.
+- 실제 장소를 사건의 단서 공간으로 활용
+- 지도 이동, 도착 판정, 퍼즐, 단서, 최종 추리 연결
+- 관리자 검수 기반 AI 에피소드 생성 지원
+- 리뷰, 커뮤니티, 랭킹, 챌린지로 지속 사용 유도
 
-## Slide 4. 주요 기능
-
-- 회원가입/로그인/JWT.
-- 콘텐츠 CRUD.
-- 리뷰 CRUD.
-- 찜/팔로우/일정/챌린지.
-- 관리자 에피소드 생성/검수/공개.
-- AI 추천/코칭 및 Gemini 초안 생성.
-
-## Slide 5. 기술 스택
-
-- Front-End: Vue 3, Pinia, Vue Router, Axios.
-- Back-End: Spring Boot, Spring Security, JWT, MyBatis.
-- DB: MySQL.
-- External: TourAPI, Kakao Local/Map, Tmap.
-- AI: Gemini.
-
-## Slide 6. 시스템 아키텍처
-
-Vue SPA → Spring Boot REST API → MyBatis → MySQL  
-Spring Boot → TourAPI/Kakao Local/Gemini  
-Vue → Kakao Map/Tmap
-
-## Slide 7. DB/ERD
-
-주요 테이블:
-
-- users
-- episodes
-- episode_reviews
-- user_plans
-- user_follow
-- challenges
-- region/mission
-- community tables
-
-## Slide 8. 사용자 시나리오
+## Slide 4. 사용자 흐름
 
 1. 로그인
-2. 권역 선택
-3. 미션 선택
-4. 브리핑 확인
-5. 지도 이동
+2. 에피소드 선택
+3. 사건 브리핑
+4. 지도 이동
+5. 도착 판정
 6. 퍼즐 풀이
 7. 단서 확인
 8. 최종 추리
-9. 클리어 리포트/리뷰
+9. 클리어 리포트
 
-## Slide 9. 관리자 시나리오
+## Slide 5. 시스템 구조
 
-1. 장소 후보 조회
-2. AI 초안 생성
-3. 퍼즐/단서/증거 검수
-4. 공개 준비도 확인
-5. PUBLISHED 전환
+- Front-End: Vue 3, Pinia, Vue Router, Axios
+- Back-End: Spring Boot, Spring Security, JWT, MyBatis
+- DB: MySQL
+- External: TourAPI, Kakao Local/Map, Tmap
+- AI: Gemini
 
-## Slide 10. 요구사항 충족도
+## Slide 6. 핵심 기능
 
-- 필수 기능: 약 88%
-- 추가 기능: 약 85%
-- 심화 기능: 약 68~70%
-- 전체 구현률: 약 82%
+- 공개 에피소드 목록/상세
+- 지도 기반 장소 탐색
+- GPS/devMode 도착 판정
+- 퍼즐과 힌트
+- 단서/증거/용의자 해금
+- 최종 추리와 정답 제출
+- 클리어 리포트와 리뷰
 
-## Slide 11. 트러블슈팅
+## Slide 7. 관리자 기능
 
-- 지도 응답에서 최종 장소 노출 방지.
-- AI 생성 텍스트 품질/검수 guardrail.
-- 에피소드 목록 하단 UI 간격 문제.
-- API 키/실기기 검증 필요.
+- 회원 관리
+- 리뷰 관리
+- TourAPI/Kakao Local 후보 조회
+- Gemini 초안 생성
+- DRAFT 검증
+- 공개 준비도 확인
+- PUBLISHED 전환
 
-## Slide 12. 성과와 한계
+## Slide 8. DB 설계
 
-성과:
+- `users`: 사용자/권한
+- `episodes`: 에피소드
+- `mission_spots`: 조사 장소
+- `puzzles`, `puzzle_hints`: 퍼즐
+- `case_suspects`, `case_evidences`: 미션 파일
+- `user_episode_progress`: 진행 기록
+- `region_question`, `region_answer`: 커뮤니티
+- `episode_reviews`, `rankings`, `challenges`: 후속 활동
 
-- Spring Boot REST API + Vue SPA 완성.
-- MySQL/MyBatis 기반 DB 설계.
-- 외부 API와 생성형 AI 활용.
-- 팀 프로젝트 요구 기능 대부분 구현.
+## Slide 9. 외부 API와 AI
 
-한계:
+- TourAPI: 장소 후보 수집
+- Kakao Local: 주변 후보 보강
+- Kakao Maps: 지도 UI
+- Tmap: 길찾기
+- Gemini: 에피소드 초안 생성
+- 모든 AI 결과는 관리자 검수 후 공개
 
-- 추천/코칭은 규칙 기반 MVP.
-- 현장 GPS 검증 필요.
-- 일부 UI polish 필요.
+## Slide 10. 보안과 게임 규칙
 
-## Slide 13. 향후 계획
+- JWT 인증
+- 관리자 API 권한 분리
+- 비활성 계정 차단
+- 최종 장소 내부 필드 미노출
+- 운영 비밀값 환경변수 관리
+- 개발용 도착 판정 운영 분리
 
-- 반응형 UI 안정화.
-- Gemini 개인화 추천/코칭 고도화.
-- 관리자 운영 기능 강화.
-- E2E 테스트와 배포 자동화.
+## Slide 11. 구현 성과
 
-## Slide 14. 마무리
+- 핵심 플레이 루프 구현 완료
+- 관리자 생성/검수 흐름 구현 완료
+- 커뮤니티/리뷰/랭킹/챌린지/추천/코칭 MVP 구현
+- Backend compile, Frontend build 통과
+- 커뮤니티 게시글 등록 오류 수정 및 검증 완료
 
-Operation KOREA는 실제 장소 경험과 추리 게임을 결합한 Final 프로젝트 MVP이며, 요구사항의 전 개발 생명주기를 구현과 문서로 정리했다.
+## Slide 12. 한계와 개선
+
+- OAuth 로그인 미구현
+- 쿠폰 지급 로직 미구현
+- 실제 현장 GPS 검증 필요
+- AI 초안 품질은 관리자 검수 필수
+- 향후 운영 대시보드와 실기기 테스트 강화
+
+## Slide 13. 결론
+
+Operation Seoul은 실제 장소 데이터와 게임형 추리를 결합해 관광/탐방 경험을 미션 기반 콘텐츠로 확장했다. 핵심 MVP는 구현되어 있으며, 현장 검증과 운영 기능 보강을 통해 실제 서비스 수준으로 발전시킬 수 있다.
+

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import IntroView from '@/views/IntroView.vue';
+import OAuthCallbackView from '@/views/OAuthCallbackView.vue';
 import RegionMapView from '@/views/RegionMapView.vue';
 import RegionCommunityView from '@/views/RegionCommunityView.vue';
 import RankingView from '@/views/RankingView.vue';
@@ -31,6 +32,7 @@ import { useSessionStore } from '@/stores/sessionStore.js';
 const routes = [
   { path: '/', redirect: '/intro' },
   { path: '/intro', name: 'Intro', component: IntroView, meta: { requiresAuth: false } },
+  { path: '/oauth/callback', name: 'OAuthCallback', component: OAuthCallbackView, meta: { requiresAuth: false } },
   { path: '/regions', name: 'RegionMap', component: RegionMapView, meta: { requiresAuth: true } },
   { path: '/regions/:regionId/community', name: 'RegionCommunity', component: RegionCommunityView, meta: { requiresAuth: true } },
   { path: '/rankings', name: 'Ranking', component: RankingView, meta: { requiresAuth: true } },

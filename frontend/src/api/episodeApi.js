@@ -6,6 +6,9 @@ export const episodeApi = {
   async listEpisodes(params = {}) {
     return unwrap(await apiClient.get('/v1/episodes', { params }));
   },
+  async getFilterOptions() {
+    return unwrap(await apiClient.get('/v1/episodes/filter-options'));
+  },
   async getEpisode(episodeId) {
     return unwrap(await apiClient.get(`/v1/episodes/${episodeId}`));
   },

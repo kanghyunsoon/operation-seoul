@@ -7,8 +7,16 @@
       <header class="header">
         <p class="eyebrow">FIELD ACCESS</p>
         <h1 class="title project-title">OPERATION: KOREA</h1>
-        <p class="subtitle">오프라인 미션 파일 세트를 모바일 현장 조사로 이어갑니다.</p>
+        <p class="subtitle">오프라인 미션 파일 인터페이스에 접속합니다.</p>
       </header>
+
+      <div v-if="isLoginMode" class="social-login">
+        <div ref="googleButton" class="google-button"></div>
+        <button type="button" class="kakao-button" :disabled="submitting || !oauthConfig.kakaoClientId" aria-label="카카오로 시작" @click="startKakaoLogin">
+          <img :src="kakaoLoginButton" alt="" />
+        </button>
+        <div class="divider"><span>또는 이메일로 계속</span></div>
+      </div>
 
       <form class="auth-form" @submit.prevent="handleSubmit">
         <label class="input-group" for="email">
@@ -18,12 +26,12 @@
 
         <label class="input-group" for="password">
           비밀번호
-          <input id="password" v-model="password" type="password" required placeholder="8자 이상 입력" autocomplete="current-password" />
+          <input id="password" v-model="password" type="password" required placeholder="8자 이상 입력" :autocomplete="isLoginMode ? 'current-password' : 'new-password'" />
         </label>
 
         <label v-if="!isLoginMode" class="input-group" for="nickname">
           닉네임
-          <input id="nickname" v-model.trim="nickname" type="text" required placeholder="수사관 닉네임" autocomplete="nickname" />
+          <input id="nickname" v-model.trim="nickname" type="text" required placeholder="요원 닉네임" autocomplete="nickname" />
         </label>
 
         <button type="submit" class="submit-btn" :disabled="submitting">
@@ -41,14 +49,15 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSessionStore } from '@/stores/sessionStore.js';
 import apiClient from '@/api/axiosInstance';
+import kakaoLoginButton from '@/assets/auth/kakao-login-button.png';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
-
+const googleButton = ref(null);
 const isLoginMode = ref(true);
 const email = ref('');
 const password = ref('');
@@ -56,6 +65,35 @@ const nickname = ref('');
 const formMessage = ref('');
 const formMessageType = ref('info');
 const submitting = ref(false);
+const oauthConfig = ref({ googleClientId: '', kakaoClientId: '', kakaoRedirectUri: '' });
+
+onMounted(async () => {
+  if (redirectToCanonicalLocalOrigin()) return;
+
+  const oauthError = sessionStorage.getItem('oauthLoginError');
+  if (oauthError) {
+    sessionStorage.removeItem('oauthLoginError');
+    setMessage(oauthError, 'error');
+  }
+  try {
+    const response = await apiClient.get('/v1/auth/oauth/config');
+    oauthConfig.value = response.data.data || response.data;
+    await renderGoogleButton();
+  } catch (error) {
+    setMessage(error.userMessage || '소셜 로그인 설정을 불러오지 못했습니다.', 'error');
+  }
+});
+
+function redirectToCanonicalLocalOrigin() {
+  const localHosts = new Set(['127.0.0.1', '[::1]', '::1']);
+  if (!localHosts.has(window.location.hostname) || window.location.port !== '5173') {
+    return false;
+  }
+  const target = new URL(window.location.href);
+  target.hostname = 'localhost';
+  window.location.replace(target.toString());
+  return true;
+}
 
 function toggleMode() {
   isLoginMode.value = !isLoginMode.value;
@@ -63,6 +101,7 @@ function toggleMode() {
   password.value = '';
   nickname.value = '';
   formMessage.value = '';
+  if (isLoginMode.value) nextTick(renderGoogleButton);
 }
 
 async function handleSubmit() {
@@ -79,9 +118,7 @@ async function handleSubmit() {
   try {
     if (isLoginMode.value) {
       const response = await apiClient.post('/v1/auth/login', { email: email.value, password: password.value });
-      sessionStore.login(response.data.data || response.data);
-      setMessage(response.data.message || '로그인되었습니다.', 'success');
-      router.push({ name: sessionStore.isAdmin ? 'AdminEpisodes' : 'RegionMap' });
+      completeLogin(response, '로그인되었습니다.');
     } else {
       const response = await apiClient.post('/v1/auth/register', {
         email: email.value,
@@ -92,12 +129,87 @@ async function handleSubmit() {
       isLoginMode.value = true;
       password.value = '';
       nickname.value = '';
+      await nextTick();
+      await renderGoogleButton();
     }
   } catch (error) {
     setMessage(error.userMessage || (isLoginMode.value ? '이메일 또는 비밀번호를 확인해 주세요.' : '회원가입을 완료할 수 없습니다.'), 'error');
   } finally {
     submitting.value = false;
   }
+}
+
+async function renderGoogleButton() {
+  if (!isLoginMode.value || !oauthConfig.value.googleClientId || !googleButton.value) return;
+  await loadGoogleIdentityScript();
+  googleButton.value.replaceChildren();
+  window.google.accounts.id.initialize({
+    client_id: oauthConfig.value.googleClientId,
+    callback: handleGoogleCredential,
+  });
+  window.google.accounts.id.renderButton(googleButton.value, {
+    type: 'standard',
+    theme: 'outline',
+    size: 'large',
+    shape: 'rectangular',
+    text: 'continue_with',
+    width: Math.min(376, googleButton.value.clientWidth || 376),
+  });
+}
+
+async function handleGoogleCredential(response) {
+  submitting.value = true;
+  try {
+    const result = await apiClient.post('/v1/auth/oauth/google', { credential: response.credential });
+    completeLogin(result, 'Google 로그인되었습니다.');
+  } catch (error) {
+    setMessage(error.userMessage || 'Google 로그인에 실패했습니다.', 'error');
+  } finally {
+    submitting.value = false;
+  }
+}
+
+function startKakaoLogin() {
+  const { kakaoClientId, kakaoRedirectUri } = oauthConfig.value;
+  if (!kakaoClientId || !kakaoRedirectUri) {
+    setMessage('Kakao 로그인 설정이 필요합니다.', 'error');
+    return;
+  }
+  const state = crypto.randomUUID();
+  sessionStorage.setItem('kakaoOAuthState', state);
+  const params = new URLSearchParams({
+    client_id: kakaoClientId,
+    redirect_uri: kakaoRedirectUri,
+    response_type: 'code',
+    state,
+  });
+  window.location.assign(`https://kauth.kakao.com/oauth/authorize?${params.toString()}`);
+}
+
+function completeLogin(response, fallbackMessage) {
+  sessionStore.login(response.data.data || response.data);
+  setMessage(response.data.message || fallbackMessage, 'success');
+  router.push({ name: sessionStore.isAdmin ? 'AdminEpisodes' : 'RegionMap' });
+}
+
+function loadGoogleIdentityScript() {
+  if (window.google?.accounts?.id) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-google-identity="true"]');
+    if (existing) {
+      existing.addEventListener('load', resolve, { once: true });
+      existing.addEventListener('error', reject, { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = 'true';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
 }
 
 function setMessage(text, type) {
@@ -115,8 +227,16 @@ function setMessage(text, type) {
 .header { margin-bottom: 24px; }
 .eyebrow { margin: 0 0 8px; color: #f59e0b; font-size: .76rem; font-weight: 900; letter-spacing: .16em; }
 .title { margin: 0; font-size: clamp(2.1rem, 12vw, 3.7rem); line-height: .95; }
-.title span { color: #f59e0b; }
 .subtitle { margin: 12px 0 0; color: #cbd5e1; line-height: 1.5; }
+.social-login, .auth-form { width: 100%; }
+.social-login { display: grid; gap: 10px; margin-bottom: 16px; }
+.google-button { display: flex; width: 100%; height: 40px; justify-content: center; overflow: hidden; }
+:deep(.google-button > div), :deep(.google-button iframe) { width: 100% !important; max-width: none !important; }
+.kakao-button { display: block; width: 100%; height: 40px; margin: 0; padding: 0; overflow: hidden; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
+.kakao-button img { display: block; width: 100%; height: 100%; object-fit: fill; }
+.kakao-button:disabled { opacity: .55; }
+.divider { display: flex; align-items: center; gap: 10px; color: #94a3b8; font-size: .78rem; }
+.divider::before, .divider::after { content: ''; height: 1px; flex: 1; background: rgba(148,163,184,.25); }
 .auth-form { display: grid; gap: 14px; }
 .input-group { display: grid; gap: 7px; color: #e5e7eb; font-weight: 800; }
 input { min-height: 48px; box-sizing: border-box; width: 100%; border: 1px solid rgba(148,163,184,.32); border-radius: 14px; background: rgba(2,6,23,.56); color: #f8fafc; padding: 0 14px; font: inherit; }

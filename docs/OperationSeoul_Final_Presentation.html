@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Operation Seoul Final Presentation</title>
+  <style>
+    @page { size: 16:9 landscape; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e5edf7; color: #172033; font-family: 'Malgun Gothic', 'Noto Sans KR', Arial, sans-serif; }
+    .slide { position: relative; width: 100vw; height: 100vh; page-break-after: always; padding: 52px 70px; background: #f8fbff; overflow: hidden; }
+    .slide::before { content: ''; position: absolute; left: 0; top: 0; width: 12px; height: 100%; background: #2563eb; }
+    .num { position: absolute; right: 70px; top: 52px; color: #2563eb; font-weight: 800; }
+    h1 { margin: 0 0 44px; max-width: 980px; font-size: 42px; line-height: 1.18; }
+    .body { max-width: 1080px; font-size: 25px; line-height: 1.55; }
+    p { margin: 0 0 18px; }
+    ul { margin: 0; padding-left: 30px; }
+    li { margin: 0 0 14px; }
+    footer { position: absolute; right: 70px; bottom: 36px; color: #64748b; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+            <section class="slide">
+              <div class="num">01</div>
+              <h1>제목</h1>
+              <div class="body"><p>Operation Seoul</p>
+<p>실제 장소 기반 미션 메모형 야외 방탈출 서비스</p></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">02</div>
+              <h1>문제 정의</h1>
+              <div class="body"><ul>
+<li>일반 관광 앱은 장소 정보 제공에 머무르는 경우가 많다.</li>
+<li>사용자가 직접 이동하고 판단하는 몰입형 경험이 부족하다.</li>
+<li>장소 데이터와 AI를 활용해 콘텐츠 제작 효율을 높일 필요가 있다.</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">03</div>
+              <h1>서비스 목표</h1>
+              <div class="body"><ul>
+<li>실제 장소를 사건의 단서 공간으로 활용</li>
+<li>지도 이동, 도착 판정, 퍼즐, 단서, 최종 추리 연결</li>
+<li>관리자 검수 기반 AI 에피소드 생성 지원</li>
+<li>리뷰, 커뮤니티, 랭킹, 챌린지로 지속 사용 유도</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">04</div>
+              <h1>사용자 흐름</h1>
+              <div class="body"><p>1. 로그인</p>
+<p>2. 에피소드 선택</p>
+<p>3. 사건 브리핑</p>
+<p>4. 지도 이동</p>
+<p>5. 도착 판정</p>
+<p>6. 퍼즐 풀이</p>
+<p>7. 단서 확인</p>
+<p>8. 최종 추리</p>
+<p>9. 클리어 리포트</p></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">05</div>
+              <h1>시스템 구조</h1>
+              <div class="body"><ul>
+<li>Front-End: Vue 3, Pinia, Vue Router, Axios</li>
+<li>Back-End: Spring Boot, Spring Security, JWT, MyBatis</li>
+<li>DB: MySQL</li>
+<li>External: TourAPI, Kakao Local/Map, Tmap</li>
+<li>AI: Gemini</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">06</div>
+              <h1>핵심 기능</h1>
+              <div class="body"><ul>
+<li>공개 에피소드 목록/상세</li>
+<li>지도 기반 장소 탐색</li>
+<li>GPS/devMode 도착 판정</li>
+<li>퍼즐과 힌트</li>
+<li>단서/증거/용의자 해금</li>
+<li>최종 추리와 정답 제출</li>
+<li>클리어 리포트와 리뷰</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">07</div>
+              <h1>관리자 기능</h1>
+              <div class="body"><ul>
+<li>회원 관리</li>
+<li>리뷰 관리</li>
+<li>TourAPI/Kakao Local 후보 조회</li>
+<li>Gemini 초안 생성</li>
+<li>DRAFT 검증</li>
+<li>공개 준비도 확인</li>
+<li>PUBLISHED 전환</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">08</div>
+              <h1>DB 설계</h1>
+              <div class="body"><ul>
+<li>`users`: 사용자/권한</li>
+<li>`episodes`: 에피소드</li>
+<li>`mission_spots`: 조사 장소</li>
+<li>`puzzles`, `puzzle_hints`: 퍼즐</li>
+<li>`case_suspects`, `case_evidences`: 미션 파일</li>
+<li>`user_episode_progress`: 진행 기록</li>
+<li>`region_question`, `region_answer`: 커뮤니티</li>
+<li>`episode_reviews`, `rankings`, `challenges`: 후속 활동</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">09</div>
+              <h1>외부 API와 AI</h1>
+              <div class="body"><ul>
+<li>TourAPI: 장소 후보 수집</li>
+<li>Kakao Local: 주변 후보 보강</li>
+<li>Kakao Maps: 지도 UI</li>
+<li>Tmap: 길찾기</li>
+<li>Gemini: 에피소드 초안 생성</li>
+<li>모든 AI 결과는 관리자 검수 후 공개</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">10</div>
+              <h1>보안과 게임 규칙</h1>
+              <div class="body"><ul>
+<li>JWT 인증</li>
+<li>관리자 API 권한 분리</li>
+<li>비활성 계정 차단</li>
+<li>최종 장소 내부 필드 미노출</li>
+<li>운영 비밀값 환경변수 관리</li>
+<li>개발용 도착 판정 운영 분리</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">11</div>
+              <h1>구현 성과</h1>
+              <div class="body"><ul>
+<li>핵심 플레이 루프 구현 완료</li>
+<li>관리자 생성/검수 흐름 구현 완료</li>
+<li>커뮤니티/리뷰/랭킹/챌린지/추천/코칭 MVP 구현</li>
+<li>Backend compile, Frontend build 통과</li>
+<li>커뮤니티 게시글 등록 오류 수정 및 검증 완료</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">12</div>
+              <h1>한계와 개선</h1>
+              <div class="body"><ul>
+<li>OAuth 로그인 미구현</li>
+<li>쿠폰 지급 로직 미구현</li>
+<li>실제 현장 GPS 검증 필요</li>
+<li>AI 초안 품질은 관리자 검수 필수</li>
+<li>향후 운영 대시보드와 실기기 테스트 강화</li>
+</ul></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+            <section class="slide">
+              <div class="num">13</div>
+              <h1>결론</h1>
+              <div class="body"><p>Operation Seoul은 실제 장소 데이터와 게임형 추리를 결합해 관광/탐방 경험을 미션 기반 콘텐츠로 확장했다. 핵심 MVP는 구현되어 있으며, 현장 검증과 운영 기능 보강을 통해 실제 서비스 수준으로 발전시킬 수 있다.</p></div>
+              <footer>Operation Seoul Final Submission</footer>
+            </section>
+            
+</body>
+</html>

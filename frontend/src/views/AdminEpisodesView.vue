@@ -507,7 +507,7 @@
               <strong>{{ caseBuilderNext.title }}</strong>
               <p>{{ caseBuilderNext.description }}</p>
             </div>
-            <button type="button" class="primary-action" :disabled="draftBusy || caseBuilderNext.disabled" @click="runNextCaseBuilderAction">
+            <button type="button" class="primary-action case-builder-action" :disabled="draftBusy || caseBuilderNext.disabled" @click="runNextCaseBuilderAction">
               {{ caseBuilderNext.button }}
             </button>
           </section>
@@ -3555,7 +3555,10 @@ function scrollToAdminSection(id) {
 </script>
 
 <style scoped>
-.admin-episode-page { min-height: 100vh; box-sizing: border-box; padding: 24px 16px 70px; background: radial-gradient(circle at 8% 8%, rgba(245,158,11,.18), transparent 30%), linear-gradient(155deg, #111827, #0f172a 58%, #050505); color: #f8fafc; font-family: 'Noto Sans KR', Georgia, serif; }
+.admin-episode-page { min-height: 100vh; box-sizing: border-box; padding: 24px 16px 70px; background: radial-gradient(circle at 8% 8%, rgba(245,158,11,.18), transparent 30%), linear-gradient(155deg, #111827, #0f172a 58%, #050505); color: #f8fafc; font-family: Pretendard, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+.admin-episode-page :where(h1, h2, h3, h4, h5, h6, p, span, strong, small, em, label, button, input, select, textarea, summary, li) {
+  font-family: Pretendard, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
 .admin-hero { width: min(100%, 1180px); margin: 0 auto 16px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 20px; border: 1px solid rgba(148,163,184,.2); border-radius: 20px; background: rgba(15,23,42,.72); }
 .admin-hero p { margin: 0 0 6px; color: #f59e0b; font-size: .75rem; font-weight: 900; letter-spacing: .14em; }
 .admin-hero h1 { margin: 0; font-size: clamp(1.8rem, 8vw, 3.2rem); }
@@ -3617,6 +3620,20 @@ h2, h3 { margin: 0 0 10px; }
 .case-builder-next strong { color: #fde68a; font-size: 1rem; }
 .case-builder-next p { margin: 5px 0 0; color: #e2e8f0; line-height: 1.5; font-size: .88rem; }
 .case-builder-next button { flex: 0 0 auto; }
+.case-builder-next .case-builder-action {
+  border: 1px solid rgba(184,135,59,.68) !important;
+  background: var(--color-primary, #b8873b) !important;
+  color: #050a12 !important;
+  box-shadow: none;
+}
+.case-builder-next .case-builder-action:hover:not(:disabled) {
+  background: var(--color-primary-hover, #c99a4a) !important;
+}
+.case-builder-next .case-builder-action:disabled {
+  background: var(--color-primary, #b8873b) !important;
+  color: #050a12 !important;
+  opacity: .62;
+}
 .eyebrow { margin: 0 0 4px; color: #f59e0b !important; font-weight: 900; letter-spacing: .14em; font-size: .72rem; }
 .detail-head { display: flex; justify-content: space-between; gap: 12px; }
 .detail-head p { margin: 0 0 5px; color: #f59e0b; font-weight: 900; letter-spacing: .12em; font-size: .72rem; }

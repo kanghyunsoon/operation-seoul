@@ -18,15 +18,38 @@
     </header>
 
     <p v-if="message" class="toast" :class="messageType">{{ message }}</p>
-    <section v-if="areaCode" class="region-filter">
-      <strong>{{ selectedRegionLabel }}</strong>
-      <span>선택 권역의 공개 미션 파일만 표시합니다.</span>
-      <button type="button" @click="showAllEpisodes">전체 보기</button>
+    <form class="search-panel" @submit.prevent="applyFilters">
+      <label class="keyword-field">
+        <span>콘텐츠 검색</span>
+        <input v-model.trim="searchKeyword" type="search" placeholder="제목, 장소, 장르 키워드" />
+      </label>
+      <label>
+        <span>지역</span>
+        <select v-model="selectedAreaCode">
+          <option value="">전체 지역</option>
+          <option v-for="area in regionAreas" :key="area.code" :value="area.code">{{ area.label }}</option>
+        </select>
+      </label>
+      <label>
+        <span>시대</span>
+        <select v-model="selectedEra">
+          <option value="">전체 시대</option>
+          <option v-for="era in eraOptions" :key="era" :value="era">{{ era }}</option>
+        </select>
+      </label>
+      <div class="search-actions">
+        <button type="submit" class="search-submit">검색</button>
+        <button type="button" @click="resetFilters">초기화</button>
+      </div>
+    </form>
+    <section v-if="hasActiveFilters" class="filter-summary">
+      <strong>{{ totalEpisodeCount ?? 0 }}건</strong>
+      <span>{{ activeFilterSummary }}</span>
     </section>
     <section v-if="loading" class="state">미션 파일을 불러오는 중입니다.</section>
     <section v-else-if="error" class="state error">{{ error }}</section>
     <section v-else-if="!episodes.length" class="state">
-      이 권역에 공개된 미션 파일이 아직 없습니다. 다른 지역을 선택하거나 전체 사건을 확인하세요.
+      검색 조건에 맞는 공개 미션 파일이 없습니다. 검색어나 필터를 변경해 주세요.
     </section>
     <section v-else class="episode-list">
       <article v-for="episode in episodes" :key="episode.id" class="case-card" @click="openEpisode(episode.id)">
@@ -110,7 +133,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { episodeApi } from '@/api/episodeApi';
 import { favoriteApi } from '@/api/favoriteApi';
 import { playerAnalysisApi } from '@/api/playerAnalysisApi';
-import { regionLabel } from '@/constants/regionAreas.js';
+import { regionAreas, regionLabel } from '@/constants/regionAreas.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -129,8 +152,20 @@ const pageSize = 6;
 const pageOffset = ref(0);
 const hasMoreEpisodes = ref(false);
 const totalEpisodeCount = ref(null);
+const eraOptions = ref([]);
+const searchKeyword = ref(String(route.query.keyword || ''));
+const selectedAreaCode = ref(String(route.query.areaCode || ''));
+const selectedEra = ref(String(route.query.era || ''));
 const areaCode = computed(() => route.query.areaCode || '');
+const keyword = computed(() => route.query.keyword || '');
+const era = computed(() => route.query.era || '');
 const selectedRegionLabel = computed(() => areaCode.value ? regionLabel(areaCode.value) : '전체 권역');
+const hasActiveFilters = computed(() => Boolean(areaCode.value || keyword.value || era.value));
+const activeFilterSummary = computed(() => [
+  keyword.value ? `검색어 “${keyword.value}”` : '',
+  areaCode.value ? regionLabel(areaCode.value) : '',
+  era.value || ''
+].filter(Boolean).join(' · '));
 const currentPage = computed(() => Math.floor(pageOffset.value / pageSize) + 1);
 const totalPages = computed(() => totalEpisodeCount.value == null ? null : Math.max(1, Math.ceil(totalEpisodeCount.value / pageSize)));
 const canJumpLastPage = computed(() => totalPages.value != null && currentPage.value < totalPages.value);
@@ -146,8 +181,28 @@ const visiblePages = computed(() => {
   return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 });
 
-onMounted(loadEpisodes);
-watch(() => route.query.areaCode, () => loadPage(0));
+onMounted(async () => {
+  await loadFilterOptions();
+  await loadEpisodes();
+});
+watch(
+  () => [route.query.areaCode, route.query.keyword, route.query.era],
+  () => {
+    searchKeyword.value = String(route.query.keyword || '');
+    selectedAreaCode.value = String(route.query.areaCode || '');
+    selectedEra.value = String(route.query.era || '');
+    loadPage(0);
+  }
+);
+
+async function loadFilterOptions() {
+  try {
+    const options = await episodeApi.getFilterOptions();
+    eraOptions.value = Array.isArray(options?.eras) ? options.eras : [];
+  } catch {
+    eraOptions.value = [];
+  }
+}
 
 async function loadEpisodes() {
   return loadPage(pageOffset.value);
@@ -160,6 +215,8 @@ async function loadPage(offset = 0) {
   try {
     const response = await episodeApi.listEpisodes({
       ...(areaCode.value ? { areaCode: areaCode.value } : {}),
+      ...(keyword.value ? { keyword: keyword.value } : {}),
+      ...(era.value ? { era: era.value } : {}),
       limit: pageSize,
       offset: pageOffset.value
     });
@@ -186,7 +243,11 @@ async function loadPage(offset = 0) {
 const openEpisode = (episodeId) => router.push({
   name: 'EpisodeDetail',
   params: { episodeId },
-  query: areaCode.value ? { areaCode: areaCode.value } : {}
+  query: {
+    ...(areaCode.value ? { areaCode: areaCode.value } : {}),
+    ...(keyword.value ? { keyword: keyword.value } : {}),
+    ...(era.value ? { era: era.value } : {})
+  }
 });
 const openRanking = (episode) => router.push({ name: 'Ranking', query: { episodeId: episode.id, title: episode.title } });
 
@@ -195,8 +256,27 @@ function logout() {
   router.push({ name: 'Intro' });
 }
 
-function showAllEpisodes() {
-  pageOffset.value = 0;
+function applyFilters() {
+  const query = {
+    ...(searchKeyword.value ? { keyword: searchKeyword.value } : {}),
+    ...(selectedAreaCode.value ? { areaCode: selectedAreaCode.value } : {}),
+    ...(selectedEra.value ? { era: selectedEra.value } : {})
+  };
+  if (
+    String(route.query.keyword || '') === String(query.keyword || '')
+    && String(route.query.areaCode || '') === String(query.areaCode || '')
+    && String(route.query.era || '') === String(query.era || '')
+  ) {
+    loadPage(0);
+    return;
+  }
+  router.push({ name: 'EpisodeList', query });
+}
+
+function resetFilters() {
+  searchKeyword.value = '';
+  selectedAreaCode.value = '';
+  selectedEra.value = '';
   router.push({ name: 'EpisodeList' });
 }
 
@@ -318,9 +398,15 @@ button { min-height: 40px; border: 1px solid rgba(36,50,71,.94); border-radius: 
 .state, .toast { flex: 0 0 auto; width: min(100%, 1040px); box-sizing: border-box; margin: 0 auto; padding: 10px 14px; border: 1px dashed rgba(148,163,184,.35); border-radius: 12px; color: #cbd5e1; text-align: center; }
 .toast { border-style: solid; background: rgba(12,23,38,.72); color: #a7b2c3; }
 .toast.error, .state.error { color: #fecaca; background: rgba(127,29,29,.18); }
-.region-filter { flex: 0 0 auto; width: min(100%, 1040px); box-sizing: border-box; margin: 0 auto; padding: 9px 12px; border: 1px solid rgba(36,50,71,.94); border-radius: 12px; background: rgba(12,23,38,.72); display: flex; align-items: center; gap: 10px; color: #cbd5e1; font-size: .9rem; }
-.region-filter strong { color: #b9a476; }
-.region-filter button { margin-left: auto; min-height: 36px; background: rgba(8,17,30,.9); }
+.search-panel { flex: 0 0 auto; width: min(100%, var(--ok-frame)); max-width: var(--ok-frame); box-sizing: border-box; margin: 0 auto; padding: 12px; border: 1px solid rgba(36,50,71,.94); border-radius: var(--ok-radius-card); background: rgba(12,23,38,.82); display: grid; grid-template-columns: minmax(220px, 1fr) 150px 150px auto; align-items: end; gap: 10px; }
+.search-panel label { display: grid; gap: 6px; color: #b9a476; font-size: .76rem; font-weight: 900; }
+.search-panel input, .search-panel select { width: 100%; min-height: 40px; box-sizing: border-box; border: 1px solid rgba(71,85,105,.9); border-radius: 7px; padding: 0 11px; background: rgba(8,17,30,.96); color: #f3f6fa; font: inherit; }
+.search-panel input:focus, .search-panel select:focus { outline: 2px solid rgba(184,135,59,.4); border-color: transparent; }
+.search-actions { display: flex; gap: 7px; }
+.search-actions button { min-height: 40px; white-space: nowrap; }
+.search-submit { background: #b8873b; border-color: rgba(184,135,59,.68); color: #050a12; }
+.filter-summary { flex: 0 0 auto; width: min(100%, var(--ok-frame)); max-width: var(--ok-frame); box-sizing: border-box; margin: -4px auto 0; display: flex; align-items: center; gap: 8px; color: #94a3b8; font-size: .82rem; }
+.filter-summary strong { color: #d1bd8f; }
 .pagination { flex: 0 0 auto; width: min(100%, 980px); margin: 2px auto 8px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 7px; }
 .pagination button { min-width: 32px; width: 32px; min-height: 32px; padding: 0; border-radius: 4px; border: 1px solid rgba(148,163,184,.34); background: rgba(15,23,42,.8); color: #cbd5e1; }
 .pagination .page-number.active { border-color: rgba(184,135,59,.5); background: rgba(184,135,59,.16); color: #f3f6fa; }
@@ -368,8 +454,9 @@ button { min-height: 40px; border: 1px solid rgba(36,50,71,.94); border-radius: 
   .clear-stamp { right: 10px; bottom: 9px; width: 104px; height: 42px; }
   .clear-stamp span { font-size: .68rem; }
   .clear-stamp strong { font-size: .78rem; }
-  .region-filter { display: grid; }
-  .region-filter button { margin-left: 0; }
+  .search-panel { grid-template-columns: 1fr 1fr; }
+  .keyword-field, .search-actions { grid-column: 1 / -1; }
+  .search-actions button { flex: 1; }
   .pagination {
     margin-bottom: 8px;
     gap: 8px;

@@ -1,94 +1,96 @@
 # 구현 결과물 정리
 
-작성일: 2026-06-25
-
 ## 1. Back-End
 
 | 항목 | 내용 |
 | --- | --- |
-| 위치 | `backend/src/main/java/com/operation/seoul` |
-| Framework | Spring Boot 4, Spring Web MVC |
-| 인증 | Spring Security, JWT |
-| DB 연동 | MyBatis |
+| Framework | Spring Boot |
+| Security | Spring Security, JWT |
+| DB Access | MyBatis |
 | DB | MySQL |
-| 주요 패키지 | `auth`, `user`, `episode`, `admin.episode`, `review`, `community`, `favorite`, `plan`, `challenge`, `ranking`, `recommendation`, `coaching` |
+| Entry Point | `backend/src/main/java/com/operation/seoul/OperationSeoulApplication.java` |
+| Schema | `backend/src/main/resources/schema.sql` |
 
-주요 구현:
+### 주요 패키지
 
-- 회원가입/로그인/로그아웃 세션 처리.
-- JWT 인증 필터와 현재 사용자 resolver.
-- 관리자 회원/리뷰/에피소드 관리.
-- 공개 에피소드 목록, 상세, 지도, 도착 판정, 퍼즐, 단서 해금, 최종 추리, 클리어 처리.
-- 리뷰 CRUD 및 클리어 사용자 제한.
-- 찜, 팔로우, 일정, 그룹, 챌린지, 랭킹.
-- TourAPI/Kakao Local 기반 장소 후보.
-- Gemini 기반 관리자 초안 생성 구조.
+| 패키지 | 역할 |
+| --- | --- |
+| `auth` | 회원가입, 로그인, JWT, 현재 사용자 인증 |
+| `user` | 프로필, 팔로우, 피드, 관리자 회원 관리 |
+| `episode` | 에피소드 목록, 지도, 퍼즐, 최종 추리, 클리어 |
+| `casefile` | 단서/증거/용의자 미션 파일 조회 |
+| `review` | 에피소드 리뷰와 관리자 리뷰 관리 |
+| `community` | 권역 게시판, 답변, 좋아요 |
+| `ranking` | 클리어 랭킹 |
+| `challenge` | 챌린지 |
+| `recommendation` | 에피소드 추천 |
+| `coaching` | 플레이 코칭 |
+| `admin.episode` | 관리자 에피소드 생성/검수/AI 연동 |
+| `global` | 공통 응답, 예외, 보안/스키마 마이그레이션 |
 
 ## 2. Front-End
 
 | 항목 | 내용 |
 | --- | --- |
-| 위치 | `frontend/src` |
 | Framework | Vue 3 |
-| 상태 관리 | Pinia |
-| 라우팅 | Vue Router |
+| State | Pinia |
+| Router | Vue Router |
 | HTTP | Axios |
-| 주요 화면 | `views` 디렉터리 |
-| API 모듈 | `frontend/src/api` |
+| Map | Kakao Maps JavaScript |
+| Navigation | Tmap 링크/길찾기 |
 
-주요 구현:
+### 주요 위치
 
-- 로그인/회원가입.
-- 권역 선택 SVG 지도.
-- 에피소드 목록/상세/브리핑.
-- 지도 기반 장소 방문 및 퍼즐.
-- 미션 파일, 최종 추리, 클리어 리포트.
-- 마이페이지, 관심목록, 팔로우.
-- 챌린지, 추천, 코칭, 랭킹, 그룹, 일정.
-- 관리자 회원/리뷰/에피소드 화면.
-
-## 3. DB Schema
-
-| 산출물 | 위치 |
+| 위치 | 역할 |
 | --- | --- |
-| Schema SQL | `backend/src/main/resources/schema.sql` |
+| `frontend/src/views` | 라우트 화면 |
+| `frontend/src/components` | 공통 컴포넌트/미니게임 |
+| `frontend/src/api` | API Client |
+| `frontend/src/stores/sessionStore.js` | 로그인 세션 |
+| `frontend/src/router/index.js` | 라우팅과 인증 가드 |
+| `frontend/src/constants/regionAreas.js` | 권역 지도 메타 |
 
-주요 테이블:
+## 3. DB Schema 및 활용 데이터셋
 
-- `users`
-- `region`, `mission`
-- `episodes`
-- `game_session`
-- `clear_report`
-- `episode_reviews`, `episode_review_comments`
-- `region_review`, `region_question`, `region_answer`
-- `region_question_like`, `region_review_like`
-- `region_like`, `region_favorite`
-- `user_follow`
-- `user_plans`
-- `user_groups`, `user_group_members`
-- `challenges`, `user_challenge_entries`
-
-## 4. 활용 데이터셋
-
-| 데이터 | 활용 방식 | 상태 |
+| 데이터 | 위치/생성 방식 | 설명 |
 | --- | --- | --- |
-| TourAPI 장소 후보 | 관리자 에피소드 초안의 기준 장소 후보 조회 | 구현 |
-| Kakao Local 주변 장소 | 기준 장소 주변 후보 보강 | 구현 |
-| 내부 seed/관리자 생성 에피소드 | 시연용 에피소드 데이터 | 구현 |
-| 사용자 플레이 기록 | 추천/코칭/랭킹/챌린지 계산 | 구현 |
-| Gemini 생성 초안 | 미션 서사/퍼즐/단서 초안 생성 | 구현 |
+| 기본 스키마 | `schema.sql` | 사용자, 지역, 에피소드, 장소, 퍼즐, 커뮤니티 등 |
+| 에피소드 Seed | `EpisodeSchemaMigration` | EP.01 기본 플레이 데이터 |
+| 커뮤니티 권역 Seed | `RegionSchemaMigration` | 권역 커뮤니티 기본 region 데이터 |
+| 챌린지 Seed | `CommunitySchemaMigration` | 기본 챌린지 |
+| 외부 후보 데이터 | TourAPI/Kakao Local 응답 | 관리자 검수 후 에피소드 후보로 활용 |
+| AI 초안 데이터 | Gemini 응답 | DRAFT 저장 전 검증 대상으로 활용 |
 
-## 5. 검증 결과
+## 4. 실행 명령
 
-현재 확인된 검증:
+### Backend
 
-- Front-End: `npm run build` 통과.
-- Back-End: JUnit 테스트 파일 존재. 주요 서비스 단위 테스트 포함.
+```powershell
+cd backend
+$env:JAVA_HOME='C:\Users\Administrator\.jdks\ms-17.0.19'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+.\gradlew.bat bootRun
+```
 
-추가 권장 검증:
+### Frontend
 
-- `backend` 전체 `test` 실행 결과 캡처.
-- 실제 MySQL 연결 상태에서 API smoke test.
-- 모바일 기기에서 Kakao Map/Tmap/GPS 도착 판정 검증.
-- 에피소드 목록 UI의 1366x768, 1440x900, 모바일 viewport 캡처 검증.
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+## 5. 검증 명령
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\Users\Administrator\.jdks\ms-17.0.19'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+.\gradlew.bat compileJava
+```
+
+```powershell
+cd frontend
+npm run build
+```
+

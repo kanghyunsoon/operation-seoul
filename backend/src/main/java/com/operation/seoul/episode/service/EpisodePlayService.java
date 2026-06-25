@@ -65,58 +65,44 @@ public class EpisodePlayService {
     @Value("${app.dev-mode.arrival-enabled:false}")
     private boolean arrivalDevModeEnabled;
 
-    public EpisodePageResponse getEpisodes(User user, String areaCode, int limit, int offset) {
+    public EpisodePageResponse getEpisodes(User user, String areaCode, String keyword, String era, int limit, int offset) {
         int pageLimit = Math.min(30, Math.max(1, limit));
         int pageOffset = Math.max(0, offset);
         Set<Long> favoriteEpisodeIds = new LinkedHashSet<>(favoriteRepository.findEpisodeIdsByUserId(user.getId()));
         String normalizedAreaCode = areaCode == null || areaCode.isBlank() ? null : operationAreaResolver.normalizeAreaCode(areaCode);
-        if (normalizedAreaCode == null) {
-            List<Episode> page = episodeRepository.findPublishedEpisodesPage(pageLimit, pageOffset);
-            int totalCount = episodeRepository.countPublishedEpisodes();
-            return EpisodePageResponse.builder()
-                    .items(page.stream().map(episode -> toEpisodeListItem(episode, favoriteEpisodeIds, user.getId())).toList())
-                    .limit(pageLimit)
-                    .offset(pageOffset)
-                    .hasMore(pageOffset + page.size() < totalCount)
-                    .totalCount(totalCount)
-                    .build();
-        }
+        String normalizedKeyword = normalizeFilter(keyword);
+        String normalizedEra = normalizeFilter(era);
+        List<Episode> matched = episodeRepository.findPublishedEpisodes().stream()
+                .sorted((left, right) -> Long.compare(right.getId(), left.getId()))
+                .filter(episode -> normalizedAreaCode == null || episodeMatchesArea(episode.getId(), normalizedAreaCode))
+                .filter(episode -> normalizedEra == null || normalizedEra.equals(normalizeFilter(episode.getEra())))
+                .filter(episode -> normalizedKeyword == null || episodeMatchesKeyword(episode, normalizedKeyword))
+                .toList();
 
-        return getAreaFilteredEpisodesPage(normalizedAreaCode, favoriteEpisodeIds, user.getId(), pageLimit, pageOffset);
-    }
-
-    private EpisodePageResponse getAreaFilteredEpisodesPage(String areaCode, Set<Long> favoriteEpisodeIds, Long userId, int limit, int offset) {
-        int dbOffset = 0;
-        int matchedCount = 0;
-        boolean hasMore = false;
-        List<EpisodeListItemResponse> items = new ArrayList<>();
-        int batchSize = Math.max(limit * 2, 12);
-
-        while (true) {
-            List<Episode> candidates = episodeRepository.findPublishedEpisodesPage(batchSize, dbOffset);
-            if (candidates.isEmpty()) break;
-            dbOffset += candidates.size();
-
-            for (Episode episode : candidates) {
-                if (!episodeMatchesArea(episode.getId(), areaCode)) continue;
-                if (matchedCount++ < offset) continue;
-                if (items.size() < limit) {
-                    items.add(toEpisodeListItem(episode, favoriteEpisodeIds, userId));
-                } else {
-                    hasMore = true;
-                    break;
-                }
-            }
-            if (hasMore || candidates.size() < batchSize) break;
-        }
+        List<EpisodeListItemResponse> items = matched.stream()
+                .skip(pageOffset)
+                .limit(pageLimit)
+                .map(episode -> toEpisodeListItem(episode, favoriteEpisodeIds, user.getId()))
+                .toList();
 
         return EpisodePageResponse.builder()
                 .items(items)
-                .limit(limit)
-                .offset(offset)
-                .hasMore(hasMore)
-                .totalCount(null)
+                .limit(pageLimit)
+                .offset(pageOffset)
+                .hasMore(pageOffset + items.size() < matched.size())
+                .totalCount(matched.size())
                 .build();
+    }
+
+    public EpisodeFilterOptionsResponse getEpisodeFilterOptions() {
+        List<String> eras = episodeRepository.findPublishedEpisodes().stream()
+                .map(Episode::getEra)
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .toList();
+        return EpisodeFilterOptionsResponse.builder().eras(eras).build();
     }
 
     private EpisodeListItemResponse toEpisodeListItem(Episode episode, Set<Long> favoriteEpisodeIds, Long userId) {
@@ -141,6 +127,32 @@ public class EpisodePlayService {
         return episodeRepository.findSpotsByEpisodeId(episodeId).stream()
                 .filter(spot -> spot.getLatitude() != null && spot.getLongitude() != null)
                 .anyMatch(spot -> operationAreaResolver.isInsideAreaCode(areaCode, spot.getLatitude(), spot.getLongitude()));
+    }
+
+    private boolean episodeMatchesKeyword(Episode episode, String keyword) {
+        if (Stream.of(
+                        episode.getTitle(),
+                        episode.getSubtitle(),
+                        episode.getEra(),
+                        episode.getGenre(),
+                        episode.getDifficulty(),
+                        episode.getFictionSynopsis(),
+                        episode.getMissionDescription()
+                ).anyMatch(value -> containsIgnoreCase(value, keyword))) {
+            return true;
+        }
+        return episodeRepository.findSpotsByEpisodeId(episode.getId()).stream()
+                .anyMatch(spot -> containsIgnoreCase(spot.getPlaceName(), keyword)
+                        || containsIgnoreCase(spot.getAddress(), keyword)
+                        || containsIgnoreCase(spot.getStoryText(), keyword));
+    }
+
+    private String normalizeFilter(String value) {
+        return value == null || value.isBlank() ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean containsIgnoreCase(String value, String keyword) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(keyword);
     }
 
     private String localizeEstimatedTime(String value) {

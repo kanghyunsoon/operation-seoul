@@ -27,10 +27,18 @@ public class EpisodePlayController {
     @GetMapping("/episodes")
     public ResponseEntity<ApiResponse<EpisodePageResponse>> getEpisodes(
             @RequestParam(required = false) String areaCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String era,
             @RequestParam(defaultValue = "6") int limit,
             @RequestParam(defaultValue = "0") int offset
     ) {
-        return ResponseEntity.ok(ApiResponse.ok("에피소드 목록입니다.", episodePlayService.getEpisodes(currentUserResolver.requireCurrentUser(), areaCode, limit, offset)));
+        return ResponseEntity.ok(ApiResponse.ok("에피소드 목록입니다.",
+                episodePlayService.getEpisodes(currentUserResolver.requireCurrentUser(), areaCode, keyword, era, limit, offset)));
+    }
+
+    @GetMapping("/episodes/filter-options")
+    public ResponseEntity<ApiResponse<EpisodeFilterOptionsResponse>> getEpisodeFilterOptions() {
+        return ResponseEntity.ok(ApiResponse.ok("에피소드 필터 옵션입니다.", episodePlayService.getEpisodeFilterOptions()));
     }
 
     @GetMapping("/episodes/{episodeId}")

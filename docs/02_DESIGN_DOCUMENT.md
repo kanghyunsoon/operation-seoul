@@ -1,127 +1,100 @@
 # 설계 문서
 
-작성일: 2026-06-25
-
-## 1. 시스템 개요
-
-Operation KOREA는 Spring Boot REST API 서버와 Vue.js SPA를 연동한 장소 기반 미션 서비스다. DB는 MySQL을 기준으로 하고, 백엔드 영속성 계층은 MyBatis를 사용한다.
-
-## 2. 아키텍처
+## 1. 시스템 아키텍처
 
 ```mermaid
 flowchart LR
-  User[사용자/관리자] --> Vue[Vue 3 SPA]
-  Vue --> API[Spring Boot REST API]
-  API --> MyBatis[MyBatis Repository]
-  MyBatis --> MySQL[(MySQL)]
-  API --> TourAPI[TourAPI]
-  API --> KakaoLocal[Kakao Local API]
-  Vue --> KakaoMap[Kakao Map JS]
-  Vue --> Tmap[Tmap 길찾기]
-  API --> Gemini[Gemini API]
+    User[사용자 모바일 브라우저] --> Vue[Vue 3 Front-End]
+    Admin[관리자] --> Vue
+    Vue --> Axios[Axios API Client]
+    Axios --> Spring[Spring Boot REST API]
+    Spring --> Security[Spring Security + JWT]
+    Spring --> MyBatis[MyBatis Repository]
+    MyBatis --> MySQL[(MySQL)]
+    Spring --> TourAPI[TourAPI]
+    Spring --> KakaoLocal[Kakao Local API]
+    Vue --> KakaoMap[Kakao Maps JS]
+    Vue --> Tmap[Tmap Navigation]
+    Spring --> Gemini[Gemini API]
 ```
 
-## 3. Use-Case Diagram
+## 2. 백엔드 설계
+
+| 계층 | 역할 | 대표 패키지 |
+| --- | --- | --- |
+| Controller | REST API 요청/응답 처리 | `auth`, `episode`, `community`, `admin` |
+| Service | 비즈니스 규칙, 검증, 상태 전이 | `EpisodePlayService`, `AdminEpisodeService` |
+| Repository | MyBatis SQL 접근 | `*Repository` |
+| Domain | DB 엔티티 형태 객체 | `domain` |
+| DTO | API 요청/응답 모델 | `dto` |
+| Config | 보안, 마이그레이션, 필터 | `global.config` |
+
+## 3. 프론트엔드 설계
+
+| 영역 | 역할 |
+| --- | --- |
+| `views` | 라우트 단위 화면 |
+| `components` | 재사용 UI와 미니게임 |
+| `api` | Axios 기반 API 래퍼 |
+| `stores` | Pinia 세션 상태 |
+| `router` | 인증/관리자 접근 제어 |
+| `constants` | 권역 지도/메타 데이터 |
+
+## 4. Use-Case Diagram
 
 ```mermaid
 flowchart TB
-  Guest[비회원]
-  User[일반 사용자]
-  Admin[관리자]
+    Guest((비회원))
+    Player((일반 사용자))
+    Admin((관리자))
 
-  Guest --> UC1[회원가입]
-  Guest --> UC2[로그인]
-  User --> UC3[권역 선택]
-  User --> UC4[에피소드 목록/상세 조회]
-  User --> UC5[미션 시작/지도 확인]
-  User --> UC6[장소 도착 판정]
-  User --> UC7[퍼즐 풀이]
-  User --> UC8[단서/증거/용의자 확인]
-  User --> UC9[최종 추리/정답 제출]
-  User --> UC10[리뷰 작성/수정/삭제]
-  User --> UC11[찜/관심 목록 관리]
-  User --> UC12[팔로우/일정/그룹/챌린지]
-  User --> UC13[추천/코칭 확인]
+    Guest --> UC1[회원가입/로그인]
+    Player --> UC2[에피소드 선택]
+    Player --> UC3[지도에서 장소 이동]
+    Player --> UC4[퍼즐 풀이]
+    Player --> UC5[단서/증거 확인]
+    Player --> UC6[최종 추리/정답 제출]
+    Player --> UC7[리뷰/커뮤니티 작성]
+    Player --> UC8[랭킹/챌린지/추천/코칭 확인]
 
-  Admin --> UC14[회원 관리]
-  Admin --> UC15[리뷰 관리]
-  Admin --> UC16[장소 후보 조회]
-  Admin --> UC17[AI 초안 생성]
-  Admin --> UC18[에피소드 등록/수정/공개]
+    Admin --> UC9[회원 관리]
+    Admin --> UC10[리뷰 관리]
+    Admin --> UC11[장소 후보 조회]
+    Admin --> UC12[AI 에피소드 초안 생성]
+    Admin --> UC13[에피소드 검수/공개]
 ```
 
-## 4. ER Diagram
+## 5. ER Diagram
 
 ```mermaid
 erDiagram
-  users ||--o{ user_follow : follows
-  users ||--o{ user_plans : plans
-  users ||--o{ episode_reviews : writes
-  users ||--o{ user_groups : owns
-  users ||--o{ user_group_members : joins
-  users ||--o{ user_challenge_entries : joins
-  users ||--o{ game_session : plays
-
-  episodes ||--o{ episode_reviews : has
-  episodes ||--o{ user_plans : planned
-  episodes ||--o{ game_session : played
-
-  region ||--o{ mission : has
-  region ||--o{ region_review : has
-  region ||--o{ region_question : has
-  region_question ||--o{ region_answer : has
-
-  challenges ||--o{ user_challenge_entries : has
-  user_groups ||--o{ user_group_members : has
-
-  users {
-    bigint id PK
-    varchar email
-    varchar password
-    varchar nickname
-    boolean is_admin
-  }
-  episodes {
-    bigint id PK
-    varchar title
-  }
-  episode_reviews {
-    bigint id PK
-    bigint episode_id FK
-    bigint user_id FK
-  }
-  user_plans {
-    bigint id PK
-    bigint user_id FK
-    bigint episode_id FK
-  }
-  challenges {
-    bigint id PK
-  }
+    users ||--o{ user_episode_progress : plays
+    users ||--o{ episode_reviews : writes
+    users ||--o{ region_question : posts
+    users ||--o{ region_answer : comments
+    users ||--o{ episode_favorites : favorites
+    users ||--o{ user_follow : follows
+    episodes ||--o{ mission_spots : has
+    episodes ||--o{ puzzles : has
+    episodes ||--o{ user_episode_progress : records
+    episodes ||--o{ episode_reviews : receives
+    mission_spots ||--o{ puzzles : contains
+    puzzles ||--o{ puzzle_hints : has
+    episodes ||--o{ case_suspects : has
+    episodes ||--o{ case_evidences : has
+    episodes ||--o{ final_deduction_sessions : has
+    final_deduction_sessions ||--o{ final_deduction_questions : logs
+    region ||--o{ region_question : has
+    region_question ||--o{ region_answer : has
+    region_question ||--o{ region_question_like : liked
+    challenges ||--o{ user_challenge_entries : joined
 ```
 
-## 5. 주요 도메인 설계
+## 6. 핵심 설계 결정
 
-| 도메인 | 책임 | 주요 파일 |
-| --- | --- | --- |
-| Auth/User | 로그인, JWT, 내 정보, 관리자 회원 관리 | `auth`, `user` package |
-| Episode | 공개 에피소드 조회, 플레이, 지도, 퍼즐, 최종 추리 | `episode` package |
-| Admin Episode | 에피소드 생성/검수/공개, AI 초안 | `admin/episode` package |
-| Review | 에피소드 리뷰, 관리자 리뷰 관리 | `review` package |
-| Community | 권역 리뷰/Q&A/답변 | `community` package |
-| Favorite/Follow/Plan | 찜, 팔로우, 일정 관리 | `favorite`, `user`, `plan` |
-| Challenge/Ranking/Coaching | 챌린지, 랭킹, 추천/코칭 | `challenge`, `ranking`, `recommendation`, `coaching` |
+- 사용자 지도 API에는 `is_final_place`를 노출하지 않고 `publicMarkerType`만 제공한다.
+- 퍼즐 보상은 `reward_payload` JSON으로 단서/증거/용의자 해금을 유연하게 처리한다.
+- 관리자 AI 생성 결과는 즉시 공개하지 않고 DRAFT 저장, 검증, publish readiness를 거친다.
+- 외부 API 키는 properties 파일에 직접 저장하지 않고 환경변수로 주입한다.
+- 커뮤니티 권역은 기본 seed를 보장해 비어 있는 DB에서도 게시글 작성이 가능하게 한다.
 
-## 6. 보안 설계
-
-- JWT 기반 인증.
-- 관리자 라우트는 프론트 router meta와 백엔드 권한 검사로 분리.
-- 비활성/삭제 사용자는 로그인과 보호 API 접근 제한.
-- 사용자 지도 응답에는 실제 최종 장소 내부 필드를 노출하지 않는다.
-
-## 7. API 설계 원칙
-
-- `/api/v1` prefix 사용.
-- 사용자 기능과 관리자 기능 분리.
-- 목록 API는 query param 기반 필터링.
-- 프론트 API 클라이언트는 `frontend/src/api`에 기능별 모듈로 분리.
