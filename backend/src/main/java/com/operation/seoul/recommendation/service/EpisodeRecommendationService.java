@@ -53,9 +53,6 @@ public class EpisodeRecommendationService {
         if (Boolean.TRUE.equals(candidate.getFavorited())) {
             score += 18;
         }
-        if (Boolean.TRUE.equals(candidate.getPlanned())) {
-            score += 12;
-        }
         int genreMatches = recommendationRepository.countClearedGenre(user.getId(), candidate.getGenre());
         int difficultyMatches = recommendationRepository.countClearedDifficulty(user.getId(), candidate.getDifficulty());
         if (genreMatches > 0) {
@@ -82,9 +79,6 @@ public class EpisodeRecommendationService {
     private String buildReason(EpisodeRecommendationResponse candidate, int clearedCount, int genreMatches, int difficultyMatches) {
         if (Boolean.TRUE.equals(candidate.getCleared())) {
             return "이미 클리어한 사건입니다. 다시 플레이하거나 기록을 비교하고 싶을 때 적합합니다.";
-        }
-        if (Boolean.TRUE.equals(candidate.getPlanned())) {
-            return "이미 내 일정에 담아둔 사건이라 바로 준비를 이어가기 좋습니다.";
         }
         if (Boolean.TRUE.equals(candidate.getFavorited())) {
             return "관심 목록에 담아둔 사건이라 우선 플레이 후보로 추천합니다.";

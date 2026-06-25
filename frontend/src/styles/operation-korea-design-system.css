@@ -1,0 +1,772 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+@font-face {
+  font-family: 'ClimateCrisisKorean';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2212@1.0/ClimateCrisisKR-2000.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --color-bg: #050A12;
+  --color-bg-soft: #08111E;
+  --color-surface: #0C1726;
+  --color-surface-2: #111F33;
+  --color-border: #243247;
+  --color-border-soft: #182538;
+  --color-border-accent: #8F6A32;
+  --color-primary: #B8873B;
+  --color-primary-hover: #C99A4A;
+  --color-primary-muted: #6F552B;
+  --color-primary-soft: rgba(184, 135, 59, 0.12);
+  --color-text: #F3F6FA;
+  --color-text-muted: #A7B2C3;
+  --color-text-subtle: #697789;
+  --color-danger: #6E2F34;
+  --color-danger-border: #9A4A50;
+  --color-danger-soft: rgba(110, 47, 52, 0.18);
+  --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.35);
+
+  --ok-canvas: var(--color-bg);
+  --ok-canvas-soft: var(--color-bg-soft);
+  --ok-panel: rgba(11, 22, 38, 0.9);
+  --ok-panel-soft: rgba(16, 29, 49, 0.78);
+  --ok-primary: var(--color-primary);
+  --ok-primary-soft: var(--color-primary-hover);
+  --ok-primary-deep: var(--color-primary-muted);
+  --ok-cyan: #58b7df;
+  --ok-ink: var(--color-text);
+  --ok-ink-strong: #ffffff;
+  --ok-body: var(--color-text-muted);
+  --ok-muted: var(--color-text-subtle);
+  --ok-hairline: rgba(143, 106, 50, 0.28);
+  --ok-hairline-cool: rgba(36, 50, 71, 0.94);
+  --ok-radius-button: 6px;
+  --ok-radius-card: 12px;
+  --ok-shadow: var(--shadow-card);
+  --ok-frame: 1120px;
+  --ok-page-x: 16px;
+  --ok-frame-gap: 18px;
+  --ok-title-frame-min: 132px;
+  --ok-title-frame-pad-y: 22px;
+  --ok-title-frame-pad-x: 22px;
+  color-scheme: dark;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  background: var(--ok-canvas);
+  color: var(--ok-ink);
+  font-family: Pretendard, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body {
+  margin: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(circle at 76% 18%, rgba(184, 135, 59, 0.08), transparent 24%),
+    radial-gradient(circle at 18% 24%, rgba(91, 119, 153, 0.08), transparent 28%),
+    linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-soft) 48%, #03070e 100%);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(244,247,251,0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(244,247,251,0.018) 1px, transparent 1px),
+    radial-gradient(circle at 68% 42%, rgba(184,135,59,.08), transparent 0.8%, transparent 1.4%, rgba(184,135,59,.06) 1.45%, transparent 2.1%),
+    radial-gradient(circle at 53% 58%, rgba(184,135,59,.07), transparent 0.7%, transparent 1.3%, rgba(184,135,59,.04) 1.35%, transparent 2%),
+    linear-gradient(120deg, transparent 0 40%, rgba(143,106,50,.06) 40.2%, transparent 40.6% 56%, rgba(88,183,223,.04) 56.2%, transparent 56.6%);
+  background-size: 44px 44px, 44px 44px, 100% 100%, 100% 100%, 100% 100%;
+  opacity: .55;
+  mix-blend-mode: screen;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 34%, rgba(0,0,0,.42) 100%),
+    linear-gradient(90deg, rgba(5,11,20,.82), transparent 38%, rgba(5,11,20,.52));
+}
+
+.project-title {
+  font-family: 'ClimateCrisisKorean', Pretendard, sans-serif;
+  font-weight: 700;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: Pretendard, system-ui, sans-serif;
+}
+
+:where(
+  .intro-container,
+  .region-page,
+  .episode-page,
+  .tab-page,
+  .mypage,
+  .reviews-page,
+  .profile-edit-page,
+  .ranking-page,
+  .challenge-ranking-page,
+  .recommend-page,
+  .coaching-page,
+  .community-page,
+  .detail-page,
+  .post-write-page,
+  .feed-page,
+  .map-page,
+  .case-file-page,
+  .deduction-page,
+  .debrief-page,
+  .briefing-page,
+  .report-page,
+  .admin-review-page,
+  .admin-user-page,
+  .admin-page
+) {
+  background: transparent !important;
+  color: var(--ok-ink) !important;
+  font-family: Pretendard, system-ui, sans-serif !important;
+}
+
+:where(
+  .region-page,
+  .episode-page,
+  .tab-page,
+  .mypage,
+  .reviews-page,
+  .profile-edit-page,
+  .ranking-page,
+  .challenge-ranking-page,
+  .recommend-page,
+  .coaching-page,
+  .community-page,
+  .detail-page,
+  .post-write-page,
+  .feed-page,
+  .map-page,
+  .case-file-page,
+  .deduction-page,
+  .debrief-page,
+  .briefing-page,
+  .report-page,
+  .admin-review-page,
+  .admin-user-page,
+  .admin-page,
+  .admin-episode-page
+) {
+  padding-left: var(--ok-page-x) !important;
+  padding-right: var(--ok-page-x) !important;
+}
+
+:where(
+  .hero,
+  .admin-hero,
+  .admin-page-tabs,
+  .top-tabs,
+  .global-message,
+  .content-shell,
+  .board-shell,
+  .map-shell,
+  .region-shell,
+  .profile-panel,
+  .section-block,
+  .summary-panel,
+  .report-card,
+  .review-panel,
+  .settings-grid,
+  .social-panel,
+  .recommend-list,
+  .clear-grid,
+  .dossier,
+  .terminal-card,
+  .debrief-card,
+  .report,
+  .toast,
+  .state
+),
+.episode-page > .episode-list,
+.tab-page > .card-grid,
+.community-page > .layout,
+.admin-review-page > .filters,
+.admin-review-page > .review-grid,
+.admin-review-page > .empty,
+.admin-user-page > .filters,
+.admin-user-page > .user-grid,
+.admin-user-page > .empty,
+.admin-episode-page > .layout {
+  width: min(100%, var(--ok-frame)) !important;
+  max-width: var(--ok-frame) !important;
+  box-sizing: border-box !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --ok-page-x: 12px;
+    --ok-title-frame-min: 152px;
+    --ok-title-frame-pad-y: 18px;
+    --ok-title-frame-pad-x: 16px;
+  }
+}
+
+:where(
+  .hero,
+  .admin-hero,
+  .login-card,
+  .panel,
+  .content-shell,
+  .board-shell,
+  .profile-panel,
+  .section-block,
+  .summary-panel,
+  .report-card,
+  .dossier,
+  .terminal-card,
+  .debrief-card,
+  .report,
+  .map-card,
+  .region-list,
+  .review-panel,
+  .paper-block,
+  .modal-panel,
+  .modal-card,
+  .analysis-modal,
+  .clue-modal,
+  .state,
+  .toast,
+  .filters
+) {
+  border: 1px solid var(--ok-hairline) !important;
+  border-radius: var(--ok-radius-card) !important;
+  background:
+    linear-gradient(145deg, rgba(16, 29, 49, .94), rgba(7, 17, 31, .94)) !important;
+  color: var(--ok-ink) !important;
+  box-shadow: var(--ok-shadow) !important;
+}
+
+:where(.hero, .admin-hero) {
+  max-width: var(--ok-frame) !important;
+  height: var(--ok-title-frame-min) !important;
+  min-height: var(--ok-title-frame-min) !important;
+  max-height: var(--ok-title-frame-min) !important;
+  box-sizing: border-box !important;
+  padding: var(--ok-title-frame-pad-y) var(--ok-title-frame-pad-x) !important;
+  margin-bottom: var(--ok-frame-gap) !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  border-color: var(--ok-hairline-cool) !important;
+  overflow: hidden !important;
+}
+
+:where(.hero > div:first-child, .admin-hero > div:first-child) {
+  min-width: 0 !important;
+}
+
+:where(.hero h1, .admin-hero h1) {
+  margin: 0 !important;
+  font-size: clamp(2rem, 4.2vw, 2.8rem) !important;
+  line-height: .94 !important;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+:where(.hero p:first-child, .admin-hero p:first-child) {
+  margin: 0 0 8px !important;
+  font-size: .78rem !important;
+  line-height: 1.2 !important;
+}
+
+:where(.hero span, .admin-hero span) {
+  margin-top: 10px !important;
+  line-height: 1.45 !important;
+}
+
+:where(.hero-actions, .header-actions) {
+  align-self: flex-end !important;
+  max-height: calc(var(--ok-title-frame-min) - (var(--ok-title-frame-pad-y) * 2)) !important;
+  overflow: auto !important;
+  scrollbar-width: thin;
+}
+
+.feed-page > .profile-panel {
+  height: var(--ok-title-frame-min) !important;
+  min-height: var(--ok-title-frame-min) !important;
+  max-height: var(--ok-title-frame-min) !important;
+  width: min(100%, var(--ok-frame)) !important;
+  max-width: var(--ok-frame) !important;
+  margin: 0 auto var(--ok-frame-gap) !important;
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: 88px minmax(0, 1fr) minmax(300px, 390px) !important;
+  grid-template-rows: 1fr !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: var(--ok-title-frame-pad-y) var(--ok-title-frame-pad-x) !important;
+  border: 1px solid var(--ok-hairline-cool) !important;
+  border-radius: var(--ok-radius-card) !important;
+  background: linear-gradient(145deg, rgba(18, 31, 51, .92), rgba(8, 15, 28, .88)) !important;
+  color: var(--ok-ink) !important;
+  box-shadow: var(--ok-shadow) !important;
+  overflow: hidden !important;
+}
+
+.feed-page > .profile-panel .avatar {
+  width: 78px !important;
+  height: 78px !important;
+  border-color: var(--ok-hairline-cool) !important;
+  background: rgba(11, 20, 35, .72) !important;
+}
+
+.feed-page > .profile-panel .profile-copy {
+  min-width: 0 !important;
+}
+
+.feed-page > .profile-panel .profile-copy h1 {
+  margin: 0 !important;
+  font-size: clamp(2rem, 4.2vw, 2.8rem) !important;
+  line-height: .94 !important;
+  color: var(--ok-ink-strong) !important;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.feed-page > .profile-panel .profile-copy p {
+  margin: 10px 0 0 !important;
+  color: var(--ok-body) !important;
+  font-size: .95rem !important;
+  line-height: 1.45 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.feed-page > .profile-panel .profile-stats {
+  grid-column: auto !important;
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.feed-page > .profile-panel .stat-card {
+  min-height: 54px !important;
+  border-width: 1px !important;
+  border-color: var(--ok-hairline-cool) !important;
+  background: rgba(13, 24, 41, .74) !important;
+  color: var(--ok-ink) !important;
+}
+
+.feed-page > .profile-panel .profile-stats strong {
+  color: var(--ok-primary-soft) !important;
+}
+
+.feed-page > .profile-panel .profile-stats span {
+  color: var(--ok-body) !important;
+}
+
+@media (max-width: 640px) {
+  :where(.hero, .admin-hero) {
+    height: var(--ok-title-frame-min) !important;
+    max-height: var(--ok-title-frame-min) !important;
+    align-items: stretch !important;
+  }
+
+  :where(.hero h1, .admin-hero h1) {
+    font-size: clamp(2rem, 12vw, 3rem) !important;
+  }
+
+  .feed-page > .profile-panel {
+    height: auto !important;
+    max-height: none !important;
+    grid-template-columns: 64px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    align-items: center !important;
+  }
+
+  .feed-page > .profile-panel .avatar {
+    width: 62px !important;
+    height: 62px !important;
+  }
+
+  .feed-page > .profile-panel .profile-copy h1 {
+    font-size: clamp(2rem, 12vw, 3rem) !important;
+  }
+
+  .feed-page > .profile-panel .profile-stats {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+:where(.top-tabs, .admin-page-tabs, .filters) {
+  margin-top: 0 !important;
+  margin-bottom: var(--ok-frame-gap) !important;
+}
+
+.challenge-ranking-page > .top-tabs {
+  height: 56px !important;
+  min-height: 56px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  padding: 8px !important;
+  border: 1px solid var(--ok-hairline-cool) !important;
+  border-radius: var(--ok-radius-card) !important;
+  background: linear-gradient(145deg, rgba(16, 29, 49, .94), rgba(7, 17, 31, .94)) !important;
+  box-shadow: var(--ok-shadow) !important;
+}
+
+.challenge-ranking-page > .top-tabs button {
+  min-height: 40px !important;
+  border: 1px solid var(--ok-hairline-cool) !important;
+  border-radius: var(--ok-radius-button) !important;
+  background: rgba(11, 20, 35, .72) !important;
+  color: var(--ok-body) !important;
+}
+
+.challenge-ranking-page > .top-tabs button.active {
+  border-color: rgba(184, 135, 59, .68) !important;
+  background: var(--color-primary) !important;
+  color: #050B14 !important;
+}
+
+.challenge-ranking-page > .content-shell {
+  border: 1px solid var(--ok-hairline-cool) !important;
+  border-radius: var(--ok-radius-card) !important;
+  background: linear-gradient(145deg, rgba(16, 29, 49, .94), rgba(7, 17, 31, .94)) !important;
+  box-shadow: var(--ok-shadow) !important;
+}
+
+:where(.content-shell, .board-shell, .map-shell, .region-shell, .profile-panel, .section-block, .review-panel, .settings-grid, .social-panel, .recommend-list, .clear-grid, .dossier, .terminal-card, .debrief-card, .report),
+.episode-page > .episode-list,
+.community-page > .layout,
+.admin-episode-page > .layout {
+  margin-top: 0 !important;
+}
+
+:where(
+  .case-card,
+  .clear-card,
+  .post-card,
+  .goal-card,
+  .ranking-list li,
+  .review-card,
+  .feed-card,
+  .recommend-card,
+  .analysis-card,
+  .empty-card,
+  .metric-grid article,
+  .score-card div,
+  .profile-panel article,
+  .stat-card,
+  .notice-frame,
+  .popular-frame,
+  .comment-card,
+  .answer-card,
+  .suspect-card,
+  .evidence-card,
+  .clue-summary-grid article
+) {
+  position: relative;
+  border: 1px solid var(--ok-hairline-cool) !important;
+  border-radius: 12px !important;
+  background: linear-gradient(145deg, rgba(11, 22, 38, .9), rgba(7, 17, 31, .9)) !important;
+  color: var(--ok-ink) !important;
+  box-shadow: 0 10px 24px rgba(0,0,0,.24) !important;
+  overflow: hidden;
+}
+
+:where(
+  .case-card,
+  .clear-card,
+  .post-card,
+  .goal-card,
+  .review-card,
+  .feed-card,
+  .recommend-card,
+  .analysis-card,
+  .empty-card,
+  .suspect-card,
+  .evidence-card,
+  .clue-summary-grid article
+)::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--color-primary-muted);
+  opacity: .34;
+}
+
+:where(
+  .case-card:hover,
+  .clear-card:hover,
+  .post-card:hover,
+  .goal-card:hover,
+  .review-card:hover,
+  .feed-card:hover,
+  .recommend-card:hover,
+  .analysis-card:hover,
+  .suspect-card:hover,
+  .evidence-card:hover
+)::before {
+  opacity: .78;
+}
+
+:where(h1, h2, h3, h4) {
+  color: var(--ok-ink-strong) !important;
+  font-family: Pretendard, system-ui, sans-serif !important;
+  letter-spacing: 0 !important;
+}
+
+:where(p, span, small, li, dd, dt, label, th, td) {
+  font-family: Pretendard, system-ui, sans-serif !important;
+}
+
+:where(.eyebrow, .section-label, .stamp, .mode-label, .hero p:first-child, .admin-hero p:first-child) {
+  color: #9f8a62 !important;
+  letter-spacing: .14em !important;
+  text-transform: uppercase;
+}
+
+:where(.subtitle, .question, .section-help, .empty, .state, .map-note, .reason) {
+  color: var(--ok-body) !important;
+}
+
+:where(button, a[role='button'], .button-like) {
+  border: 1px solid var(--ok-hairline-cool) !important;
+  border-radius: var(--ok-radius-button) !important;
+  background: rgba(16, 29, 49, .88) !important;
+  color: var(--ok-ink) !important;
+  box-shadow: none !important;
+  font-weight: 900;
+}
+
+:where(.primary, .submit-btn, .open, .hero button:not(.ghost):not(.danger), .section-head button, button.active) {
+  border-color: rgba(184, 135, 59, .72) !important;
+  background: var(--color-primary) !important;
+  color: #050B14 !important;
+}
+
+:where(.ghost, .ghost-btn, .secondary, .back, .back-btn, .text-btn) {
+  border-color: var(--ok-hairline-cool) !important;
+  background: rgba(7, 17, 31, .82) !important;
+  color: var(--ok-body) !important;
+}
+
+:where(.danger, button.danger) {
+  border-color: var(--color-danger-border) !important;
+  background: var(--color-danger-soft) !important;
+  color: #fecaca !important;
+}
+
+:where(input, textarea, select) {
+  border: 1px solid var(--ok-hairline-cool) !important;
+  border-radius: var(--ok-radius-button) !important;
+  background: rgba(5, 11, 20, .84) !important;
+  color: var(--ok-ink) !important;
+}
+
+:where(.tag, .pill, .hint-type, .unlock-badge, .meta span, .badges span, .tab-mark) {
+  border: 1px solid rgba(143, 106, 50, .42) !important;
+  background: rgba(12, 23, 38, .72) !important;
+  color: #b9a476 !important;
+}
+
+.main-bottom-nav {
+  border: 1px solid var(--ok-hairline-cool) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, rgba(11,22,38,.96), rgba(5,11,20,.96)) !important;
+  box-shadow: 0 18px 54px rgba(0,0,0,.5) !important;
+  backdrop-filter: blur(14px);
+}
+
+.main-bottom-nav button.active {
+  background: rgba(184, 135, 59, .18) !important;
+  border-color: rgba(184, 135, 59, .5) !important;
+  color: var(--color-text) !important;
+}
+
+.main-bottom-nav button.active .tab-mark {
+  background: rgba(184, 135, 59, .2) !important;
+  color: #d1bd8f !important;
+}
+
+:where(.pagination button, .pager button, .admin-pagination button) {
+  border-color: var(--ok-hairline-cool) !important;
+  background: rgba(7, 17, 31, .88) !important;
+  color: var(--ok-body) !important;
+}
+
+:where(.pagination button.active, .pager button.active, .admin-pagination button.active, .page-number.active) {
+  border-color: rgba(184, 135, 59, .62) !important;
+  background: rgba(184, 135, 59, .16) !important;
+  color: var(--color-text) !important;
+}
+
+:where(.topbar, .status-message, .map-panel, .spot-sheet, .clue-board, .puzzle-card, .reward-pop-card) {
+  border-color: var(--ok-hairline-cool) !important;
+  background: linear-gradient(145deg, rgba(16, 29, 49, .94), rgba(7, 17, 31, .94)) !important;
+  color: var(--ok-ink) !important;
+  box-shadow: var(--ok-shadow) !important;
+}
+
+:where(.legend span, .reward-type, .reward-items span, .review-required-badge, .readiness-metrics span) {
+  border: 1px solid rgba(143, 106, 50, .38) !important;
+  background: rgba(12, 23, 38, .72) !important;
+  color: #b9a476 !important;
+}
+
+:where(.admin-episode-page, .admin-review-page, .admin-user-page) {
+  background: transparent !important;
+}
+
+:where(.admin-section-tabs, .admin-page-tabs, .filters, .publish-rules, .readiness-panel, .candidate-panel, .draft-editor, .edit-section) {
+  border-color: var(--ok-hairline-cool) !important;
+  background: linear-gradient(145deg, rgba(11, 22, 38, .88), rgba(7, 17, 31, .88)) !important;
+  color: var(--ok-ink) !important;
+}
+
+:where(.clear-stamp) {
+  border-color: rgba(182, 74, 74, .9) !important;
+  color: #ff8a8a !important;
+  background:
+    repeating-linear-gradient(105deg, rgba(182, 74, 74, .18) 0 1px, transparent 1px 9px),
+    rgba(122, 45, 45, .12) !important;
+}
+
+:where(.case-card .stamp, .stamp:not(.clear-stamp)) {
+  border-color: rgba(143, 106, 50, .44) !important;
+  color: #b9a476 !important;
+  background: rgba(12, 23, 38, .72) !important;
+}
+
+:where(.favorite-btn.active, .ranking-btn, .icon-btn) {
+  border-color: var(--ok-hairline-cool) !important;
+  background: rgba(12, 23, 38, .86) !important;
+  color: var(--color-text-muted) !important;
+}
+
+:where(.favorite-btn.active) {
+  border-color: rgba(184, 135, 59, .5) !important;
+  color: #d1bd8f !important;
+}
+
+/* Palette clamp: keep the product in a restrained navy/slate/brass system. */
+:where(
+  .coaching-page,
+  .feed-page,
+  .recommend-page,
+  .community-page,
+  .region-page,
+  .map-page,
+  .challenge-ranking-page,
+  .ranking-page,
+  .tab-page,
+  .mypage,
+  .reviews-page,
+  .profile-edit-page
+) {
+  background: transparent !important;
+}
+
+:where(
+  .summary-panel,
+  .report-card,
+  .social-panel,
+  .analysis-card,
+  .mbti-grid,
+  .follow-modal,
+  .candidate-panel,
+  .ops-notice,
+  .manual-candidate-form,
+  .validation-panel,
+  .draft-status-box,
+  .selected-route,
+  .selection-summary,
+  .modal-state,
+  .follow-list article
+) {
+  border-color: var(--ok-hairline-cool) !important;
+  background: linear-gradient(145deg, rgba(12, 23, 38, .92), rgba(8, 17, 30, .92)) !important;
+  color: var(--color-text) !important;
+}
+
+:where(
+  .analysis-title span,
+  .mbti-grid h3,
+  .candidate-help,
+  .ops-notice strong,
+  .manual-candidate-form strong,
+  .selected-route h4,
+  .selected-route .route-summary,
+  .audit-help,
+  .map-title span,
+  .map-note,
+  .elapsed-timer span,
+  .topbar p
+) {
+  color: #b9a476 !important;
+}
+
+:where(
+  .profile-stats strong,
+  .analysis-title strong,
+  .post-card span,
+  .clear-card small,
+  .clear-meta span,
+  .follow-toggle,
+  .progress-track i,
+  .bar i
+) {
+  background: none !important;
+  color: #b9a476 !important;
+}
+
+:where(.progress-track i, .bar i) {
+  display: block;
+  background: #8f6a32 !important;
+}
+
+:where(
+  .START,
+  .ANSWER_HINT,
+  .KEYWORD_1,
+  .KEYWORD_2,
+  .KEYWORD_3,
+  .STORY,
+  .FINAL_CANDIDATE,
+  .valid,
+  .warning
+) {
+  color: #b9a476 !important;
+}
+
+:where(.state.error, .toast.error, .invalid) {
+  color: #f2c7ca !important;
+  background: var(--color-danger-soft) !important;
+}
+
+:where(.state.success, .arrival-message.success, .readiness-panel.ready) {
+  color: var(--color-text-muted) !important;
+  background: rgba(12, 23, 38, .72) !important;
+  border-color: var(--ok-hairline-cool) !important;
+}

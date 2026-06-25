@@ -6,7 +6,7 @@
     <section class="login-card">
       <header class="header">
         <p class="eyebrow">FIELD ACCESS</p>
-        <h1 class="title">OPERATION<span> KOREA</span></h1>
+        <h1 class="title project-title">OPERATION: KOREA</h1>
         <p class="subtitle">오프라인 미션 파일 세트를 모바일 현장 조사로 이어갑니다.</p>
       </header>
 

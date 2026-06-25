@@ -1,6 +1,6 @@
 <template>
   <div class="game-nav-shell">
-    <button type="button" class="game-home" @click="router.push({ name: 'EpisodeList' })">홈</button>
+    <button type="button" class="game-home" @click="router.push({ name: 'EpisodeList', query: preservedQuery })">홈</button>
     <nav class="case-tabs" aria-label="플레이 화면 전환">
       <button type="button" :class="{ active: active === 'case' }" @click="go('EpisodeCaseFile')">사건 파일</button>
       <button type="button" :class="{ active: active === 'map' }" @click="go('EpisodeMap')">지도</button>
@@ -10,7 +10,8 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router';
+import { computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 const props = defineProps({
   episodeId: { type: [String, Number], required: true },
@@ -18,7 +19,9 @@ const props = defineProps({
 });
 
 const router = useRouter();
-const go = (name) => router.push({ name, params: { episodeId: props.episodeId } });
+const route = useRoute();
+const preservedQuery = computed(() => route.query.areaCode ? { areaCode: route.query.areaCode } : {});
+const go = (name) => router.push({ name, params: { episodeId: props.episodeId }, query: preservedQuery.value });
 </script>
 
 <style scoped>

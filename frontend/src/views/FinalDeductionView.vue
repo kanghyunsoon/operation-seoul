@@ -38,8 +38,8 @@
         <strong>최종 추리 조건 미충족</strong>
         <p>조사 미션 8개 완료 후 자동 공개된 최종 정답 입력 장소에 도착해야 최종 추리를 시작할 수 있습니다.</p>
         <div>
-          <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">지도로 돌아가기</button>
-          <button type="button" class="secondary" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">사건 파일 확인</button>
+          <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId }, query: preservedQuery })">지도로 돌아가기</button>
+          <button type="button" class="secondary" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId }, query: preservedQuery })">사건 파일 확인</button>
         </div>
       </section>
 
@@ -117,7 +117,7 @@
           <section class="modal-panel">
             <h3>획득 단서</h3>
             <div v-if="popupClues.length" class="clue-list">
-              <span v-for="clue in popupClues" :key="clue">{{ clue }}</span>
+              <p v-for="clue in popupClues" :key="clue">{{ clue }}</p>
             </div>
             <p v-else class="empty-modal">수집한 단서가 없습니다. 질문 응답이 제한될 수 있습니다.</p>
           </section>
@@ -157,6 +157,7 @@ import CaseFileTabMenu from '@/components/episode/CaseFileTabMenu.vue';
 const route = useRoute();
 const router = useRouter();
 const episodeId = route.params.episodeId;
+const preservedQuery = computed(() => route.query.areaCode ? { areaCode: route.query.areaCode } : {});
 const loading = ref(true);
 const asking = ref(false);
 const clueDialogOpen = ref(false);
@@ -206,7 +207,7 @@ const popupClues = computed(() => {
     ...(caseFile.value?.evidences || [])
       .filter((evidence) => evidence.unlocked)
       .flatMap((evidence) => [evidence.title, evidence.textSummary])
-  ]);
+  ]).filter((clue) => !isGenericEvidenceTitle(clue));
 });
 const popupSuspects = computed(() => (caseFile.value?.suspects || []).filter((suspect) => suspect.displayName || suspect.alias));
 
@@ -324,7 +325,7 @@ async function submitFinalAnswer(finalAnswer) {
     }
     if (result.correct) {
       stopElapsedTimer(false);
-      router.push({ name: 'EpisodeDebriefing', params: { episodeId } });
+      router.push({ name: 'EpisodeDebriefing', params: { episodeId }, query: preservedQuery.value });
     }
   } catch (error) {
     message.value = error.userMessage || '최종 정답을 제출할 수 없습니다.';
@@ -425,6 +426,10 @@ function uniqueValues(values) {
     });
 }
 
+function isGenericEvidenceTitle(value) {
+  return /^사건\s*자료\s*\d+$/i.test(String(value || '').trim());
+}
+
 function answerTypeLabel(type) {
   return ({
     YES: '예',
@@ -504,8 +509,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .modal-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 14px; padding: 18px; }
 .modal-panel { display: grid; align-content: start; gap: 12px; min-height: 240px; padding: 14px; border-radius: 18px; background: rgba(2,6,23,.42); border: 1px solid rgba(148,163,184,.16); }
 .modal-panel h3 { margin: 0; color: #fde68a; }
-.clue-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.clue-list span { border-radius: 999px; padding: 7px 10px; background: rgba(245,158,11,.16); color: #fde68a; font-size: .84rem; font-weight: 900; line-height: 1.35; }
+.clue-list { display: grid; gap: 8px; }
+.clue-list p { margin: 0; padding: 8px 0 8px 12px; border-left: 3px solid rgba(251,191,36,.5); color: #f3f4f6; background: transparent; font-size: .94rem; font-weight: 750; line-height: 1.62; word-break: keep-all; overflow-wrap: anywhere; }
 .suspect-list { display: grid; gap: 10px; }
 .suspect-mini { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: rgba(30,41,59,.66); }
 .suspect-mini.locked { opacity: .72; }

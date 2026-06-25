@@ -52,7 +52,6 @@ public class UserAiInsightService {
                     .append(", genre=").append(safe(item.getGenre()))
                     .append(", difficulty=").append(safe(item.getDifficulty()))
                     .append(", favorited=").append(Boolean.TRUE.equals(item.getFavorited()))
-                    .append(", planned=").append(Boolean.TRUE.equals(item.getPlanned()))
                     .append(", cleared=").append(Boolean.TRUE.equals(item.getCleared()))
                     .append(", ruleReason=").append(safe(item.getReason()))
                     .append('\n');

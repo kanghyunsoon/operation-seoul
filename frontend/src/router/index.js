@@ -3,15 +3,16 @@ import IntroView from '@/views/IntroView.vue';
 import RegionMapView from '@/views/RegionMapView.vue';
 import RegionCommunityView from '@/views/RegionCommunityView.vue';
 import RankingView from '@/views/RankingView.vue';
+import FeedView from '@/views/FeedView.vue';
 import ChallengesView from '@/views/ChallengesView.vue';
 import RecommendationsView from '@/views/RecommendationsView.vue';
 import CoachingView from '@/views/CoachingView.vue';
-import PlansView from '@/views/PlansView.vue';
-import GroupsView from '@/views/GroupsView.vue';
 import EpisodeListView from '@/views/EpisodeListView.vue';
 import FavoriteEpisodesView from '@/views/FavoriteEpisodesView.vue';
 import ClearMapView from '@/views/ClearMapView.vue';
 import CommunityHubView from '@/views/CommunityHubView.vue';
+import CommunityPostWriteView from '@/views/CommunityPostWriteView.vue';
+import CommunityPostDetailView from '@/views/CommunityPostDetailView.vue';
 import EpisodeDetailView from '@/views/EpisodeDetailView.vue';
 import EpisodeMissionBriefingView from '@/views/EpisodeMissionBriefingView.vue';
 import EpisodeMapView from '@/views/EpisodeMapView.vue';
@@ -33,15 +34,17 @@ const routes = [
   { path: '/regions', name: 'RegionMap', component: RegionMapView, meta: { requiresAuth: true } },
   { path: '/regions/:regionId/community', name: 'RegionCommunity', component: RegionCommunityView, meta: { requiresAuth: true } },
   { path: '/rankings', name: 'Ranking', component: RankingView, meta: { requiresAuth: true } },
+  { path: '/feed', name: 'Feed', component: FeedView, meta: { requiresAuth: true } },
+  { path: '/feed/users/:userId', name: 'UserFeed', component: FeedView, meta: { requiresAuth: true } },
   { path: '/challenges', name: 'Challenges', component: ChallengesView, meta: { requiresAuth: true } },
   { path: '/recommendations', name: 'Recommendations', component: RecommendationsView, meta: { requiresAuth: true } },
   { path: '/coaching', name: 'Coaching', component: CoachingView, meta: { requiresAuth: true } },
-  { path: '/plans', name: 'Plans', component: PlansView, meta: { requiresAuth: true } },
-  { path: '/groups', name: 'Groups', component: GroupsView, meta: { requiresAuth: true } },
   { path: '/episodes', name: 'EpisodeList', component: EpisodeListView, meta: { requiresAuth: true } },
   { path: '/favorites', name: 'Favorites', component: FavoriteEpisodesView, meta: { requiresAuth: true } },
   { path: '/clear-map', name: 'ClearMap', component: ClearMapView, meta: { requiresAuth: true } },
   { path: '/community', name: 'CommunityHub', component: CommunityHubView, meta: { requiresAuth: true } },
+  { path: '/community/write', name: 'CommunityPostWrite', component: CommunityPostWriteView, meta: { requiresAuth: true } },
+  { path: '/community/:regionId/posts/:questionId', name: 'CommunityPostDetail', component: CommunityPostDetailView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId', name: 'EpisodeDetail', component: EpisodeDetailView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/briefing', name: 'EpisodeMissionBriefing', component: EpisodeMissionBriefingView, meta: { requiresAuth: true } },
   { path: '/episodes/:episodeId/map', name: 'EpisodeMap', component: EpisodeMapView, meta: { requiresAuth: true } },

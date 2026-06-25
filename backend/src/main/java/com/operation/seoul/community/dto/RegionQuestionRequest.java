@@ -10,4 +10,6 @@ public class RegionQuestionRequest {
 
     @NotBlank
     private String content;
+
+    private Boolean notice;
 }

@@ -1,0 +1,805 @@
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :resolveMainClassName
+
+> Task :bootRun
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-06-25T17:54:39.259+09:00  INFO 23616 --- [           main] c.o.seoul.OperationSeoulApplication      : Starting OperationSeoulApplication using Java 17.0.17 with PID 23616 (C:\Users\SSAFY\Desktop\KHS\operation-seoul\backend\build\classes\java\main started by SSAFY in C:\Users\SSAFY\Desktop\KHS\operation-seoul\backend)
+2026-06-25T17:54:39.268+09:00  INFO 23616 --- [           main] c.o.seoul.OperationSeoulApplication      : The following 1 profile is active: "local"
+2026-06-25T17:54:40.602+09:00  INFO 23616 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-06-25T17:54:40.611+09:00  INFO 23616 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-06-25T17:54:40.612+09:00  INFO 23616 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.20]
+2026-06-25T17:54:40.669+09:00  INFO 23616 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1360 ms
+2026-06-25T17:54:40.765+09:00  INFO 23616 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-06-25T17:54:41.008+09:00  INFO 23616 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@5618fc1f
+2026-06-25T17:54:41.010+09:00  INFO 23616 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-06-25T17:54:41.791+09:00  INFO 23616 --- [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name userDetailsService
+2026-06-25T17:54:42.222+09:00  INFO 23616 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-06-25T17:54:42.285+09:00  INFO 23616 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-06-25T17:54:42.295+09:00  INFO 23616 --- [           main] c.o.seoul.OperationSeoulApplication      : Started OperationSeoulApplication in 3.391 seconds (process running for 3.742)
+2026-06-25T17:55:02.710+09:00  INFO 23616 --- [0.0-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-25T17:55:02.710+09:00  INFO 23616 --- [0.0-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-06-25T17:55:02.712+09:00  INFO 23616 --- [0.0-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 2 ms
+2026-06-25T17:55:02.762+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/auth/login status=200 durationMs=46 remoteAddress=70.12.60.97
+2026-06-25T17:55:23.117+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/auth/login status=200 durationMs=8 remoteAddress=70.12.60.96
+2026-06-25T17:55:23.625+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/auth/login status=200 durationMs=501 remoteAddress=70.12.60.96
+2026-06-25T17:55:23.687+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=4 remoteAddress=70.12.60.96
+2026-06-25T17:55:24.007+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=311 remoteAddress=70.12.60.96
+2026-06-25T17:55:24.020+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/37 status=200 durationMs=4 remoteAddress=70.12.60.96
+2026-06-25T17:55:24.143+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/37 status=200 durationMs=116 remoteAddress=70.12.60.96
+2026-06-25T17:55:24.190+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/37/audit-logs status=200 durationMs=5 remoteAddress=70.12.60.96
+2026-06-25T17:55:24.335+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/37/audit-logs status=200 durationMs=137 remoteAddress=70.12.60.96
+2026-06-25T17:55:44.767+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.797+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me status=200 durationMs=25 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.816+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/favorites status=200 durationMs=3 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.816+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/following status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.819+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/followers status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.819+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/reviews status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.854+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/following status=200 durationMs=32 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.855+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/favorites status=200 durationMs=34 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.859+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/reviews status=200 durationMs=32 remoteAddress=70.12.60.97
+2026-06-25T17:55:44.860+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/followers status=200 durationMs=30 remoteAddress=70.12.60.97
+2026-06-25T17:56:01.749+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T17:56:01.795+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=38 remoteAddress=70.12.60.96
+2026-06-25T17:57:06.191+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/auth/register status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T17:57:06.282+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/auth/register status=200 durationMs=86 remoteAddress=70.12.60.96
+2026-06-25T17:57:14.700+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/auth/login status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T17:57:14.771+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/auth/login status=200 durationMs=66 remoteAddress=70.12.60.96
+2026-06-25T17:57:19.008+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T17:57:19.048+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=34 remoteAddress=70.12.60.96
+2026-06-25T17:57:31.798+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T17:57:31.821+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=18 remoteAddress=70.12.60.96
+2026-06-25T17:57:38.458+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T17:57:38.504+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=40 remoteAddress=70.12.60.96
+2026-06-25T17:57:42.246+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/34 status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T17:57:42.263+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/34 status=200 durationMs=10 remoteAddress=70.12.60.96
+2026-06-25T17:57:44.051+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/34/start status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T17:57:44.117+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/34/start status=200 durationMs=61 remoteAddress=70.12.60.96
+2026-06-25T17:57:44.151+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/34 status=200 durationMs=11 remoteAddress=70.12.60.96
+2026-06-25T17:57:45.831+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/34/case-file status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T17:57:45.875+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/34/case-file status=200 durationMs=39 remoteAddress=70.12.60.96
+2026-06-25T17:58:03.659+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T17:58:03.693+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=31 remoteAddress=70.12.60.97
+2026-06-25T17:58:30.232+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/37 status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T17:58:30.264+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/37 status=200 durationMs=27 remoteAddress=70.12.60.97
+2026-06-25T17:58:31.429+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T17:58:31.468+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=35 remoteAddress=70.12.60.97
+2026-06-25T17:58:32.024+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36 status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T17:58:32.051+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36 status=200 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T17:58:32.994+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=37 remoteAddress=70.12.60.97
+2026-06-25T17:58:33.598+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/35 status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T17:58:33.630+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/35 status=200 durationMs=28 remoteAddress=70.12.60.97
+2026-06-25T17:58:34.704+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=34 remoteAddress=70.12.60.97
+2026-06-25T17:59:19.711+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T17:59:19.763+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=41 remoteAddress=70.12.60.97
+2026-06-25T17:59:46.149+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/34/case-file status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T17:59:46.164+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/34/case-file status=200 durationMs=12 remoteAddress=70.12.60.96
+2026-06-25T18:02:37.917+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:02:37.949+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me status=200 durationMs=7 remoteAddress=70.12.60.96
+2026-06-25T18:02:46.991+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:02:47.012+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=16 remoteAddress=70.12.60.96
+2026-06-25T18:03:08.804+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/auth/login status=200 durationMs=2 remoteAddress=70.12.60.96
+2026-06-25T18:03:08.901+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/auth/login status=200 durationMs=89 remoteAddress=70.12.60.96
+2026-06-25T18:03:08.943+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:03:09.005+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=55 remoteAddress=70.12.60.96
+2026-06-25T18:03:09.011+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/37 status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:03:09.051+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/37 status=200 durationMs=34 remoteAddress=70.12.60.96
+2026-06-25T18:03:09.091+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/37/audit-logs status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:03:09.142+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/37/audit-logs status=200 durationMs=45 remoteAddress=70.12.60.96
+2026-06-25T18:03:38.392+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/place-candidates status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:03:38.419+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5665 lng=126.978 radius=18000
+2026-06-25T18:03:39.218+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=529 parsedCount=15
+2026-06-25T18:03:39.219+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5796 lng=126.977 radius=18000
+2026-06-25T18:03:39.426+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=527 parsedCount=15
+2026-06-25T18:03:39.426+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5512 lng=126.9882 radius=18000
+2026-06-25T18:03:39.658+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=533 parsedCount=15
+2026-06-25T18:03:39.664+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/place-candidates status=200 durationMs=1265 remoteAddress=70.12.60.96
+2026-06-25T18:04:06.677+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/place-candidates/nearby status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:04:06.886+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/place-candidates/nearby status=200 durationMs=202 remoteAddress=70.12.60.96
+2026-06-25T18:04:11.572+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/enrich-site-data status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:04:17.884+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/enrich-site-data status=200 durationMs=6308 remoteAddress=70.12.60.96
+2026-06-25T18:04:19.491+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/plan status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:04:21.282+09:00 ERROR 23616 --- [0.0-8080-exec-4] c.o.s.g.e.GlobalExceptionHandler         : api_error code=GEMINI_PLAN_RECORD_TEMPLATE method=POST path=/api/v1/admin/episodes/ai-draft/plan
+
+com.operation.seoul.global.exception.ApiException: GeminiÍ∞? ?òÑ?û¨ ?û•?Üå ?ïµÏª§Ï? Î¨¥Í??ïú Í∏∞Î°ù Ï§ëÏã¨ ?†ï?ãµ ?Ç§?õå?ìúÎ•? ?Éù?Ñ±?ñà?äµ?ãà?ã§. ?ã§?ãú ?Éù?Ñ±?ï¥ Ï£ºÏÑ∏?öî.
+	at com.operation.seoul.admin.episode.service.GeminiAnswerPlanGenerator.rejectRecordTemplatePlanWithoutRecordAnchor(GeminiAnswerPlanGenerator.java:49) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.GeminiAnswerPlanGenerator.generate(GeminiAnswerPlanGenerator.java:35) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.AdminEpisodeGeminiService.answerPlanKeywords(AdminEpisodeGeminiService.java:119) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.AdminEpisodeGeminiService.createAnswerPlan(AdminEpisodeGeminiService.java:42) ~[main/:na]
+	at com.operation.seoul.admin.episode.controller.AdminEpisodeController.createGeminiPlan(AdminEpisodeController.java:262) ~[main/:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:252) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:184) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:117) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:934) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:853) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:86) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:963) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:866) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1000) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:903) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:649) ~[tomcat-embed-core-11.0.20.jar:6.1]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:874) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:710) ~[tomcat-embed-core-11.0.20.jar:6.1]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:128) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:53) ~[tomcat-embed-websocket-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:110) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:235) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:493) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:354) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:86) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:132) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:101) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:132) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:86) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:181) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at com.operation.seoul.auth.security.JwtAuthenticationFilter.doFilterInternal(JwtAuthenticationFilter.java:34) ~[main/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:110) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:96) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.CorsFilter.doFilterInternal(CorsFilter.java:91) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:337) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:228) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:237) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:195) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.ServletRequestPathFilter.doFilter(ServletRequestPathFilter.java:52) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebSecurityConfiguration.java:317) ~[spring-security-config-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:355) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:272) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:110) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:199) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at com.operation.seoul.global.config.RequestTraceFilter.doFilterInternal(RequestTraceFilter.java:33) ~[main/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:165) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:77) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:492) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:113) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:83) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:72) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:397) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:903) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1779) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:946) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:480) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:57) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+
+2026-06-25T18:04:21.297+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/plan status=502 durationMs=1801 remoteAddress=70.12.60.96
+2026-06-25T18:04:23.648+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:23.671+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:04:23.686+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T18:04:23.732+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=42 remoteAddress=70.12.60.97
+2026-06-25T18:04:23.755+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/37 status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:23.797+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/37 status=200 durationMs=39 remoteAddress=70.12.60.97
+2026-06-25T18:04:23.834+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/37/audit-logs status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:23.871+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/37/audit-logs status=200 durationMs=34 remoteAddress=70.12.60.97
+2026-06-25T18:04:29.844+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:29.873+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=25 remoteAddress=70.12.60.97
+2026-06-25T18:04:31.868+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/feed status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T18:04:31.925+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/feed status=200 durationMs=53 remoteAddress=70.12.60.97
+2026-06-25T18:04:34.149+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/plan status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:04:34.236+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/favorites status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T18:04:34.239+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/followers status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:34.239+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/reviews status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:34.239+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/following status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:34.264+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/reviews status=200 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:04:34.264+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/favorites status=200 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T18:04:34.264+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/followers status=200 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:04:34.267+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/following status=200 durationMs=23 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.044+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/1/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.044+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/5/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.044+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/4/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.044+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/2/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.048+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/7/questions status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.048+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/6/questions status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.052+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/9/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.052+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/8/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.055+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/3/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.055+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/regions/10/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.077+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/4/questions status=200 durationMs=26 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.077+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/5/questions status=200 durationMs=26 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.079+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/2/questions status=200 durationMs=29 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.083+09:00  WARN 23616 --- [.0-8080-exec-10] c.o.s.g.e.GlobalExceptionHandler         : request_rejected code=NOT_FOUND status=404 method=GET path=/api/v1/regions/7/questions
+2026-06-25T18:04:39.085+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/6/questions status=200 durationMs=25 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.086+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/7/questions status=404 durationMs=25 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.087+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/1/questions status=200 durationMs=37 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.101+09:00  WARN 23616 --- [0.0-8080-exec-5] c.o.s.g.e.GlobalExceptionHandler         : request_rejected code=NOT_FOUND status=404 method=GET path=/api/v1/regions/8/questions
+2026-06-25T18:04:39.103+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/8/questions status=404 durationMs=22 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.103+09:00  WARN 23616 --- [0.0-8080-exec-3] c.o.s.g.e.GlobalExceptionHandler         : request_rejected code=NOT_FOUND status=404 method=GET path=/api/v1/regions/9/questions
+2026-06-25T18:04:39.103+09:00  WARN 23616 --- [0.0-8080-exec-7] c.o.s.g.e.GlobalExceptionHandler         : request_rejected code=NOT_FOUND status=404 method=GET path=/api/v1/regions/10/questions
+2026-06-25T18:04:39.104+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/10/questions status=404 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.104+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/9/questions status=404 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T18:04:39.107+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/regions/3/questions status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:04:40.158+09:00 ERROR 23616 --- [0.0-8080-exec-8] c.o.s.g.e.GlobalExceptionHandler         : api_error code=GEMINI_PLAN_RECORD_TEMPLATE method=POST path=/api/v1/admin/episodes/ai-draft/plan
+
+com.operation.seoul.global.exception.ApiException: GeminiÍ∞? ?òÑ?û¨ ?û•?Üå ?ïµÏª§Ï? Î¨¥Í??ïú Í∏∞Î°ù Ï§ëÏã¨ ?†ï?ãµ ?Ç§?õå?ìúÎ•? ?Éù?Ñ±?ñà?äµ?ãà?ã§. ?ã§?ãú ?Éù?Ñ±?ï¥ Ï£ºÏÑ∏?öî.
+	at com.operation.seoul.admin.episode.service.GeminiAnswerPlanGenerator.rejectRecordTemplatePlanWithoutRecordAnchor(GeminiAnswerPlanGenerator.java:49) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.GeminiAnswerPlanGenerator.generate(GeminiAnswerPlanGenerator.java:35) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.AdminEpisodeGeminiService.answerPlanKeywords(AdminEpisodeGeminiService.java:119) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.AdminEpisodeGeminiService.createAnswerPlan(AdminEpisodeGeminiService.java:42) ~[main/:na]
+	at com.operation.seoul.admin.episode.controller.AdminEpisodeController.createGeminiPlan(AdminEpisodeController.java:262) ~[main/:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:252) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:184) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:117) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:934) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:853) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:86) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:963) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:866) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1000) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:903) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:649) ~[tomcat-embed-core-11.0.20.jar:6.1]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:874) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:710) ~[tomcat-embed-core-11.0.20.jar:6.1]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:128) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:53) ~[tomcat-embed-websocket-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:110) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:235) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:493) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:354) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:86) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:132) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:101) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:132) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:86) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:181) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at com.operation.seoul.auth.security.JwtAuthenticationFilter.doFilterInternal(JwtAuthenticationFilter.java:34) ~[main/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:110) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:96) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.CorsFilter.doFilterInternal(CorsFilter.java:91) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:337) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:228) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:237) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:195) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.ServletRequestPathFilter.doFilter(ServletRequestPathFilter.java:52) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebSecurityConfiguration.java:317) ~[spring-security-config-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:355) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:272) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:110) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:199) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at com.operation.seoul.global.config.RequestTraceFilter.doFilterInternal(RequestTraceFilter.java:33) ~[main/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:165) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:77) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:492) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:113) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:83) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:72) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:397) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:903) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1779) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:946) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:480) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:57) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+
+2026-06-25T18:04:40.171+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/plan status=502 durationMs=6017 remoteAddress=70.12.60.96
+2026-06-25T18:04:40.843+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/users/me/feed status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:40.883+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/users/me/feed status=200 durationMs=35 remoteAddress=70.12.60.97
+2026-06-25T18:04:41.812+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/rankings/players status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:41.812+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/challenges/summary status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:41.842+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/challenges/summary status=200 durationMs=27 remoteAddress=70.12.60.97
+2026-06-25T18:04:41.876+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/rankings/players status=200 durationMs=61 remoteAddress=70.12.60.97
+2026-06-25T18:04:43.412+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:43.437+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:04:44.341+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/37 status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:44.359+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/37 status=200 durationMs=14 remoteAddress=70.12.60.97
+2026-06-25T18:04:44.799+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/plan status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:04:45.115+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/37/clear-report status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T18:04:45.144+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/37/clear-report status=200 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T18:04:45.149+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/37/reviews status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:45.170+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/37/reviews status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:04:46.414+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/plan status=200 durationMs=1611 remoteAddress=70.12.60.96
+2026-06-25T18:04:50.017+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/37 status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T18:04:50.039+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/37 status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:04:51.738+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:51.763+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=22 remoteAddress=70.12.60.97
+2026-06-25T18:04:52.365+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36 status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:52.387+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36 status=200 durationMs=19 remoteAddress=70.12.60.97
+2026-06-25T18:04:53.071+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/start status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:53.092+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/start status=200 durationMs=19 remoteAddress=70.12.60.97
+2026-06-25T18:04:53.120+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36 status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:04:54.971+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/case-file status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:54.995+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/case-file status=200 durationMs=19 remoteAddress=70.12.60.97
+2026-06-25T18:04:56.891+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=1 remoteAddress=70.12.60.97
+2026-06-25T18:04:56.924+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=30 remoteAddress=70.12.60.97
+2026-06-25T18:04:56.927+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:04:56.954+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T18:04:59.996+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/338/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:00.088+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/338/arrive status=200 durationMs=90 remoteAddress=70.12.60.97
+2026-06-25T18:05:00.107+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=15 remoteAddress=70.12.60.97
+2026-06-25T18:05:00.127+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=15 remoteAddress=70.12.60.97
+2026-06-25T18:05:00.133+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/338/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:00.161+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/338/puzzle status=200 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T18:05:09.143+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:05:09.213+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes status=200 durationMs=65 remoteAddress=70.12.60.96
+2026-06-25T18:05:09.223+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/38/audit-logs status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:05:09.224+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:05:09.250+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/38/audit-logs status=200 durationMs=22 remoteAddress=70.12.60.96
+2026-06-25T18:05:09.269+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=39 remoteAddress=70.12.60.96
+2026-06-25T18:05:15.552+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:05:15.583+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=25 remoteAddress=70.12.60.96
+2026-06-25T18:05:19.045+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:05:19.084+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=35 remoteAddress=70.12.60.96
+2026-06-25T18:05:19.089+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/38 status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:05:19.108+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/38 status=200 durationMs=15 remoteAddress=70.12.60.96
+2026-06-25T18:05:19.116+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/38/audit-logs status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:05:19.138+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/38/audit-logs status=200 durationMs=18 remoteAddress=70.12.60.96
+2026-06-25T18:05:22.528+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/place-candidates status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:05:22.555+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5665 lng=126.978 radius=18000
+2026-06-25T18:05:22.872+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=529 parsedCount=15
+2026-06-25T18:05:22.872+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5796 lng=126.977 radius=18000
+2026-06-25T18:05:23.122+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=527 parsedCount=15
+2026-06-25T18:05:23.122+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.seoul.game.service.TourApiService    : TourAPI lookup lat=37.5512 lng=126.9882 radius=18000
+2026-06-25T18:05:23.342+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.seoul.game.service.TourApiService    : TourAPI lookup completed totalCount=533 parsedCount=15
+2026-06-25T18:05:23.344+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/place-candidates status=200 durationMs=810 remoteAddress=70.12.60.96
+2026-06-25T18:05:28.201+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/334/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:28.226+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/334/arrive status=200 durationMs=23 remoteAddress=70.12.60.97
+2026-06-25T18:05:28.230+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:28.246+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=14 remoteAddress=70.12.60.97
+2026-06-25T18:05:28.250+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:28.271+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:05:28.276+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/334/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:28.300+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/334/puzzle status=200 durationMs=21 remoteAddress=70.12.60.97
+2026-06-25T18:05:57.527+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/338/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:57.552+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/338/arrive status=200 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T18:05:57.556+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:57.579+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=21 remoteAddress=70.12.60.97
+2026-06-25T18:05:57.583+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:57.607+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:05:57.612+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/338/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:05:57.635+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/338/puzzle status=200 durationMs=19 remoteAddress=70.12.60.97
+2026-06-25T18:06:42.828+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/place-candidates/nearby status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:06:43.039+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/place-candidates/nearby status=200 durationMs=199 remoteAddress=70.12.60.96
+2026-06-25T18:06:44.900+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/enrich-site-data status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:06:53.655+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/enrich-site-data status=200 durationMs=8751 remoteAddress=70.12.60.96
+2026-06-25T18:06:55.621+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/plan status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:06:58.084+09:00 ERROR 23616 --- [.0-8080-exec-10] c.o.s.g.e.GlobalExceptionHandler         : api_error code=GEMINI_PLAN_RECORD_TEMPLATE method=POST path=/api/v1/admin/episodes/ai-draft/plan
+
+com.operation.seoul.global.exception.ApiException: GeminiÍ∞? ?òÑ?û¨ ?û•?Üå ?ïµÏª§Ï? Î¨¥Í??ïú Í∏∞Î°ù Ï§ëÏã¨ ?†ï?ãµ ?Ç§?õå?ìúÎ•? ?Éù?Ñ±?ñà?äµ?ãà?ã§. ?ã§?ãú ?Éù?Ñ±?ï¥ Ï£ºÏÑ∏?öî.
+	at com.operation.seoul.admin.episode.service.GeminiAnswerPlanGenerator.rejectRecordTemplatePlanWithoutRecordAnchor(GeminiAnswerPlanGenerator.java:49) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.GeminiAnswerPlanGenerator.generate(GeminiAnswerPlanGenerator.java:35) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.AdminEpisodeGeminiService.answerPlanKeywords(AdminEpisodeGeminiService.java:119) ~[main/:na]
+	at com.operation.seoul.admin.episode.service.AdminEpisodeGeminiService.createAnswerPlan(AdminEpisodeGeminiService.java:42) ~[main/:na]
+	at com.operation.seoul.admin.episode.controller.AdminEpisodeController.createGeminiPlan(AdminEpisodeController.java:262) ~[main/:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:252) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:184) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:117) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:934) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:853) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:86) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:963) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:866) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1000) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:903) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:649) ~[tomcat-embed-core-11.0.20.jar:6.1]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:874) ~[spring-webmvc-7.0.6.jar:7.0.6]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:710) ~[tomcat-embed-core-11.0.20.jar:6.1]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:128) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:53) ~[tomcat-embed-websocket-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:110) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:235) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:493) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:354) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:86) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:132) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:101) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:132) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:86) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:181) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at com.operation.seoul.auth.security.JwtAuthenticationFilter.doFilterInternal(JwtAuthenticationFilter.java:34) ~[main/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:110) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:96) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.CorsFilter.doFilterInternal(CorsFilter.java:91) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:231) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:244) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:337) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:228) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:141) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:237) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:195) ~[spring-security-web-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.ServletRequestPathFilter.doFilter(ServletRequestPathFilter.java:52) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebSecurityConfiguration.java:317) ~[spring-security-config-7.0.4.jar:7.0.4]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:355) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:272) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:110) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:199) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at com.operation.seoul.global.config.RequestTraceFilter.doFilterInternal(RequestTraceFilter.java:33) ~[main/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-7.0.6.jar:7.0.6]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:107) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:165) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:77) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:492) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:113) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:83) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:72) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:397) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:903) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1779) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:946) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:480) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:57) ~[tomcat-embed-core-11.0.20.jar:11.0.20]
+	at java.base/java.lang.Thread.run(Thread.java:840) ~[na:na]
+
+2026-06-25T18:06:58.094+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/plan status=502 durationMs=2468 remoteAddress=70.12.60.96
+2026-06-25T18:07:01.404+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/plan status=200 durationMs=1722 remoteAddress=70.12.60.96
+2026-06-25T18:07:04.840+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:07:04.867+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T18:07:23.849+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/gemini status=200 durationMs=2 remoteAddress=70.12.60.96
+2026-06-25T18:07:33.362+09:00  WARN 23616 --- [0.0-8080-exec-7] c.o.s.a.e.s.AdminEpisodeGeminiService    : ai_draft_investigation_clues_repaired issues=[BLANK_OR_SHORT] title=?ô©?ã§?ùò Í∑∏Î¶º?ûê: ÎßàÏ?Îß? ÎπÑÏûêÍ∏? debugPath=build\ai-draft-debug\latest-pre-guardrail-investigation-clues.json
+2026-06-25T18:07:33.381+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/gemini status=200 durationMs=9525 remoteAddress=70.12.60.96
+2026-06-25T18:07:56.824+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/validate status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:07:56.866+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/validate status=200 durationMs=38 remoteAddress=70.12.60.96
+2026-06-25T18:07:57.973+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/ai-draft/save status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:07:58.691+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/admin/episodes/ai-draft/save status=200 durationMs=714 remoteAddress=70.12.60.96
+2026-06-25T18:07:58.750+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/39/audit-logs status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:07:58.751+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:07:58.787+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/39/audit-logs status=200 durationMs=31 remoteAddress=70.12.60.96
+2026-06-25T18:07:58.795+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=37 remoteAddress=70.12.60.96
+2026-06-25T18:07:58.799+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/39/publish-readiness status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:07:58.840+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/39/publish-readiness status=200 durationMs=36 remoteAddress=70.12.60.96
+2026-06-25T18:08:15.160+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/39 status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:08:15.271+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=PUT path=/api/v1/admin/episodes/39 status=200 durationMs=105 remoteAddress=70.12.60.96
+2026-06-25T18:08:15.284+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:15.284+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/39/audit-logs status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:15.322+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/39/audit-logs status=200 durationMs=32 remoteAddress=70.12.60.96
+2026-06-25T18:08:15.327+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=37 remoteAddress=70.12.60.96
+2026-06-25T18:08:15.345+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/39/publish-readiness status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:15.386+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/39/publish-readiness status=200 durationMs=36 remoteAddress=70.12.60.96
+2026-06-25T18:08:21.688+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:08:21.744+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=44 remoteAddress=70.12.60.96
+2026-06-25T18:08:26.351+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39 status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:08:26.391+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39 status=200 durationMs=30 remoteAddress=70.12.60.96
+2026-06-25T18:08:33.588+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39/start status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:33.617+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/39/start status=200 durationMs=26 remoteAddress=70.12.60.96
+2026-06-25T18:08:33.638+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39 status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:33.657+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39 status=200 durationMs=14 remoteAddress=70.12.60.96
+2026-06-25T18:08:34.911+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39/case-file status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:34.934+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39/case-file status=200 durationMs=15 remoteAddress=70.12.60.96
+2026-06-25T18:08:36.125+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39/map status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:08:36.164+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39/map status=200 durationMs=33 remoteAddress=70.12.60.96
+2026-06-25T18:08:36.182+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39/clue-board status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:36.213+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39/clue-board status=200 durationMs=26 remoteAddress=70.12.60.96
+2026-06-25T18:08:42.911+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39/case-file status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:42.936+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39/case-file status=200 durationMs=20 remoteAddress=70.12.60.96
+2026-06-25T18:08:43.294+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39 status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:43.315+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39 status=200 durationMs=16 remoteAddress=70.12.60.96
+2026-06-25T18:08:43.895+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39 status=200 durationMs=15 remoteAddress=70.12.60.96
+2026-06-25T18:08:44.338+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:44.362+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=19 remoteAddress=70.12.60.96
+2026-06-25T18:08:45.651+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes status=200 durationMs=1 remoteAddress=70.12.60.96
+2026-06-25T18:08:45.711+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes status=200 durationMs=55 remoteAddress=70.12.60.96
+2026-06-25T18:08:45.717+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/39 status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:45.752+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/39 status=200 durationMs=30 remoteAddress=70.12.60.96
+2026-06-25T18:08:45.781+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/admin/episodes/39/audit-logs status=200 durationMs=0 remoteAddress=70.12.60.96
+2026-06-25T18:08:45.822+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/admin/episodes/39/audit-logs status=200 durationMs=34 remoteAddress=70.12.60.96
+2026-06-25T18:13:03.488+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/338/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:03.519+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/338/arrive status=200 durationMs=29 remoteAddress=70.12.60.97
+2026-06-25T18:13:03.522+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:03.542+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:13:03.547+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:03.568+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:13:03.573+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/338/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:03.596+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/338/puzzle status=200 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:13:21.668+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/334/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:21.697+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/334/arrive status=200 durationMs=27 remoteAddress=70.12.60.97
+2026-06-25T18:13:21.700+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:21.722+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=19 remoteAddress=70.12.60.97
+2026-06-25T18:13:21.726+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:21.748+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:13:21.754+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/334/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:21.781+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/334/puzzle status=200 durationMs=23 remoteAddress=70.12.60.97
+2026-06-25T18:13:27.850+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/333/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:27.880+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/333/arrive status=200 durationMs=28 remoteAddress=70.12.60.97
+2026-06-25T18:13:27.884+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:27.907+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:13:27.911+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:27.931+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=17 remoteAddress=70.12.60.97
+2026-06-25T18:13:27.935+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/333/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:27.958+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/333/puzzle status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:13:35.555+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/330/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:35.582+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/330/arrive status=200 durationMs=26 remoteAddress=70.12.60.97
+2026-06-25T18:13:35.585+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:35.601+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=14 remoteAddress=70.12.60.97
+2026-06-25T18:13:35.605+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:35.625+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:13:35.630+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/330/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:35.649+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/330/puzzle status=200 durationMs=16 remoteAddress=70.12.60.97
+2026-06-25T18:13:41.793+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/335/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:41.821+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/335/arrive status=200 durationMs=26 remoteAddress=70.12.60.97
+2026-06-25T18:13:41.823+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:41.839+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=13 remoteAddress=70.12.60.97
+2026-06-25T18:13:41.842+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:41.857+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=12 remoteAddress=70.12.60.97
+2026-06-25T18:13:41.862+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/335/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:41.881+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/335/puzzle status=200 durationMs=16 remoteAddress=70.12.60.97
+2026-06-25T18:13:48.514+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/spots/337/arrive status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:48.539+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/spots/337/arrive status=200 durationMs=22 remoteAddress=70.12.60.97
+2026-06-25T18:13:48.541+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:48.558+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=15 remoteAddress=70.12.60.97
+2026-06-25T18:13:48.562+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:48.580+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=15 remoteAddress=70.12.60.97
+2026-06-25T18:13:48.583+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/spots/337/puzzle status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:13:48.610+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/spots/337/puzzle status=200 durationMs=22 remoteAddress=70.12.60.97
+2026-06-25T18:16:15.354+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/deduction/start status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:15.354+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/case-file status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:15.380+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/case-file status=200 durationMs=24 remoteAddress=70.12.60.97
+2026-06-25T18:16:15.382+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/deduction/start status=200 durationMs=27 remoteAddress=70.12.60.97
+2026-06-25T18:16:15.385+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/deduction/26/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:15.404+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/deduction/26/questions status=200 durationMs=17 remoteAddress=70.12.60.97
+2026-06-25T18:16:16.365+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:16.392+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=22 remoteAddress=70.12.60.97
+2026-06-25T18:16:16.395+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:16.415+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:16:17.940+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/case-file status=200 durationMs=22 remoteAddress=70.12.60.97
+2026-06-25T18:16:47.158+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/map status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:47.183+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/map status=200 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:16:47.185+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/clue-board status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:47.201+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/clue-board status=200 durationMs=13 remoteAddress=70.12.60.97
+2026-06-25T18:16:49.231+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/case-file status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:49.231+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/deduction/start status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:49.257+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/36/deduction/start status=200 durationMs=23 remoteAddress=70.12.60.97
+2026-06-25T18:16:49.259+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/case-file status=200 durationMs=25 remoteAddress=70.12.60.97
+2026-06-25T18:16:49.259+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/deduction/26/questions status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:49.274+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/deduction/26/questions status=200 durationMs=13 remoteAddress=70.12.60.97
+2026-06-25T18:16:54.415+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/36/case-file status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:54.437+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/36/case-file status=200 durationMs=19 remoteAddress=70.12.60.97
+2026-06-25T18:16:57.462+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:57.486+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=20 remoteAddress=70.12.60.97
+2026-06-25T18:16:58.936+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39 status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:58.955+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39 status=200 durationMs=16 remoteAddress=70.12.60.97
+2026-06-25T18:16:59.768+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39/start status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:16:59.788+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=POST path=/api/v1/episodes/39/start status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:16:59.811+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39 status=200 durationMs=14 remoteAddress=70.12.60.97
+2026-06-25T18:17:11.900+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39 status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:17:11.918+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39 status=200 durationMs=14 remoteAddress=70.12.60.97
+2026-06-25T18:17:12.556+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:17:12.580+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=18 remoteAddress=70.12.60.97
+2026-06-25T18:17:37.087+09:00  INFO 23616 --- [0.0-8080-exec-8] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/39 status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:17:37.104+09:00  INFO 23616 --- [0.0-8080-exec-4] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/39 status=200 durationMs=14 remoteAddress=70.12.60.97
+2026-06-25T18:17:38.197+09:00  INFO 23616 --- [.0-8080-exec-10] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:17:38.223+09:00  INFO 23616 --- [0.0-8080-exec-9] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes status=200 durationMs=23 remoteAddress=70.12.60.97
+2026-06-25T18:17:38.686+09:00  INFO 23616 --- [0.0-8080-exec-5] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/37 status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:17:38.708+09:00  INFO 23616 --- [0.0-8080-exec-2] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/37 status=200 durationMs=19 remoteAddress=70.12.60.97
+2026-06-25T18:17:39.390+09:00  INFO 23616 --- [0.0-8080-exec-6] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/37/clear-report status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:17:39.408+09:00  INFO 23616 --- [0.0-8080-exec-3] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/37/clear-report status=200 durationMs=15 remoteAddress=70.12.60.97
+2026-06-25T18:17:39.413+09:00  INFO 23616 --- [0.0-8080-exec-1] c.o.s.global.config.RequestTraceFilter   : http_request method=OPTIONS path=/api/v1/episodes/37/reviews status=200 durationMs=0 remoteAddress=70.12.60.97
+2026-06-25T18:17:39.429+09:00  INFO 23616 --- [0.0-8080-exec-7] c.o.s.global.config.RequestTraceFilter   : http_request method=GET path=/api/v1/episodes/37/reviews status=200 durationMs=14 remoteAddress=70.12.60.97

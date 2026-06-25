@@ -45,7 +45,7 @@ function start() {
       clearInterval(timer);
       emitState();
     }
-  }, 100);
+  }, 250);
 }
 
 function reset() {

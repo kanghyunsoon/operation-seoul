@@ -17,6 +17,7 @@ import com.operation.seoul.episode.repository.EpisodeRepository;
 import com.operation.seoul.favorite.repository.EpisodeFavoriteRepository;
 import com.operation.seoul.global.exception.ApiException;
 import com.operation.seoul.location.service.OperationAreaResolver;
+import com.operation.seoul.playeranalysis.service.PlayerAnalysisService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -44,7 +45,8 @@ class EpisodePlayServiceDeductionTest {
             mock(MinigameProofValidator.class),
             mock(MinigameRetryVariantFactory.class),
             mock(PuzzleAttemptGuard.class),
-            deductionAiService
+            deductionAiService,
+            mock(PlayerAnalysisService.class)
     );
 
     @Test

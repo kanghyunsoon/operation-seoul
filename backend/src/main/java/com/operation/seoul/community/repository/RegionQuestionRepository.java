@@ -21,7 +21,7 @@ import java.util.List;
 public interface RegionQuestionRepository {
 
     @Select("""
-            select q.id, q.region_id, q.user_id, q.title, q.content, q.created_at, q.updated_at
+            select q.id, q.region_id, q.user_id, q.title, q.content, q.is_notice, q.created_at, q.updated_at
             from region_question q
             where q.id = #{id}
               and q.region_id = #{regionId}
@@ -33,6 +33,7 @@ public interface RegionQuestionRepository {
             @Result(property = "userId", column = "user_id"),
             @Result(property = "title", column = "title"),
             @Result(property = "content", column = "content"),
+            @Result(property = "notice", column = "is_notice"),
             @Result(property = "createdAt", column = "created_at"),
             @Result(property = "updatedAt", column = "updated_at")
     })
@@ -62,6 +63,7 @@ public interface RegionQuestionRepository {
                    u.nickname as author_nickname,
                    q.title,
                    q.content,
+                   q.is_notice,
                    q.created_at,
                    q.updated_at,
                    (select count(*)
@@ -72,7 +74,13 @@ public interface RegionQuestionRepository {
                     from region_question_like my_like
                     where my_like.question_id = q.id
                       and my_like.user_id = #{userId}
-                   ) as liked
+                   ) as liked,
+                   exists (
+                    select 1
+                    from user_follow follow
+                    where follow.follower_id = #{userId}
+                      and follow.following_id = q.user_id
+                   ) as author_following
             from region_question q
             join users u on u.id = q.user_id
             where q.region_id = #{regionId}
@@ -85,10 +93,12 @@ public interface RegionQuestionRepository {
             @Result(property = "authorNickname", column = "author_nickname"),
             @Result(property = "title", column = "title"),
             @Result(property = "content", column = "content"),
+            @Result(property = "notice", column = "is_notice"),
             @Result(property = "createdAt", column = "created_at"),
             @Result(property = "updatedAt", column = "updated_at"),
             @Result(property = "likeCount", column = "like_count"),
-            @Result(property = "liked", column = "liked")
+            @Result(property = "liked", column = "liked"),
+            @Result(property = "authorFollowing", column = "author_following")
     })
     List<RegionQuestionResponse> findQuestionResponsesByRegionId(@Param("regionId") Long regionId, @Param("userId") Long userId);
 
@@ -117,8 +127,8 @@ public interface RegionQuestionRepository {
     List<RegionAnswerResponse> findAnswerResponsesByQuestionId(Long questionId);
 
     @Insert("""
-            insert into region_question (region_id, user_id, title, content)
-            values (#{regionId}, #{userId}, #{title}, #{content})
+            insert into region_question (region_id, user_id, title, content, is_notice)
+            values (#{regionId}, #{userId}, #{title}, #{content}, #{notice})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertQuestion(RegionQuestion question);
@@ -127,6 +137,7 @@ public interface RegionQuestionRepository {
             update region_question
             set title = #{title},
                 content = #{content},
+                is_notice = #{notice},
                 updated_at = current_timestamp
             where id = #{id}
             """)

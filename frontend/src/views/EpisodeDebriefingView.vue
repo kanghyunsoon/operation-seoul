@@ -50,11 +50,11 @@ async function loadDebriefing() {
     report.value = await episodeApi.getClearReport(episodeId);
     const debrief = [
       '[사건의 전말]',
-      cleanSection(report.value?.finalTruthSummary) || '사건의 전말이 아직 등록되지 않았습니다.',
+      formatReadableText(cleanSection(report.value?.finalTruthSummary)) || '사건의 전말이 아직 등록되지 않았습니다.',
       '',
       '[배경 해설]',
-      cleanSection(report.value?.actualHistorySummary) || '실제 장소 배경 해설이 아직 등록되지 않았습니다.'
-    ].join('\n');
+      formatReadableText(cleanSection(report.value?.actualHistorySummary)) || '실제 장소 배경 해설이 아직 등록되지 않았습니다.'
+    ].join('\n\n');
     typingBuffer.reset();
     typingBuffer.addChunk(debrief);
     typingBuffer.finishTyping();
@@ -72,6 +72,15 @@ function cleanSection(value) {
     .trim();
 }
 
+function formatReadableText(value) {
+  return String(value || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*([.!?。！？])\s*/g, '$1\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function goReport() {
   router.push({ name: 'EpisodeClearReport', params: { episodeId } });
 }
@@ -86,11 +95,11 @@ function goReport() {
 h1 { margin: 0; font-size: clamp(2.2rem, 8vw, 4.4rem); line-height: 1; }
 .lead { color: #fde68a; font-weight: 900; }
 .truth-file { margin: 22px 0; border: 1px solid rgba(251,191,36,.24); border-radius: 20px; background: linear-gradient(180deg, rgba(254,243,199,.08), rgba(2,6,23,.72)); }
-.truth-file p { min-height: 360px; margin: 0; padding: 24px; color: #e5e7eb; white-space: pre-line; line-height: 1.9; font-size: 1.02rem; }
+.truth-file p { min-height: 380px; margin: 0; padding: 30px; color: #f3f4f6; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.95; font-size: clamp(1.13rem, 2.4vw, 1.3rem); font-weight: 600; }
 .cursor { color: #fbbf24; animation: blink 1s step-end infinite; }
 .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 button { min-height: 48px; border: 0; border-radius: 14px; padding: 0 18px; background: #b91c1c; color: #fff; font-weight: 1000; font: inherit; }
 button.ghost { border: 1px solid rgba(248,113,113,.32); background: transparent; color: #fecaca; }
 @keyframes blink { 50% { opacity: 0; } }
-@media (max-width: 560px) { .debrief-card { padding: 18px; } .truth-file p { min-height: 300px; padding: 18px; } .actions { display: grid; } }
+@media (max-width: 560px) { .debrief-card { padding: 18px; } .truth-file p { min-height: 320px; padding: 20px; font-size: 1.08rem; line-height: 1.85; } .actions { display: grid; } }
 </style>

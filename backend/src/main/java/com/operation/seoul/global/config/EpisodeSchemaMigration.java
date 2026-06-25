@@ -37,6 +37,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         migrateUsers();
         createEpisodeTables();
         createFavoriteTables();
+        createPlayerAnalysisTables();
         addColumns();
         createCaseFileTables();
         addCaseFileColumns();
@@ -204,9 +205,12 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
     private void migrateUsers() {
         addColumnIfMissing("users", "role", "alter table users add column role varchar(32) not null default 'ROLE_USER'");
         addColumnIfMissing("users", "profile_image_url", "alter table users add column profile_image_url varchar(1000) null");
+        addColumnIfMissing("users", "status_message", "alter table users add column status_message varchar(120) null");
+        addColumnIfMissing("users", "profile_public", "alter table users add column profile_public boolean not null default true");
         addColumnIfMissing("users", "status", "alter table users add column status varchar(32) not null default 'ACTIVE'");
         addColumnIfMissing("users", "created_at", "alter table users add column created_at datetime not null default current_timestamp");
         addColumnIfMissing("users", "updated_at", "alter table users add column updated_at datetime null");
+        executeIgnoringFailure("alter table users modify column profile_image_url mediumtext null");
         jdbcTemplate.update("update users set role = 'ROLE_ADMIN' where is_admin = true and (role is null or role <> 'ROLE_ADMIN')");
         jdbcTemplate.update("update users set role = 'ROLE_USER' where is_admin = false and (role is null or role = '')");
         jdbcTemplate.update("update users set status = 'ACTIVE' where status is null or status = ''");
@@ -420,6 +424,55 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                     index idx_episode_favorites_episode (episode_id),
                     constraint fk_episode_favorites_user foreign key (user_id) references users (id) on delete cascade,
                     constraint fk_episode_favorites_episode foreign key (episode_id) references episodes (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+    }
+
+    private void createPlayerAnalysisTables() {
+        jdbcTemplate.execute("""
+                create table if not exists player_analysis (
+                    id bigint not null auto_increment,
+                    user_id bigint not null,
+                    mission_id bigint not null,
+                    player_type varchar(50) null,
+                    summary varchar(255) null,
+                    strength varchar(255) null,
+                    weakness varchar(255) null,
+                    recommendation varchar(255) null,
+                    created_at datetime not null default current_timestamp,
+                    primary key (id),
+                    index idx_player_analysis_user_created (user_id, created_at),
+                    index idx_player_analysis_mission (mission_id),
+                    constraint fk_player_analysis_user foreign key (user_id) references users (id) on delete cascade,
+                    constraint fk_player_analysis_mission foreign key (mission_id) references episodes (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        jdbcTemplate.execute("""
+                create table if not exists player_analysis_mbti (
+                    id bigint not null auto_increment,
+                    analysis_id bigint not null,
+                    dimension varchar(50) not null,
+                    left_label varchar(50) not null,
+                    right_label varchar(50) not null,
+                    left_percent int not null,
+                    right_percent int not null,
+                    primary key (id),
+                    index idx_player_analysis_mbti_analysis (analysis_id),
+                    constraint fk_player_analysis_mbti_analysis foreign key (analysis_id) references player_analysis (id) on delete cascade
+                ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
+                """);
+        jdbcTemplate.execute("""
+                create table if not exists reasoning_answer (
+                    id bigint not null auto_increment,
+                    user_id bigint not null,
+                    mission_id bigint not null,
+                    question text not null,
+                    answer text not null,
+                    created_at datetime not null default current_timestamp,
+                    primary key (id),
+                    index idx_reasoning_answer_user_mission (user_id, mission_id),
+                    constraint fk_reasoning_answer_user foreign key (user_id) references users (id) on delete cascade,
+                    constraint fk_reasoning_answer_mission foreign key (mission_id) references episodes (id) on delete cascade
                 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci
                 """);
     }
@@ -719,5 +772,13 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
                 where table_schema = database() and table_name = ? and column_name = ?
                 """, Integer.class, tableName, columnName);
         if (count == null || count == 0) jdbcTemplate.execute(sql);
+    }
+
+    private void executeIgnoringFailure(String sql) {
+        try {
+            jdbcTemplate.execute(sql);
+        } catch (Exception exception) {
+            log.debug("Optional schema migration skipped: {}", sql, exception);
+        }
     }
 }

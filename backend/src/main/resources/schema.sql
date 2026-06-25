@@ -7,6 +7,13 @@ create table if not exists users (
     password varchar(255) not null,
     nickname varchar(255) not null,
     is_admin boolean not null default false,
+    role varchar(32) not null default 'ROLE_USER',
+    profile_image_url mediumtext null,
+    status_message varchar(120) null,
+    profile_public boolean not null default true,
+    status varchar(32) not null default 'ACTIVE',
+    created_at datetime not null default current_timestamp,
+    updated_at datetime null,
     primary key (id),
     unique key uk_users_email (email)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
@@ -114,6 +121,7 @@ create table if not exists region_question (
     user_id bigint not null,
     title varchar(255) not null,
     content text not null,
+    is_notice boolean not null default false,
     created_at datetime not null default current_timestamp,
     updated_at datetime null,
     primary key (id),
@@ -244,24 +252,56 @@ create table if not exists episodes (
     index idx_episodes_status (status)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
-create table if not exists user_plans (
+create table if not exists player_analysis (
     id bigint not null auto_increment,
     user_id bigint not null,
-    episode_id bigint not null,
-    planned_at datetime not null,
-    memo varchar(500) null,
-    status varchar(32) not null default 'PLANNED',
+    mission_id bigint not null,
+    player_type varchar(50) null,
+    summary varchar(255) null,
+    strength varchar(255) null,
+    weakness varchar(255) null,
+    recommendation varchar(255) null,
     created_at datetime not null default current_timestamp,
-    updated_at datetime null,
     primary key (id),
-    unique key uk_user_plans_user_episode (user_id, episode_id),
-    index idx_user_plans_user_status_date (user_id, status, planned_at),
-    index idx_user_plans_episode (episode_id),
-    constraint fk_user_plans_user
+    index idx_player_analysis_user_created (user_id, created_at),
+    index idx_player_analysis_mission (mission_id),
+    constraint fk_player_analysis_user
         foreign key (user_id) references users (id)
         on delete cascade,
-    constraint fk_user_plans_episode
-        foreign key (episode_id) references episodes (id)
+    constraint fk_player_analysis_mission
+        foreign key (mission_id) references episodes (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists player_analysis_mbti (
+    id bigint not null auto_increment,
+    analysis_id bigint not null,
+    dimension varchar(50) not null,
+    left_label varchar(50) not null,
+    right_label varchar(50) not null,
+    left_percent int not null,
+    right_percent int not null,
+    primary key (id),
+    index idx_player_analysis_mbti_analysis (analysis_id),
+    constraint fk_player_analysis_mbti_analysis
+        foreign key (analysis_id) references player_analysis (id)
+        on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists reasoning_answer (
+    id bigint not null auto_increment,
+    user_id bigint not null,
+    mission_id bigint not null,
+    question text not null,
+    answer text not null,
+    created_at datetime not null default current_timestamp,
+    primary key (id),
+    index idx_reasoning_answer_user_mission (user_id, mission_id),
+    constraint fk_reasoning_answer_user
+        foreign key (user_id) references users (id)
+        on delete cascade,
+    constraint fk_reasoning_answer_mission
+        foreign key (mission_id) references episodes (id)
         on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
@@ -304,38 +344,6 @@ create table if not exists episode_review_comments (
         foreign key (review_id) references episode_reviews (id)
         on delete cascade,
     constraint fk_episode_review_comments_user
-        foreign key (user_id) references users (id)
-        on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
-
-create table if not exists user_groups (
-    id bigint not null auto_increment,
-    name varchar(80) not null,
-    description varchar(500) null,
-    owner_id bigint not null,
-    visibility varchar(32) not null default 'PUBLIC',
-    status varchar(32) not null default 'ACTIVE',
-    created_at datetime not null default current_timestamp,
-    updated_at datetime null,
-    primary key (id),
-    index idx_user_groups_owner (owner_id),
-    index idx_user_groups_status_created (status, created_at),
-    constraint fk_user_groups_owner
-        foreign key (owner_id) references users (id)
-        on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
-
-create table if not exists user_group_members (
-    group_id bigint not null,
-    user_id bigint not null,
-    role varchar(32) not null default 'MEMBER',
-    joined_at datetime not null default current_timestamp,
-    primary key (group_id, user_id),
-    index idx_user_group_members_user (user_id),
-    constraint fk_user_group_members_group
-        foreign key (group_id) references user_groups (id)
-        on delete cascade,
-    constraint fk_user_group_members_user
         foreign key (user_id) references users (id)
         on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;

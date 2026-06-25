@@ -7,6 +7,7 @@ import com.operation.seoul.casefile.domain.CaseEvidence;
 import com.operation.seoul.casefile.domain.CaseSuspect;
 import com.operation.seoul.casefile.dto.CaseFileResponse;
 import com.operation.seoul.casefile.repository.CaseFileRepository;
+import com.operation.seoul.common.text.KoreanMojibakeRepair;
 import com.operation.seoul.episode.domain.Episode;
 import com.operation.seoul.episode.domain.UserEpisodeProgress;
 import com.operation.seoul.global.exception.ApiException;
@@ -85,7 +86,7 @@ public class CaseFileService {
                 .recommendedPlayers(episode.getRecommendedPlayers())
                 .startRegion("서울 정동길")
                 .progressStatus(progress == null ? "NOT_STARTED" : progress.getStatus())
-                .finalQuestion(episode.getFinalQuestion())
+                .finalQuestion(KoreanMojibakeRepair.repairOrFallback(episode.getFinalQuestion(), "범인, 흉기, 동기, 사인을 각각 입력하세요."))
                 .overview(CaseFileResponse.Overview.builder()
                         .briefingTitle(briefingTitle(episode))
                         .summary(storyUnlocked ? detailedStorySummary(episode, storyClues) : lockedStorySummary(episode))

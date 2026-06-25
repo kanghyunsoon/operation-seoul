@@ -43,6 +43,7 @@ const loading = ref(true);
 const error = ref('');
 const typingBuffer = useTypingBuffer(24);
 const displayedBriefing = computed(() => typingBuffer.displayedText.value);
+const preservedQuery = computed(() => route.query.areaCode ? { areaCode: route.query.areaCode } : {});
 
 onMounted(loadBriefing);
 
@@ -55,10 +56,10 @@ async function loadBriefing() {
       `[작전명] ${episode.value?.title || '미확인 사건'}`,
       episode.value?.subtitle ? `[상황] ${episode.value.subtitle}` : '',
       '',
-      episode.value?.fictionSynopsis || episode.value?.missionDescription || '사건 개요가 아직 등록되지 않았습니다.',
+      formatReadableText(episode.value?.fictionSynopsis || episode.value?.missionDescription || '사건 개요가 아직 등록되지 않았습니다.'),
       '',
       '요원은 현장 단서를 수집해 범인, 흉기, 동기, 사인을 확정해야 합니다.'
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n\n');
     typingBuffer.reset();
     typingBuffer.addChunk(briefing);
     typingBuffer.finishTyping();
@@ -73,8 +74,17 @@ function skipTyping() {
   typingBuffer.skipTyping();
 }
 
+function formatReadableText(value) {
+  return String(value || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*([.!?。！？])\s*/g, '$1\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function goCaseFile() {
-  router.push({ name: 'EpisodeCaseFile', params: { episodeId } });
+  router.push({ name: 'EpisodeCaseFile', params: { episodeId }, query: preservedQuery.value });
 }
 </script>
 
@@ -91,11 +101,11 @@ h1 { margin: 0; font-size: clamp(2rem, 7vw, 4rem); line-height: 1; }
 .terminal-head span:nth-child(2) { background: #facc15; }
 .terminal-head span:nth-child(3) { background: #22c55e; }
 .terminal-head strong { margin-left: 8px; }
-.typing-text { min-height: 280px; margin: 0; padding: 22px; color: #dbeafe; white-space: pre-line; line-height: 1.85; font-size: 1.02rem; }
+.typing-text { min-height: 320px; margin: 0; padding: 28px; color: #eef6ff; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.95; font-size: clamp(1.12rem, 2.5vw, 1.28rem); font-weight: 600; }
 .cursor { color: #fbbf24; animation: blink 1s step-end infinite; }
 .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 button { min-height: 48px; border: 0; border-radius: 14px; padding: 0 18px; background: #b45309; color: #fff7ed; font-weight: 1000; font: inherit; }
 button.ghost { border: 1px solid rgba(245,158,11,.28); background: transparent; color: #fde68a; }
 @keyframes blink { 50% { opacity: 0; } }
-@media (max-width: 560px) { .terminal-card { padding: 18px; } .actions { display: grid; } }
+@media (max-width: 560px) { .terminal-card { padding: 18px; } .typing-text { min-height: 300px; padding: 20px; font-size: 1.08rem; line-height: 1.85; } .actions { display: grid; } }
 </style>

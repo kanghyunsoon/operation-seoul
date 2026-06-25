@@ -1,6 +1,5 @@
 <template>
   <div class="mini-game">
-    <p class="story-hook">{{ missionDescription }}</p>
     <component
       v-if="activeComponent"
       :is="activeComponent"
@@ -54,7 +53,6 @@ const config = computed(() => props.interaction?.config || {});
 const submitValue = computed(() => String(props.interaction?.localSolution || props.interaction?.basis || '').trim());
 const basis = computed(() => props.interaction?.basis || '');
 const retryVariant = computed(() => Number(props.interaction?.retryVariant || 0));
-const missionDescription = computed(() => props.interaction?.missionDescription || props.interaction?.prompt || '아래 미션을 해결하여 단서를 얻으세요.');
 const autoSubmit = computed(() => ['UP_DOWN_TIMER', 'NUMBER_BASEBALL', 'NUMBER_SEQUENCE_TAP', 'COLOR_STROOP', 'LEFT_RIGHT_SORT'].includes(type.value));
 const statusText = computed(() => {
   if (autoSubmit.value) return latestProof.value ? '성공 결과를 서버에 자동 제출했습니다.' : '성공 또는 실패 시 화면에서 바로 안내됩니다.';
@@ -93,8 +91,36 @@ function withRetryVariant(proof) {
 </script>
 <style scoped>
 .mini-game { display: grid; gap: 12px; margin-top: 12px; padding: 12px; border: 1px solid rgba(148,163,184,.18); border-radius: 18px; background: linear-gradient(135deg, rgba(15,23,42,.92), rgba(8,47,73,.5)); }
-.story-hook { margin: 0; color: #fcd34d; font-weight: 900; }
 .fallback { margin: 0; color: #cbd5e1; }
 .device-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; border-radius: 12px; background: rgba(15,23,42,.8); color: #cbd5e1; font-size: .78rem; font-weight: 900; }
 .device-status span { color: #fbbf24; }
+.mini-game :deep(button:not(.pattern-node)) {
+  border: 2px solid #b8873b !important;
+  background: #b8873b !important;
+  color: #fff7ed !important;
+  box-shadow: 0 10px 24px rgba(184,135,59,.24), inset 0 0 0 1px rgba(255,255,255,.16);
+  text-shadow: none;
+}
+.mini-game :deep(button:not(.pattern-node):not(:disabled):hover) {
+  filter: brightness(1.08);
+  box-shadow: 0 14px 30px rgba(184,135,59,.34), inset 0 0 0 1px rgba(255,255,255,.22);
+}
+.mini-game :deep(button:not(.pattern-node).selected),
+.mini-game :deep(button:not(.pattern-node).active),
+.mini-game :deep(button:not(.pattern-node).correct) {
+  border-color: #b8873b !important;
+  background: #b8873b !important;
+  color: #fff7ed !important;
+}
+.mini-game :deep(button:not(.pattern-node).flash) {
+  border-color: #b8873b !important;
+  background: #b8873b !important;
+  color: #fff7ed !important;
+  box-shadow: 0 0 0 4px rgba(184,135,59,.22), 0 14px 30px rgba(184,135,59,.3);
+}
+.mini-game :deep(button:disabled) {
+  opacity: .55;
+  cursor: not-allowed;
+  filter: grayscale(.15);
+}
 </style>

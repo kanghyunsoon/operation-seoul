@@ -9,6 +9,9 @@ export const challengeApi = {
   async getMyChallenges() {
     return unwrap(await apiClient.get('/v1/challenges/me'));
   },
+  async getSummary() {
+    return unwrap(await apiClient.get('/v1/challenges/summary'));
+  },
   async joinChallenge(challengeId) {
     return unwrap(await apiClient.post(`/v1/challenges/${challengeId}/join`));
   }

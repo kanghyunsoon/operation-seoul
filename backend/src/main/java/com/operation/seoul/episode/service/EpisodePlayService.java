@@ -11,8 +11,10 @@ import com.operation.seoul.episode.domain.*;
 import com.operation.seoul.episode.dto.*;
 import com.operation.seoul.episode.repository.EpisodeRepository;
 import com.operation.seoul.favorite.repository.EpisodeFavoriteRepository;
+import com.operation.seoul.common.text.KoreanMojibakeRepair;
 import com.operation.seoul.global.exception.ApiException;
 import com.operation.seoul.location.service.OperationAreaResolver;
+import com.operation.seoul.playeranalysis.service.PlayerAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,6 +60,7 @@ public class EpisodePlayService {
     private final MinigameRetryVariantFactory minigameRetryVariantFactory;
     private final PuzzleAttemptGuard puzzleAttemptGuard;
     private final DeductionAiService deductionAiService;
+    private final PlayerAnalysisService playerAnalysisService;
 
     @Value("${app.dev-mode.arrival-enabled:false}")
     private boolean arrivalDevModeEnabled;
@@ -178,7 +181,7 @@ public class EpisodePlayService {
                         ? episode.getFictionSynopsis()
                         : episode.getMissionDescription())
                 .finalAnswerType(episode.getFinalAnswerType())
-                .finalQuestion(episode.getFinalQuestion())
+                .finalQuestion(KoreanMojibakeRepair.repairOrFallback(episode.getFinalQuestion(), "범인, 흉기, 동기, 사인을 각각 입력하세요."))
                 .progressStatus(progress == null ? "NOT_STARTED" : progress.getStatus())
                 .favorited(favoriteRepository.findByUserIdAndEpisodeId(user.getId(), episodeId) != null)
                 .build();
@@ -650,7 +653,7 @@ public class EpisodePlayService {
             episodeRepository.insertDeductionSession(session);
             session = episodeRepository.findDeductionSession(session.getId());
         }
-        List<String> clues = allClues(progress);
+        List<String> clues = KoreanMojibakeRepair.repairListOrFallback(allClues(progress), "단서 내용 확인 필요");
         String message = clues.size() < 3
                 ? "단서가 아직 적습니다. 질문은 가능하지만 답변이 제한될 수 있습니다."
                 : "최종 추리를 시작할 수 있습니다.";
@@ -663,7 +666,7 @@ public class EpisodePlayService {
                 .activeElapsedSeconds(value(progress.getActiveElapsedSeconds()))
                 .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
                 .collectedClues(clues)
-                .finalQuestion(episode.getFinalQuestion())
+                .finalQuestion(KoreanMojibakeRepair.repairOrFallback(episode.getFinalQuestion(), "범인, 흉기, 동기, 사인을 각각 입력하세요."))
                 .message(message)
                 .build();
     }
@@ -774,6 +777,7 @@ public class EpisodePlayService {
                 episodeRepository.updateDeductionSession(session);
             }
             episodeRepository.updateProgress(progress);
+            playerAnalysisService.createAnalysisAfterFinalAnswer(user.getId(), episodeId, false);
             return FinalAnswerResponse.builder()
                     .correct(false)
                     .status(progress.getStatus())
@@ -793,6 +797,7 @@ public class EpisodePlayService {
             session.setFinalGuessCount(value(session.getFinalGuessCount()) + 1);
             episodeRepository.updateDeductionSession(session);
         }
+        playerAnalysisService.createAnalysisAfterFinalAnswer(user.getId(), episodeId, true);
         return FinalAnswerResponse.builder()
                 .correct(true)
                 .status("CLEARED")
@@ -825,7 +830,7 @@ public class EpisodePlayService {
         return ClearReportResponse.builder()
                 .episodeId(episodeId)
                 .title(episode.getTitle())
-                .finalQuestion(episode.getFinalQuestion())
+                .finalQuestion(KoreanMojibakeRepair.repairOrFallback(episode.getFinalQuestion(), "범인, 흉기, 동기, 사인을 각각 입력하세요."))
                 .finalAnswerType(episode.getFinalAnswerType())
                 .score(progress.getScore())
                 .status(progress.getStatus())

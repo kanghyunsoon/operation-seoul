@@ -19,7 +19,6 @@ public class EpisodeRecommendationResponse {
     private String estimatedTime;
     private String estimatedDistance;
     private Boolean favorited;
-    private Boolean planned;
     private Boolean cleared;
     private Integer score;
     private String reason;

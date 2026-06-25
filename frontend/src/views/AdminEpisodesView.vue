@@ -3810,5 +3810,261 @@ input, select { width: 100%; box-sizing: border-box; border: 1px solid rgba(148,
 .draft-actions-helper strong { color: #fde68a; }
 .draft-actions-helper span { color: #cbd5e1; font-size: .84rem; line-height: 1.45; }
 .reward { opacity: .82; }
-@media (max-width: 860px) { .admin-hero, .layout { display: block; } .episode-list { position: static; max-height: 420px; } .hero-actions { margin-top: 12px; } .detail-panel { margin-top: 14px; } .admin-section-tabs, .stat-grid, .mini-grid, .edit-grid, .candidate-grid, .manual-grid, .hint-edit-list, .creation-flow, .preview-grid, .ai-mode-grid, .draft-step-list { grid-template-columns: 1fr; } .selection-summary, .draft-actions-helper { display: grid; } .selected-route li { grid-template-columns: 24px 1fr; } .selected-route li > span { grid-column: 2; justify-self: start; } }
+
+/* Admin mission editor readability pass */
+.admin-episode-page {
+  padding-inline: clamp(18px, 3vw, 34px);
+}
+
+.layout {
+  width: min(100%, 1380px);
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.episode-list,
+.detail-card,
+.draft-panel {
+  border-radius: 16px;
+  border-color: rgba(245,158,11,.22);
+  background: linear-gradient(180deg, rgba(15,23,42,.9), rgba(8,13,26,.84));
+  box-shadow: 0 18px 45px rgba(0,0,0,.28);
+}
+
+.detail-card {
+  padding: clamp(18px, 2.2vw, 26px);
+}
+
+.episode-list {
+  padding: 14px;
+}
+
+.episode-list .section-title {
+  align-items: flex-start;
+}
+
+.episode-card {
+  padding: 12px 13px;
+  line-height: 1.45;
+}
+
+.episode-card strong,
+.spot-head strong,
+.mini-grid strong {
+  color: #fff7ed;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
+.admin-section-tabs {
+  padding: 8px;
+  gap: 8px;
+}
+
+.admin-section-tabs button {
+  min-height: 42px;
+  padding-inline: 14px;
+  font-size: .86rem;
+}
+
+.section-title {
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-title h3,
+.section-title h2 {
+  color: #fff7ed;
+  letter-spacing: 0;
+}
+
+.edit-section,
+.draft-editor,
+.draft-edit-block,
+.candidate-panel {
+  padding: clamp(14px, 1.8vw, 20px);
+  border-radius: 16px;
+  background: rgba(2,6,23,.44);
+}
+
+.edit-section summary,
+.spot-card summary,
+.card-editor summary {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  color: #fde68a;
+  font-size: .98rem;
+  line-height: 1.4;
+}
+
+.edit-grid {
+  gap: 14px;
+  margin: 14px 0 16px;
+}
+
+.edit-grid label,
+.card-editor label,
+.hint-edit-list label,
+.draft-edit-block .mini-grid label,
+.manual-grid label,
+.manual-note {
+  gap: 8px;
+  color: #f8fafc;
+  font-size: .9rem;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+.edit-grid label.wide,
+.card-editor label.wide {
+  padding-top: 2px;
+}
+
+input,
+select,
+textarea,
+pre {
+  border-color: rgba(148,163,184,.32) !important;
+  background: rgba(8,13,26,.92) !important;
+  color: #f8fafc !important;
+  font-size: .95rem !important;
+  line-height: 1.62 !important;
+}
+
+input,
+select {
+  min-height: 44px;
+  padding: 10px 12px !important;
+}
+
+textarea,
+pre {
+  padding: 13px 14px !important;
+  font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif !important;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+textarea {
+  min-height: 96px;
+  margin-top: 0;
+  resize: vertical;
+}
+
+.edit-grid label.wide textarea,
+.draft-edit-block label.wide textarea,
+.card-editor label.wide textarea {
+  min-height: 132px;
+}
+
+.edit-grid label.wide textarea[rows="2"],
+.card-editor textarea[rows="2"] {
+  min-height: 96px;
+}
+
+textarea[rows="4"],
+textarea[rows="5"],
+.draft-edit-block textarea[rows="5"] {
+  min-height: 172px;
+}
+
+.spot-card,
+.mini-grid article,
+.stat-grid article {
+  background: rgba(8,13,26,.58);
+  border-color: rgba(148,163,184,.22);
+}
+
+.spot-card {
+  padding: 16px;
+}
+
+.spot-card p,
+.mini-grid p,
+.draft-panel p,
+.preview-grid li,
+.draft-card-preview,
+.candidate-card p {
+  color: #dbe4ef;
+  font-size: .92rem;
+  line-height: 1.68;
+  word-break: keep-all;
+}
+
+.payload-actions,
+.publish-actions,
+.candidate-actions {
+  flex-wrap: wrap;
+}
+
+button {
+  min-height: 40px;
+  padding-inline: 14px;
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  }
+
+  .edit-grid,
+  .mini-grid,
+  .preview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .admin-hero,
+  .layout {
+    display: block;
+  }
+
+  .admin-episode-page {
+    padding-inline: 14px;
+  }
+
+  .episode-list {
+    position: static;
+    max-height: 420px;
+  }
+
+  .hero-actions {
+    margin-top: 12px;
+  }
+
+  .detail-panel {
+    margin-top: 14px;
+  }
+
+  .admin-section-tabs,
+  .stat-grid,
+  .mini-grid,
+  .edit-grid,
+  .candidate-grid,
+  .manual-grid,
+  .hint-edit-list,
+  .creation-flow,
+  .preview-grid,
+  .ai-mode-grid,
+  .draft-step-list {
+    grid-template-columns: 1fr;
+  }
+
+  .selection-summary,
+  .draft-actions-helper {
+    display: grid;
+  }
+
+  .selected-route li {
+    grid-template-columns: 24px 1fr;
+  }
+
+  .selected-route li > span {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
 </style>

@@ -73,7 +73,7 @@ function start() {
   timer = window.setInterval(() => {
     remainingMs.value = Math.max(0, endsAt - Date.now());
     if (remainingMs.value <= 0) fail();
-  }, 100);
+  }, 250);
 }
 
 function fail() {

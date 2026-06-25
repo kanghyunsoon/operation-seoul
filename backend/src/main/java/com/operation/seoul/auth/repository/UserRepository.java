@@ -34,7 +34,7 @@ public interface UserRepository {
     }
 
     @Select("""
-            select id, email, password, nickname, is_admin, role, profile_image_url, status, created_at, updated_at
+            select id, email, password, nickname, is_admin, role, profile_image_url, status_message, profile_public, status, created_at, updated_at
             from users
             where email = #{email}
             limit 1
@@ -47,6 +47,8 @@ public interface UserRepository {
             @Result(property = "admin", column = "is_admin"),
             @Result(property = "role", column = "role"),
             @Result(property = "profileImageUrl", column = "profile_image_url"),
+            @Result(property = "statusMessage", column = "status_message"),
+            @Result(property = "profilePublic", column = "profile_public"),
             @Result(property = "status", column = "status"),
             @Result(property = "createdAt", column = "created_at"),
             @Result(property = "updatedAt", column = "updated_at")
@@ -54,7 +56,7 @@ public interface UserRepository {
     User findOneByEmail(String email);
 
     @Select("""
-            select id, email, password, nickname, is_admin, role, profile_image_url, status, created_at, updated_at
+            select id, email, password, nickname, is_admin, role, profile_image_url, status_message, profile_public, status, created_at, updated_at
             from users
             where id = #{id}
             limit 1
@@ -69,8 +71,8 @@ public interface UserRepository {
     int countByNickname(String nickname);
 
     @Insert("""
-            insert into users (email, password, nickname, is_admin, role, profile_image_url, status)
-            values (#{email}, #{password}, #{nickname}, #{admin}, #{role}, #{profileImageUrl}, #{status})
+            insert into users (email, password, nickname, is_admin, role, profile_image_url, status_message, profile_public, status)
+            values (#{email}, #{password}, #{nickname}, #{admin}, #{role}, #{profileImageUrl}, #{statusMessage}, #{profilePublic}, #{status})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(User user);
@@ -83,6 +85,8 @@ public interface UserRepository {
                 is_admin = #{admin},
                 role = #{role},
                 profile_image_url = #{profileImageUrl},
+                status_message = #{statusMessage},
+                profile_public = #{profilePublic},
                 status = #{status},
                 updated_at = current_timestamp
             where id = #{id}
@@ -93,7 +97,7 @@ public interface UserRepository {
     int softDeleteById(Long id);
 
     @Select("""
-            select id, email, password, nickname, is_admin, role, profile_image_url, status, created_at, updated_at
+            select id, email, password, nickname, is_admin, role, profile_image_url, status_message, profile_public, status, created_at, updated_at
             from users
             order by created_at desc, id desc
             """)

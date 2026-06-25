@@ -35,6 +35,14 @@ public class RegionQuestionController {
         return ResponseEntity.ok(questionService.getQuestions(regionId, userId));
     }
 
+    @GetMapping("/{questionId}")
+    public ResponseEntity<RegionQuestionResponse> getQuestion(
+            @PathVariable Long regionId,
+            @PathVariable Long questionId,
+            @RequestParam(value = "userId", required = false) Long userId) {
+        return ResponseEntity.ok(questionService.getQuestion(regionId, questionId, userId));
+    }
+
     @PostMapping
     public ResponseEntity<RegionQuestionResponse> createQuestion(
             @PathVariable Long regionId,

@@ -22,7 +22,6 @@ public interface EpisodeRecommendationRepository {
                    e.estimated_time,
                    e.estimated_distance,
                    case when f.episode_id is null then false else true end as favorited,
-                   case when pl.episode_id is null then false else true end as planned,
                    case when p.status = 'CLEARED' then true else false end as cleared,
                    case when exists (
                        select 1
@@ -42,7 +41,6 @@ public interface EpisodeRecommendationRepository {
                    ) then 1 else 0 end as difficulty_match
             from episodes e
             left join episode_favorites f on f.episode_id = e.id and f.user_id = #{userId}
-            left join user_plans pl on pl.episode_id = e.id and pl.user_id = #{userId}
             left join user_episode_progress p on p.episode_id = e.id and p.user_id = #{userId}
             where e.status = 'PUBLISHED'
             order by e.id asc
@@ -57,7 +55,6 @@ public interface EpisodeRecommendationRepository {
             @Result(property = "estimatedTime", column = "estimated_time"),
             @Result(property = "estimatedDistance", column = "estimated_distance"),
             @Result(property = "favorited", column = "favorited"),
-            @Result(property = "planned", column = "planned"),
             @Result(property = "cleared", column = "cleared")
     })
     List<EpisodeRecommendationResponse> findCandidates(Long userId);

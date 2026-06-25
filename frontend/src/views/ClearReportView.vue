@@ -40,15 +40,17 @@
 
       <article class="paper-block fact-block">
         <h2>2. 실제 장소 해설</h2>
-        <p v-for="paragraph in historyExplanationParagraphs" :key="paragraph">{{ paragraph }}</p>
+        <div class="history-explanation">
+          <p v-for="paragraph in historyExplanationParagraphs" :key="paragraph">{{ paragraph }}</p>
+        </div>
       </article>
 
       <article class="paper-block">
         <h2>수집한 단서</h2>
         <div v-for="slot in deductionSlots" :key="slot.id" class="clue-section">
           <h3>{{ slot.label }} 추리</h3>
-          <div class="chips">
-            <span v-for="clue in slot.clues" :key="`${slot.id}-${clue}`">{{ clue }}</span>
+          <div class="clue-list">
+            <p v-for="clue in slot.clues" :key="`${slot.id}-${clue}`">{{ clue }}</p>
             <em v-if="!slot.clues.length">분류된 단서 없음</em>
           </div>
         </div>
@@ -111,7 +113,7 @@ const motifDisclosure = computed(() => {
 });
 
 const historyExplanationParagraphs = computed(() => {
-  const paragraphs = splitBlocks(historySection.value || report.value?.actualHistorySummary)
+  const paragraphs = splitReadableParagraphs(historySection.value || report.value?.actualHistorySummary)
     .filter((paragraph) => !paragraph.includes('이 임무의 실제'));
   return paragraphs.length ? paragraphs : ['실제 장소 해설이 아직 등록되지 않았습니다.'];
 });
@@ -160,6 +162,35 @@ function splitBlocks(value) {
     .filter(Boolean);
 }
 
+function splitReadableParagraphs(value) {
+  const text = String(value || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*([.!?。！？])\s*/g, '$1\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+  const sentences = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const paragraphs = [];
+  let current = '';
+  for (const sentence of sentences) {
+    if (!current) {
+      current = sentence;
+      continue;
+    }
+    if ((current + sentence).length < 92) {
+      current = `${current} ${sentence}`;
+    } else {
+      paragraphs.push(current);
+      current = sentence;
+    }
+  }
+  if (current) paragraphs.push(current);
+  return paragraphs;
+}
+
 function sectionText(value, startTitle, nextTitle) {
   const text = String(value || '');
   const start = text.indexOf(startTitle);
@@ -171,35 +202,37 @@ function sectionText(value, startTitle, nextTitle) {
 </script>
 
 <style scoped>
-.report-page { min-height: 100vh; box-sizing: border-box; padding: 18px 14px 28px; background: radial-gradient(circle at 20% 0%, rgba(180, 83, 9, .18), transparent 34%), #f8f1df; color: #24180d; font-family: Georgia, 'Noto Sans KR', serif; }
-.report { width: min(100%, 760px); box-sizing: border-box; margin: 0 auto; padding: 22px; border: 2px solid rgba(36,24,13,.18); border-radius: 22px; background: rgba(255,255,255,.62); box-shadow: 0 22px 55px rgba(36,24,13,.13); }
+.report-page { min-height: 100vh; box-sizing: border-box; padding: 22px 16px 42px; background: transparent; color: #f3f6fa; font-family: 'Noto Sans KR', system-ui, sans-serif; }
+.report { width: min(100%, 1120px); box-sizing: border-box; margin: 0 auto; padding: clamp(20px, 3vw, 30px); border: 1px solid rgba(36,50,71,.94); border-radius: 12px; background: linear-gradient(145deg, rgba(12,23,38,.96), rgba(8,17,30,.96)); box-shadow: 0 12px 30px rgba(0,0,0,.35); }
 .shell { min-height: 260px; display: grid; align-content: center; gap: 12px; }
-.stamp { display: inline-block; transform: rotate(-3deg); border: 3px solid #b91c1c; color: #b91c1c; padding: 6px 10px; font-weight: 1000; }
-.eyebrow { margin: 12px 0 0; color: #9a3412; font-size: .76rem; font-weight: 1000; letter-spacing: .14em; }
-h1 { margin: 8px 0; font-size: clamp(1.8rem, 8vw, 3.4rem); line-height: 1.05; }
-.question { margin: 0 0 18px; color: #57534e; line-height: 1.65; }
+.stamp { display: inline-block; width: fit-content; transform: rotate(-3deg); border: 2px solid rgba(154,74,80,.88); color: #f2c7ca; background: rgba(110,47,52,.18); padding: 6px 10px; font-weight: 1000; letter-spacing: .05em; }
+.eyebrow { margin: 12px 0 0; color: #b9a476; font-size: .76rem; font-weight: 1000; letter-spacing: .14em; }
+h1 { margin: 10px 0; color: #f3f6fa !important; font-size: clamp(2.2rem, 6vw, 4rem); line-height: 1.05; word-break: keep-all; }
+.question { margin: 0 0 20px; color: #8f9caf !important; line-height: 1.7; font-size: 1.02rem; font-weight: 560; }
 .score-card { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 18px 0; }
-.score-card div, .metric-grid article, .paper-block { border: 1px solid rgba(36,24,13,.16); border-radius: 16px; background: rgba(255,255,255,.68); }
-.score-card div { padding: 14px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.score-card span, .metric-grid span { color: #78716c; font-size: .82rem; font-weight: 800; }
-.score-card strong { color: #92400e; font-size: 1.15rem; }
+.score-card div, .metric-grid article, .paper-block { border: 1px solid rgba(36,50,71,.94); border-radius: 12px; background: rgba(8,17,30,.72); }
+.score-card div { padding: 16px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.score-card span, .metric-grid span { color: #79869a !important; font-size: .86rem; font-weight: 800; }
+.score-card strong { color: #b9a476 !important; font-size: 1.22rem; line-height: 1.35; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 16px 0; }
 .metric-grid article { padding: 12px; display: grid; gap: 4px; }
-.metric-grid strong { font-size: 1.25rem; }
-.paper-block { margin-top: 14px; padding: 16px; }
-.paper-block h2 { margin: 0 0 10px; }
-.paper-block p { margin: 6px 0; line-height: 1.75; }
-.paper-block.subdued { background: rgba(250, 247, 239, .72); }
-.fact-block { border-color: rgba(146, 64, 14, .26); background: rgba(255, 251, 235, .76); }
-.mode-label { margin: 0 0 6px; color: #9a3412; font-size: .72rem; font-weight: 1000; letter-spacing: .14em; }
-.clue-section { margin-top: 12px; }
-.clue-section h3 { margin: 0 0 7px; font-size: .92rem; color: #78350f; }
-.chips { display: flex; flex-wrap: wrap; gap: 7px; }
-.chips span { border-radius: 999px; background: #24180d; color: #fde68a; padding: 7px 10px; font-size: .82rem; font-weight: 900; }
-.chips em { color: #78716c; font-style: normal; }
+.metric-grid strong { color: #d4dbe6 !important; font-size: 1.3rem; line-height: 1.2; }
+.paper-block { margin-top: 16px; padding: clamp(18px, 2.2vw, 24px); }
+.paper-block h2 { margin: 0 0 12px; color: #e0e6ef !important; font-size: clamp(1.35rem, 2.4vw, 1.8rem); }
+.paper-block p { margin: 8px 0; color: #8996a9 !important; line-height: 1.78; font-size: 1rem; font-weight: 470; }
+.paper-block.subdued { background: rgba(8,17,30,.62); }
+.fact-block { border-color: rgba(143,106,50,.34); background: rgba(12,23,38,.82); }
+.mode-label { margin: 0 0 8px; color: #b9a476; font-size: .75rem; font-weight: 1000; letter-spacing: .14em; }
+.history-explanation { display: grid; gap: 9px; margin-top: 10px; }
+.history-explanation p { margin: 0; color: #8794a7 !important; line-height: 1.86; font-size: 1.02rem; font-weight: 460; word-break: keep-all; overflow-wrap: anywhere; }
+.clue-section { margin-top: 16px; }
+.clue-section h3 { margin: 0 0 9px; font-size: 1rem; color: #b9a476 !important; font-weight: 900; }
+.clue-list { display: grid; gap: 8px; }
+.clue-list p { margin: 0; padding: 8px 0 8px 13px; border-left: 2px solid rgba(143,106,50,.36); color: #8490a1 !important; background: transparent; line-height: 1.72; font-size: .98rem; font-weight: 470; word-break: keep-all; overflow-wrap: anywhere; }
+.clue-list em { color: #697789 !important; font-style: normal; }
 .actions { display: grid; grid-template-columns: 1fr; gap: 9px; margin-top: 18px; }
-button { min-height: 48px; border: 0; border-radius: 13px; background: #24180d; color: #fff; font-weight: 900; }
-button.ghost { border: 1px solid rgba(36,24,13,.24); background: transparent; color: #24180d; }
+button { min-height: 46px; border: 1px solid rgba(36,50,71,.94); border-radius: 8px; background: rgba(8,17,30,.88); color: #f3f6fa; font-weight: 900; }
+button.ghost { border: 1px solid rgba(36,50,71,.94); background: transparent; color: #a7b2c3; }
 @media (min-width: 640px) { .score-card { grid-template-columns: repeat(3, 1fr); } .score-card div { display: grid; } .metric-grid { grid-template-columns: repeat(3, 1fr); } .actions { grid-template-columns: 1fr 1fr 1fr; } }
 @media (max-width: 370px) { .report { padding: 18px; } .metric-grid { grid-template-columns: 1fr; } }
 </style>

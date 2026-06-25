@@ -37,6 +37,12 @@ public class RegionQuestionService {
         return questions;
     }
 
+    public RegionQuestionResponse getQuestion(Long regionId, Long questionId, Long fallbackUserId) {
+        requireRegion(regionId);
+        Long userId = currentUserResolver.resolveUserId(fallbackUserId);
+        return findQuestionResponse(regionId, questionId, userId);
+    }
+
     public RegionQuestionResponse createQuestion(Long regionId, RegionQuestionRequest request, Long fallbackUserId) {
         requireRegion(regionId);
         Long userId = currentUserResolver.resolveUserId(fallbackUserId);
@@ -45,6 +51,7 @@ public class RegionQuestionService {
         question.setUserId(userId);
         question.setTitle(cleanText(request.getTitle()));
         question.setContent(cleanText(request.getContent()));
+        question.setNotice(resolveNotice(request));
         questionRepository.insertQuestion(question);
         return findQuestionResponse(regionId, question.getId(), userId);
     }
@@ -56,6 +63,7 @@ public class RegionQuestionService {
         requireOwnerOrAdmin(question.getUserId(), userId);
         question.setTitle(cleanText(request.getTitle()));
         question.setContent(cleanText(request.getContent()));
+        question.setNotice(resolveNotice(request));
         questionRepository.updateQuestion(question);
         return findQuestionResponse(regionId, questionId, userId);
     }
@@ -165,6 +173,14 @@ public class RegionQuestionService {
         if (!ownerId.equals(userId) && !currentUserResolver.resolveIsAdmin(false)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission for this community action.");
         }
+    }
+
+    private boolean resolveNotice(RegionQuestionRequest request) {
+        boolean notice = Boolean.TRUE.equals(request.getNotice());
+        if (notice && !currentUserResolver.resolveIsAdmin(false)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can create notices.");
+        }
+        return notice;
     }
 
     private String cleanText(String value) {

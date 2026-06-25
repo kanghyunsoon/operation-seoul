@@ -14,5 +14,6 @@ public class PlayerRankingResponse {
     private Integer wrongAnswerCount;
     private Integer deductionQuestionCount;
     private Integer finalGuessCount;
+    private Integer achievedChallengeCount;
     private Integer rankNo;
 }

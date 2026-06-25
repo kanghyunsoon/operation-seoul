@@ -2,6 +2,7 @@ package com.operation.seoul.challenge.controller;
 
 import com.operation.seoul.auth.security.CurrentUserResolver;
 import com.operation.seoul.challenge.dto.ChallengeResponse;
+import com.operation.seoul.challenge.dto.ChallengeSummaryResponse;
 import com.operation.seoul.challenge.service.ChallengeService;
 import com.operation.seoul.global.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,11 @@ public class ChallengeController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<List<ChallengeResponse>>> myChallenges() {
         return ResponseEntity.ok(ApiResponse.ok("My challenges.", challengeService.getMyChallenges(currentUserResolver.requireCurrentUser())));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<ChallengeSummaryResponse>> summary() {
+        return ResponseEntity.ok(ApiResponse.ok("Challenge summary.", challengeService.getSummary(currentUserResolver.requireCurrentUser())));
     }
 
     @PostMapping("/{challengeId}/join")

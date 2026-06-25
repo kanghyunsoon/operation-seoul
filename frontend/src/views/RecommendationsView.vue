@@ -4,7 +4,7 @@
       <div>
         <p>AI CURATION</p>
         <h1>맞춤 추천</h1>
-        <span>관심, 일정, 클리어 기록을 바탕으로 AI가 다음 사건 파일을 추천합니다.</span>
+        <span>관심과 클리어 기록을 바탕으로 AI가 다음 사건 파일을 추천합니다.</span>
       </div>
       <div class="hero-actions">
         <button type="button" @click="loadRecommendations">다시 분석</button>
@@ -28,7 +28,6 @@
         <div class="card-body">
           <div class="badges">
             <span v-if="item.favorited">관심</span>
-            <span v-if="item.planned">일정</span>
             <span v-if="item.cleared">클리어</span>
             <span>{{ item.difficulty }}</span>
           </div>
@@ -43,7 +42,6 @@
           </div>
           <div class="actions">
             <button type="button" @click="openEpisode(item)">상세 보기</button>
-            <button type="button" class="ghost" @click="router.push({ name: 'Plans' })">내 일정</button>
           </div>
         </div>
       </article>

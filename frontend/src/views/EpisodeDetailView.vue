@@ -1,6 +1,6 @@
 <template>
   <main class="detail-page">
-    <button class="back" type="button" @click="router.push({ name: 'EpisodeList' })">목록으로 돌아가기</button>
+    <button class="back" type="button" @click="goEpisodeList">목록으로 돌아가기</button>
     <section v-if="loading" class="panel">미션 파일을 불러오는 중입니다.</section>
     <section v-else-if="error" class="panel error">{{ error }}</section>
     <section v-else-if="episode" class="panel">
@@ -64,6 +64,7 @@ const favoriteBusy = ref(false);
 const reviewsOpen = ref(false);
 
 const cleared = computed(() => episode.value?.progressStatus === 'CLEARED');
+const listQuery = computed(() => route.query.areaCode ? { areaCode: route.query.areaCode } : {});
 
 onMounted(async () => {
   try {
@@ -77,7 +78,7 @@ onMounted(async () => {
 
 async function openPrimaryAction() {
   if (cleared.value) {
-    router.push({ name: 'EpisodeClearReport', params: { episodeId } });
+    router.push({ name: 'EpisodeClearReport', params: { episodeId }, query: listQuery.value });
     return;
   }
   await start();
@@ -87,7 +88,7 @@ const start = async () => {
   try {
     const started = await episodeApi.startEpisode(episodeId);
     setMessage('에피소드를 시작했습니다.');
-    router.push({ name: 'EpisodeMissionBriefing', params: { episodeId: started.id } });
+    router.push({ name: 'EpisodeMissionBriefing', params: { episodeId: started.id }, query: listQuery.value });
   } catch (err) {
     setMessage(err.userMessage || '에피소드를 시작하지 못했습니다.', 'error');
   }
@@ -121,6 +122,10 @@ async function showReviews() {
 
 function openRanking() {
   router.push({ name: 'Ranking', query: { episodeId, title: episode.value?.title || '' } });
+}
+
+function goEpisodeList() {
+  router.push({ name: 'EpisodeList', query: listQuery.value });
 }
 
 function setMessage(text, type = 'success') {

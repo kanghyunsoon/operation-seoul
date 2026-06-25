@@ -26,6 +26,8 @@ public class AuthResponse {
         private String role;
         private String status;
         private String profileImageUrl;
+        private String statusMessage;
+        private boolean profilePublic;
         private boolean isAdmin;
 
         public static UserInfo of(User user) {
@@ -36,6 +38,8 @@ public class AuthResponse {
                     .role(user.effectiveRole())
                     .status(user.effectiveStatus())
                     .profileImageUrl(user.getProfileImageUrl())
+                    .statusMessage(user.getStatusMessage())
+                    .profilePublic(user.isProfilePublic())
                     .isAdmin(user.isAdmin())
                     .build();
         }

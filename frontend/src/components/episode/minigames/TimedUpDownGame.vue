@@ -86,7 +86,7 @@ function start() {
       emit('proof-change', '');
       emit('solved-change', false);
     }
-  }, 100);
+  }, 250);
 }
 
 function reset() {

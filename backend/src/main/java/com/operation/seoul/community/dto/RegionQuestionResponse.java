@@ -13,10 +13,12 @@ public class RegionQuestionResponse {
     private String authorNickname;
     private String title;
     private String content;
+    private boolean notice;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private boolean mine;
     private int likeCount;
     private boolean liked;
+    private boolean authorFollowing;
     private List<RegionAnswerResponse> answers;
 }

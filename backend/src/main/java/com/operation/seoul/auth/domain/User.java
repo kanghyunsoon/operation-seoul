@@ -20,6 +20,9 @@ public class User {
     private String nickname;
     private String role;
     private String profileImageUrl;
+    private String statusMessage;
+    @Builder.Default
+    private boolean profilePublic = true;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

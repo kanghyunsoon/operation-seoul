@@ -8,11 +8,6 @@
       </div>
       <div class="hero-actions">
         <button type="button" @click="router.push({ name: 'EpisodeList' })">전체 사건 보기</button>
-        <button type="button" @click="router.push({ name: 'Ranking' })">랭킹</button>
-        <button type="button" @click="router.push({ name: 'Recommendations' })">추천</button>
-        <button type="button" @click="router.push({ name: 'Coaching' })">코칭</button>
-        <button type="button" @click="router.push({ name: 'Challenges' })">챌린지</button>
-        <button type="button" @click="router.push({ name: 'MyPage' })">내 관심 목록</button>
         <button type="button" class="danger" @click="logout">로그아웃</button>
       </div>
     </header>
@@ -66,17 +61,6 @@
           권역을 선택하면 해당 권역에 공개된 미션 파일 목록으로 이동합니다.
         </p>
       </div>
-
-      <div class="region-list">
-        <article v-for="area in regionAreas" :key="area.code" class="region-card">
-          <button type="button" class="region-main" @click="openRegion(area.code)">
-            <span :style="{ background: area.color }"></span>
-            <strong>{{ area.label }}</strong>
-            <small>{{ area.includes }}</small>
-          </button>
-          <button type="button" class="community-link" @click="openCommunity(area)">권역 커뮤니티</button>
-        </article>
-      </div>
     </section>
   </main>
 </template>
@@ -99,10 +83,6 @@ function openRegion(areaCode) {
   router.push({ name: 'EpisodeList', query: { areaCode } });
 }
 
-function openCommunity(area) {
-  router.push({ name: 'RegionCommunity', params: { regionId: area.regionId }, query: { areaCode: area.code } });
-}
-
 function logout() {
   sessionStore.logout();
   router.push({ name: 'Intro' });
@@ -110,47 +90,39 @@ function logout() {
 </script>
 
 <style scoped>
-.region-page { min-height: 100vh; box-sizing: border-box; padding: 28px 16px 60px; background: radial-gradient(circle at 18% 8%, rgba(14,165,233,.24), transparent 30%), linear-gradient(155deg, #101827, #0f172a 56%, #020617); color: #f8fafc; font-family: 'Noto Sans KR', Georgia, serif; }
+.region-page { height: 100dvh; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px calc(92px + env(safe-area-inset-bottom)); overflow: hidden; background: radial-gradient(circle at 18% 8%, rgba(14,165,233,.24), transparent 30%), linear-gradient(155deg, #101827, #0f172a 56%, #020617); color: #f8fafc; font-family: 'Noto Sans KR', Georgia, serif; }
 .hero, .region-shell { width: min(100%, 1120px); margin: 0 auto; }
-.hero { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; padding: 22px; border: 1px solid rgba(125,211,252,.22); border-radius: 24px; background: rgba(15,23,42,.72); }
+.hero { flex: 0 0 auto; display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 0; padding: 14px 18px; border: 1px solid rgba(125,211,252,.22); border-radius: 18px; background: rgba(15,23,42,.72); }
 .hero p { margin: 0 0 8px; color: #67e8f9; font-size: .76rem; font-weight: 900; letter-spacing: .16em; }
-h1 { margin: 0; font-size: clamp(2rem, 7vw, 4.4rem); line-height: .98; }
-.hero span { display: block; margin-top: 12px; color: #cbd5e1; }
+h1 { margin: 0; font-size: clamp(1.7rem, 5vw, 3.1rem); line-height: .98; }
+.hero span { display: block; margin-top: 8px; color: #cbd5e1; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button { min-height: 42px; border: 0; border-radius: 12px; background: #2563eb; color: #fff; font: inherit; font-weight: 900; padding: 0 14px; cursor: pointer; }
 button.danger { background: #7f1d1d; }
-.region-shell { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); gap: 16px; align-items: start; }
-.map-card, .region-list { border: 1px solid rgba(148,163,184,.18); border-radius: 26px; background: rgba(15,23,42,.68); box-shadow: 0 28px 70px rgba(0,0,0,.26); }
-.map-card { padding: 18px; }
+.region-shell { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr; gap: 0; align-items: stretch; }
+.map-card { border: 1px solid rgba(148,163,184,.18); border-radius: 26px; background: rgba(15,23,42,.68); box-shadow: 0 28px 70px rgba(0,0,0,.26); }
+.map-card { min-height: 0; display: flex; flex-direction: column; padding: 12px; }
 .map-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 12px; color: #bfdbfe; }
-.map-title span, .map-note, .region-main small { color: #cbd5e1; }
-svg { width: 100%; min-height: 560px; border-radius: 22px; background: linear-gradient(180deg, rgba(8,47,73,.68), rgba(2,6,23,.78)); }
+.map-title span, .map-note { color: #cbd5e1; }
+svg { flex: 1 1 auto; width: 100%; min-height: 0; height: 100%; border-radius: 18px; background: linear-gradient(180deg, rgba(8,47,73,.68), rgba(2,6,23,.78)); }
 .region-path { cursor: pointer; stroke: #fff; stroke-width: 3.07949; stroke-linejoin: round; stroke-miterlimit: 10; filter: url(#shadow); opacity: 1; fill-opacity: 1; transform-box: fill-box; transform-origin: center; transition: filter .16s ease, opacity .16s ease, stroke .16s ease, stroke-width .16s ease, transform .16s ease; }
 .region-path.hovered, .region-path:hover, .region-path:focus-visible { opacity: 1; fill-opacity: 1; stroke: #f8fafc; stroke-width: 7; transform: scale(1.01); outline: none; }
 .region-path.active { opacity: 1; stroke: #facc15; stroke-width: 8; }
 .region-labels { pointer-events: none; }
 .region-labels text { fill: #fff; font-family: 'Noto Sans KR', Pretendard, sans-serif; font-weight: 900; paint-order: stroke; stroke: rgba(2,6,23,.55); stroke-width: 8px; }
-.map-note { margin: 12px 2px 0; font-size: .82rem; line-height: 1.5; }
-.region-list { display: grid; gap: 10px; padding: 14px; }
-.region-card { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; padding: 0; border: 1px solid rgba(148,163,184,.16); border-radius: 16px; background: rgba(2,6,23,.42); }
-.region-main { display: grid; grid-template-columns: 14px 1fr; gap: 4px 10px; align-items: center; min-height: 62px; width: 100%; text-align: left; background: transparent; }
-.region-main span { grid-row: 1 / 3; width: 14px; height: 42px; border-radius: 999px; }
-.region-main strong { font-size: 1rem; }
-.community-link { align-self: center; margin-right: 10px; min-height: 38px; background: rgba(14,116,144,.7); color: #cffafe; font-size: .82rem; }
-.region-card:hover { border-color: rgba(125,211,252,.44); }
+.map-note { flex: 0 0 auto; margin: 8px 2px 0; font-size: .78rem; line-height: 1.4; }
 @media (max-width: 840px) {
   .hero { display: block; }
-  .hero-actions { margin-top: 14px; }
-  .region-shell { grid-template-columns: 1fr; }
-  svg { min-height: 500px; }
-}
-@media (max-width: 520px) {
-  .region-card { grid-template-columns: 1fr; padding-bottom: 10px; }
-  .community-link { margin: 0 10px; }
+  .hero-actions { margin-top: 10px; }
 }
 @media (max-width: 430px) {
   .hero-actions { display: grid; }
-  .map-card { padding: 12px; }
-  svg { min-height: 430px; }
+  .region-page { padding: 10px 10px calc(86px + env(safe-area-inset-bottom)); gap: 8px; }
+  .hero { padding: 12px; }
+  h1 { font-size: 1.55rem; }
+  .hero span { font-size: .86rem; }
+  button { min-height: 38px; }
+  .map-card { padding: 10px; }
+  .map-note { font-size: .72rem; }
 }
 </style>

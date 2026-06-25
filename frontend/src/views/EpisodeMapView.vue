@@ -12,7 +12,7 @@
 
     <section v-if="statusMessage" class="status-message" :class="statusType">
       <span>{{ statusMessage }}</span>
-      <button v-if="caseFileUpdated" type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId } })">
+      <button v-if="caseFileUpdated" type="button" @click="router.push({ name: 'EpisodeCaseFile', params: { episodeId }, query: preservedQuery })">
         미션 파일 확인
       </button>
     </section>
@@ -106,6 +106,7 @@ const mapLoadFailed = ref(false);
 const mapLoadMessage = ref('');
 const currentPosition = ref(null);
 const activeElapsedSeconds = ref(0);
+const preservedQuery = computed(() => route.query.areaCode ? { areaCode: route.query.areaCode } : {});
 const rewardPopup = ref({
   visible: false,
   flying: false,
@@ -303,11 +304,11 @@ async function renderMarkers() {
     const content = document.createElement('button');
     content.type = 'button';
     content.className = `case-marker ${spot.publicMarkerType}${spot.visited ? ' visited' : ''}${spot.completed ? ' completed' : ''}`;
-    content.textContent = shortLabel(spot.publicMarkerType);
+    content.dataset.label = shortLabel(spot.publicMarkerType);
     content.setAttribute('aria-label', `${spot.placeName} ${markerLabel(spot.publicMarkerType)}`);
     content.addEventListener('click', () => selectSpot(spot));
     markerElements.set(spot.spotId, content);
-    const overlay = new maps.CustomOverlay({ position, content, yAnchor: 0.5, xAnchor: 0.5, zIndex: spot.completed ? 4 : 3 });
+    const overlay = new maps.CustomOverlay({ position, content, yAnchor: 1, xAnchor: 0.5, zIndex: spot.completed ? 4 : 3 });
     overlay.setMap(kakaoMap);
     overlays.push(overlay);
   }
@@ -591,7 +592,7 @@ function clearRewardPopupTimers() {
 }
 
 function goDeduction() {
-  router.push({ name: 'FinalDeduction', params: { episodeId } });
+  router.push({ name: 'FinalDeduction', params: { episodeId }, query: preservedQuery.value });
 }
 
 async function getPosition(spot) {
@@ -797,15 +798,16 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .map-panel { border: 1px solid rgba(148,163,184,.18); border-radius: 24px; background: rgba(15,23,42,.64); padding: 12px; }
 .legend { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
 .legend span { flex: 0 0 auto; border-radius: 999px; padding: 6px 9px; font-size: .72rem; font-weight: 900; background: rgba(30,41,59,.8); }
-.legend .START { color: #60a5fa; }
-.legend .KEYWORD_1 { color: #fb923c; }
-.legend .KEYWORD_2 { color: #22d3ee; }
-.legend .KEYWORD_3 { color: #a3e635; }
-.legend .ANSWER_HINT { color: #fb923c; }
-.legend .FINAL { color: #e5e7eb; }
-.legend .FINAL_DESTINATION { color: #e5e7eb; }
-.legend .STORY { color: #4ade80; }
-.legend .FINAL_CANDIDATE { color: #cbd5e1; }
+.legend .START { color: #8fb4e3 !important; border-color: rgba(63,95,138,.72) !important; }
+.legend .KEYWORD_1,
+.legend .KEYWORD_2,
+.legend .KEYWORD_3,
+.legend .ANSWER_HINT,
+.legend .DESTINATION_HINT,
+.legend .STORY,
+.legend .FINAL_CANDIDATE { color: #c8b182 !important; border-color: rgba(143,106,50,.64) !important; }
+.legend .FINAL,
+.legend .FINAL_DESTINATION { color: #d7a8ac !important; border-color: rgba(110,47,52,.74) !important; }
 .kakao-map { position: relative; height: min(62vh, 620px); min-height: 430px; overflow: hidden; border: 1px solid rgba(148,163,184,.2); border-radius: 20px; background: #0f172a; }
 .elapsed-timer { position: absolute; top: 12px; right: 12px; z-index: 10; display: grid; gap: 2px; min-width: 126px; box-sizing: border-box; padding: 9px 11px; border: 1px solid rgba(103,232,249,.34); border-radius: 14px; background: rgba(2,6,23,.82); color: #e0f2fe; box-shadow: 0 12px 28px rgba(0,0,0,.28); text-align: right; pointer-events: none; }
 .elapsed-timer span { color: #67e8f9; font-size: .66rem; font-weight: 1000; letter-spacing: .12em; }
@@ -813,19 +815,89 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 .map-error { position: absolute; inset: 0; display: grid; place-content: center; gap: 8px; padding: 24px; text-align: center; background: rgba(15,23,42,.92); color: #cbd5e1; z-index: 2; }
 .map-error strong { color: #fecaca; }
 .map-caption { box-sizing: border-box; margin: 8px 0 0; padding: 10px 12px; border-radius: 14px; background: rgba(2,6,23,.72); color: #cbd5e1; font-size: .82rem; line-height: 1.45; }
-:deep(.case-marker) { position: relative; width: 42px; height: 42px; border: 3px solid rgba(255,255,255,.72); border-radius: 999px; color: #fff; font-weight: 1000; box-shadow: 0 10px 18px rgba(0,0,0,.3); cursor: pointer; }
-:deep(.case-marker.START) { background: #2563eb; }
-:deep(.case-marker.KEYWORD_1) { background: #ea580c; }
-:deep(.case-marker.KEYWORD_2) { background: #0891b2; }
-:deep(.case-marker.KEYWORD_3) { background: #65a30d; }
-:deep(.case-marker.ANSWER_HINT) { background: #ea580c; }
-:deep(.case-marker.FINAL) { background: #020617; border-color: rgba(255,255,255,.88); box-shadow: 0 0 0 4px rgba(0,0,0,.36), 0 14px 24px rgba(0,0,0,.44); }
-:deep(.case-marker.FINAL_DESTINATION) { background: #020617; border-color: rgba(255,255,255,.88); box-shadow: 0 0 0 4px rgba(0,0,0,.36), 0 14px 24px rgba(0,0,0,.44); }
-:deep(.case-marker.STORY) { background: #15803d; }
-:deep(.case-marker.FINAL_CANDIDATE) { background: #1f2937; }
-:deep(.case-marker.visited) { outline: 3px solid rgba(125,211,252,.72); }
-:deep(.case-marker.completed) { opacity: .62; box-shadow: 0 0 0 4px rgba(34,197,94,.5), 0 10px 18px rgba(0,0,0,.3); }
-:deep(.case-marker.completed::after) { content: '✓'; position: absolute; right: -5px; bottom: -7px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 999px; background: #16a34a; color: #fff; font-size: 13px; }
+:deep(.case-marker) {
+  position: relative;
+  width: 38px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  appearance: none;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 1000;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,.42);
+  box-shadow: none !important;
+  filter: drop-shadow(0 9px 13px rgba(0,0,0,.46)) saturate(1.08);
+  opacity: 1;
+  cursor: pointer;
+  transform: none;
+}
+:deep(.case-marker::before) {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(255,255,255,.95);
+  border-radius: 50% 50% 50% 8px;
+  background: #8f6a32;
+  transform: translateX(-50%) rotate(-45deg);
+  box-sizing: border-box;
+}
+:deep(.case-marker::after) {
+  content: attr(data-label);
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: transparent;
+  transform: translateX(-50%);
+}
+:deep(.case-marker.START::before) {
+  background: #416a9f;
+}
+:deep(.case-marker.KEYWORD_1),
+:deep(.case-marker.KEYWORD_2),
+:deep(.case-marker.KEYWORD_3),
+:deep(.case-marker.ANSWER_HINT),
+:deep(.case-marker.DESTINATION_HINT),
+:deep(.case-marker.STORY),
+:deep(.case-marker.FINAL_CANDIDATE) {
+  color: #fffaf0;
+}
+:deep(.case-marker.KEYWORD_1::before),
+:deep(.case-marker.KEYWORD_2::before),
+:deep(.case-marker.KEYWORD_3::before),
+:deep(.case-marker.ANSWER_HINT::before),
+:deep(.case-marker.DESTINATION_HINT::before),
+:deep(.case-marker.STORY::before),
+:deep(.case-marker.FINAL_CANDIDATE::before) {
+  background: #9b7439;
+}
+:deep(.case-marker.FINAL::before),
+:deep(.case-marker.FINAL_DESTINATION::before) {
+  background: #7a343a;
+  border-color: rgba(243,246,250,.92);
+  box-shadow: 0 0 0 3px rgba(110,47,52,.18);
+}
+:deep(.case-marker.visited) {
+  filter: drop-shadow(0 9px 13px rgba(0,0,0,.46)) saturate(1.08);
+}
+:deep(.case-marker.completed) {
+  opacity: .36;
+  filter: drop-shadow(0 5px 8px rgba(0,0,0,.22)) saturate(.72);
+}
 :deep(.gps-marker) { min-width: 72px; min-height: 30px; display: grid; place-items: center; padding: 0 10px; border: 2px solid rgba(255,255,255,.82); border-radius: 999px; background: #0284c7; color: #fff; font-size: 12px; font-weight: 1000; box-shadow: 0 10px 18px rgba(0,0,0,.34); white-space: nowrap; }
 :deep(.gps-marker.temporary) { background: #b45309; }
 .reward-pop-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; pointer-events: none; background: radial-gradient(circle at 50% 42%, rgba(251,191,36,.18), transparent 34%); }

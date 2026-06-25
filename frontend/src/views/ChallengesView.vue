@@ -1,80 +1,87 @@
 <template>
-  <main class="challenges-page">
+  <main class="challenge-ranking-page">
     <header class="hero">
       <div>
-        <p>FIELD CHALLENGES</p>
-        <h1>챌린지</h1>
-        <span>사건 파일 클리어 기록을 기준으로 자동 진행되는 목표입니다.</span>
+        <p>CHALLENGE / RANKING</p>
+        <h1>챌린지/랭킹</h1>
+        <span>목표 달성 현황과 누적 점수 랭킹을 확인합니다.</span>
       </div>
     </header>
 
-    <p v-if="message" class="toast" :class="messageType">{{ message }}</p>
-
-    <section v-if="loading" class="state">챌린지를 불러오는 중입니다.</section>
-    <section v-else-if="error" class="state error">{{ error }}</section>
-    <section v-else class="challenge-grid">
-      <article class="panel">
-        <div class="panel-head">
-          <div>
-            <p>AVAILABLE</p>
-            <h2>다음 챌린지</h2>
-          </div>
-          <button type="button" @click="loadChallenges">새로고침</button>
-        </div>
-        <p v-if="!availableChallenges.length" class="empty">참가 가능한 다음 챌린지가 없습니다.</p>
-        <div v-for="challenge in availableChallenges" :key="challenge.id" class="challenge-card" :class="{ completed: challenge.completed }">
-          <div class="card-top">
-            <strong>{{ challenge.title }}</strong>
-            <span>{{ challenge.completed ? '완료' : challenge.joined ? '참가 중' : '참가 가능' }}</span>
-          </div>
-          <p>{{ challenge.description }}</p>
-          <div class="progress-track">
-            <i :style="{ width: progressPercent(challenge) + '%' }"></i>
-          </div>
-          <small>{{ challenge.progressCount || 0 }} / {{ challenge.targetCount }} 클리어</small>
-          <button v-if="!challenge.joined" type="button" @click="join(challenge)">참가</button>
-          <button v-else type="button" class="ghost" @click="loadChallenges">클리어!</button>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-head">
-          <div>
-            <p>MY RUNS</p>
-            <h2>진행 중 챌린지</h2>
-          </div>
-          <span>{{ activeMyChallenges.length }}개</span>
-        </div>
-        <p v-if="!activeMyChallenges.length" class="empty">진행 중인 챌린지가 없습니다.</p>
-        <div v-for="challenge in activeMyChallenges" :key="`mine-${challenge.id}`" class="mini-card">
-          <strong>{{ challenge.title }}</strong>
-          <span>{{ challenge.completed ? '완료' : '진행 중' }}</span>
-          <div class="progress-track">
-            <i :style="{ width: progressPercent(challenge) + '%' }"></i>
-          </div>
-          <small>{{ challenge.progressCount || 0 }} / {{ challenge.targetCount }}</small>
-        </div>
-      </article>
-
-      <article class="panel completed-panel">
-        <div class="panel-head">
-          <div>
-            <p>CLEARED</p>
-            <h2>달성한 챌린지</h2>
-          </div>
-          <span>{{ completedMyChallenges.length }}개</span>
-        </div>
-        <p v-if="!completedMyChallenges.length" class="empty">아직 달성한 챌린지가 없습니다.</p>
-        <div v-for="challenge in completedMyChallenges" :key="`completed-${challenge.id}`" class="mini-card completed">
-          <strong>{{ challenge.title }}</strong>
-          <span>클리어!</span>
-          <div class="progress-track">
-            <i :style="{ width: progressPercent(challenge) + '%' }"></i>
-          </div>
-          <small>{{ challenge.progressCount || 0 }} / {{ challenge.targetCount }}</small>
-        </div>
-      </article>
+    <section class="top-tabs">
+      <button type="button" :class="{ active: activeTab === 'challenge' }" @click="activeTab = 'challenge'">챌린지</button>
+      <button type="button" :class="{ active: activeTab === 'ranking' }" @click="activeTab = 'ranking'">랭킹</button>
     </section>
+
+    <p v-if="message" class="toast error">{{ message }}</p>
+
+    <section v-if="activeTab === 'challenge'" class="content-shell">
+      <div class="section-head">
+        <h2>다음 챌린지</h2>
+        <button type="button" @click="loadAll">새로고침</button>
+      </div>
+      <section v-if="loading" class="state">챌린지를 불러오는 중입니다.</section>
+      <template v-else>
+        <div class="challenge-grid">
+          <article v-for="goal in summary.activeGoals || []" :key="goal.type" class="goal-card" :class="{ completed: goal.completed }">
+            <span>{{ goal.description }}</span>
+            <h3>{{ goal.title }}</h3>
+            <div class="progress-track">
+              <i :style="{ width: progressPercent(goal) + '%' }"></i>
+            </div>
+            <small>{{ goal.currentValue }} / {{ goal.targetValue }}</small>
+          </article>
+        </div>
+
+        <div class="section-head lower">
+          <h2>달성한 챌린지</h2>
+          <span>{{ summary.completedCount || 0 }}개</span>
+        </div>
+        <section v-if="summary.completedGoals?.length" class="completed-list">
+          <article v-for="goal in summary.completedGoals" :key="`${goal.type}-${goal.targetValue}`">
+            <strong>{{ goal.title }}</strong>
+            <span>{{ goal.description }}</span>
+          </article>
+        </section>
+        <section v-else class="state">아직 달성한 챌린지가 없습니다.</section>
+      </template>
+    </section>
+
+    <section v-else class="content-shell">
+      <div class="section-head">
+        <h2>누적 점수 랭킹</h2>
+        <button type="button" @click="loadRankings">새로고침</button>
+      </div>
+      <section v-if="rankingLoading" class="state">랭킹을 불러오는 중입니다.</section>
+      <section v-else-if="!rankings.length" class="state">아직 랭킹 기록이 없습니다.</section>
+      <template v-else>
+        <ol class="ranking-list">
+          <li v-for="entry in visibleRankings" :key="entry.userId" :class="{ mine: entry.userId === sessionStore.userId }">
+            <b>{{ entry.rankNo }}</b>
+            <img :src="entry.profileImageUrl || defaultProfile" alt="" />
+            <div>
+              <strong>{{ entry.nickname || '유저' }}</strong>
+              <span>{{ entry.clearCount || 0 }}개 미션 클리어 · 챌린지 {{ entry.achievedChallengeCount || 0 }}개</span>
+            </div>
+            <em>{{ entry.totalScore || 0 }}점</em>
+          </li>
+        </ol>
+        <nav v-if="rankingTotalPages > 1" class="pager">
+          <button type="button" :disabled="rankingPage <= 1" @click="rankingPage -= 1">‹</button>
+          <button
+            v-for="page in rankingPages"
+            :key="page"
+            type="button"
+            :class="{ active: page === rankingPage }"
+            @click="rankingPage = page"
+          >
+            {{ page }}
+          </button>
+          <button type="button" :disabled="rankingPage >= rankingTotalPages" @click="rankingPage += 1">›</button>
+        </nav>
+      </template>
+    </section>
+
     <MainBottomNav />
   </main>
 </template>
@@ -83,85 +90,116 @@
 import { computed, onMounted, ref } from 'vue';
 import MainBottomNav from '@/components/MainBottomNav.vue';
 import { challengeApi } from '@/api/challengeApi';
+import { rankingApi } from '@/api/rankingApi';
+import { useSessionStore } from '@/stores/sessionStore';
 
-const challenges = ref([]);
-const myChallenges = ref([]);
+const sessionStore = useSessionStore();
+const activeTab = ref('challenge');
+const summary = ref({ activeGoals: [], completedGoals: [], completedCount: 0 });
+const rankings = ref([]);
 const loading = ref(true);
-const error = ref('');
+const rankingLoading = ref(true);
 const message = ref('');
-const messageType = ref('success');
-const activeMyChallenges = computed(() => myChallenges.value.filter((challenge) => !challenge.completed && challenge.entryStatus !== 'COMPLETED'));
-const completedMyChallenges = computed(() => myChallenges.value.filter((challenge) => challenge.completed || challenge.entryStatus === 'COMPLETED'));
-const availableChallenges = computed(() => challenges.value.filter((challenge) => !challenge.completed && challenge.entryStatus !== 'COMPLETED'));
+const rankingPage = ref(1);
+const rankingPageSize = 10;
+const defaultProfile = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2218%22 fill=%22%231e293b%22/%3E%3Ccircle cx=%2232%22 cy=%2225%22 r=%2211%22 fill=%22%23fde68a%22/%3E%3Cpath d=%22M14 56c3-12 12-18 18-18s15 6 18 18%22 fill=%22%23fde68a%22/%3E%3C/svg%3E';
 
-onMounted(loadChallenges);
+const rankingTotalPages = computed(() => Math.max(1, Math.ceil(rankings.value.length / rankingPageSize)));
+const visibleRankings = computed(() => rankings.value.slice((rankingPage.value - 1) * rankingPageSize, rankingPage.value * rankingPageSize));
+const rankingPages = computed(() => Array.from({ length: rankingTotalPages.value }, (_, index) => index + 1));
 
-async function loadChallenges() {
+onMounted(loadAll);
+
+async function loadAll() {
+  await Promise.all([loadSummary(), loadRankings()]);
+}
+
+async function loadSummary() {
   loading.value = true;
-  error.value = '';
+  message.value = '';
   try {
-    [challenges.value, myChallenges.value] = await Promise.all([
-      challengeApi.getChallenges(),
-      challengeApi.getMyChallenges()
-    ]);
-  } catch (err) {
-    error.value = err.userMessage || '챌린지를 불러오지 못했습니다.';
+    summary.value = await challengeApi.getSummary();
+  } catch (error) {
+    message.value = error.userMessage || '챌린지를 불러오지 못했습니다.';
   } finally {
     loading.value = false;
   }
 }
 
-async function join(challenge) {
+async function loadRankings() {
+  rankingLoading.value = true;
   try {
-    await challengeApi.joinChallenge(challenge.id);
-    setMessage('챌린지에 참가했습니다.');
-    await loadChallenges();
-  } catch (err) {
-    setMessage(err.userMessage || '챌린지에 참가하지 못했습니다.', 'error');
+    rankings.value = await rankingApi.getPlayerRankings({ limit: 100 });
+    rankingPage.value = Math.min(rankingPage.value, rankingTotalPages.value);
+  } catch (error) {
+    message.value = error.userMessage || '랭킹을 불러오지 못했습니다.';
+  } finally {
+    rankingLoading.value = false;
   }
 }
 
-function progressPercent(challenge) {
-  const target = Math.max(1, challenge.targetCount || 1);
-  const progress = Math.max(0, challenge.progressCount || 0);
-  return Math.min(100, Math.round((progress / target) * 100));
-}
-
-function setMessage(text, type = 'success') {
-  message.value = text;
-  messageType.value = type;
+function progressPercent(goal) {
+  const target = Math.max(1, goal.targetValue || 1);
+  const current = Math.max(0, goal.currentValue || 0);
+  return Math.min(100, Math.round((current / target) * 100));
 }
 </script>
 
 <style scoped>
-.challenges-page { min-height: 100vh; box-sizing: border-box; padding: 26px 16px 126px; background: radial-gradient(circle at 75% 0%, rgba(248,113,113,.22), transparent 32%), linear-gradient(150deg, #1f1111, #111827 58%, #030712); color: #f8fafc; font-family: 'Noto Serif KR', Georgia, serif; }
-.hero, .challenge-grid, .state, .toast { width: min(100%, 1040px); box-sizing: border-box; margin-left: auto; margin-right: auto; }
-.hero { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 16px; padding: 22px; border: 1px solid rgba(248,113,113,.24); border-radius: 24px; background: rgba(15,23,42,.66); }
-.hero p, .panel-head p { margin: 0 0 8px; color: #fca5a5; font-size: .74rem; font-weight: 1000; letter-spacing: .16em; }
-h1 { margin: 0; font-size: clamp(2.3rem, 9vw, 4.8rem); line-height: .94; }
+.challenge-ranking-page { min-height: 100vh; box-sizing: border-box; padding: 24px 16px 126px; background: radial-gradient(circle at 80% 0%, rgba(248,113,113,.22), transparent 32%), linear-gradient(150deg, #1f1111, #111827 58%, #030712); color: #f8fafc; font-family: 'Noto Sans KR', system-ui, sans-serif; }
+.hero, .top-tabs, .content-shell, .toast { width: min(100%, 980px); box-sizing: border-box; margin-left: auto; margin-right: auto; }
+.hero { margin-bottom: 14px; padding: 22px; border: 1px solid rgba(248,113,113,.24); border-radius: 22px; background: rgba(15,23,42,.68); }
+.hero p { margin: 0 0 8px; color: #fca5a5; font-size: .74rem; font-weight: 1000; letter-spacing: .16em; }
+h1 { margin: 0; font-size: clamp(2.2rem, 8vw, 4.4rem); line-height: .96; }
 .hero span { display: block; margin-top: 10px; color: #cbd5e1; }
-button { min-height: 40px; border: 0; border-radius: 12px; background: #b91c1c; color: #fff; font: inherit; font-weight: 900; padding: 0 14px; }
-.ghost { background: #334155; }
-.challenge-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); gap: 14px; }
-.panel { padding: 18px; border: 1px solid rgba(148,163,184,.18); border-radius: 24px; background: rgba(15,23,42,.68); box-shadow: 0 24px 64px rgba(0,0,0,.24); }
-.completed-panel { grid-column: 1 / -1; }
-.panel-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 12px; }
-.panel-head h2 { margin: 0; }
-.panel-head span { color: #fecaca; font-weight: 900; }
-.challenge-card, .mini-card { display: grid; gap: 10px; margin-top: 10px; padding: 16px; border: 1px solid rgba(148,163,184,.16); border-radius: 18px; background: rgba(2,6,23,.42); }
-.challenge-card.completed { border-color: rgba(74,222,128,.3); }
-.card-top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.card-top strong, .mini-card strong { color: #fff7ed; font-size: 1.08rem; }
-.card-top span, .mini-card span { color: #fecaca; font-weight: 900; }
-.challenge-card.completed .card-top span { color: #86efac; }
-p { margin: 0; color: #cbd5e1; line-height: 1.55; }
-small, .empty { color: #94a3b8; }
+.top-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; padding: 8px; border-radius: 16px; background: rgba(15,23,42,.72); }
+button { min-height: 40px; border: 0; border-radius: 12px; background: #334155; color: #fff; font: inherit; font-weight: 900; padding: 0 14px; cursor: pointer; }
+.top-tabs button.active, .section-head button { background: #b91c1c; }
+.content-shell { padding: 18px; border: 1px solid rgba(148,163,184,.18); border-radius: 22px; background: rgba(15,23,42,.7); box-shadow: 0 24px 64px rgba(0,0,0,.24); }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.section-head.lower { margin-top: 22px; }
+.section-head h2 { margin: 0; }
+.section-head span { color: #fde68a; font-weight: 900; }
+.challenge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.goal-card, .completed-list article, .ranking-list li { border: 1px solid rgba(148,163,184,.16); border-radius: 16px; background: rgba(2,6,23,.42); }
+.goal-card { display: grid; gap: 10px; padding: 16px; }
+.goal-card.completed {
+  border-color: rgba(103,190,217,.72);
+  background: linear-gradient(135deg, rgba(103,190,217,.2), rgba(2,6,23,.46));
+}
+.goal-card span { color: #fecaca; font-weight: 900; }
+.goal-card h3 { margin: 0; color: #fff7ed; }
 .progress-track { overflow: hidden; height: 10px; border-radius: 999px; background: rgba(148,163,184,.18); }
 .progress-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f87171, #facc15); }
-.state, .toast { padding: 16px; border: 1px dashed rgba(148,163,184,.34); border-radius: 16px; color: #cbd5e1; text-align: center; }
-.toast { margin-bottom: 12px; border-style: solid; background: rgba(20,83,45,.2); color: #bbf7d0; }
-.toast.error, .state.error { color: #fecaca; background: rgba(127,29,29,.18); }
-@media (max-width: 820px) {
-  .hero, .challenge-grid { display: grid; grid-template-columns: 1fr; }
+small, .state { color: #94a3b8; }
+.completed-list { display: grid; gap: 8px; }
+.completed-list article {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-color: rgba(103,190,217,.72);
+  background: linear-gradient(135deg, rgba(103,190,217,.2), rgba(2,6,23,.46));
+}
+.completed-list strong { color: #dff7ff; }
+.completed-list span { color: #67bed9; font-weight: 900; }
+.ranking-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ranking-list li { display: grid; grid-template-columns: 42px 48px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; }
+.ranking-list li.mine { border-color: rgba(16,185,129,.75); background: linear-gradient(135deg, rgba(16,185,129,.22), rgba(2,6,23,.56)); }
+.ranking-list b { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: #92400e; color: #fffbeb; }
+.ranking-list img { width: 48px; height: 48px; border-radius: 16px; object-fit: cover; background: #334155; }
+.ranking-list strong { display: block; color: #fff7ed; }
+.ranking-list span { color: #94a3b8; }
+.ranking-list em { color: #fde68a; font-style: normal; font-weight: 1000; }
+.pager { display: flex; justify-content: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.pager button { min-width: 38px; padding: 0 10px; border-radius: 999px; }
+.pager button.active { background: #059669; }
+.pager button:disabled { opacity: .45; cursor: default; }
+.state, .toast { padding: 16px; border: 1px dashed rgba(148,163,184,.34); border-radius: 16px; text-align: center; }
+.toast { margin-bottom: 12px; border-style: solid; color: #fecaca; background: rgba(127,29,29,.18); }
+@media (max-width: 760px) {
+  .challenge-grid { grid-template-columns: 1fr; }
+  .ranking-list li { grid-template-columns: 36px 44px 1fr; }
+  .ranking-list em { grid-column: 3; }
 }
 </style>

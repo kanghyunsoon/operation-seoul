@@ -102,7 +102,7 @@ function startRoundTimer() {
       wrongCount.value += 1;
       nextRound();
     }
-  }, 80);
+  }, 250);
 }
 
 function finish() {
@@ -147,7 +147,7 @@ function startPrepareTimer() {
       startedAt.value = Date.now();
       startRoundTimer();
     }
-  }, 80);
+  }, 250);
 }
 
 function normalizeColors(raw) {
@@ -188,7 +188,7 @@ onBeforeUnmount(() => clearInterval(timer));
 .hud strong { color: #fde68a; }
 .prompt-card { display: grid; gap: 8px; padding: 18px; border-radius: 18px; background: rgba(15,23,42,.82); }
 .prompt-card p { margin: 0; color: #bfdbfe; font-weight: 900; }
-.stroop-word { font-size: clamp(2.4rem, 12vw, 5rem); font-weight: 1000; letter-spacing: .08em; text-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.stroop-word { font-size: clamp(2.4rem, 12vw, 5rem); font-weight: 1000; letter-spacing: .08em; }
 .prompt-card small { color: #fcd34d; font-weight: 900; }
 .prepare-card { min-height: 170px; place-items: center; }
 .prepare-count { color: #fcd34d; font-size: clamp(3rem, 16vw, 6rem); line-height: 1; font-weight: 1000; }

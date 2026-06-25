@@ -11,7 +11,7 @@
           <p class="stamp">CASE FILE</p>
           <div class="cover-buttons">
             <button type="button" class="ghost" @click="loadCaseFile">새로고침</button>
-            <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId } })">다음: 조사 지도</button>
+            <button type="button" @click="router.push({ name: 'EpisodeMap', params: { episodeId }, query: preservedQuery })">다음: 조사 지도</button>
           </div>
         </div>
         <h1>{{ caseFile.title }}</h1>
@@ -32,7 +32,15 @@
           <h3>{{ caseFile.overview?.briefingTitle || '사건 브리핑' }}</h3>
           <span>{{ caseFile.overview?.storyUnlocked ? '용의자 정보 보안 해제' : '시작 미션 필요' }}</span>
         </div>
-        <p class="story-summary">{{ caseFile.overview?.summary }}</p>
+        <div class="story-summary-list" aria-label="사건 개요 본문">
+          <p
+            v-for="(item, index) in overviewSummaryItems"
+            :key="`overview-summary-${index}`"
+            class="story-summary-item"
+          >
+            {{ item }}
+          </p>
+        </div>
         <div v-if="caseFile.overview?.storyUnlocked && overviewStoryClues.length" class="story-clue-strip">
           <strong>해금된 용의자 정보</strong>
           <span v-for="(clue, index) in overviewStoryClues" :key="`overview-story-${clue}`">{{ humanizeClue(clue, 'story', index) }}</span>
@@ -50,19 +58,51 @@
           </div>
         </div>
         <div class="card-grid">
-          <article v-for="suspect in visibleSuspects" :key="suspect.suspectId" class="suspect-card" :class="{ locked: !suspect.unlocked }">
+          <article
+            v-for="suspect in visibleSuspects"
+            :key="suspect.suspectId"
+            class="suspect-card"
+            :class="{ locked: !suspect.unlocked }"
+            role="button"
+            tabindex="0"
+            @click="openSuspectCard(suspect)"
+            @keydown.enter.prevent="openSuspectCard(suspect)"
+            @keydown.space.prevent="openSuspectCard(suspect)"
+          >
             <div class="portrait-frame">
               <img :src="suspectPortraitSrc(suspect)" alt="용의자 카드" />
             </div>
             <div>
               <em>{{ suspect.alias || '용의자' }}</em>
               <h4>{{ suspect.displayName || '이름 미확인 인물' }}</h4>
-              <p>{{ suspect.relationToVictim || suspect.shortDescription || '사건과 연결된 가능성이 있는 인물입니다. 단서를 모으면 관계와 알리바이가 더 명확해집니다.' }}</p>
+              <p
+                v-for="(line, index) in narrativeLines(suspect.relationToVictim || suspect.shortDescription || '사건과 연결된 가능성이 있는 인물입니다. 단서를 모으면 관계와 알리바이가 더 명확해집니다.')"
+                :key="`suspect-desc-${suspect.suspectId}-${index}`"
+                class="narrative-line"
+              >
+                {{ line }}
+              </p>
             </div>
             <div class="suspect-facts">
               <dl>
-                <dt>의심 포인트</dt><dd>{{ suspect.suspiciousPoint || '의심 포인트 미입력' }}</dd>
-                <dt>알리바이</dt><dd>{{ suspect.alibiSummary || '알리바이 미확인' }}</dd>
+                <dt>의심 포인트</dt>
+                <dd>
+                  <p
+                    v-for="(line, index) in narrativeLines(suspect.suspiciousPoint || '의심 포인트 미입력')"
+                    :key="`suspect-point-${suspect.suspectId}-${index}`"
+                  >
+                    {{ line }}
+                  </p>
+                </dd>
+                <dt>알리바이</dt>
+                <dd>
+                  <p
+                    v-for="(line, index) in narrativeLines(suspect.alibiSummary || '알리바이 미확인')"
+                    :key="`suspect-alibi-${suspect.suspectId}-${index}`"
+                  >
+                    {{ line }}
+                  </p>
+                </dd>
               </dl>
             </div>
             <span class="unlock-badge">{{ suspect.cleared ? '혐의 해소' : suspect.unlocked ? '정보 확인' : '잠김' }}</span>
@@ -79,7 +119,17 @@
           </div>
         </div>
         <div class="evidence-grid">
-          <article v-for="evidence in caseFile.evidences" :key="evidence.evidenceId" class="evidence-card" :class="[String(evidence.type || '').toLowerCase(), { locked: !evidence.unlocked }]">
+          <article
+            v-for="evidence in caseFile.evidences"
+            :key="evidence.evidenceId"
+            class="evidence-card"
+            :class="[String(evidence.type || '').toLowerCase(), { locked: !evidence.unlocked }]"
+            role="button"
+            tabindex="0"
+            @click="openEvidenceCard(evidence)"
+            @keydown.enter.prevent="openEvidenceCard(evidence)"
+            @keydown.space.prevent="openEvidenceCard(evidence)"
+          >
             <div class="evidence-art">
               <img v-if="evidence.unlocked" :src="evidenceImageSrc(evidence)" alt="사건자료 카드" />
               <span v-else>LOCKED</span>
@@ -87,7 +137,13 @@
             <div>
               <span v-if="evidence.unlocked && evidence.relatedClueType" class="hint-type">{{ clueTypeLabel(evidence.relatedClueType) }}</span>
               <h4>{{ evidence.unlocked ? evidence.title : '잠긴 사건자료' }}</h4>
-              <p>{{ evidence.unlocked ? evidence.textSummary : '현장 퍼즐을 해결하면 이 자료가 미션 파일에 추가됩니다.' }}</p>
+              <p
+                v-for="(line, index) in narrativeLines(evidence.unlocked ? evidence.textSummary : '현장 퍼즐을 해결하면 이 자료가 미션 파일에 추가됩니다.')"
+                :key="`evidence-summary-${evidence.evidenceId}-${index}`"
+                class="narrative-line"
+              >
+                {{ line }}
+              </p>
             </div>
             <span v-if="evidence.unlocked" class="unlock-badge">해금됨</span>
             <span v-else class="lock">잠김</span>
@@ -117,6 +173,36 @@
       </section>
     </template>
   </main>
+
+  <Teleport to="body">
+    <section
+      v-if="expandedCard"
+      class="case-card-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="expanded-case-card-title"
+      @click.self="closeExpandedCard"
+    >
+      <article class="expanded-case-card" :class="[expandedCard.kind, { locked: expandedCard.locked }]">
+        <button type="button" class="expanded-close" aria-label="Close" @click="closeExpandedCard">CLOSE</button>
+        <div class="expanded-card-media">
+          <img v-if="expandedCard.image" :src="expandedCard.image" :alt="expandedCard.title" />
+          <span v-else>LOCKED</span>
+        </div>
+        <div class="expanded-card-body">
+          <p class="expanded-kicker">{{ expandedCard.kicker }}</p>
+          <h2 id="expanded-case-card-title">{{ expandedCard.title }}</h2>
+          <p v-if="expandedCard.summary" class="expanded-summary">{{ expandedCard.summary }}</p>
+          <dl v-if="expandedCard.details.length" class="expanded-detail-list">
+            <template v-for="detail in expandedCard.details" :key="detail.label">
+              <dt>{{ detail.label }}</dt>
+              <dd>{{ detail.value }}</dd>
+            </template>
+          </dl>
+        </div>
+      </article>
+    </section>
+  </Teleport>
 </template>
 
 <script setup>
@@ -131,6 +217,8 @@ const episodeId = route.params.episodeId;
 const caseFile = ref(null);
 const loading = ref(true);
 const error = ref('');
+const expandedCard = ref(null);
+const preservedQuery = computed(() => route.query.areaCode ? { areaCode: route.query.areaCode } : {});
 
 const cleanNotices = computed(() => (caseFile.value?.notices || []).filter((notice) => !String(notice).includes('AI 초안 저장본')));
 const visibleSuspects = computed(() => (caseFile.value?.suspects || []).filter((suspect) => suspect.displayName || suspect.alias));
@@ -149,6 +237,7 @@ const overviewStoryClues = computed(() => {
     .filter((clue, index, list) => list.findIndex((item) => normalizeText(item) === normalizeText(clue)) === index)
     .filter((clue) => !evidenceTexts.has(normalizeText(clue)));
 });
+const overviewSummaryItems = computed(() => splitOverviewSummary(caseFile.value?.overview?.summary));
 onMounted(loadCaseFile);
 
 async function loadCaseFile() {
@@ -171,11 +260,99 @@ function normalizeText(value) {
   return String(value || '').replace(/\s+/g, '').toLowerCase();
 }
 
+function splitOverviewSummary(value) {
+  const fallback = '사건 개요가 아직 등록되지 않았습니다.';
+  const text = String(value || fallback)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*([.!?。！？])\s*/g, '$1\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+  const sentences = text
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => !isRepeatedUnlockNotice(item));
+  const merged = mergeShortSentences(sentences).slice(0, 4);
+  return merged.length ? merged : [fallback];
+}
+
+function isRepeatedUnlockNotice(value) {
+  const normalized = normalizeText(value);
+  return normalized.includes('용의자파일') && normalized.includes('공개');
+}
+
+function mergeShortSentences(sentences) {
+  const result = [];
+  for (const sentence of sentences) {
+    const previous = result[result.length - 1];
+    if (previous && previous.length < 42 && sentence.length < 42) {
+      result[result.length - 1] = `${previous} ${sentence}`;
+    } else {
+      result.push(sentence);
+    }
+  }
+  return result;
+}
+
+function narrativeLines(value) {
+  const lines = splitNarrativeText(value);
+  return lines.length ? lines : ['기록이 아직 정리되지 않았습니다.'];
+}
+
+function splitNarrativeText(value) {
+  const text = String(value || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*([.!?。！？])\s*/g, '$1\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+  const sentences = text
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return mergeShortSentences(sentences);
+}
+
 function suspectPortraitSrc(suspect) { return usableImageUrl(suspect.portraitImageUrl) || generatedSuspectPortraitDataUrl(suspect.displayName, suspect.alias, suspect.suspiciousPoint); }
 function evidenceImageSrc(evidence) { return usableImageUrl(evidence.imageUrl) || generatedCaseCardDataUrl(evidence.title, evidence.type, evidence.textSummary); }
 function usableImageUrl(value) { const url = String(value || '').trim(); return !url || url.includes('generated-case-card') ? '' : url; }
 function humanizeClue(value) {
   return String(value || '').trim();
+}
+
+function openSuspectCard(suspect) {
+  expandedCard.value = {
+    kind: 'suspect',
+    locked: !suspect.unlocked,
+    image: suspectPortraitSrc(suspect),
+    kicker: suspect.alias || 'SUSPECT FILE',
+    title: suspect.displayName || 'UNKNOWN SUSPECT',
+    summary: suspect.relationToVictim || suspect.shortDescription || '',
+    details: [
+      { label: 'POINT', value: suspect.suspiciousPoint },
+      { label: 'ALIBI', value: suspect.alibiSummary },
+      { label: 'STATUS', value: suspect.cleared ? 'CLEARED' : suspect.unlocked ? 'OPEN' : 'LOCKED' }
+    ].filter((detail) => detail.value)
+  };
+}
+
+function openEvidenceCard(evidence) {
+  expandedCard.value = {
+    kind: 'evidence',
+    locked: !evidence.unlocked,
+    image: evidence.unlocked ? evidenceImageSrc(evidence) : '',
+    kicker: evidence.unlocked ? clueTypeLabel(evidence.relatedClueType || evidence.type) : 'LOCKED FILE',
+    title: evidence.unlocked ? evidence.title : 'LOCKED CASE MATERIAL',
+    summary: evidence.unlocked ? evidence.textSummary : '',
+    details: [
+      { label: 'TYPE', value: evidence.unlocked ? evidenceTypeLabel(evidence.type) : 'LOCKED' }
+    ].filter((detail) => detail.value)
+  };
+}
+
+function closeExpandedCard() {
+  expandedCard.value = null;
 }
 
 function generatedSuspectPortraitDataUrl(name = '용의자', alias = 'SUSPECT', seedText = '') {
@@ -219,7 +396,8 @@ strong { color: #fff; }
 .story-card-head { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .story-card-head span { flex: 0 0 auto; border-radius: 999px; padding: 5px 9px; background: rgba(100,116,139,.22); color: #cbd5e1; font-size: .72rem; font-weight: 1000; }
 .overview.unlocked .story-card-head span { background: rgba(22,101,52,.72); color: #bbf7d0; }
-.story-summary { position: relative; white-space: pre-line; }
+.story-summary-list { position: relative; display: grid; gap: 7px; margin: 12px 0 0; padding: 12px 14px; border: 1px solid rgba(148,163,184,.14); border-radius: 12px; background: rgba(2,6,23,.22); }
+.story-summary-item { margin: 0; color: #eaf2ff; line-height: 1.72; font-size: 1.03rem; font-weight: 620; word-break: keep-all; overflow-wrap: anywhere; }
 .story-locked-help { position: relative; margin: 10px 0 0; color: #94a3b8; font-size: .86rem; }
 .story-clue-strip { position: relative; display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 0; padding: 12px; border-radius: 14px; background: rgba(2,6,23,.28); }
 .story-clue-strip strong { width: 100%; color: #bbf7d0; font-size: .8rem; }
@@ -234,7 +412,8 @@ blockquote { margin: 14px 0; padding: 14px; border-left: 4px solid #f97316; back
 .clue-summary-grid strong { color: #fde68a; font-size: .9rem; }
 .clue-summary-grid span { border-radius: 999px; padding: 6px 9px; background: rgba(245,158,11,.14); color: #ffedd5; font-size: .78rem; font-weight: 850; line-height: 1.35; }
 .clue-summary-grid em { color: #94a3b8; font-size: .82rem; font-style: normal; }
-.suspect-card, .evidence-card { position: relative; overflow: hidden; display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 14px; border: 1px solid rgba(148,163,184,.18); border-radius: 16px; background: rgba(2,6,23,.34); }
+.suspect-card, .evidence-card { position: relative; overflow: hidden; display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 14px; border: 1px solid rgba(148,163,184,.18); border-radius: 16px; background: rgba(2,6,23,.34); cursor: zoom-in; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease; }
+.suspect-card:hover, .evidence-card:hover, .suspect-card:focus-visible, .evidence-card:focus-visible { transform: translateY(-3px) scale(1.015); border-color: rgba(103,190,217,.74); background: rgba(8,47,73,.42); box-shadow: 0 16px 36px rgba(0,0,0,.28), 0 0 0 3px rgba(103,190,217,.14); outline: none; }
 .suspect-card.locked, .evidence-card.locked { filter: grayscale(.45); opacity: .72; }
 .portrait-frame, .evidence-art { overflow: hidden; width: 96px; min-height: 116px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #7c2d12, #0f172a); color: #fde68a; font-weight: 1000; font-size: .74rem; }
 .portrait-frame img, .evidence-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -243,7 +422,9 @@ em { color: #94a3b8; font-style: normal; font-size: .78rem; }
 dl { grid-column: 1 / -1; display: grid; gap: 4px; margin: 8px 0 0; }
 .suspect-facts { grid-column: 1 / -1; margin-top: 6px; }
 dt { color: #fbbf24; font-size: .76rem; font-weight: 900; }
-dd { margin: 0 0 6px; color: #cbd5e1; line-height: 1.5; }
+dd { margin: 0 0 8px; color: #d8e1ee; line-height: 1.65; }
+dd p, .narrative-line { margin: 0; color: #d8e1ee; line-height: 1.66; font-size: .94rem; word-break: keep-all; overflow-wrap: anywhere; }
+dd p + p, .narrative-line + .narrative-line { margin-top: 5px; }
 .lock, .unlock-badge { position: absolute; right: 12px; top: 12px; border-radius: 999px; padding: 4px 8px; font-size: .72rem; font-weight: 900; }
 .lock { background: rgba(15,23,42,.82); color: #f8fafc; }
 .unlock-badge { background: rgba(22,101,52,.82); color: #bbf7d0; }
@@ -256,5 +437,23 @@ dd { margin: 0 0 6px; color: #cbd5e1; line-height: 1.5; }
 .clue-column.green span { background: rgba(21,128,61,.24); color: #bbf7d0; }
 .clue-column em { color: #94a3b8; }
 ul { margin: 0; padding-left: 18px; color: #cbd5e1; line-height: 1.65; }
-@media (max-width: 720px) { .cover-grid, .log-grid, .suspect-card, .evidence-card, .clue-summary-grid { grid-template-columns: 1fr; } .portrait-frame, .evidence-art { width: 100%; min-height: 160px; } }
+.case-card-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; box-sizing: border-box; padding: 18px; background: radial-gradient(circle at 50% 18%, rgba(103,190,217,.28), transparent 34%), rgba(2,6,23,.78); backdrop-filter: blur(10px); animation: overlayFade .16s ease both; }
+.expanded-case-card { position: relative; display: grid; grid-template-columns: minmax(220px, .82fr) minmax(0, 1fr); gap: 18px; width: min(100%, 860px); max-height: min(88vh, 780px); overflow: auto; box-sizing: border-box; padding: clamp(16px, 3vw, 24px); border: 1px solid rgba(103,190,217,.56); border-radius: 22px; background: linear-gradient(145deg, rgba(15,23,42,.98), rgba(8,47,73,.94)); color: #f8fafc; box-shadow: 0 30px 90px rgba(0,0,0,.56); cursor: default; animation: cardZoom .18s ease both; }
+.expanded-case-card.evidence { border-color: rgba(184,135,59,.7); background: linear-gradient(145deg, rgba(29,20,10,.98), rgba(15,23,42,.96)); }
+.expanded-case-card.locked { filter: grayscale(.2); }
+.expanded-close { position: absolute; top: 12px; right: 12px; z-index: 2; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(2,6,23,.7); color: #f8fafc; padding: 7px 10px; font-size: .72rem; font-weight: 1000; }
+.expanded-card-media { overflow: hidden; min-height: 320px; border: 1px solid rgba(255,255,255,.14); border-radius: 18px; display: grid; place-items: center; background: linear-gradient(135deg, #7c2d12, #0f172a); color: #fde68a; font-weight: 1000; letter-spacing: .12em; }
+.expanded-card-media img { width: 100%; height: 100%; min-height: 320px; object-fit: cover; display: block; }
+.expanded-card-body { align-self: center; min-width: 0; padding-right: 22px; }
+.expanded-kicker { margin: 0 0 8px; color: #67bed9; font-size: .78rem; font-weight: 1000; letter-spacing: .14em; }
+.expanded-case-card.evidence .expanded-kicker { color: #fbbf24; }
+.expanded-card-body h2 { margin: 0; color: #fff; font-size: clamp(1.8rem, 5vw, 3rem); line-height: 1.05; word-break: keep-all; overflow-wrap: anywhere; }
+.expanded-summary { margin: 14px 0 0; color: #e0f2fe; font-size: 1.02rem; line-height: 1.72; word-break: keep-all; overflow-wrap: anywhere; }
+.expanded-detail-list { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px 10px; margin: 18px 0 0; }
+.expanded-detail-list dt { color: #fbbf24; font-size: .78rem; font-weight: 1000; }
+.expanded-detail-list dd { margin: 0; color: #e2e8f0; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
+@keyframes overlayFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cardZoom { from { opacity: 0; transform: translateY(12px) scale(.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 720px) { .cover-grid, .log-grid, .suspect-card, .evidence-card, .clue-summary-grid { grid-template-columns: 1fr; } .portrait-frame, .evidence-art { width: 100%; min-height: 160px; } .expanded-case-card { grid-template-columns: 1fr; gap: 14px; } .expanded-card-media, .expanded-card-media img { min-height: 240px; } .expanded-card-body { padding-right: 0; } }
+@media (max-width: 560px) { .story-summary-list { padding: 12px; gap: 6px; } .story-summary-item { font-size: .98rem; line-height: 1.64; } dd p, .narrative-line { font-size: .92rem; line-height: 1.6; } }
 </style>

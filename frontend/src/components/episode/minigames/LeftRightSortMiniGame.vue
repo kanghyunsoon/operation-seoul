@@ -91,7 +91,7 @@ function startTimer() {
   timer = window.setInterval(() => {
     remainingMs.value = Math.max(0, endsAt - Date.now());
     if (remainingMs.value <= 0) finish();
-  }, 80);
+  }, 250);
 }
 
 function finish() {
@@ -202,12 +202,7 @@ onBeforeUnmount(() => clearInterval(timer));
 }
 
 .sort-board::before {
-  content: '';
-  position: absolute;
-  inset: 24px 86px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(251, 191, 36, .24), transparent 56%);
-  pointer-events: none;
+  display: none;
 }
 
 .destination {
@@ -252,7 +247,6 @@ onBeforeUnmount(() => clearInterval(timer));
   line-height: 1;
   opacity: .72;
   transform: scale(.82);
-  box-shadow: 0 10px 18px rgba(0, 0, 0, .28);
 }
 
 .queue-item.current {
@@ -261,11 +255,10 @@ onBeforeUnmount(() => clearInterval(timer));
   margin-top: 4px;
   margin-bottom: 0;
   border-color: rgba(251, 191, 36, .35);
-  background: radial-gradient(circle, rgba(251, 191, 36, .18), rgba(15, 23, 42, .9));
+  background: rgba(30, 41, 59, .95);
   font-size: 5.2rem;
   opacity: 1;
   transform: scale(1);
-  box-shadow: 0 18px 28px rgba(0, 0, 0, .4);
 }
 
 .side-buttons {

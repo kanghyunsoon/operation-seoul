@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class UserService {
+    private static final int STATUS_MESSAGE_MAX_LENGTH = 120;
+
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
 
@@ -33,8 +35,21 @@ public class UserService {
         if (duplicated != null) {
             throw new ApiException(HttpStatus.CONFLICT, "DUPLICATE_NICKNAME", "이미 사용 중인 닉네임입니다.");
         }
+        String statusMessage = request.getStatusMessage() == null
+                ? currentUser.getStatusMessage()
+                : request.getStatusMessage().trim();
+        if (statusMessage != null && statusMessage.length() > STATUS_MESSAGE_MAX_LENGTH) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "상태메시지는 120자 이내로 입력해 주세요.");
+        }
+        String profileImageUrl = request.getProfileImageUrl() == null
+                ? currentUser.getProfileImageUrl()
+                : request.getProfileImageUrl().trim();
         currentUser.setNickname(nickname);
-        currentUser.setProfileImageUrl(request.getProfileImageUrl());
+        currentUser.setProfileImageUrl(profileImageUrl == null || profileImageUrl.isBlank() ? null : profileImageUrl);
+        currentUser.setStatusMessage(statusMessage == null || statusMessage.isBlank() ? null : statusMessage);
+        if (request.getProfilePublic() != null) {
+            currentUser.setProfilePublic(request.getProfilePublic());
+        }
         userRepository.save(currentUser);
         return AuthResponse.UserInfo.of(currentUser);
     }

@@ -13,6 +13,7 @@ public class RegionQuestion {
     private Long userId;
     private String title;
     private String content;
+    private Boolean notice;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

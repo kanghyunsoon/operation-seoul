@@ -1,6 +1,7 @@
 package com.operation.seoul.ranking.service;
 
 import com.operation.seoul.auth.domain.User;
+import com.operation.seoul.challenge.service.ChallengeService;
 import com.operation.seoul.ranking.dto.RankingEntryResponse;
 import com.operation.seoul.ranking.dto.PlayerRankingResponse;
 import com.operation.seoul.ranking.repository.RankingRepository;
@@ -13,6 +14,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RankingService {
     private final RankingRepository rankingRepository;
+    private final ChallengeService challengeService;
 
     public List<RankingEntryResponse> getRankings(Long episodeId, Integer limit) {
         int safeLimit = Math.max(1, Math.min(limit == null ? 50 : limit, 100));
@@ -32,6 +34,7 @@ public class RankingService {
         List<PlayerRankingResponse> entries = rankingRepository.findPlayerRankings(safeLimit);
         for (int index = 0; index < entries.size(); index += 1) {
             entries.get(index).setRankNo(index + 1);
+            entries.get(index).setAchievedChallengeCount(challengeService.countAchievedChallenges(entries.get(index).getUserId()));
         }
         return entries;
     }
