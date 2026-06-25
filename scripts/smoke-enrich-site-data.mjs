@@ -3,8 +3,8 @@ import { writeFile } from 'node:fs/promises';
 
 const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8080/api';
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@seoul.go.kr';
-const jwtSecret = process.env.JWT_SECRET || 'operation-seoul-local-development-jwt-secret';
-const jwtIssuer = process.env.JWT_ISSUER || 'operation-seoul-local';
+const jwtSecret = process.env.JWT_SECRET || 'operation-korea-local-development-jwt-secret';
+const jwtIssuer = process.env.JWT_ISSUER || 'operation-korea-local';
 const outputPath = process.env.OUTPUT_PATH || 'tmp-enrich-response.json';
 
 function base64Url(input) {

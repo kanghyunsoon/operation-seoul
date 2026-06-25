@@ -232,6 +232,7 @@ onMounted(async () => {
     syncElapsedFromStartData();
     startElapsedTimer();
     window.addEventListener('visibilitychange', handleElapsedVisibility);
+    window.addEventListener('pagehide', handleElapsedPageHide);
     if (startData.value.sessionId) {
       questions.value = await episodeApi.getDeductionQuestions(startData.value.sessionId);
       scrollHistoryToBottom();
@@ -245,6 +246,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('visibilitychange', handleElapsedVisibility);
+  window.removeEventListener('pagehide', handleElapsedPageHide);
   stopElapsedTimer();
 });
 
@@ -342,21 +344,28 @@ function triggerPenalty(type, minutes) {
 }
 
 function elapsedStorageKey() {
-  return `operation-seoul:episode:${episodeId}:active-elapsed-seconds`;
+  return `operation-korea:episode:${episodeId}:active-elapsed-seconds`;
+}
+
+function elapsedLastSeenStorageKey() {
+  return `operation-korea:episode:${episodeId}:active-elapsed-last-seen`;
 }
 
 function syncElapsedFromStartData() {
   const serverElapsed = Number(startData.value?.activeElapsedSeconds || 0);
   const localElapsed = Number(window.localStorage.getItem(elapsedStorageKey()) || 0);
-  activeElapsedSeconds.value = Math.max(Number(activeElapsedSeconds.value || 0), serverElapsed, localElapsed);
-  window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+  const lastSeenAt = Number(window.localStorage.getItem(elapsedLastSeenStorageKey()) || 0);
+  const offlineDelta = lastSeenAt > 0 ? Math.max(0, Math.floor((Date.now() - lastSeenAt) / 1000)) : 0;
+  const localElapsedWithDelta = localElapsed > 0 ? localElapsed + offlineDelta : 0;
+  activeElapsedSeconds.value = Math.max(Number(activeElapsedSeconds.value || 0), serverElapsed, localElapsedWithDelta);
+  rememberElapsedTime();
 }
 
 function startElapsedTimer() {
   if (!startData.value.sessionId || elapsedTimer || document.hidden) return;
   elapsedTimer = window.setInterval(() => {
     activeElapsedSeconds.value += 1;
-    window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+    rememberElapsedTime();
   }, 1000);
   elapsedSaveTimer = window.setInterval(() => {
     persistElapsedTime();
@@ -372,13 +381,22 @@ function handleElapsedVisibility() {
   }
 }
 
+function handleElapsedPageHide() {
+  stopElapsedTimer();
+}
+
 function stopElapsedTimer(shouldPersist = true) {
   clearInterval(elapsedTimer);
   clearInterval(elapsedSaveTimer);
   elapsedTimer = null;
   elapsedSaveTimer = null;
-  window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+  rememberElapsedTime();
   if (shouldPersist) persistElapsedTime();
+}
+
+function rememberElapsedTime() {
+  window.localStorage.setItem(elapsedStorageKey(), String(Math.max(0, Math.floor(Number(activeElapsedSeconds.value || 0)))));
+  window.localStorage.setItem(elapsedLastSeenStorageKey(), String(Date.now()));
 }
 
 async function persistElapsedTime() {
@@ -388,10 +406,10 @@ async function persistElapsedTime() {
     const serverElapsed = Number(updated?.activeElapsedSeconds || 0);
     if (serverElapsed > activeElapsedSeconds.value) {
       activeElapsedSeconds.value = serverElapsed;
-      window.localStorage.setItem(elapsedStorageKey(), String(serverElapsed));
+      rememberElapsedTime();
     }
   } catch {
-    window.localStorage.setItem(elapsedStorageKey(), String(elapsedSeconds));
+    rememberElapsedTime();
   }
 }
 

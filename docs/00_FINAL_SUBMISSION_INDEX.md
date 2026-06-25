@@ -1,4 +1,4 @@
-# Operation Seoul Final Submission Index
+# Operation KOREA Final Submission Index
 
 작성일: 2026-06-26
 
@@ -6,14 +6,19 @@
 
 | 구분 | 파일 | 포함 내용 |
 | --- | --- | --- |
-| 요구사항/검증 | `01_REQUIREMENTS_AND_COVERAGE.md` | 요구사항 정의서, 기능 범위, 수용 기준, 구현 추적표 |
-| 설계 문서 | `02_DESIGN_DOCUMENT.md` | 시스템 구조, Use-Case Diagram, ER Diagram, 핵심 설계 |
-| 일정 문서 | `03_WBS_AND_GANTT.md` | WBS, Gantt Chart, 역할/작업 분해 |
-| 화면 설계 | `04_SCREEN_DESIGN.md` | 주요 화면 IA, 사용자 흐름, 화면별 구성 |
+| 요구사항 정의서 | `요구사항_정의서.md` | 프로젝트 개요, 사용자 유형, 기능/비기능 요구사항, 인수 조건 |
+| Use-Case Diagram | `Use-Case_Diagram.md` | 액터, Use Case, include/extend 관계, Use-Case 명세 |
+| ER Diagram | `ER_Diagram.md` | 주요 테이블 컬럼, PK/FK, 엔티티 관계 |
+| WBS | `WBS.md` | 작업 분해, 담당, 산출물, 시작/종료, 상태 |
+| Gantt Chart | `Gantt_Chart.md` | Mermaid 기반 개발 일정표와 마일스톤 |
+| 화면 설계서 | `화면_설계서.md` | 정보 구조, 주요 화면 와이어프레임, 입력/검증 규칙 |
+| 통합 요구사항/검증 | `01_REQUIREMENTS_AND_COVERAGE.md` | 요구사항 상세, 기능 범위, 수용 기준, 구현 추적표 |
+| 통합 설계 문서 | `02_DESIGN_DOCUMENT.md` | 시스템 구조, 정식 Use-Case Diagram, 상세 ER Diagram, 상태 전이, 핵심 설계 |
+| 통합 일정 문서 | `03_WBS_AND_GANTT.md` | 담당/기간/상태 포함 WBS, Gantt Chart, 마일스톤, 리스크 |
+| 통합 화면 설계 | `04_SCREEN_DESIGN.md` | 주요 화면 IA, 사용자/관리자 흐름, 화면별 와이어프레임, 입력/검증 규칙 |
 | 구현 결과 | `05_IMPLEMENTATION_RESULT.md` | Back-End, Front-End, DB Schema, 데이터셋 정리 |
 | 이슈/개선 | `06_TROUBLESHOOTING_AND_REMAINING_WORK.md` | 해결 이슈, 검증 결과, 남은 리스크 |
-| 외부 API/AI | `07_EXTERNAL_API_AND_AI_USAGE.md` | TourAPI, Kakao, Tmap, Gemini 활용 및 보안 |
-| AI 필수 활용 증빙 | `10_AI_REQUIRED_USAGE_EVIDENCE.md` | 주요 프롬프트, LLM 활용 전후 비교, AI 기능 구현 코드 캡처 대상 |
+| 외부 API | `07_EXTERNAL_API_USAGE.md` | TourAPI, Kakao, Tmap 활용 및 보안 |
 | 최종 보고서 | `08_FINAL_REPORT.md` | 프로젝트 개요, 구현 성과, 한계와 향후 계획 |
 | 발표 자료 | `09_PRESENTATION_DRAFT.md` | PPT/PDF 제작용 슬라이드 원고 |
 | 발표 PPT | `OperationSeoul_Final_Presentation.pptx` | 최종 발표용 PowerPoint |

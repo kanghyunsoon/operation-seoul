@@ -1,5 +1,5 @@
 {
-  "name": "operation-seoul",
+  "name": "operation-korea",
   "version": "1.0.0",
   "description": "AI, 지도, GPS, 카메라 인증을 결합한 위치 기반 야외 방탈출 서비스입니다.",
   "main": "index.js",
@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KangHSoon/operation-seoul.git"
+    "url": "git+https://github.com/KangHSoon/operation-korea.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/KangHSoon/operation-seoul/issues"
+    "url": "https://github.com/KangHSoon/operation-korea/issues"
   },
-  "homepage": "https://github.com/KangHSoon/operation-seoul#readme"
+  "homepage": "https://github.com/KangHSoon/operation-korea#readme"
 }

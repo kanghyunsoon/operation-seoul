@@ -18,6 +18,9 @@ export const episodeApi = {
   async getMap(episodeId) {
     return unwrap(await apiClient.get(`/v1/episodes/${episodeId}/map`));
   },
+  async updateElapsedTime(episodeId, elapsedSeconds) {
+    return unwrap(await apiClient.post(`/v1/episodes/${episodeId}/elapsed-time`, { elapsedSeconds }));
+  },
   async arrive(episodeId, spotId, payload) {
     return unwrap(await apiClient.post(`/v1/episodes/${episodeId}/spots/${spotId}/arrive`, payload));
   },

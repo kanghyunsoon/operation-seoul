@@ -86,7 +86,7 @@ def build_pptx(slides):
 
         footer = slide.shapes.add_textbox(Inches(0.65), Inches(7.0), Inches(12), Inches(0.25))
         fp = footer.text_frame.paragraphs[0]
-        fp.text = "Operation Seoul Final Submission"
+        fp.text = "Operation KOREA Final Submission"
         fp.alignment = PP_ALIGN.RIGHT
         fp.font.size = Pt(9)
         fp.font.color.rgb = RGBColor(100, 116, 139)
@@ -123,7 +123,7 @@ def build_html(slides):
               <div class="num">{index:02d}</div>
               <h1>{escape(title)}</h1>
               <div class="body">{body_to_html(body)}</div>
-              <footer>Operation Seoul Final Submission</footer>
+              <footer>Operation KOREA Final Submission</footer>
             </section>
             """
         )
@@ -133,7 +133,7 @@ def build_html(slides):
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>Operation Seoul Final Presentation</title>
+  <title>Operation KOREA Final Presentation</title>
   <style>
     @page {{ size: 16:9 landscape; margin: 0; }}
     * {{ box-sizing: border-box; }}

@@ -27,8 +27,9 @@
         v-for="color in colors"
         :key="color.key"
         type="button"
+        class="color-choice"
         :disabled="finished || preparing"
-        :style="{ borderColor: color.hex }"
+        :style="{ '--choice-color': color.hex, '--choice-text': readableTextColor(color.hex) }"
         @click="choose(color.key)"
       >
         <span class="swatch" :style="{ backgroundColor: color.hex }"></span>
@@ -179,6 +180,15 @@ function normalizeItem(item, index, colorList) {
   };
 }
 
+function readableTextColor(hex) {
+  const value = String(hex || '').replace('#', '');
+  if (!/^[0-9a-f]{6}$/i.test(value)) return '#ffffff';
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return ((red * 299 + green * 587 + blue * 114) / 1000) > 155 ? '#172033' : '#ffffff';
+}
+
 onBeforeUnmount(() => clearInterval(timer));
 </script>
 
@@ -193,11 +203,13 @@ onBeforeUnmount(() => clearInterval(timer));
 .prepare-card { min-height: 170px; place-items: center; }
 .prepare-count { color: #fcd34d; font-size: clamp(3rem, 16vw, 6rem); line-height: 1; font-weight: 1000; }
 .color-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-button { min-height: 48px; border: 2px solid transparent; border-radius: 14px; background: rgba(15,23,42,.9); color: #fff; font-weight: 1000; padding: 8px; }
-.swatch { display: inline-block; width: 13px; height: 13px; margin-right: 7px; border-radius: 999px; vertical-align: -1px; }
+.color-choice { min-height: 52px; border: 2px solid color-mix(in srgb, var(--choice-color) 76%, #fff) !important; border-radius: 14px; background: var(--choice-color) !important; color: var(--choice-text) !important; font-weight: 1000; padding: 8px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.16), 0 8px 18px color-mix(in srgb, var(--choice-color) 24%, transparent) !important; }
+.color-choice:not(:disabled):hover { filter: brightness(1.08); }
+.color-choice:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.swatch { display: inline-block; width: 14px; height: 14px; margin-right: 7px; border: 2px solid currentColor; border-radius: 999px; background: transparent !important; vertical-align: -2px; }
 .result { border-radius: 14px; padding: 10px; font-weight: 1000; }
 .result.success { background: rgba(22,101,52,.32); color: #bbf7d0; }
 .result.fail { background: rgba(127,29,29,.32); color: #fecaca; }
-.ghost { border: 1px solid rgba(148,163,184,.28); background: rgba(15,23,42,.7); color: #cbd5e1; }
+.ghost { min-height: 46px; border-color: rgba(148,163,184,.42) !important; border-radius: 12px; background: #26364c !important; color: #f8fafc !important; font-weight: 900; }
 @media (max-width: 430px) { .hud { display: grid; } }
 </style>

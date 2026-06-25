@@ -5,7 +5,7 @@
       <strong>{{ count }} / {{ target }}</strong>
       <span>남은 시간 {{ remainingSeconds }}초</span>
     </div>
-    <button type="button" :disabled="finished" @click="tap">{{ started ? '탭' : '시작' }}</button>
+    <button type="button" class="tap-button" :disabled="finished" @click="tap">{{ started ? '탭' : '시작' }}</button>
     <p class="rule">기준 속도는 초당 6회입니다. 목표 횟수를 넘기거나 부족하면 제출 시 실패합니다.</p>
   </div>
 </template>
@@ -69,7 +69,8 @@ onBeforeUnmount(() => clearInterval(timer));
 .tap-board { display: grid; gap: 4px; padding: 12px; border-radius: 16px; background: rgba(15,23,42,.78); }
 strong { font-size: 1.8rem; color: #fcd34d; }
 span { color: #bae6fd; font-weight: 900; }
-button { min-height: 86px; border: 0; border-radius: 999px; background: #dc2626; color: #fff; font-size: 1.3rem; font-weight: 900; }
-button:disabled { opacity: .5; background: #475569; }
+.tap-button { min-height: 92px; border: 3px solid #fca5a5 !important; border-radius: 999px; background: #dc2626 !important; color: #fff !important; font-size: 1.3rem; font-weight: 1000; box-shadow: 0 12px 30px rgba(220,38,38,.34), inset 0 -5px 0 rgba(127,29,29,.42) !important; }
+.tap-button:not(:disabled):active { background: #b91c1c !important; box-shadow: 0 5px 12px rgba(220,38,38,.3), inset 0 3px 0 rgba(127,29,29,.5) !important; }
+.tap-button:disabled { opacity: .58; border-color: #64748b !important; background: #475569 !important; box-shadow: none !important; }
 .rule { margin: 0; color: #cbd5e1; font-size: .82rem; line-height: 1.45; }
 </style>

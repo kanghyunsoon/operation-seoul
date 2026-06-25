@@ -23,9 +23,7 @@
 | `community` | 권역 게시판, 답변, 좋아요 |
 | `ranking` | 클리어 랭킹 |
 | `challenge` | 챌린지 |
-| `recommendation` | 에피소드 추천 |
-| `coaching` | 플레이 코칭 |
-| `admin.episode` | 관리자 에피소드 생성/검수/AI 연동 |
+| `admin.episode` | 관리자 에피소드 관리/검수 |
 | `global` | 공통 응답, 예외, 보안/스키마 마이그레이션 |
 
 ## 2. Front-End
@@ -59,7 +57,6 @@
 | 커뮤니티 권역 Seed | `RegionSchemaMigration` | 권역 커뮤니티 기본 region 데이터 |
 | 챌린지 Seed | `CommunitySchemaMigration` | 기본 챌린지 |
 | 외부 후보 데이터 | TourAPI/Kakao Local 응답 | 관리자 검수 후 에피소드 후보로 활용 |
-| AI 초안 데이터 | Gemini 응답 | DRAFT 저장 전 검증 대상으로 활용 |
 
 ## 4. 실행 명령
 

@@ -5,7 +5,15 @@
       <strong>{{ solved ? '모든 짝 확인' : '같은 단서 쌍을 모두 찾으세요' }}</strong>
     </div>
     <div class="memory-grid">
-      <button v-for="card in deck" :key="card.id" type="button" :class="{ open: card.open || card.matched, failed }" :disabled="failed || solved" @click="flip(card)">
+      <button
+        v-for="card in deck"
+        :key="card.id"
+        type="button"
+        class="memory-card"
+        :class="{ open: card.open && !card.matched, matched: card.matched, failed }"
+        :disabled="failed || solved"
+        @click="flip(card)"
+      >
         <span>{{ card.open || card.matched ? card.label : '?' }}</span>
       </button>
     </div>
@@ -81,9 +89,10 @@ function shuffle(items, retryVariant) {
 .memory-game { display: grid; gap: 10px; }
 .memory-status { display: flex; justify-content: space-between; gap: 8px; color: #fde68a; font-weight: 900; font-size: .85rem; }
 .memory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-button { min-height: 54px; border: 0; border-radius: 10px; background: #ea580c; color: #fff; font-weight: 900; padding: 8px; }
-button.open { background: #0e7490; }
+.memory-card { min-height: 58px; border: 2px solid #4b6685 !important; border-radius: 12px; background: #21344d !important; color: #f8fafc !important; font-weight: 1000; padding: 8px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05) !important; }
+.memory-card.open { border-color: #38bdf8 !important; background: #075985 !important; color: #fff !important; box-shadow: 0 0 0 3px rgba(56,189,248,.16) !important; }
+.memory-card.matched { border-color: #4ade80 !important; background: #166534 !important; color: #f0fdf4 !important; box-shadow: 0 0 0 3px rgba(74,222,128,.18) !important; }
 button.failed { opacity: .55; }
-.retry { background: #334155; }
+.retry { min-height: 46px; border-color: #64748b !important; border-radius: 12px; background: #334155 !important; color: #fff !important; font-weight: 900; }
 @media (max-width: 430px) { .memory-grid { grid-template-columns: repeat(3, 1fr); } }
 </style>

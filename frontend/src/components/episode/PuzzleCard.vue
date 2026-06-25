@@ -161,20 +161,22 @@ function isRouteDependentHint(text) {
 .puzzle-overlay { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; box-sizing: border-box; padding: 18px; background: radial-gradient(circle at 22% 12%, rgba(8,145,178,.32), transparent 30%), rgba(2,6,23,.72); backdrop-filter: blur(10px); }
 .puzzle-card { width: min(100%, 780px); max-height: min(86vh, 860px); overflow: auto; box-sizing: border-box; padding: clamp(16px, 3vw, 24px); border: 1px solid rgba(251,146,60,.3); border-radius: 24px; background: radial-gradient(circle at top left, rgba(14,116,144,.32), transparent 34%), rgba(2,6,23,.98); color: #e2e8f0; box-shadow: 0 28px 90px rgba(0,0,0,.5); }
 .puzzle-card.immersive { border-color: rgba(56,189,248,.42); }
-.puzzle-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: #fb923c; font-size: .74rem; font-weight: 900; }
-h3 { margin: 8px 0; color: #fff; }
-.guide { margin: 8px 0; padding: 9px 10px; border-radius: 10px; background: rgba(14,116,144,.2); color: #a5f3fc; font-size: .82rem; line-height: 1.45; }
+.puzzle-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: #fbbf24; font-size: .76rem; font-weight: 1000; }
+h3 { margin: 8px 0; color: #fff; font-weight: 1000; letter-spacing: -.02em; }
+.guide { margin: 8px 0; padding: 10px 12px; border: 1px solid rgba(56,189,248,.24); border-radius: 10px; background: rgba(14,116,144,.2); color: #d8f5ff; font-size: .86rem; font-weight: 750; line-height: 1.55; }
 .question { line-height: 1.6; padding: 12px; border-radius: 12px; background: rgba(15,23,42,.85); color: #f8fafc; font-weight: 900; }
-.mission-desc { margin: 10px 0 0; line-height: 1.55; color: #cbd5e1; }
+.mission-desc { margin: 10px 0 0; line-height: 1.6; color: #e2e8f0; font-weight: 700; }
 .interaction-actions { display: grid; gap: 8px; margin-top: 12px; }
 .unlock-btn, .reset-btn { width: 100%; min-height: 44px; }
-.unlock-btn { background: #0891b2; }
+.unlock-btn, form button[type="submit"] { border-color: #7dd3fc !important; background: #38bdf8 !important; color: #082f49 !important; font-weight: 1000; box-shadow: 0 10px 24px rgba(56,189,248,.24) !important; }
+.unlock-btn:not(:disabled):hover, form button[type="submit"]:not(:disabled):hover { background: #7dd3fc !important; }
 .reset-btn { border: 1px solid rgba(248,113,113,.42); background: rgba(127,29,29,.42); color: #fecaca; }
 .hint-box { margin-top: 10px; }
 summary { cursor: pointer; color: #fcd34d; font-weight: 800; }
 li { margin-top: 6px; color: #cbd5e1; line-height: 1.45; }
 form { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; margin-top: 12px; }
-input { min-width: 0; border: 1px solid rgba(148,163,184,.28); border-radius: 10px; background: rgba(15,23,42,.9); color: #fff; padding: 11px; }
+input { min-width: 0; border: 1px solid rgba(148,163,184,.5); border-radius: 10px; background: rgba(15,23,42,.96); color: #fff; padding: 11px; font-weight: 700; }
+input:focus { border-color: #38bdf8; outline: 3px solid rgba(56,189,248,.18); }
 button { border: 0; border-radius: 10px; background: #ea580c; color: #fff; font-weight: 900; padding: 8px 12px; }
 .close-btn { min-height: 30px; margin-left: auto; border: 1px solid rgba(251,146,60,.36); background: rgba(15,23,42,.88); color: #fed7aa; font-size: .74rem; }
 .message { margin: 10px 0 0; padding: 9px; border-radius: 10px; font-size: .84rem; }

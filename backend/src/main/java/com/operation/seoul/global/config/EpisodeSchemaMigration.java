@@ -647,7 +647,7 @@ public class EpisodeSchemaMigration implements ApplicationRunner {
         if (count("episode_partner_rewards", episodeId) == 0) {
             jdbcTemplate.update("""
                     insert into episode_partner_rewards (episode_id, title, description, reward_type, partner_name, location_name, status)
-                    values (?, 'Local reward placeholder', 'Partner coupons are disabled until a real local partner contract exists.', 'COUPON', 'Operation Seoul', 'Jeong-dong area', 'PLANNED')
+                    values (?, 'Local reward placeholder', 'Partner coupons are disabled until a real local partner contract exists.', 'COUPON', 'Operation KOREA', 'Jeong-dong area', 'PLANNED')
                     """, episodeId);
         }
     }

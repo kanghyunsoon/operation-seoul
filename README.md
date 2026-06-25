@@ -1,12 +1,10 @@
-﻿# Operation KOREA
+# Operation KOREA
 
 Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring Boot + Spring Security + JWT + MyBatis + MySQL 백엔드 기반의 모바일 야외 방탈출/미션 메모 앱입니다.
 
 현재 방향은 단순 관광 미션 앱이 아니라, TourAPI/Kakao Local로 실제 장소 후보를 모으고 관리자가 검수한 뒤, 사용자가 지도와 미션 메모을 오가며 퍼즐, 단서, 최종 추리를 진행하는 미션 메모형 야외 방탈출 MVP입니다.
 
 ## 현재 MVP 결론
-
-2026-06-05 실제 코드와 API 파일 기준으로, 샘플 또는 관리자 생성 에피소드 1개를 플레이하는 핵심 MVP는 구현되어 있습니다.
 
 핵심 완료 흐름:
 
@@ -50,26 +48,24 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | reward_payload 해금 | 완료 | `EpisodePlayService.applyReward` |
 | 단서 보드 | 완료 | `GET /api/v1/episodes/{episodeId}/clue-board`, `ClueBoard.vue` |
 | 미션 메모 탭 | 완료 | `GET /api/v1/episodes/{episodeId}/case-file`, `EpisodeCaseFileView.vue` |
-| 최종 추리 | MVP 완료 | 규칙 기반 제한 답변. Gemini 실시간 추리 고도화는 미구현 |
+| 최종 추리 | MVP 완료 | 규칙 기반 제한 답변 |
 | 최종 정답/CLEARED | 완료 | `POST /api/v1/episodes/{episodeId}/final-answer` |
 | 클리어 리포트 | 완료 | `GET /api/v1/episodes/{episodeId}/clear-report`, `ClearReportView.vue` |
 | 에피소드 리뷰 | 완료 | `EpisodeReviewController`, `AdminEpisodeReviewController`, `EpisodeReviewPanel.vue` |
 | CLEARED 기준 리뷰 제한 | 완료 | `EpisodeReviewService.requireCleared` |
-| 관리자 에피소드 생성 | 완료 | `AdminEpisodeController`, `AdminEpisodeService`, `AdminEpisodesView.vue` |
+| 관리자 에피소드 관리 | 완료 | `AdminEpisodeController`, `AdminEpisodeService`, `AdminEpisodesView.vue` |
 | TourAPI 기준 장소 후보 | 완료 | `TourApiService`, 키 없음 에러 `TOURAPI_SERVICE_KEY_MISSING` |
 | Kakao Local 주변 후보 | 완료 | `KakaoLocalCandidateService`, 키 없음 에러 `KAKAO_REST_API_KEY_MISSING` |
 | 수동 후보 추가 UX | 완료 | `AdminEpisodesView.vue` |
 | readiness/PUBLISHED 검증 | 완료 | `/publish-readiness`, PUBLISHED 전환 검증 |
 | 지역 리워드/쿠폰 | Placeholder | `episode_partner_rewards` PLANNED/DISABLED 구조만 있음. 실제 쿠폰 지급 없음 |
-| OAuth 소셜 로그인 | 미구현 | 구글/네이버/카카오 로그인 버튼도 만들지 않음 |
+| OAuth 소셜 로그인 | 완료 | Google/Kakao 로그인 버튼, OAuth callback, 소셜 계정 연결 구현 |
 | 에피소드 찜/즐겨찾기 | 완료 | episode_favorites API, 목록/상세 favorited, 내 관심 목록 화면 구현 |
 | 일정 관리 | MVP 완료 | `UserPlanController`, `UserPlanService`, `PlansView.vue` |
 | 팔로우 | MVP 완료 | `UserFollowController`, `UserFollowService`, `MyPageView.vue` 팔로워/팔로잉 목록 |
 | 그룹 | MVP 완료 | `UserGroupController`, `UserGroupService`, `GroupsView.vue` |
 | 랭킹 | MVP 완료 | `RankingController`, `RankingService`, `RankingView.vue` |
 | 챌린지 | MVP 완료 | `ChallengeController`, `ChallengeService`, `ChallengesView.vue` |
-| 사용자 AI 추천 | MVP 완료 | `EpisodeRecommendationController`, `EpisodeRecommendationService`, `RecommendationsView.vue`. 현재는 설명 가능한 규칙 기반 추천 |
-| AI 코칭/분석 | MVP 완료 | `CoachingController`, `CoachingService`, `CoachingView.vue`. 현재는 플레이 기록 기반 규칙 코칭 |
 
 ## 사용자 플레이 API
 
@@ -115,9 +111,6 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | `GET` | `/api/v1/challenges` | 공개 챌린지 목록과 진행률 |
 | `GET` | `/api/v1/challenges/me` | 내 챌린지 목록 |
 | `POST` | `/api/v1/challenges/{challengeId}/join` | 챌린지 참가 |
-| `GET` | `/api/v1/recommendations/episodes` | 관심/일정/클리어 기록 기반 미션 파일 추천 |
-| `GET` | `/api/v1/coaching/me` | 내 플레이 코칭 요약 |
-| `GET` | `/api/v1/coaching/episodes/{episodeId}` | 에피소드별 코칭 리포트 |
 
 ## 관리자 API
 
@@ -135,10 +128,6 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | `GET` | `/api/v1/admin/episodes/{episodeId}` | 관리자 에피소드 상세 |
 | `GET` | `/api/v1/admin/episodes/place-candidates` | TourAPI 기준 장소 후보 |
 | `GET` | `/api/v1/admin/episodes/place-candidates/nearby` | Kakao Local 주변 후보 |
-| `POST` | `/api/v1/admin/episodes/ai-draft` | 규칙 기반 초안 생성 |
-| `POST` | `/api/v1/admin/episodes/ai-draft/gemini` | Gemini 초안 생성 구조 |
-| `POST` | `/api/v1/admin/episodes/ai-draft/validate` | 초안 검증 |
-| `POST` | `/api/v1/admin/episodes/ai-draft/save` | DRAFT 저장 |
 | `GET` | `/api/v1/admin/episodes/{episodeId}/publish-readiness` | 공개 준비도 점검 |
 | `PUT` | `/api/v1/admin/episodes/{episodeId}` | 상태/기본 정보 수정, PUBLISHED 전환 |
 | `PUT` | `/api/v1/admin/episodes/{episodeId}/spots/{spotId}` | 장소 수정 |
@@ -159,14 +148,12 @@ Operation KOREA는 Vue 3 + Pinia + Vue Router + Axios 프론트엔드와 Spring 
 | `/regions/:regionId/community` | 권역 커뮤니티/리뷰/Q&A | MVP 완료 |
 | `/rankings` | 클리어 랭킹/내 기록 | MVP 완료 |
 | `/challenges` | 클리어 수 기반 챌린지 | MVP 완료 |
-| `/recommendations` | 맞춤 미션 파일 추천 | MVP 완료 |
-| `/coaching` | 플레이 기록 기반 코칭/분석 | MVP 완료 |
 | `/plans` | 내 플레이 일정 관리 | MVP 완료 |
 | `/groups` | 그룹 생성/가입/멤버 확인 | MVP 완료 |
 | `/me` | 관심 에피소드/팔로우/일정/그룹 진입 | MVP 완료 |
 | `/admin/users` | 관리자 회원 관리 | 완료 |
 | `/admin/reviews` | 관리자 리뷰 관리 | 완료 |
-| `/admin/episodes` | 관리자 에피소드 생성/운영 | 완료 |
+| `/admin/episodes` | 관리자 에피소드 관리/운영 | 완료 |
 | `/home`, `/regions`, `/map`, `/chat`, `/clear` | legacy 관광/미션 화면 | 유지. 새 MVP의 중심은 episode 플로우 |
 
 ## 실행 방법
@@ -216,9 +203,7 @@ VITE_DEV_ARRIVAL=true
 app.dev-mode.arrival-enabled=${DEV_ARRIVAL_ENABLED:false}
 tourapi.key=${TOURAPI_SERVICE_KEY:}
 kakao.rest.api.key=${KAKAO_REST_API_KEY:}
-gemini.api.key=${GEMINI_API_KEY:}
-gemini.model=${GEMINI_MODEL:gemini-3.1-flash-lite}
-jwt.secret=${JWT_SECRET:operation-seoul-local-development-jwt-secret}
+jwt.secret=${JWT_SECRET:operation-korea-local-development-jwt-secret}
 ```
 
 운영 모드에서는 `app.dev-mode.arrival-enabled=false`, `VITE_DEV_ARRIVAL=false`로 둡니다.
@@ -232,8 +217,7 @@ jwt.secret=${JWT_SECRET:operation-seoul-local-development-jwt-secret}
 - 잘못된 최종 후보 장소에서는 최종 추리를 시작할 수 없습니다.
 - 실제 최종 장소에 도착하면 단서가 적어도 최종 추리를 시도할 수 있지만 점수 페널티가 적용됩니다.
 - 최종 추리 답변은 정답 또는 최종 장소를 직접 노출하지 않아야 합니다.
-- AI 생성 퍼즐은 실제 현장 간판, 숫자, 계단 수, 조형물 존재 여부를 상상으로 만들면 안 됩니다.
-- OAuth를 구현하지 않았으므로 구글/네이버 로그인 버튼은 없습니다.
+- Google/Kakao OAuth 로그인은 구현되어 있으며, 운영 시 각 콘솔의 허용 도메인과 redirect URI를 현재 배포 주소에 맞춰 등록해야 합니다.
 
 ## 운영 체크리스트
 
@@ -245,10 +229,8 @@ jwt.secret=${JWT_SECRET:operation-seoul-local-development-jwt-secret}
 - Tmap 길찾기는 실제 모바일 기기에서 앱/웹 내비 실행 방식을 확인해야 합니다.
 - GPS 실측 도착 판정은 실제 현장/실기기에서 별도 확인해야 합니다.
 - 후보 장소는 운영 공개 전 좌표, 접근 가능 여부, 운영시간, 현장 관찰 요소를 검수해야 합니다.
-- AI 생성 문제와 미션 자료는 관리자 검수 후 DRAFT에서 PUBLISHED로 전환합니다.
 
 ## 이어받기 문서
 
 - `docs/MVP_STATUS.md`
 - `docs/REQUIREMENTS_AUDIT.md`
-- `docs/CODEX_HANDOFF_PROMPT.md`

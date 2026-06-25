@@ -18,9 +18,9 @@ public class JwtTokenProvider {
     private final String issuer;
 
     public JwtTokenProvider(
-            @Value("${jwt.secret:operation-seoul-local-development-jwt-secret}") String jwtSecret,
+            @Value("${jwt.secret:operation-korea-local-development-jwt-secret}") String jwtSecret,
             @Value("${jwt.validity-ms:86400000}") long validityInMilliseconds,
-            @Value("${jwt.issuer:operation-seoul}") String issuer
+            @Value("${jwt.issuer:operation-korea}") String issuer
     ) {
         this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
         this.validityInMilliseconds = Math.max(300000L, validityInMilliseconds);

@@ -5,8 +5,8 @@ const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:18080/api';
 const savedResponsePath = process.env.SAVED_RESPONSE_PATH || 'tmp-gemini-draft-save-response.json';
 const outputPath = process.env.OUTPUT_PATH || 'tmp-admin-ui-data-smoke-response.json';
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@seoul.go.kr';
-const jwtSecret = process.env.JWT_SECRET || 'operation-seoul-local-development-jwt-secret';
-const jwtIssuer = process.env.JWT_ISSUER || 'operation-seoul-local';
+const jwtSecret = process.env.JWT_SECRET || 'operation-korea-local-development-jwt-secret';
+const jwtIssuer = process.env.JWT_ISSUER || 'operation-korea-local';
 const requiredSlots = ['CULPRIT', 'WEAPON', 'MOTIVE', 'METHOD'];
 const slotLabels = {
   CULPRIT: '범인',

@@ -139,6 +139,7 @@ onMounted(async () => {
     await initializeKakaoMap();
     startElapsedTimer();
     window.addEventListener('visibilitychange', handleElapsedVisibility);
+    window.addEventListener('pagehide', handleElapsedPageHide);
   } catch (error) {
     setStatus(error.userMessage || error.message || '지도 화면을 초기화할 수 없습니다.', 'error');
   }
@@ -151,6 +152,7 @@ onUnmounted(() => {
   mapResizeObserver?.disconnect();
   mapResizeObserver = null;
   window.removeEventListener('visibilitychange', handleElapsedVisibility);
+  window.removeEventListener('pagehide', handleElapsedPageHide);
   window.removeEventListener('resize', handleMapResize);
 });
 
@@ -170,17 +172,27 @@ async function loadAll() {
 }
 
 function elapsedStorageKey() {
-  return `operation-seoul:episode:${episodeId}:active-elapsed-seconds`;
+  return `operation-korea:episode:${episodeId}:active-elapsed-seconds`;
+}
+
+function elapsedLastSeenStorageKey() {
+  return `operation-korea:episode:${episodeId}:active-elapsed-last-seen`;
 }
 
 function syncElapsedFromMapData() {
   const serverElapsed = Number(mapData.value?.activeElapsedSeconds || 0);
   const localElapsed = Number(window.localStorage.getItem(elapsedStorageKey()) || 0);
-  activeElapsedSeconds.value = Math.max(Number(activeElapsedSeconds.value || 0), serverElapsed, localElapsed);
-  window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
   if (mapData.value?.progressStatus === 'CLEARED') {
     window.localStorage.removeItem(elapsedStorageKey());
+    window.localStorage.removeItem(elapsedLastSeenStorageKey());
+    activeElapsedSeconds.value = Math.max(Number(activeElapsedSeconds.value || 0), serverElapsed);
+    return;
   }
+  const lastSeenAt = Number(window.localStorage.getItem(elapsedLastSeenStorageKey()) || 0);
+  const offlineDelta = lastSeenAt > 0 ? Math.max(0, Math.floor((Date.now() - lastSeenAt) / 1000)) : 0;
+  const localElapsedWithDelta = localElapsed > 0 ? localElapsed + offlineDelta : 0;
+  activeElapsedSeconds.value = Math.max(Number(activeElapsedSeconds.value || 0), serverElapsed, localElapsedWithDelta);
+  rememberElapsedTime();
 }
 
 function reconcileElapsedTimer() {
@@ -195,7 +207,7 @@ function startElapsedTimer() {
   if (mapData.value?.progressStatus === 'CLEARED' || elapsedTimer || document.hidden) return;
   elapsedTimer = window.setInterval(() => {
     activeElapsedSeconds.value += 1;
-    window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+    rememberElapsedTime();
   }, 1000);
   elapsedSaveTimer = window.setInterval(() => {
     persistElapsedTime();
@@ -211,13 +223,22 @@ function handleElapsedVisibility() {
   }
 }
 
+function handleElapsedPageHide() {
+  stopElapsedTimer();
+}
+
 function stopElapsedTimer(shouldPersist = true) {
   clearInterval(elapsedTimer);
   clearInterval(elapsedSaveTimer);
   elapsedTimer = null;
   elapsedSaveTimer = null;
-  window.localStorage.setItem(elapsedStorageKey(), String(activeElapsedSeconds.value));
+  rememberElapsedTime();
   if (shouldPersist) persistElapsedTime();
+}
+
+function rememberElapsedTime() {
+  window.localStorage.setItem(elapsedStorageKey(), String(Math.max(0, Math.floor(Number(activeElapsedSeconds.value || 0)))));
+  window.localStorage.setItem(elapsedLastSeenStorageKey(), String(Date.now()));
 }
 
 async function persistElapsedTime() {
@@ -228,10 +249,10 @@ async function persistElapsedTime() {
     const serverElapsed = Number(updated?.activeElapsedSeconds || 0);
     if (serverElapsed > activeElapsedSeconds.value) {
       activeElapsedSeconds.value = serverElapsed;
-      window.localStorage.setItem(elapsedStorageKey(), String(serverElapsed));
+      rememberElapsedTime();
     }
   } catch {
-    window.localStorage.setItem(elapsedStorageKey(), String(elapsedSeconds));
+    rememberElapsedTime();
   }
 }
 
@@ -525,6 +546,7 @@ async function submitPuzzle(answer) {
     if (result.correct) {
       const popupData = rewardPopupData(result, unlockedTypes);
       closePuzzle();
+      closeSpotSheet();
       showRewardPopup(popupData);
       if (unlockedTypes.includes('STORY_CLUE')) setStatus('새 사건 기록이 해금되어 사건 개요 카드가 갱신되었습니다.', 'success');
       else if (result.caseFileUpdated) setStatus('새 미션 자료가 미션 파일에 추가되었습니다.', 'success');
@@ -786,10 +808,12 @@ const rewardItemLabel = (item) => {
 <style scoped>
 .map-page { min-height: 100vh; box-sizing: border-box; padding: 18px 16px 260px; background: linear-gradient(180deg, #0f172a, #020617); color: #f8fafc; font-family: 'Noto Sans KR', sans-serif; }
 .topbar, .status-message, .map-shell { width: min(100%, 1180px); margin: 0 auto 12px; }
-.topbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.topbar { width: min(calc(100% - 26px), 1154px); display: flex; justify-content: space-between; gap: 12px; align-items: center; box-sizing: border-box; overflow: hidden; }
+.topbar > div { min-width: 0; }
 .topbar p { margin: 0; color: #67e8f9; font-size: .7rem; font-weight: 900; letter-spacing: .12em; }
-h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
+h1 { margin: 2px 0 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(1.25rem, 3vw, 2rem); }
 .topbar button, .status-message button { border: 1px solid rgba(103,232,249,.35); border-radius: 999px; background: rgba(8,47,73,.5); color: #a5f3fc; padding: 9px 12px; font-weight: 900; }
+.topbar button { flex: 0 0 auto; }
 .status-message { display: flex; align-items: center; justify-content: space-between; gap: 8px; box-sizing: border-box; padding: 10px 12px; border-radius: 14px; font-size: .9rem; font-weight: 900; }
 .status-message.info { border: 1px solid rgba(56,189,248,.28); background: rgba(8,47,73,.28); color: #a5f3fc; }
 .status-message.success { border: 1px solid rgba(34,197,94,.32); background: rgba(20,83,45,.3); color: #bbf7d0; }
@@ -867,6 +891,10 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 :deep(.case-marker.START::before) {
   background: #416a9f;
 }
+:deep(.case-marker.START) {
+  color: #071a33;
+  text-shadow: 0 1px 0 rgba(255,255,255,.36);
+}
 :deep(.case-marker.KEYWORD_1),
 :deep(.case-marker.KEYWORD_2),
 :deep(.case-marker.KEYWORD_3),
@@ -874,7 +902,8 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 :deep(.case-marker.DESTINATION_HINT),
 :deep(.case-marker.STORY),
 :deep(.case-marker.FINAL_CANDIDATE) {
-  color: #fffaf0;
+  color: #332006;
+  text-shadow: 0 1px 0 rgba(255,255,255,.32);
 }
 :deep(.case-marker.KEYWORD_1::before),
 :deep(.case-marker.KEYWORD_2::before),
@@ -890,6 +919,11 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
   background: #7a343a;
   border-color: rgba(243,246,250,.92);
   box-shadow: 0 0 0 3px rgba(110,47,52,.18);
+}
+:deep(.case-marker.FINAL),
+:deep(.case-marker.FINAL_DESTINATION) {
+  color: #2b070b;
+  text-shadow: 0 1px 0 rgba(255,255,255,.28);
 }
 :deep(.case-marker.visited) {
   filter: drop-shadow(0 9px 13px rgba(0,0,0,.46)) saturate(1.08);
@@ -924,5 +958,7 @@ h1 { margin: 2px 0 0; font-size: clamp(1.25rem, 3vw, 2rem); }
 }
 @media (max-width: 370px) {
   .map-page { padding-bottom: 300px; }
+  .topbar { width: 100%; }
+  h1 { white-space: normal; }
 }
 </style>

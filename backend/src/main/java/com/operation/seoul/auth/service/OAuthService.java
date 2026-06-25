@@ -200,7 +200,7 @@ public class OAuthService {
                 && account.email() != null && !account.email().isBlank()) {
             return normalizeEmail(account.email());
         }
-        return "kakao_" + providerUserId + "@oauth.operation-seoul.local";
+        return "kakao_" + providerUserId + "@oauth.operation-korea.local";
     }
 
     private String normalizeEmail(String email) {

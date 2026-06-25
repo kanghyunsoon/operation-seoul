@@ -6,8 +6,8 @@ import { buildValidationSummary } from './validate-ai-draft.mjs';
 // If local validation fails, fix prompt/code/guardrails before running it again.
 const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:18080/api';
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@seoul.go.kr';
-const jwtSecret = process.env.JWT_SECRET || 'operation-seoul-local-development-jwt-secret';
-const jwtIssuer = process.env.JWT_ISSUER || 'operation-seoul-local';
+const jwtSecret = process.env.JWT_SECRET || 'operation-korea-local-development-jwt-secret';
+const jwtIssuer = process.env.JWT_ISSUER || 'operation-korea-local';
 const inputPath = process.env.INPUT_PATH || 'tmp-enrich-response-18080.json';
 const outputPath = process.env.OUTPUT_PATH || 'tmp-gemini-draft-response.json';
 const errorOutputPath = process.env.ERROR_OUTPUT_PATH || 'tmp-gemini-draft-error.json';
