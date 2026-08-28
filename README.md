@@ -1,181 +1,120 @@
 # Operation KOREA
 
-실제 장소를 돌아다니면서 사건을 해결하는 야외 방탈출 형식의 웹 서비스다.
-처음에는 관광 미션 앱에 가까웠는데, 지금 코드는 에피소드 선택 → 지도 이동 → 장소 도착 → 퍼즐 풀이 → 단서 해금 → 최종 추리까지 이어지는 미션 메모 서비스로 정리돼 있다.
+TourAPI와 LLM을 이용해 실제 장소를 사건 현장으로 바꾸는 야외 방탈출 서비스입니다. 사용자는 지도에 표시된 장소를 찾아가 퍼즐을 풀고, 모은 단서로 범인과 동기, 흉기, 사인을 추리합니다.
 
-프론트는 Vue 3, 백엔드는 Spring Boot로 만들었고 DB는 MySQL을 기준으로 잡았다.
+> 🏆 **SSAFY 15기 1학기 관통 프로젝트 우수상 · 서울 16반 2등**
 
-## 사용 기술
+![지도, 최종 추리, 플레이 분석 화면](docs/assets/portfolio/core-play.png)
 
-| 구분 | 내용 |
+## 프로젝트 요약
+
+| 기간 | 구성 | 담당 | 결과물 |
+| --- | --- | --- | --- |
+| 2026.04 ~ 2026.06 | 2인 팀 | 백엔드, 외부 API, AI 생성 파이프라인, DB 초기 구성 | 사용자·관리자 웹, 에피소드 생성 도구 |
+
+저는 프로젝트 구조와 백엔드 API를 설계하고, 장소 데이터 수집부터 AI 초안 검증과 저장까지 이어지는 흐름을 구현했습니다.
+
+![REST API, 테스트, 화면, 미니게임, DB 구현 수치](docs/assets/portfolio/metrics.svg)
+
+수치는 현재 저장소의 매핑 애너테이션, `@Test`, 라우터, 컴포넌트, 스키마를 기준으로 집계했습니다.
+
+## 맡은 일
+
+- Spring Boot와 MyBatis로 인증, 에피소드, 추리, 관리자 API 구현
+- MySQL 초기 스키마와 백엔드 연결 구성
+- TourAPI, Kakao Local, Wikipedia 장소 데이터 연동
+- Gemini/OpenAI 정답 계획과 에피소드 초안 생성 흐름 구현
+- AI 결과의 정답 노출, 구조 누락, 중복, 한글 깨짐 검사
+- 지도 응답의 최종 장소 비공개 처리
+- 11개 미니게임 proof와 오답 횟수 서버 검증
+
+DB는 초기 구조와 연결까지만 맡았습니다. 이후 테이블 확장과 데이터 작업은 홍성혁이 담당했습니다.
+
+## 구조와 기술 선택
+
+```mermaid
+flowchart LR
+    USER[사용자] --> VUE[Vue 3]
+    ADMIN[관리자] --> VUE
+    VUE --> API[Spring Boot API]
+    API --> MYSQL[(MySQL)]
+    API --> PLACE[TourAPI / Kakao / Wikipedia]
+    PLACE --> PLAN[정답 계획]
+    PLAN --> DRAFT[에피소드 초안]
+    DRAFT --> CHECK[Guardrail / Validator]
+    CHECK --> MYSQL
+    API --> MODEL[Gemini / OpenAI]
+    MODEL --> PLAN
+    MODEL --> DRAFT
+```
+
+| 기술 | 사용한 이유 |
 | --- | --- |
-| Frontend | Vue 3, Vite, Pinia, Vue Router, Axios |
-| Backend | Java 17, Spring Boot 4, Spring Security, MyBatis |
-| DB | MySQL |
-| 인증 | JWT, 이메일 로그인, Google/Kakao OAuth |
-| 외부 연동 | TourAPI, Kakao Local/Map, Tmap, OpenAI/Gemini, Google Vision |
+| Spring Boot 4 | 인증, 게임 진행, 관리자 기능을 REST API로 분리 |
+| MyBatis + MySQL | 진행 상태와 단서 관계를 SQL로 확인하고 제어 |
+| TourAPI + Kakao Local | 실제 장소 후보와 좌표 수집 |
+| Wikipedia | 장소의 역사·문화 정보를 생성 입력과 분리해 보강 |
+| Gemini + OpenAI | 정답 계획, 사건 초안, 최종 추리 응답 생성 |
+| JUnit | 정답 노출과 생성 구조 오류를 회귀 테스트로 고정 |
 
-## 지금 구현된 흐름
+## 문제 해결
 
-1. 로그인하거나 소셜 로그인을 한다.
-2. 권역이나 에피소드 목록에서 플레이할 사건을 고른다.
-3. 브리핑을 확인하고 지도 화면으로 들어간다.
-4. 지도에서 조사 장소를 찾아간다.
-5. GPS 또는 개발용 도착 버튼으로 도착 처리를 한다.
-6. 장소별 퍼즐이나 미니게임을 푼다.
-7. 정답이면 단서, 증거, 용의자, 메모가 사건 파일에 열린다.
-8. 모은 단서로 최종 장소와 정답을 추리한다.
-9. 최종 장소에서 추리 질문을 하고 마지막 정답을 제출한다.
-10. 정답이면 클리어 리포트와 리뷰 작성이 가능해진다.
+### 1. AI가 JSON을 반환해도 저장할 수 없는 문제
 
-## 주요 기능 정리
+**문제.** 한 번의 요청으로 장소 설명, 정답, 단서, 스토리를 만들자 범인이 용의자 목록에 없거나 정답이 단서에 노출됐습니다. 같은 용의자와 증거가 반복되고 일부 필드가 빠지는 경우도 있었습니다.
 
-| 기능 | 현재 상태 | 관련 코드 |
-| --- | --- | --- |
-| 로그인/JWT | 구현됨 | `auth`, `JwtAuthenticationFilter` |
-| Google/Kakao OAuth | 구현됨 | `OAuthService`, `OAuthCallbackView.vue` |
-| 내 정보/비밀번호/탈퇴 | 구현됨 | `UserController`, `ProfileEditView.vue` |
-| 관리자 회원 관리 | 구현됨 | `AdminUserController`, `AdminUsersView.vue` |
-| 에피소드 목록/상세/시작 | 구현됨 | `EpisodePlayController`, `EpisodeListView.vue` |
-| 지도/도착/퍼즐 | 구현됨 | `EpisodeMapView.vue`, `PuzzleCard.vue` |
-| 미니게임 | 구현됨 | `frontend/src/components/episode/minigames` |
-| 사건 파일/단서 보드 | 구현됨 | `CaseFileController`, `ClueBoard.vue` |
-| 최종 추리/정답 제출 | 구현됨 | `DeductionAiService`, `FinalDeductionView.vue` |
-| 클리어 리포트/리뷰 | 구현됨 | `ClearReportView.vue`, `EpisodeReviewController` |
-| 지역 커뮤니티/Q&A | 구현됨 | `RegionReviewController`, `RegionQuestionController` |
-| 피드/팔로우 | 구현됨 | `UserFeedController`, `UserFollowController` |
-| 추천/랭킹/챌린지/코칭 | 구현됨 | `recommendation`, `ranking`, `challenge`, `coaching` |
-| 관리자 에피소드 관리 | 구현됨 | `AdminEpisodeController`, `AdminEpisodesView.vue` |
-| AI 에피소드 초안 | 구현됨 | `/api/v1/admin/episodes/ai-draft*` |
-| 제휴 쿠폰 지급 | 아직 아님 | 테이블과 관리자 수정 구조만 있음 |
+**판단.** 프롬프트만 고쳐서는 같은 문제가 다시 생깁니다. 생성 결과를 신뢰하지 않고 서비스 규칙으로 검사해야 했습니다.
 
-## 화면 경로
+**구현.** 장소 후보 조회, 장소 정보 보강, 정답 계획, 초안 생성, 규칙 기반 보정, 검증, 저장을 분리했습니다. 정답 계획을 계약으로 두고 다음 단계가 이 값을 벗어나지 못하게 했습니다.
 
-| 경로 | 화면 |
-| --- | --- |
-| `/intro` | 로그인/회원가입 |
-| `/oauth/callback` | OAuth 콜백 |
-| `/regions` | 권역 지도 |
-| `/regions/:regionId/community` | 지역 커뮤니티 |
-| `/community` | 전체 커뮤니티 |
-| `/community/write` | 글 작성 |
-| `/community/:regionId/posts/:questionId` | 글 상세 |
-| `/episodes` | 에피소드 목록 |
-| `/episodes/:episodeId` | 에피소드 상세 |
-| `/episodes/:episodeId/briefing` | 브리핑 |
-| `/episodes/:episodeId/map` | 지도/도착/퍼즐 |
-| `/episodes/:episodeId/case-file` | 사건 파일 |
-| `/episodes/:episodeId/deduction` | 최종 추리 |
-| `/episodes/:episodeId/debriefing` | 해설 |
-| `/episodes/:episodeId/clear-report` | 클리어 리포트 |
-| `/favorites` | 관심 에피소드 |
-| `/clear-map` | 클리어 지도 |
-| `/feed`, `/feed/users/:userId` | 피드 |
-| `/rankings` | 랭킹 |
-| `/challenges` | 챌린지 |
-| `/recommendations` | 추천 |
-| `/coaching` | 코칭 |
-| `/me`, `/me/edit`, `/me/reviews` | 마이페이지 |
-| `/admin/users` | 관리자 회원 관리 |
-| `/admin/reviews` | 관리자 리뷰 관리 |
-| `/admin/episodes` | 관리자 에피소드 관리 |
-
-`/home`, `/briefing`, `/map`, `/chat/:sessionId`, `/clear/:missionId` 같은 예전 경로는 새 에피소드 흐름으로 넘기게 해뒀다.
-
-## 실행 방법
-
-### Backend
-
-```powershell
-cd backend
-java -classpath .\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain bootRun
+```text
+장소 후보 → 장소 정보 → 정답 계획 → 초안 → 보정 → 검증 → 저장
 ```
 
-테스트/컴파일:
+**결과.** 범인·용의자 관계, 정답 노출, 단서 개수, 중복, 한글 깨짐을 67개 AI 초안 테스트로 확인합니다. 검사를 통과하지 못한 초안은 저장하지 않습니다.
 
-```powershell
-cd backend
-java -classpath .\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain compileJava test
-```
+![외부 API와 AI 처리 흐름](docs/assets/portfolio/ai-pipeline.png)
 
-### Frontend
+### 2. RAG 데이터가 스토리와 정답을 오염시키는 문제
 
-```powershell
-cd frontend
-npm install
-npm run dev
-```
+**문제.** 실제 장소 설명을 프롬프트에 그대로 넣자 장소명이 사건 문장에 반복되고, 최종 장소와 정답을 예상할 수 있는 문구가 생겼습니다. 생성 범위가 커지면서 실패 시 전체 초안을 다시 만들어야 했습니다.
 
-빌드:
+**판단.** 외부 데이터는 수집 목적에 따라 분리하고, 형식 오류는 모델이 아니라 코드가 처리해야 했습니다.
 
-```powershell
-cd frontend
-npm run build
-```
+**구현.** TourAPI와 Wikipedia 결과는 장소 설명 단계에서만 사용했습니다. 정답 계획과 스토리 생성을 나누고, 금칙어·중복·필드 누락은 Java validator와 normalizer로 검사했습니다. 실제 장소 정보가 스토리 프롬프트에 들어가지 않는지도 테스트했습니다.
 
-전체 확인용:
+**결과.** 어느 단계에서 입력이 섞였는지 확인할 수 있게 됐고, 구조 오류 때문에 전체 생성을 다시 요청하는 경우를 줄였습니다.
 
-```powershell
-.\scripts\verify-release.ps1
-```
+### 3. 클라이언트가 게임 진행을 바꿀 수 있는 문제
 
-## 환경 변수
+**문제.** 지도 API가 내부 장소 구분값을 내려주면 네트워크 응답만 보고 최종 장소를 알 수 있습니다. 미니게임도 프런트가 성공 여부만 보내면 요청을 바꿔 통과할 수 있습니다.
 
-### frontend/.env
+**판단.** 숨겨야 하는 값과 성공 판정은 클라이언트에 두지 않았습니다.
 
-```env
-VITE_API_BASE_URL=http://localhost:8080/api
-VITE_KAKAO_MAP_KEY=KAKAO_JAVASCRIPT_KEY
-VITE_TMAP_APP_KEY=TMAP_APP_KEY
-VITE_DEV_ARRIVAL=true
-```
+**구현.** 사용자 지도 응답에는 `publicMarkerType`만 포함하고, `is_final_place`는 서버의 도착 판정에만 사용했습니다. 미니게임은 `MG|TYPE|VALUE` proof를 서버에서 다시 계산하고, 오답 횟수와 제한 시간은 DB에 기록했습니다.
 
-### backend
+**결과.** 최종 장소는 진행 조건을 만족한 뒤 서버가 공개합니다. 11개 미니게임은 같은 검증 인터페이스를 사용합니다.
 
-로컬에서는 `backend/src/main/resources/application-example.properties`를 보고 환경변수를 맞추면 된다.
+## 코드에서 확인할 부분
 
-주로 필요한 값은 아래 정도다.
+- [AI 생성 단계 조율](backend/src/main/java/com/operation/seoul/admin/episode/service/AdminEpisodeGeminiService.java)
+- [정답 계획 생성](backend/src/main/java/com/operation/seoul/admin/episode/service/GeminiAnswerPlanGenerator.java)
+- [에피소드 초안 생성](backend/src/main/java/com/operation/seoul/admin/episode/service/GeminiDraftGenerator.java)
+- [장소 정보 보강](backend/src/main/java/com/operation/seoul/admin/episode/service/ExternalPlaceResearchService.java)
+- [생성 결과 보정](backend/src/main/java/com/operation/seoul/admin/episode/service/DraftCrimeMysteryGuardrailApplier.java)
+- [초안 검증](backend/src/main/java/com/operation/seoul/admin/episode/service/AiEpisodeDraftValidator.java)
+- [미니게임 서버 검증](backend/src/main/java/com/operation/seoul/episode/service/MinigameProofValidator.java)
+- [AI 생성 회귀 테스트](backend/src/test/java/com/operation/seoul/admin/episode/service/AdminEpisodeGeminiServiceTest.java)
 
-```properties
-DB_URL=jdbc:mysql://localhost:3306/operation_seoul
-DB_USERNAME=root
-DB_PASSWORD=
-JWT_SECRET=change-me
-OPENAI_API_KEY=
-GEMINI_API_KEY=
-TOURAPI_SERVICE_KEY=
-KAKAO_REST_API_KEY=
-GOOGLE_OAUTH_CLIENT_ID=
-KAKAO_OAUTH_CLIENT_ID=
-KAKAO_OAUTH_REDIRECT_URI=http://localhost:5173/oauth/callback
-TMAP_APP_KEY=
-CORS_ALLOWED_ORIGINS=http://localhost:5173
-DEV_ARRIVAL_ENABLED=false
-```
+## 주요 화면
 
-운영에서는 `DEV_ARRIVAL_ENABLED=false`, `VITE_DEV_ARRIVAL=false`로 둬야 한다. 실제 키는 properties 파일에 직접 적지 않고 환경변수로 넣는다.
+![사용자 진행 흐름](docs/assets/portfolio/user-flow.png)
 
-## 구현하면서 신경 쓴 부분
+![지역 선택, 미션 상세, 리뷰, 로그인, 회원 관리](docs/assets/portfolio/service-screens.png)
 
-- 사용자 지도 응답에는 최종 장소를 바로 알 수 있는 값을 빼뒀다.
-- 프론트는 `publicMarkerType`만 보고 마커를 그린다.
-- 실제 최종 장소 판정은 서버의 `mission_spots.is_final_place`로만 처리한다.
-- 미니게임은 프론트에서 푼 값을 그대로 믿지 않고 `MG|TYPE|VALUE` proof를 서버에서 다시 검증한다.
-- 최종 추리 답변은 정답이나 최종 장소를 바로 말하지 않게 제한했다.
-- 리뷰는 해당 에피소드를 클리어한 사용자만 작성할 수 있다.
+## 남은 과제
 
-## 문서
-
-정리 문서는 `docs` 폴더에 번호 순서대로 넣었다.
-중복되는 단일 산출물 파일은 정리했고, 지금은 아래 파일들만 보면 된다.
-
-- `00_FINAL_SUBMISSION_INDEX.md`
-- `01_REQUIREMENTS_AND_COVERAGE.md`
-- `02_DESIGN_DOCUMENT.md`
-- `03_WBS_AND_GANTT.md`
-- `04_SCREEN_DESIGN.md`
-- `05_IMPLEMENTATION_RESULT.md`
-- `06_TROUBLESHOOTING_AND_REMAINING_WORK.md`
-- `07_EXTERNAL_API_USAGE.md`
-- `08_FINAL_REPORT.md`
-- `09_PRESENTATION_DRAFT.md`
+- GPS와 Tmap을 모바일 실기기와 실제 장소에서 검증
+- AI 호출별 토큰과 비용 측정
+- 초기 관광 미션 호환 코드를 현재 에피소드 구조로 통합
+- 제휴 쿠폰 지급 기능 연결

@@ -1,0 +1,31 @@
+# IDE and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Java and Gradle
+.gradle/
+build/
+**/build/
+out/
+
+# Node and Vite
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-local.properties
+
+# Logs and temporary files
+*.log
+tmp/
+*.tmp

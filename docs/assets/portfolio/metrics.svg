@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">Operation KOREA 구현 수치</title>
+  <desc id="desc">REST API 128개, JUnit 테스트 91개, AI 초안 테스트 67개, 화면 경로 36개, 미니게임 11개, 데이터베이스 테이블 22개</desc>
+  <rect width="1600" height="520" rx="28" fill="#101a2d"/>
+  <text x="70" y="58" fill="#8caee9" font-family="Pretendard, Noto Sans KR, Segoe UI, sans-serif" font-size="20" font-weight="600" letter-spacing="3">IMPLEMENTATION SNAPSHOT</text>
+
+  <g font-family="Pretendard, Noto Sans KR, Segoe UI, sans-serif">
+    <g transform="translate(70 90)">
+      <rect width="440" height="170" rx="20" fill="#18243a"/>
+      <rect width="8" height="170" rx="4" fill="#4b78c8"/>
+      <text x="42" y="106" fill="#f1f5ff" font-size="66" font-weight="700">128</text>
+      <text x="200" y="72" fill="#f1f5ff" font-size="28" font-weight="650">REST API</text>
+      <text x="200" y="108" fill="#9aa8bf" font-size="19">Spring Mapping</text>
+      <path d="M365 53h30M365 84h30M365 115h30" stroke="#6f99df" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="354" cy="53" r="6" fill="#6f99df"/>
+      <circle cx="354" cy="84" r="6" fill="#6f99df"/>
+      <circle cx="354" cy="115" r="6" fill="#6f99df"/>
+    </g>
+
+    <g transform="translate(580 90)">
+      <rect width="440" height="170" rx="20" fill="#18243a"/>
+      <rect width="8" height="170" rx="4" fill="#4b78c8"/>
+      <text x="42" y="106" fill="#f1f5ff" font-size="66" font-weight="700">91</text>
+      <text x="170" y="72" fill="#f1f5ff" font-size="28" font-weight="650">JUnit 테스트</text>
+      <text x="170" y="108" fill="#9aa8bf" font-size="19">14개 테스트 클래스</text>
+      <path d="M350 84l17 17 35-42" fill="none" stroke="#6f99df" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <g transform="translate(1090 90)">
+      <rect width="440" height="170" rx="20" fill="#18243a"/>
+      <rect width="8" height="170" rx="4" fill="#4b78c8"/>
+      <text x="42" y="106" fill="#f1f5ff" font-size="66" font-weight="700">67</text>
+      <text x="170" y="72" fill="#f1f5ff" font-size="28" font-weight="650">AI 초안 테스트</text>
+      <text x="170" y="108" fill="#9aa8bf" font-size="19">생성·검증·저장</text>
+      <path d="M370 50l9 24 24 9-24 9-9 24-9-24-24-9 24-9z" fill="#6f99df"/>
+    </g>
+
+    <g transform="translate(70 300)">
+      <rect width="440" height="170" rx="20" fill="#18243a"/>
+      <rect width="8" height="170" rx="4" fill="#355f9f"/>
+      <text x="42" y="106" fill="#f1f5ff" font-size="66" font-weight="700">36</text>
+      <text x="170" y="72" fill="#f1f5ff" font-size="28" font-weight="650">화면 경로</text>
+      <text x="170" y="108" fill="#9aa8bf" font-size="19">사용자·관리자 라우트</text>
+      <path d="M350 55v58M350 70h42M350 98h42" fill="none" stroke="#6f99df" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="350" cy="55" r="7" fill="#6f99df"/>
+      <circle cx="398" cy="70" r="7" fill="#6f99df"/>
+      <circle cx="398" cy="98" r="7" fill="#6f99df"/>
+      <circle cx="350" cy="119" r="7" fill="#6f99df"/>
+    </g>
+
+    <g transform="translate(580 300)">
+      <rect width="440" height="170" rx="20" fill="#18243a"/>
+      <rect width="8" height="170" rx="4" fill="#355f9f"/>
+      <text x="42" y="106" fill="#f1f5ff" font-size="66" font-weight="700">11</text>
+      <text x="170" y="72" fill="#f1f5ff" font-size="28" font-weight="650">미니게임</text>
+      <text x="170" y="108" fill="#9aa8bf" font-size="19">서버 proof 검증</text>
+      <rect x="348" y="52" width="58" height="58" rx="14" fill="none" stroke="#6f99df" stroke-width="5"/>
+      <path d="M365 81h24M377 69v24" stroke="#6f99df" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <g transform="translate(1090 300)">
+      <rect width="440" height="170" rx="20" fill="#18243a"/>
+      <rect width="8" height="170" rx="4" fill="#355f9f"/>
+      <text x="42" y="106" fill="#f1f5ff" font-size="66" font-weight="700">22</text>
+      <text x="170" y="72" fill="#f1f5ff" font-size="28" font-weight="650">DB 테이블</text>
+      <text x="170" y="108" fill="#9aa8bf" font-size="19">MySQL 스키마</text>
+      <ellipse cx="378" cy="58" rx="31" ry="12" fill="none" stroke="#6f99df" stroke-width="5"/>
+      <path d="M347 58v50c0 7 14 12 31 12s31-5 31-12V58M347 83c0 7 14 12 31 12s31-5 31-12" fill="none" stroke="#6f99df" stroke-width="5"/>
+    </g>
+  </g>
+</svg>
