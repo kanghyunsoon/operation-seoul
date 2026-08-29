@@ -4,6 +4,17 @@ TourAPI와 LLM을 이용해 실제 장소를 사건 현장으로 바꾸는 야�
 
 > 🏆 **SSAFY 15기 1학기 관통 프로젝트 우수상 · 서울 16반 2등**
 
+<p>
+  <img src="https://img.shields.io/badge/Java_17-ED8B00?style=flat-square&amp;logo=openjdk&amp;logoColor=white" alt="Java 17" />
+  <img src="https://img.shields.io/badge/Spring_Boot_4-6DB33F?style=flat-square&amp;logo=springboot&amp;logoColor=white" alt="Spring Boot 4" />
+  <img src="https://img.shields.io/badge/MyBatis-1F2937?style=flat-square" alt="MyBatis" />
+  <img src="https://img.shields.io/badge/MySQL-4479A1?style=flat-square&amp;logo=mysql&amp;logoColor=white" alt="MySQL" />
+  <img src="https://img.shields.io/badge/Gemini-8E75B2?style=flat-square&amp;logo=googlegemini&amp;logoColor=white" alt="Gemini" />
+  <img src="https://img.shields.io/badge/OpenAI-412991?style=flat-square&amp;logo=openai&amp;logoColor=white" alt="OpenAI" />
+  <img src="https://img.shields.io/badge/TourAPI-0066CC?style=flat-square&amp;logo=openapiinitiative&amp;logoColor=white" alt="TourAPI" />
+  <img src="https://img.shields.io/badge/JUnit_5-25A162?style=flat-square&amp;logo=junit5&amp;logoColor=white" alt="JUnit 5" />
+</p>
+
 ![지도, 최종 추리, 플레이 분석 화면](docs/assets/portfolio/core-play.png)
 
 ## 프로젝트 요약
