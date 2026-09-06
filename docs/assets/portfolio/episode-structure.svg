@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="270" viewBox="0 0 1200 270" role="img" aria-labelledby="title desc">
+  <title id="title">Operation KOREA 에피소드 생성 기준</title>
+  <desc id="desc">생성 요청 장소 10개, 조사 단서 8개, 최종 추리 항목은 범인 흉기 동기 사인 4개</desc>
+  <rect width="1200" height="270" rx="24" fill="#101a2d"/>
+  <g font-family="Malgun Gothic, Apple SD Gothic Neo, sans-serif">
+    <text x="40" y="47" fill="#a8c7ff" font-size="21" font-weight="700">에피소드 생성 기준</text>
+    <g transform="translate(40 76)">
+      <rect width="360" height="155" rx="18" fill="#18243a"/>
+      <text x="25" y="79" fill="#f1f5ff" font-size="54" font-weight="700">10</text>
+      <text x="127" y="60" fill="#f1f5ff" font-size="24">장소</text>
+      <text x="127" y="98" fill="#b1bfd6" font-size="17">생성 요청에 포함</text>
+    </g>
+    <g transform="translate(420 76)">
+      <rect width="360" height="155" rx="18" fill="#18243a"/>
+      <text x="25" y="79" fill="#f1f5ff" font-size="54" font-weight="700">8</text>
+      <text x="100" y="60" fill="#f1f5ff" font-size="24">조사 단서</text>
+      <text x="100" y="98" fill="#b1bfd6" font-size="17">중복·정답 노출 검사</text>
+    </g>
+    <g transform="translate(800 76)">
+      <rect width="360" height="155" rx="18" fill="#18243a"/>
+      <text x="25" y="79" fill="#f1f5ff" font-size="54" font-weight="700">4</text>
+      <text x="100" y="60" fill="#f1f5ff" font-size="24">최종 추리 항목</text>
+      <text x="100" y="98" fill="#b1bfd6" font-size="17">범인·흉기·동기·사인</text>
+    </g>
+  </g>
+</svg>
