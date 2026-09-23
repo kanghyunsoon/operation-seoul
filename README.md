@@ -4,7 +4,7 @@
 
 Operation KOREA는 장소를 찾아가 퍼즐을 풀고, 모은 단서로 범인·동기·흉기·사인을 추리하는 야외 방탈출 서비스입니다. 2명이 개발했고, 저는 Spring Boot API와 외부 API 연동, AI 생성 흐름을 담당했습니다.
 
-> 🏆 **SSAFY 15기 1학기 관통 프로젝트 우수상 · 서울 16반 2등**
+> 🏆 **SSAFY 15기 1학기 관통 프로젝트 우수상 **
 
 <p>
   <img src="https://img.shields.io/badge/Java_17-ED8B00?style=flat-square&amp;logo=openjdk&amp;logoColor=white" alt="Java 17" />
