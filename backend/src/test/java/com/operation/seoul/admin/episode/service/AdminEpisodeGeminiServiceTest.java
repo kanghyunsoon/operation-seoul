@@ -59,7 +59,7 @@ class AdminEpisodeGeminiServiceTest {
                 keyword("CULPRIT", "범인", "박선우"),
                 keyword("WEAPON", "흉기", "칼"),
                 keyword("MOTIVE", "동기", "은폐"),
-                keyword("METHOD", "방법", "독살")
+                keyword("METHOD", "사인", "독살")
         ));
         AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
         answers.setCulprit("박선우");
@@ -78,7 +78,7 @@ class AdminEpisodeGeminiServiceTest {
                 keyword("CULPRIT", "범인", "박선우(관장)"),
                 keyword("WEAPON", "흉기", "독성 잉크가 든 붓펜"),
                 keyword("MOTIVE", "동기", "위작 거래 은폐"),
-                keyword("METHOD", "방법", "독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴")
+                keyword("METHOD", "사인", "독성 잉크가 든 붓펜으로 감정 확인 서명란을 오염시킴")
         ));
         AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
         answers.setCulprit("박선우(관장)");
@@ -97,7 +97,7 @@ class AdminEpisodeGeminiServiceTest {
                 keyword("CULPRIT", "범인", "최서윤(큐레이터)"),
                 keyword("WEAPON", "흉기", "망치"),
                 keyword("MOTIVE", "동기", "위작 전시 은폐"),
-                keyword("METHOD", "방법", "교살")
+                keyword("METHOD", "사인", "교살")
         ));
         AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
         answers.setCulprit("최서윤(큐레이터)");
@@ -625,7 +625,7 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void deterministicGuardrailRepairsLeakedAndMisplacedGeminiClues() throws Exception {
+    void deterministicGuardrailRedactsSuspectNameButLeavesMisplacedCluesForReview() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
         applyApprovedContract(draft, source);
@@ -635,28 +635,34 @@ class AdminEpisodeGeminiServiceTest {
         draft.getMissions().get(3).setTargetKeywordType("WEAPON");
         draft.setFinalTruthSummary("정답 설명이 부족합니다.");
 
-        DraftCrimeMysteryGuardrailApplier.apply(draft, source, new ArrayList<>(), (ignoredDraft, ignoredIssues) -> {});
+        List<String> warnings = new ArrayList<>();
+        DraftCrimeMysteryGuardrailApplier.apply(draft, source, warnings, (ignoredDraft, ignoredIssues) -> {});
 
         AiEpisodeDraftValidationRequest request = new AiEpisodeDraftValidationRequest();
         request.setDraft(draft);
         AiEpisodeDraftValidationResponse result = service.validateDraft(request);
 
-        assertTrue(result.isValid());
+        assertFalse(result.isValid());
+        assertTrue(errorCodes(result).contains("FINAL_TRUTH_MUST_EXPLAIN_ANSWERS"));
+        assertTrue(errorCodes(result).contains("CLUE_SLOT_MISMATCH"));
+        assertTrue(warnings.contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES"));
+        assertTrue(warnings.contains("최종 진실 요약이 범인, 흉기, 동기, 사인을 모두 설명하지 않습니다."));
+        assertEquals("정답 설명이 부족합니다.", draft.getFinalTruthSummary());
+        assertEquals("해고 통보 문서가 발견되었다.", draft.getMissions().get(3).getRewardClue());
         assertEquals(3, draft.getSuspects().size());
         assertEquals(8, draft.getEvidences().size());
-        assertTrue(draft.getFinalTruthSummary().contains("범인: 강수진"));
-        assertTrue(draft.getFinalTruthSummary().contains("흉기: 독성 캡슐"));
         assertFalse(draft.getMissions().stream()
                 .filter(mission -> mission.getOrder() != null && mission.getOrder() >= 2 && mission.getOrder() <= 9)
                 .anyMatch(mission -> mission.getRewardClue().contains("강수진")));
     }
 
     @Test
-    void deterministicGuardrailRepairsRecentGeminiFailurePattern() throws Exception {
+    void deterministicGuardrailRedactsRecentGeminiFailurePatternWithoutRewritingTheCase() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
         applyApprovedContract(draft, source);
-        draft.setFinalTruthSummary("강수진은 해고 통보에 원한을 품고 수면제 캡슐을 바꿔치기했다.");
+        String weakTruthSummary = "강수진은 해고 통보에 원한을 품고 수면제 캡슐을 바꿔치기했다.";
+        draft.setFinalTruthSummary(weakTruthSummary);
         List<String> badClues = List.of(
                 "박진우의 작업실 책상 서랍에서 발견된 강수진의 메모에는 반드시 대가를 치르게 할 거야라는 내용이 적혀 있었다.",
                 "박진우의 법률 자문 서류에는 강수진에 대한 해고 통보 절차가 진행 중이었음이 명시되어 있었다.",
@@ -675,6 +681,7 @@ class AdminEpisodeGeminiServiceTest {
         beforeRequest.setDraft(draft);
         AiEpisodeDraftValidationResponse before = service.validateDraft(beforeRequest);
         assertFalse(before.isValid());
+        assertTrue(errorCodes(before).contains("DIRECT_ANSWER_LEAK"));
 
         DraftCrimeMysteryGuardrailApplier.apply(draft, source, new ArrayList<>(), (ignoredDraft, ignoredIssues) -> {});
 
@@ -682,10 +689,11 @@ class AdminEpisodeGeminiServiceTest {
         afterRequest.setDraft(draft);
         AiEpisodeDraftValidationResponse after = service.validateDraft(afterRequest);
 
-        assertTrue(after.isValid(), () -> after.getFindings().stream()
-                .map(finding -> finding.getCode() + ": " + finding.getMessage())
-                .collect(java.util.stream.Collectors.joining(" / ")));
-        assertTrue(draft.getFinalTruthSummary().contains("범인: 강수진"));
+        assertFalse(after.isValid());
+        assertEquals(List.of("CLUE_SLOT_MISMATCH", "FINAL_TRUTH_MUST_EXPLAIN_ANSWERS"),
+                errorCodes(after).stream().distinct().sorted().toList());
+        assertEquals(weakTruthSummary, draft.getFinalTruthSummary());
+        assertNoInvestigationRewardClueLeaksFinalAnswerValues(draft);
         assertEquals(List.of("CULPRIT", "CULPRIT", "WEAPON", "WEAPON", "MOTIVE", "MOTIVE", "METHOD", "METHOD"),
                 draft.getMissions().stream()
                         .filter(mission -> mission.getOrder() != null && mission.getOrder() >= 2 && mission.getOrder() <= 9)
@@ -697,7 +705,7 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void buildDraftResponsePublishesAfterDeterministicGuardrail() throws Exception {
+    void buildDraftResponseHoldsDraftThatGuardrailCannotFix() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
         draft.setFinalTruthSummary("정답 설명이 부족합니다.");
@@ -706,9 +714,12 @@ class AdminEpisodeGeminiServiceTest {
         draft.getMissions().get(3).setTargetKeywordType("WEAPON");
         AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
-        assertTrue(response.getPublishable());
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_FINAL_TRUTH_SUMMARY"));
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
+        assertFalse(response.getPublishable());
+        assertNoAutoRepairWarnings(response);
+        assertTrue(response.getValidationWarnings().contains("최종 진실 요약이 범인, 흉기, 동기, 사인을 모두 설명하지 않습니다."));
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES"));
+        assertTrue(response.getValidationWarnings().contains("조사 단서 검증 실패: SLOT_RELEVANCE"));
+        assertEquals("정답 설명이 부족합니다.", response.getDraft().getFinalTruthSummary());
         assertEquals("범죄 미스터리", response.getDraft().getGenre());
         assertEquals(4, response.getDraft().getFinalAnswerKeywordItems().size());
         assertEquals(10, response.getDraft().getMissions().size());
@@ -717,7 +728,7 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void buildDraftResponsePublishesAfterRepairingAllFinalAnswerValueLeaks() throws Exception {
+    void buildDraftResponseRedactsAllFinalAnswerValueLeaksButHoldsPublishing() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
         applyApprovedContract(draft, source);
@@ -728,17 +739,15 @@ class AdminEpisodeGeminiServiceTest {
         }
         AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
-        assertTrue(response.getPublishable());
+        assertFalse(response.getPublishable());
+        assertNoAutoRepairWarnings(response);
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES"));
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
+        assertTrue(response.getValidationWarnings().contains("조사 단서 검증 실패: DUPLICATE"));
         assertNoInvestigationRewardClueLeaksFinalAnswerValues(response.getDraft());
-        assertTrue(response.getDraft().getMissions().stream()
-                .anyMatch(mission -> mission.getRewardClue() != null
-                        && mission.getRewardClue().contains("CCTV")));
     }
 
     @Test
-    void buildDraftResponseRepairsDuplicateSuspectsAndPlaceDrivenSynopsis() throws Exception {
+    void buildDraftResponseFlagsDuplicateSuspectsAndPlaceDrivenSynopsis() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
         applyApprovedContract(draft, source);
@@ -750,16 +759,17 @@ class AdminEpisodeGeminiServiceTest {
         ));
         AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
-        assertTrue(response.getPublishable());
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_SUSPECTS"));
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_SYNOPSIS_SUSPECTS"));
-        assertEquals(3, response.getDraft().getSuspects().stream()
+        assertFalse(response.getPublishable());
+        assertNoAutoRepairWarnings(response);
+        assertTrue(response.getValidationWarnings().contains("용의자 카드가 부족하거나 범인이 용의자 3명 안에 포함되지 않았습니다."));
+        assertTrue(response.getValidationWarnings().contains("용의자 3명은 서로 다른 이름이어야 합니다."));
+        assertTrue(response.getValidationWarnings().contains("사건 줄거리가 크라임씬식 사건 개요로 충분하지 않습니다."));
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_REAL_PLACE_NAMES"));
+        assertEquals(1, response.getDraft().getSuspects().stream()
                 .map(AiEpisodeDraftResponse.SuspectDraft::getDisplayName)
                 .distinct()
                 .count());
         assertFalse(response.getDraft().getFictionSynopsis().contains("테스트 장소"));
-        assertTrue(response.getDraft().getFictionSynopsis().contains("외부 침입"));
-        assertTrue(response.getDraft().getFictionSynopsis().contains("세 명"));
     }
 
     @Test
@@ -790,13 +800,13 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void repairedSynopsisAndMissionStoriesFollowFinalKeywordDomain() throws Exception {
+    void buildDraftResponseFlagsThinSynopsisWithoutInjectingSampleStory() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         source.setFinalAnswerKeywordItems(List.of(
                 keyword("CULPRIT", "범인", "서민재"),
                 keyword("WEAPON", "흉기", "독성 방부제가 묻은 항만 서류 봉투"),
                 keyword("MOTIVE", "동기", "밀수 장부 은폐"),
-                keyword("METHOD", "방법", "피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기")
+                keyword("METHOD", "사인", "피해자가 매일 확인하던 화물 인수 서류를 독성 봉투로 바꿔치기")
         ));
         AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
         answers.setCulprit("서민재");
@@ -817,12 +827,13 @@ class AdminEpisodeGeminiServiceTest {
         }
         AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
-        assertTrue(response.getDraft().getFictionSynopsis().contains("항만 물류 감사관"));
-        assertTrue(response.getDraft().getFictionSynopsis().contains("자료 검토실"));
-        assertTrue(response.getDraft().getFictionSynopsis().contains("밀수 장부 은폐"));
+        assertFalse(response.getPublishable());
+        assertNoAutoRepairWarnings(response);
+        assertTrue(response.getValidationWarnings().contains("사건 줄거리가 크라임씬식 사건 개요로 충분하지 않습니다."));
+        assertEquals("장소 기록을 따라 이동하는 짧은 이야기입니다.", response.getDraft().getFictionSynopsis());
         assertFalse(response.getDraft().getFictionSynopsis().contains("미술품 수집가"));
         assertFalse(response.getDraft().getFictionSynopsis().contains("갤러리"));
-        assertTrue(response.getDraft().getMissions().stream().allMatch(mission -> mission.getStoryText() != null && !mission.getStoryText().isBlank()));
+        assertTrue(response.getDraft().getMissions().stream().allMatch(mission -> mission.getStoryText() == null));
     }
 
     @Test
@@ -853,7 +864,7 @@ class AdminEpisodeGeminiServiceTest {
     }
 
     @Test
-    void buildDraftResponseRepairsEvidenceCardsThatLeakFinalAnswerValues() throws Exception {
+    void buildDraftResponseFlagsEvidenceCardsThatLeakFinalAnswerValues() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         AiEpisodeDraftResponse.EpisodeDraft draft = playableDraft(source);
         applyApprovedContract(draft, source);
@@ -861,16 +872,18 @@ class AdminEpisodeGeminiServiceTest {
         draft.getEvidences().get(1).setTextSummary("흉기는 독성 캡슐이다.");
         AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
-        assertTrue(response.getPublishable());
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_EVIDENCES"));
+        assertFalse(response.getPublishable());
+        assertNoAutoRepairWarnings(response);
+        assertTrue(response.getValidationWarnings().contains("증거 카드가 부족하거나 최종 정답을 직접 노출합니다."));
+        assertTrue(response.getValidationWarnings().contains("증거 카드가 최종 정답 값을 직접 노출하고 있습니다."));
         assertEquals(List.of(2, 3, 4, 5, 6, 7, 8, 9), response.getDraft().getEvidences().stream()
                 .map(AiEpisodeDraftResponse.EvidenceDraft::getSourceMissionOrder)
                 .toList());
-        assertNoEvidenceLeaksFinalAnswerValues(response.getDraft());
+        assertTrue(response.getDraft().getEvidences().get(1).getTextSummary().contains("독성 캡슐"));
     }
 
     @Test
-    void repairedInvestigationCluesFollowApprovedAnswerDomain() throws Exception {
+    void buildDraftResponseRedactsCulpritNameWithoutInventingReplacementClues() throws Exception {
         AiEpisodeDraftRequest source = sourceInput();
         source.getFinalAnswerKeywordItems().get(0).setKeyword("한지원");
         source.getFinalAnswerKeywordItems().get(0).setPersonName("한지원");
@@ -889,14 +902,16 @@ class AdminEpisodeGeminiServiceTest {
         draft.setEvidences(List.of());
         AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
-        List<String> repairedClues = investigationMissions(response.getDraft()).stream()
+        List<String> redactedClues = investigationMissions(response.getDraft()).stream()
                 .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
                 .toList();
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
-        assertTrue(repairedClues.stream().allMatch(clue -> clue != null && clue.length() >= 20));
-        assertTrue(repairedClues.stream().anyMatch(clue -> clue.contains("CCTV")));
-        assertTrue(repairedClues.stream().anyMatch(clue -> clue.contains("문서") || clue.contains("기록")));
-        assertTrue(repairedClues.stream().noneMatch(clue -> clue.contains("약통") || clue.contains("수면제") || clue.contains("캡슐")));
+        assertFalse(response.getPublishable());
+        assertNoAutoRepairWarnings(response);
+        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_ANSWER_VALUES"));
+        assertTrue(response.getValidationWarnings().contains("조사 단서 검증 실패: DUPLICATE"));
+        assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("한지원")));
+        assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("CCTV")));
+        assertTrue(redactedClues.stream().noneMatch(clue -> clue.contains("약통") || clue.contains("수면제") || clue.contains("캡슐")));
         assertNoInvestigationRewardClueLeaksFinalAnswerValues(response.getDraft());
     }
 
@@ -937,10 +952,11 @@ class AdminEpisodeGeminiServiceTest {
                 .setRewardClue("현장에서 발견된 지문 중 피해자의 것과 일치하지 않는 하나의 추가 지문이 용의자 세 명의 것과 모두 다르다는 사실이 밝혀졌다.");
         AiEpisodeDraftResponse response = buildDraftResponse(draft, source);
 
-        assertTrue(response.getPublishable());
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
-        assertTrue(response.getValidationWarnings().contains("GUARDRAIL_INVESTIGATION_CLUES_CULPRIT_OUTSIDE_SUSPECTS"));
-        assertFalse(investigationMissions(response.getDraft()).stream()
+        assertFalse(response.getPublishable());
+        assertNoAutoRepairWarnings(response);
+        assertTrue(response.getValidationWarnings().contains("조사 단서 검증 실패: CULPRIT_OUTSIDE_SUSPECTS"));
+        assertTrue(response.getValidationWarnings().contains("범인 단서가 세 용의자 밖의 인물을 범인처럼 암시하고 있습니다."));
+        assertTrue(investigationMissions(response.getDraft()).stream()
                 .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
                 .anyMatch(clue -> clue != null && clue.contains("용의자 세 명의 것과 모두 다르")));
     }
@@ -958,6 +974,7 @@ class AdminEpisodeGeminiServiceTest {
                 suspect("서민재", "CCTV가 일부 알리바이를 뒷받침합니다.", "동선 공백이 남아 있습니다.")
         ));
         applyApprovedContract(draft, source);
+        draft.setFinalTruthSummary("한지원은 비밀 계약 은폐를 위해 약병 바꿔치기를 준비했고, 바꿔 넣은 독성 캡슐로 피해자를 숨지게 했다.");
         List<String> clues = List.of(
                 "한지원 CCTV 기록에는 사건 직전 서재 접근 동선이 남아 있었다.",
                 "오도윤 CCTV 기록은 사건 시간 동안 외부 이동이 유지되었음을 보여준다.",
@@ -976,7 +993,7 @@ class AdminEpisodeGeminiServiceTest {
 
         assertTrue(response.getPublishable());
         assertTrue(response.getValidationWarnings().contains("GUARDRAIL_REDACTED_INVESTIGATION_CLUE_SUSPECT_NAMES"));
-        assertFalse(response.getValidationWarnings().contains("GUARDRAIL_REPAIRED_INVESTIGATION_CLUES"));
+        assertNoAutoRepairWarnings(response);
         List<String> redactedClues = investigationMissions(response.getDraft()).stream()
                 .map(AiEpisodeDraftResponse.MissionDraft::getRewardClue)
                 .toList();
@@ -1089,7 +1106,7 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("CULPRIT: 강수진"));
         assertTrue(prompt.contains("finalTruthSummary에는 승인된 CULPRIT, WEAPON, MOTIVE, METHOD 값을 그대로 모두 포함한다."));
         assertTrue(prompt.contains("승인된 MOTIVE가 \"산업 스파이\", \"은폐\", \"갈등\""));
-        assertTrue(prompt.contains("승인된 METHOD가 \"은폐\", \"조작\", \"침입\""));
+        assertTrue(prompt.contains("승인된 METHOD가 \"잠금해제\", \"잠금\", \"해제\", \"은폐\", \"조작\", \"침입\""));
         assertTrue(prompt.contains("2~9번 rewardClue는 1문장, 45~90자 안팎으로 압축한다"));
         assertTrue(prompt.contains("finalTruthSummary는 짧은 정답 요약이 아니라 진실 파일이다."));
         assertTrue(prompt.contains("MOTIVE는 한 구절로 끝내지 않는다"));
@@ -1110,7 +1127,7 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("WEAPON-1 부검 결과서/현장 감식표형 단서"));
         assertTrue(prompt.contains("WEAPON-2 감정서/물증 분석형 단서"));
         assertTrue(prompt.contains("최종 키워드를 직접 말하지 않고도 플레이어가 CULPRIT, WEAPON, MOTIVE, METHOD 중 해당 슬롯의 후보를 실제로 좁힐 수 있을 만큼 구체적"));
-        assertTrue(prompt.contains("METHOD-2 조작 순서/접근 경로/실행 가능성 교차 검증과 사망에 이른 물리적 과정"));
+        assertTrue(prompt.contains("METHOD-2: 조작 순서/접근 경로/실행 가능성 교차 검증과 사망에 이른 물리적 과정"));
         assertTrue(prompt.contains("최종 장소를 찾아라"));
         assertTrue(prompt.contains("크라임씬 사건 작가"));
         assertTrue(prompt.contains("CULPRIT 값은 한국인 인명이어야 하며"));
@@ -1123,7 +1140,8 @@ class AdminEpisodeGeminiServiceTest {
         assertTrue(prompt.contains("suspiciousPoint에는 지금 shortDescription에 넣고 싶은 의심 정황을 넣는다"));
         assertTrue(prompt.contains("alibiSummary는 반드시 한국어 문장으로 쓰고"));
         assertTrue(prompt.contains("영어 템플릿 문장이나 \"There is...\" 문장을 절대 쓰지 않는다"));
-        assertTrue(prompt.contains("피해자 신원, 시신/사건 발견 상황, 직접적인 사망 방식"));
+        assertTrue(prompt.contains("피해자 신원, 시신/사건 발견 상황, 밀접한 용의자 3명"));
+        assertTrue(prompt.contains("직접적인 사망 방식은 숨긴다"));
         assertTrue(prompt.contains("승인된 METHOD가 독살/오염/접촉이 아니라면"));
         assertTrue(prompt.contains("실제 역사 사건을 살인 사건처럼 꾸미지 않는다"));
         assertTrue(prompt.contains("시대와 소재를 섞은 설명형 문장을 era에 쓰지 않는다"));
@@ -1168,6 +1186,7 @@ class AdminEpisodeGeminiServiceTest {
         beforeRequest.setDraft(draft);
         AiEpisodeDraftValidationResponse before = service.validateDraft(beforeRequest);
         assertFalse(before.isValid());
+        assertTrue(errorCodes(before).contains("DIRECT_ANSWER_LEAK"));
 
         DraftCrimeMysteryGuardrailApplier.apply(draft, source, new ArrayList<>(), (ignoredDraft, ignoredIssues) -> {});
 
@@ -1175,8 +1194,22 @@ class AdminEpisodeGeminiServiceTest {
         afterRequest.setDraft(draft);
         AiEpisodeDraftValidationResponse after = service.validateDraft(afterRequest);
 
-        assertTrue(after.isValid());
+        assertFalse(after.isValid());
+        assertFalse(errorCodes(after).contains("DIRECT_ANSWER_LEAK"));
+        assertTrue(errorCodes(after).contains("DUPLICATE_CLUE"));
         assertNoInvestigationRewardClueLeaksFinalAnswerValues(draft);
+    }
+
+    private List<String> errorCodes(AiEpisodeDraftValidationResponse result) {
+        return result.getFindings().stream()
+                .filter(finding -> "ERROR".equals(finding.getSeverity()))
+                .map(AiEpisodeDraftValidationResponse.Finding::getCode)
+                .toList();
+    }
+
+    private void assertNoAutoRepairWarnings(AiEpisodeDraftResponse response) {
+        assertFalse(response.getValidationWarnings().stream().anyMatch(warning -> warning.startsWith("GUARDRAIL_REPAIRED")),
+                "Guardrail must flag drafts, not rewrite them: " + response.getValidationWarnings());
     }
 
     private void assertNoInvestigationRewardClueLeaksFinalAnswerValues(AiEpisodeDraftResponse.EpisodeDraft draft) {
@@ -1222,7 +1255,7 @@ class AdminEpisodeGeminiServiceTest {
                 keyword("CULPRIT", "범인", "강수진"),
                 keyword("WEAPON", "흉기", "독성 캡슐"),
                 keyword("MOTIVE", "동기", "비밀 계약 은폐"),
-                keyword("METHOD", "방법", "약병 바꿔치기")
+                keyword("METHOD", "사인", "약병 바꿔치기")
         ));
         AiEpisodeDraftRequest.FinalAnswersInput answers = new AiEpisodeDraftRequest.FinalAnswersInput();
         answers.setCulprit("강수진");
@@ -1299,7 +1332,7 @@ class AdminEpisodeGeminiServiceTest {
                 .selectedGenre("범죄 미스터리")
                 .fictionSynopsis("한태준이 행사 전날 잠긴 집무실에서 숨진 채 발견되었다. 사인은 독성 캡슐과 연결된 중독으로 추정되며 외부 침입 흔적은 없었다. 사건 시간대에 의미 있는 접근 권한을 가진 인물은 강수진, 박도윤, 이재민 세 명뿐이었다.")
                 .missionDescription("8개 조사 단서로 네 개 정답 슬롯을 판단합니다.")
-                .finalQuestion("범인, 흉기, 동기, 방법을 입력하세요.")
+                .finalQuestion("범인, 흉기, 동기, 사인을 입력하세요.")
                 .finalTruthSummary("강수진이 독성 캡슐을 사용했고, 비밀 계약 은폐를 위해 약병 바꿔치기를 실행했습니다.")
                 .actualHistorySummary("장소 정보는 배경 모티브로만 사용했습니다.")
                 .missions(missions)
@@ -1339,7 +1372,7 @@ class AdminEpisodeGeminiServiceTest {
             case "CULPRIT" -> "범인";
             case "WEAPON" -> "흉기";
             case "MOTIVE" -> "동기";
-            case "METHOD" -> "방법";
+            case "METHOD" -> "사인";
             default -> "";
         };
     }

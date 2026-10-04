@@ -211,15 +211,15 @@ class AdminEpisodeServiceAiDraftSaveTest {
                 .genre("범죄 미스터리")
                 .era("현재")
                 .fictionSynopsis("정동 일대 전시 기록을 둘러싼 허구의 조작 사건이다.")
-                .missionDescription("8개의 조사 단서를 모아 범인, 흉기, 동기, 방법을 판단한다.")
+                .missionDescription("8개의 조사 단서를 모아 범인, 흉기, 동기, 사인을 판단한다.")
                 .selectedGenre("범죄 미스터리")
                 .finalAnswerKeywords(new ArrayList<>(ANSWER_VALUES))
                 .finalAnswerKeywordItems(answerKeywordItems())
                 .finalAnswers(answers)
                 .finalAnswerType("CASE_TRUTH")
-                .finalAnswer("범인/흉기/동기/방법")
+                .finalAnswer("범인/흉기/동기/사인")
                 .finalAnswerAliases(new ArrayList<>(ANSWER_VALUES))
-                .finalQuestion("범인, 흉기, 동기, 방법을 입력하라.")
+                .finalQuestion("범인, 흉기, 동기, 사인을 입력하라.")
                 .finalTruthSummary("전시 기록 조작의 진실을 밝힌다.")
                 .actualHistorySummary("실제 장소는 배경 모티브이며 사건과 인물은 허구다.")
                 .deductionSecretFacts(List.of("허구 사건의 핵심 진실은 단서 조합으로만 드러난다."))
@@ -519,7 +519,7 @@ class AdminEpisodeServiceAiDraftSaveTest {
             case "CULPRIT" -> "범인";
             case "WEAPON" -> "흉기";
             case "MOTIVE" -> "동기";
-            case "METHOD" -> "방법";
+            case "METHOD" -> "사인";
             default -> "";
         };
     }
