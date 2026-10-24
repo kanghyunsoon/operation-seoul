@@ -171,7 +171,7 @@ public class EpisodePlayService {
         }
         String normalized = value.trim();
         if (normalized.equalsIgnoreCase("walking route review required") || normalized.equalsIgnoreCase("review required")) {
-            return "?꾨낫 ?숈꽑 ?뺤씤 ?꾩슂";
+            return "도보 동선 확인 필요";
         }
         return normalized.replaceAll("(?i)\\babout\\b\\s*", "약 ");
     }
@@ -318,7 +318,7 @@ public class EpisodePlayService {
         UserEpisodeProgress progress = ensureProgress(user.getId(), episodeId);
         boolean adminBypass = user != null && user.isAdmin();
         if (Boolean.TRUE.equals(request.getDevMode()) && !arrivalDevModeEnabled && !adminBypass) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "???쒕쾭?먯꽌??媛쒕컻???꾩갑 ?먯젙??鍮꾪솢?깊솕?섏뼱 ?덉뒿?덈떎.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEV_ARRIVAL_DISABLED", "이 서버에서는 개발용 도착 판정이 비활성화되어 있습니다.");
         }
         boolean devMode = Boolean.TRUE.equals(request.getDevMode()) && (arrivalDevModeEnabled || adminBypass);
         requireCoordinatesUnlessDevMode(request, devMode);
@@ -408,7 +408,7 @@ public class EpisodePlayService {
         MissionSpot spot = requireSpot(spotId, null);
         UserEpisodeProgress progress = requireProgress(user.getId(), spot.getEpisodeId());
         if (!readLongList(progress.getVisitedSpotIds()).contains(spotId)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "?쇱쫹???닿린 ?꾩뿉 ?대떦 ?μ냼???꾩갑?댁빞 ?⑸땲??");
+            throw new ApiException(HttpStatus.FORBIDDEN, "ARRIVAL_REQUIRED", "퍼즐을 열기 전에 해당 장소에 도착해야 합니다.");
         }
         Puzzle puzzle = episodeRepository.findPuzzleBySpotId(spotId);
         if (puzzle == null) {
@@ -489,11 +489,11 @@ public class EpisodePlayService {
         Map<String, Object> interaction = new LinkedHashMap<>();
         interaction.put("version", 1);
         interaction.put("type", "PATTERN_LOCK");
-        interaction.put("title", "?⑥꽌 ?μ튂 쨌 ?⑦꽩 ?좉툑");
-        interaction.put("prompt", "?꾨옒 誘몄뀡???닿껐?섏뿬 ?⑥꽌瑜??살쑝?몄슂.");
-        interaction.put("missionDescription", "?좉퉸 ?먮벑?섎뒗 ?몃뱶 ?쒖꽌瑜?湲곗뼲?섍퀬 洹몃?濡??낅젰????寃곌낵瑜??쒖텧?섏꽭??");
-        interaction.put("storyHook", "?꾨옒 誘몄뀡???닿껐?섏뿬 ?⑥꽌瑜??살쑝?몄슂.");
-        interaction.put("basis", sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "?ш굔 ?⑥꽌")));
+        interaction.put("title", "단서 장치 · 패턴 잠금");
+        interaction.put("prompt", "아래 미션을 해결하여 단서를 얻으세요.");
+        interaction.put("missionDescription", "잠깐 점등되는 노드 순서를 기억하고 그대로 입력한 뒤 결과를 제출하세요.");
+        interaction.put("storyHook", "아래 미션을 해결하여 단서를 얻으세요.");
+        interaction.put("basis", sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), "사건 단서")));
         interaction.put("localSolution", localSolution);
         interaction.put("timeLimitSeconds", 60);
         interaction.put("config", config);
@@ -506,12 +506,12 @@ public class EpisodePlayService {
     }
 
     private String fallbackMinigameSolution(Puzzle puzzle) {
-        String source = sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), fallbackText(puzzle.getQuestionText(), "?⑥꽌?μ튂")));
+        String source = sanitizeCategoryCodes(fallbackText(puzzle.getRewardClue(), fallbackText(puzzle.getQuestionText(), "단서장치")));
         String compact = source.replaceAll("\\s+", "");
         if (compact.length() > 8) {
             compact = compact.substring(0, 8);
         }
-        return compact.isBlank() ? "?⑥꽌?μ튂" : compact;
+        return compact.isBlank() ? "단서장치" : compact;
     }
 
     private List<String> rotatedCharacters(String value) {
@@ -578,7 +578,7 @@ public class EpisodePlayService {
     public PuzzleSubmitResponse submitPuzzle(Long puzzleId, PuzzleSubmitRequest request, User user) {
         Puzzle puzzle = episodeRepository.findPuzzleById(puzzleId);
         if (puzzle == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "?쇱쫹??李얠쓣 ???놁뒿?덈떎.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "PUZZLE_NOT_FOUND", "퍼즐을 찾을 수 없습니다.");
         }
         MissionSpot spot = requireSpot(puzzle.getMissionSpotId(), null);
         UserEpisodeProgress progress = requireProgress(user.getId(), spot.getEpisodeId());
@@ -632,8 +632,8 @@ public class EpisodePlayService {
                 .unlockedMemoIds(rewardResult.memoIds())
                 .newlyUnlockedItems(rewardResult.items())
                 .message(rewardResult.caseFileUpdated()
-                        ? "?뺣떟?낅땲?? ?⑥꽌? ?ш굔?먮즺媛 誘몄뀡 硫붾え??異붽??섏뿀?듬땲??"
-                        : "?뺣떟?낅땲?? ?⑥꽌媛 ?⑥꽌 蹂대뱶????λ릺?덉뒿?덈떎.")
+                        ? "정답입니다. 단서와 사건자료가 미션 메모에 추가되었습니다."
+                        : "정답입니다. 단서가 단서 보드에 저장되었습니다.")
                 .clueBoard(buildClueBoard(progress))
                 .build();
     }
@@ -647,14 +647,14 @@ public class EpisodePlayService {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (!"IN_PROGRESS".equals(progress.getStatus()) && !"FINAL_READY".equals(progress.getStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "INVALID_PROGRESS", "?꾩옱 吏꾪뻾 ?곹깭?먯꽌??理쒖쥌 異붾━瑜??쒖옉?????놁뒿?덈떎.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "INVALID_PROGRESS", "현재 진행 상태에서는 최종 추리를 시작할 수 없습니다.");
         }
         MissionSpot finalSpot = episodeRepository.findSpotsByEpisodeId(episodeId).stream()
                 .filter(spot -> Boolean.TRUE.equals(spot.getFinalPlace()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "議곗궗 ?μ냼瑜?李얠쓣 ???놁뒿?덈떎."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "FINAL_SPOT_NOT_FOUND", "조사 장소를 찾을 수 없습니다."));
         if (!finalSpot.getId().equals(progress.getFinalArrivedSpotId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "理쒖쥌 異붾━瑜??쒖옉?섍린 ?꾩뿉 議곗궗 ?μ냼瑜??뺤씤?댁빞 ?⑸땲??");
+            throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "최종 추리를 시작하기 전에 조사 장소를 확인해야 합니다.");
         }
 
         FinalDeductionSession session = episodeRepository.findOpenDeductionSession(user.getId(), episodeId);
@@ -695,7 +695,7 @@ public class EpisodePlayService {
         UserEpisodeProgress progress = requireProgress(user.getId(), session.getEpisodeId());
         String question = request.getQuestion() == null ? "" : request.getQuestion().trim();
         if (question.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "吏덈Ц???낅젰??二쇱꽭??");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "질문을 입력해 주세요.");
         }
 
         List<FinalDeductionQuestion> history = episodeRepository.findDeductionQuestions(sessionId);
@@ -817,11 +817,13 @@ public class EpisodePlayService {
                 .clearTimePenaltySeconds(value(progress.getClearTimePenaltySeconds()))
                 .message("정답입니다. 사건의 진실을 밝혀냈습니다.")
                 .build();
-    }    public ClearReportResponse getClearReport(Long episodeId, User user) {
+    }
+
+    public ClearReportResponse getClearReport(Long episodeId, User user) {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
         if (!"CLEARED".equals(progress.getStatus()) || progress.getClearedAt() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "CLEAR_REQUIRED", "?대━??由ы룷?몃뒗 ?먰뵾?뚮뱶 ?대━???꾩뿉留??뺤씤?????덉뒿?덈떎.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "CLEAR_REQUIRED", "클리어 리포트는 에피소드 클리어 후에만 확인할 수 있습니다.");
         }
         List<Long> visitedSpotIds = readLongList(progress.getVisitedSpotIds());
         List<Long> completedSpotIds = readLongList(progress.getCompletedSpotIds());
@@ -879,7 +881,7 @@ public class EpisodePlayService {
     private Episode requireEpisode(Long episodeId) {
         Episode episode = episodeRepository.findEpisodeById(episodeId);
         if (episode == null || !"PUBLISHED".equals(episode.getStatus())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "?먰뵾?뚮뱶瑜?李얠쓣 ???놁뒿?덈떎.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EPISODE_NOT_FOUND", "에피소드를 찾을 수 없습니다.");
         }
         return episode;
     }
@@ -887,7 +889,7 @@ public class EpisodePlayService {
     private MissionSpot requireSpot(Long spotId, Long episodeId) {
         MissionSpot spot = episodeRepository.findSpotById(spotId);
         if (spot == null || (episodeId != null && !episodeId.equals(spot.getEpisodeId()))) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "議곗궗 吏?먯쓣 李얠쓣 ???놁뒿?덈떎.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "SPOT_NOT_FOUND", "조사 지점을 찾을 수 없습니다.");
         }
         requireEpisode(spot.getEpisodeId());
         return spot;
@@ -900,7 +902,7 @@ public class EpisodePlayService {
     private UserEpisodeProgress requireProgress(Long userId, Long episodeId) {
         UserEpisodeProgress progress = findProgress(userId, episodeId);
         if (progress == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "EPISODE_NOT_STARTED", "癒쇱? ?먰뵾?뚮뱶瑜??쒖옉??二쇱꽭??");
+            throw new ApiException(HttpStatus.FORBIDDEN, "EPISODE_NOT_STARTED", "먼저 에피소드를 시작해 주세요.");
         }
         return progress;
     }
@@ -932,10 +934,10 @@ public class EpisodePlayService {
     private FinalDeductionSession requireSession(Long sessionId, User user) {
         FinalDeductionSession session = episodeRepository.findDeductionSession(sessionId);
         if (session == null || !user.getId().equals(session.getUserId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "DEDUCTION_SESSION_NOT_FOUND", "理쒖쥌 異붾━ ?몄뀡??李얠쓣 ???놁뒿?덈떎.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEDUCTION_SESSION_NOT_FOUND", "최종 추리 세션을 찾을 수 없습니다.");
         }
         if (!"OPEN".equals(session.getStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_SESSION_CLOSED", "??理쒖쥌 異붾━ ?몄뀡? 醫낅즺?섏뿀?듬땲??");
+            throw new ApiException(HttpStatus.FORBIDDEN, "DEDUCTION_SESSION_CLOSED", "이 최종 추리 세션은 종료되었습니다.");
         }
         return session;
     }
@@ -1134,7 +1136,7 @@ public class EpisodePlayService {
             return value;
         }
         String clean = sanitizeCategoryCodes(fallbackText(value, "").trim());
-        return clean.isBlank() ? "怨듦컻 湲?? " + revealed : clean + "\n怨듦컻 湲?? " + revealed;
+        return clean.isBlank() ? "공개 글자: " + revealed : clean + "\n공개 글자: " + revealed;
     }
 
     private String rewardTypeForSpot(MissionSpot spot) {
@@ -1553,7 +1555,7 @@ public class EpisodePlayService {
 
     private void requireCoordinatesUnlessDevMode(ArriveRequest request, boolean devMode) {
         if (!devMode && (request == null || request.getUserLat() == null || request.getUserLng() == null)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_REQUIRED", "?꾩옱 ?꾩튂 醫뚰몴媛 ?꾩슂?⑸땲??");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "LOCATION_REQUIRED", "현재 위치 좌표가 필요합니다.");
         }
     }
 
