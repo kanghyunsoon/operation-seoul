@@ -1,5 +1,6 @@
 package com.operation.seoul.user.controller;
 
+import com.operation.seoul.auth.security.CurrentUserResolver;
 import com.operation.seoul.global.dto.ApiResponse;
 import com.operation.seoul.user.dto.AdminUserResponse;
 import com.operation.seoul.user.dto.AdminUserUpdateRequest;
@@ -22,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminUserController {
     private final AdminUserService adminUserService;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<AdminUserResponse>>> getUsers(
@@ -40,12 +42,12 @@ public class AdminUserController {
     public ResponseEntity<ApiResponse<AdminUserResponse>> updateUser(
             @PathVariable Long userId,
             @RequestBody AdminUserUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("회원 정보가 수정되었습니다.", adminUserService.updateUser(userId, request)));
+        return ResponseEntity.ok(ApiResponse.ok("회원 정보가 수정되었습니다.", adminUserService.updateUser(userId, request, currentUserResolver.requireCurrentUser().getId())));
     }
 
     @DeleteMapping("/{userId}")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long userId) {
-        adminUserService.softDeleteUser(userId);
+        adminUserService.softDeleteUser(userId, currentUserResolver.requireCurrentUser().getId());
         return ResponseEntity.ok(ApiResponse.ok("회원 상태가 변경되었습니다."));
     }
 }

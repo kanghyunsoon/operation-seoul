@@ -41,7 +41,7 @@ public class AdminUserService {
         return AdminUserResponse.of(findUser(userId));
     }
 
-    public AdminUserResponse updateUser(Long userId, AdminUserUpdateRequest request) {
+    public AdminUserResponse updateUser(Long userId, AdminUserUpdateRequest request, Long actorId) {
         User user = findUser(userId);
         String nickname = request.getNickname() == null ? user.getNickname() : request.getNickname().trim();
         if (nickname == null || nickname.isBlank()) {
@@ -52,12 +52,19 @@ public class AdminUserService {
         String role = normalizeRole(request.getRole() == null ? user.effectiveRole() : request.getRole(), true);
         String status = normalizeStatus(request.getStatus() == null ? user.effectiveStatus() : request.getStatus(), true);
         String profileImageUrl = request.getProfileImageUrl() == null ? user.getProfileImageUrl() : request.getProfileImageUrl().trim();
+        // 관리자가 자기 권한을 내리거나 자기 계정을 정지하면 바로 관리 화면에서 잠기고, 관리자가 한 명이면 되돌릴 사람이 없다.
+        if (userId.equals(actorId) && (!"ROLE_ADMIN".equals(role) || !"ACTIVE".equals(status))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SELF_LOCKOUT", "자기 계정의 관리자 권한과 활성 상태는 바꿀 수 없습니다.");
+        }
 
         userRepository.updateAdminFields(userId, nickname, role, status, blankToNull(profileImageUrl));
         return getUser(userId);
     }
 
-    public void softDeleteUser(Long userId) {
+    public void softDeleteUser(Long userId, Long actorId) {
+        if (userId.equals(actorId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SELF_LOCKOUT", "관리자 화면에서 자기 계정은 삭제할 수 없습니다.");
+        }
         findUser(userId);
         userRepository.softDeleteById(userId);
     }

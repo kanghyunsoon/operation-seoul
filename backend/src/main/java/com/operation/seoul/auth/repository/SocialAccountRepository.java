@@ -43,6 +43,9 @@ public interface SocialAccountRepository {
     })
     User findOneUser(@Param("provider") String provider, @Param("providerUserId") String providerUserId);
 
+    @Select("select count(*) from user_social_accounts where user_id = #{userId}")
+    int countByUserId(@Param("userId") Long userId);
+
     @Insert("""
             insert into user_social_accounts (user_id, provider, provider_user_id)
             values (#{userId}, #{provider}, #{providerUserId})
