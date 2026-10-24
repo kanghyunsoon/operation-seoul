@@ -1,2 +1,11 @@
+// Spring Boot 플러그인의 의존성은 Maven Central에 있다.
+// 플러그인 포털만 보면 캐시가 없는 CI에서 spring-core 등을 찾지 못해 빌드가 시작되지 않는다.
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
 // Gradle에서 인식하는 백엔드 루트 프로젝트명입니다.
 rootProject.name = 'seoul'
