@@ -71,7 +71,9 @@ public class PlayerAnalysisService {
 
     @Transactional(readOnly = true)
     public PlayerAnalysisResponse latestAnalysis(Long requestedUserId, User user) {
-        Long userId = resolveUserId(requestedUserId, user);
+        resolveUserId(requestedUserId, user);
+        // 관리자는 다른 사용자의 분석을 볼 수 있다. 예전에는 권한 확인만 하고 항상 관리자 본인 분석을 돌려줬다.
+        Long userId = requestedUserId != null && user.isAdmin() ? requestedUserId : user.getId();
         PlayerAnalysis analysis = playerAnalysisRepository.findLatestAnalysis(userId);
         if (analysis == null) {
             return null;
