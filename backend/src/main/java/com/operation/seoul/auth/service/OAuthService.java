@@ -154,10 +154,18 @@ public class OAuthService {
         }
     }
 
-    private User findOrCreateUser(String provider, String providerUserId, String email, String nickname, String imageUrl) {
+    User findOrCreateUser(String provider, String providerUserId, String email, String nickname, String imageUrl) {
         return socialAccountRepository.findUser(provider, providerUserId).orElseGet(() -> {
-            User user = userRepository.findByEmail(email)
-                    .orElseGet(() -> createUser(email, nickname, imageUrl, providerUserId));
+            User user = userRepository.findByEmail(email).orElse(null);
+            if (user == null) {
+                user = createUser(email, nickname, imageUrl, providerUserId);
+            } else if (socialAccountRepository.countByUserId(user.getId()) == 0) {
+                // 이메일 가입은 메일 인증을 하지 않는다. 남의 이메일로 먼저 가입해 두면 주인이 소셜 로그인할 때
+                // 그 계정에 자동 연결돼, 먼저 가입한 사람이 비밀번호로 계속 들어올 수 있었다.
+                // 소셜 계정끼리는 양쪽 모두 제공자가 이메일을 확인하므로 그대로 연결한다.
+                throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ACCOUNT_EXISTS",
+                        "이미 이메일로 가입된 계정입니다. 이메일과 비밀번호로 로그인해 주세요.");
+            }
             socialAccountRepository.insert(user.getId(), provider, providerUserId);
             if ((user.getProfileImageUrl() == null || user.getProfileImageUrl().isBlank())
                     && imageUrl != null && !imageUrl.isBlank()) {
