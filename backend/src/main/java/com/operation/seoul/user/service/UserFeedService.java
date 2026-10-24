@@ -37,6 +37,10 @@ public class UserFeedService {
         User freshUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User was not found."));
         boolean ownProfile = viewer != null && freshUser.getId().equals(viewer.getId());
+        // 탈퇴하거나 정지된 사용자의 피드는 공개 설정과 상관없이 다른 사용자에게 보여 주지 않는다.
+        if (!ownProfile && !freshUser.isActive() && (viewer == null || !viewer.isAdmin())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User was not found.");
+        }
         boolean visible = ownProfile || (viewer != null && viewer.isAdmin()) || freshUser.isProfilePublic();
         if (!visible) {
             return UserFeedResponse.builder()
