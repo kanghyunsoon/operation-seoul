@@ -100,7 +100,7 @@ public class CaseFileService {
                         .storyUnlocked(storyUnlocked)
                         .unlockedStoryClues(storyClues)
                         .build())
-                .suspects(suspects.stream().map(suspect -> toSuspect(suspect, storyUnlocked, clearedSuspectIds, evidences)).toList())
+                .suspects(suspects.stream().map(suspect -> toSuspect(suspect, storyUnlocked, clearedSuspectIds, evidences, unlockedEvidenceIds)).toList())
                 .evidences(evidences.stream().map(evidence -> toEvidence(evidence, unlockedEvidenceIds)).toList())
                 .clueSummary(CaseFileResponse.ClueSummary.builder()
                         .culpritClues(culpritClues)
@@ -149,9 +149,13 @@ public class CaseFileService {
                 .build();
     }
 
-    private CaseFileResponse.Suspect toSuspect(CaseSuspect suspect, boolean suspectsUnlocked, Set<Long> clearedIds, List<CaseEvidence> evidences) {
+    private CaseFileResponse.Suspect toSuspect(CaseSuspect suspect, boolean suspectsUnlocked, Set<Long> clearedIds, List<CaseEvidence> evidences, Set<Long> unlockedEvidenceIds) {
         boolean unlocked = suspectsUnlocked;
-        int relatedCount = (int) evidences.stream().filter(evidence -> suspect.getId().equals(evidence.getRelatedSuspectId())).count();
+        // 잠긴 자료까지 세면 어느 용의자에게 자료가 몰려 있는지로 범인을 짐작할 수 있다. 공개된 자료만 센다.
+        int relatedCount = (int) evidences.stream()
+                .filter(evidence -> Boolean.TRUE.equals(evidence.getUnlockedByDefault()) || unlockedEvidenceIds.contains(evidence.getId()))
+                .filter(evidence -> suspect.getId().equals(evidence.getRelatedSuspectId()))
+                .count();
         return CaseFileResponse.Suspect.builder()
                 .suspectId(suspect.getId())
                 .displayName(unlocked ? suspect.getDisplayName() : "잠긴 용의자")
