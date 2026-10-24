@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -260,6 +261,47 @@ class EpisodePlayServiceDeductionTest {
         DeductionHypothesisResponse response = service.verifyDeductionHypothesis(10L, request, user());
 
         assertEquals(2, response.getMatchedSlotCount());
+    }
+
+    @Test
+    void submitFinalAnswerListingEverySuspectDoesNotCountCulprit() {
+        UserEpisodeProgress progress = progress(0, 0);
+        progress.setFinalArrivedSpotId(5L);
+        mockDeductionState(session(0, 0), progress);
+        when(caseFileRepository.findSuspects(1L)).thenReturn(threeSuspects());
+
+        FinalAnswerResponse response = service.submitFinalAnswer(1L,
+                finalAnswer("성춘향, 이몽룡, 변학도 중 한 명이 망치로 비밀 거래 은폐를 위해 교살했다."), user());
+
+        assertFalse(response.isCorrect());
+        assertEquals(1, progress.getWrongAnswerCount());
+    }
+
+    @Test
+    void hypothesisCountsOnlyTheFirstAccusedSuspectAsCulprit() {
+        mockDeductionState(session(0, 0), progress(0, 0));
+        when(caseFileRepository.findSuspects(1L)).thenReturn(threeSuspects());
+
+        assertEquals(3, hypothesis("성춘향, 이몽룡, 변학도가 망치로 비밀 거래 은폐를 위해 교살했다."));
+        assertEquals(4, hypothesis("범인: 이몽룡 / 흉기: 망치 / 동기: 성춘향과의 비밀 거래 은폐 / 방법: 교살"));
+        assertEquals(4, hypothesis("성춘향의 증언과 달리 범인은 이몽룡이고 망치로 비밀 거래 은폐를 위해 교살했다."));
+    }
+
+    private int hypothesis(String text) {
+        DeductionHypothesisRequest request = new DeductionHypothesisRequest();
+        request.setHypothesis(text);
+        return service.verifyDeductionHypothesis(10L, request, adminUser()).getMatchedSlotCount();
+    }
+
+    private List<CaseSuspect> threeSuspects() {
+        return List.of(suspect("이몽룡", "기록 보관 담당자"), suspect("성춘향", "야간 경비원"), suspect("변학도", "출판사 대표"));
+    }
+
+    private CaseSuspect suspect(String name, String alias) {
+        CaseSuspect suspect = new CaseSuspect();
+        suspect.setDisplayName(name);
+        suspect.setAlias(alias);
+        return suspect;
     }
 
     private void mockDeductionState(FinalDeductionSession session, UserEpisodeProgress progress) {
