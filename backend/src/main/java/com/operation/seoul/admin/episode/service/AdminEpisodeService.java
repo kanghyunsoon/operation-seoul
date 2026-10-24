@@ -483,7 +483,7 @@ public class AdminEpisodeService {
         CaseSuspect suspect = adminEpisodeRepository.findSuspects(episodeId).stream()
                 .filter(item -> suspectId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "??? ??? ?? ? ????."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "용의자 정보를 찾을 수 없습니다."));
         suspect.setDisplayName(text(request.getDisplayName(), suspect.getDisplayName()));
         suspect.setAlias(text(request.getAlias(), suspect.getAlias()));
         suspect.setShortDescription(text(request.getShortDescription(), suspect.getShortDescription()));
@@ -503,14 +503,14 @@ public class AdminEpisodeService {
         int nextOrder = adminEpisodeRepository.countSuspects(episodeId) + 1;
         CaseSuspect suspect = new CaseSuspect();
         suspect.setEpisodeId(episodeId);
-        suspect.setAlias(text(request.getAlias(), "???" + nextOrder));
+        suspect.setAlias(text(request.getAlias(), "용의자" + nextOrder));
         suspect.setDisplayName(text(request.getDisplayName(), "임시 용의자"));
-        suspect.setShortDescription(text(request.getShortDescription(), "?? ?? ?? ??"));
+        suspect.setShortDescription(text(request.getShortDescription(), "인물 소개 검수 필요"));
         suspect.setPortraitImageUrl(text(request.getPortraitImageUrl(), null));
         suspect.setImagePrompt(ensureKoreanPersonPrompt(text(request.getImagePrompt(), null)));
-        suspect.setRelationToVictim(text(request.getRelationToVictim(), "????? ?? ?? ??"));
-        suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), "?? ??? ?? ??"));
-        suspect.setAlibiSummary(text(request.getAlibiSummary(), "???? ?? ??"));
+        suspect.setRelationToVictim(text(request.getRelationToVictim(), "피해자와의 관계 검수 필요"));
+        suspect.setSuspiciousPoint(text(request.getSuspiciousPoint(), "의심 포인트 검수 필요"));
+        suspect.setAlibiSummary(text(request.getAlibiSummary(), "알리바이 검수 필요"));
         suspect.setUnlockedByDefault(true);
         suspect.setDisplayOrder(request.getDisplayOrder() == null ? nextOrder : request.getDisplayOrder());
         adminEpisodeRepository.insertSuspect(suspect);
@@ -521,7 +521,7 @@ public class AdminEpisodeService {
         requireEditableEpisode(episodeId);
         boolean exists = adminEpisodeRepository.findSuspects(episodeId).stream().anyMatch(suspect -> suspectId.equals(suspect.getId()));
         if (!exists) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "??? ??? ?? ? ????.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "SUSPECT_NOT_FOUND", "용의자 정보를 찾을 수 없습니다.");
         }
         adminEpisodeRepository.detachEvidencesBySuspectId(suspectId);
         adminEpisodeRepository.deleteSuspect(suspectId);
@@ -533,9 +533,9 @@ public class AdminEpisodeService {
         CaseEvidence evidence = adminEpisodeRepository.findEvidences(episodeId).stream()
                 .filter(item -> evidenceId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "?? ??? ?? ? ????."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "사건 자료를 찾을 수 없습니다."));
         evidence.setTitle(text(request.getTitle(), evidence.getTitle()));
-        evidence.setType(validateValue(text(request.getType(), evidence.getType()), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "???? ?? ?? ?????."));
+        evidence.setType(validateValue(text(request.getType(), evidence.getType()), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "지원하지 않는 자료 유형입니다."));
         evidence.setImageUrl(text(request.getImageUrl(), evidence.getImageUrl()));
         evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(request.getImagePrompt(), evidence.getImagePrompt())));
         evidence.setTextSummary(text(request.getTextSummary(), evidence.getTextSummary()));
@@ -553,11 +553,11 @@ public class AdminEpisodeService {
         int nextOrder = adminEpisodeRepository.countEvidences(episodeId) + 1;
         CaseEvidence evidence = new CaseEvidence();
         evidence.setEpisodeId(episodeId);
-        evidence.setTitle(text(request.getTitle(), "?? ?? ?? ??"));
-        evidence.setType(validateValue(text(request.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "???? ?? ?? ?????."));
+        evidence.setTitle(text(request.getTitle(), "사건 자료 검수 필요"));
+        evidence.setType(validateValue(text(request.getType(), "NOTE"), EVIDENCE_TYPES, "INVALID_EVIDENCE_TYPE", "지원하지 않는 자료 유형입니다."));
         evidence.setImageUrl(text(request.getImageUrl(), null));
         evidence.setImagePrompt(ensureKoreanEvidencePrompt(text(request.getImagePrompt(), null)));
-        evidence.setTextSummary(text(request.getTextSummary(), "?? ?? ?? ??"));
+        evidence.setTextSummary(text(request.getTextSummary(), "자료 내용 검수 필요"));
         evidence.setSourceSpotId(validateOptionalSpot(episodeId, request.getSourceSpotId(), null));
         evidence.setRelatedSuspectId(validateOptionalSuspect(episodeId, request.getRelatedSuspectId(), null));
         evidence.setRelatedClueType(text(request.getRelatedClueType(), evidence.getType()));
@@ -571,7 +571,7 @@ public class AdminEpisodeService {
         requireEditableEpisode(episodeId);
         boolean exists = adminEpisodeRepository.findEvidences(episodeId).stream().anyMatch(evidence -> evidenceId.equals(evidence.getId()));
         if (!exists) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "?? ??? ?? ? ????.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "EVIDENCE_NOT_FOUND", "사건 자료를 찾을 수 없습니다.");
         }
         adminEpisodeRepository.deleteEvidence(evidenceId);
         return getEpisode(episodeId);
@@ -582,15 +582,15 @@ public class AdminEpisodeService {
         EpisodePartnerReward reward = adminEpisodeRepository.findPartnerRewards(episodeId).stream()
                 .filter(item -> rewardId.equals(item.getId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PARTNER_REWARD_NOT_FOUND", "?? ???? ?? ? ????."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PARTNER_REWARD_NOT_FOUND", "제휴 리워드를 찾을 수 없습니다."));
         reward.setTitle(text(request.getTitle(), reward.getTitle()));
         reward.setDescription(text(request.getDescription(), reward.getDescription()));
-        reward.setRewardType(validateValue(text(request.getRewardType(), reward.getRewardType()), PARTNER_REWARD_TYPES, "INVALID_REWARD_TYPE", "???? ?? ??? ?????."));
+        reward.setRewardType(validateValue(text(request.getRewardType(), reward.getRewardType()), PARTNER_REWARD_TYPES, "INVALID_REWARD_TYPE", "지원하지 않는 리워드 유형입니다."));
         reward.setPartnerName(text(request.getPartnerName(), reward.getPartnerName()));
         reward.setLocationName(text(request.getLocationName(), reward.getLocationName()));
         reward.setLatitude(request.getLatitude() == null ? reward.getLatitude() : request.getLatitude());
         reward.setLongitude(request.getLongitude() == null ? reward.getLongitude() : request.getLongitude());
-        reward.setStatus(validateValue(text(request.getStatus(), reward.getStatus()), PARTNER_REWARD_STATUSES, "INVALID_REWARD_STATUS", "???? ?? ??? ?????."));
+        reward.setStatus(validateValue(text(request.getStatus(), reward.getStatus()), PARTNER_REWARD_STATUSES, "INVALID_REWARD_STATUS", "지원하지 않는 리워드 상태입니다."));
         adminEpisodeRepository.updatePartnerReward(reward);
         return getEpisode(episodeId);
     }
@@ -608,7 +608,7 @@ public class AdminEpisodeService {
             JsonNode root = objectMapper.readTree(payload);
             JsonNode rewards = root.path("rewards");
             if (!rewards.isArray()) {
-                errors.add("reward_payload? rewards? ????? ???.");
+                errors.add("reward_payload에 rewards 배열이 있어야 합니다.");
             } else if (rewards.isEmpty()) {
                 warnings.add("rewards array is empty.");
             } else {
@@ -627,7 +627,7 @@ public class AdminEpisodeService {
                 }
             }
         } catch (Exception e) {
-            errors.add("reward_payload? ??? JSON??? ???.");
+            errors.add("reward_payload는 올바른 JSON이어야 합니다.");
         }
         return AdminRewardPayloadValidationResponse.builder().valid(errors.isEmpty()).errors(errors).warnings(warnings).rewards(rewardItems).build();
     }
@@ -696,7 +696,7 @@ public class AdminEpisodeService {
             AiEpisodeDraftResponse.MissionDraft mission = missions.get(i);
             MissionSpot spot = new MissionSpot();
             spot.setEpisodeId(episode.getId());
-            spot.setPlaceName(blank(mission.getPlaceName(), "??? ?? ?? " + (i + 1)));
+            spot.setPlaceName(blank(mission.getPlaceName(), "검수할 조사 지점 " + (i + 1)));
             spot.setAddress(mission.getAddress());
             spot.setLatitude(mission.getLatitude() == null ? 37.5665 + (i * 0.001) : mission.getLatitude());
             spot.setLongitude(mission.getLongitude() == null ? 126.9780 + (i * 0.001) : mission.getLongitude());
@@ -719,7 +719,7 @@ public class AdminEpisodeService {
             Puzzle puzzle = new Puzzle();
             puzzle.setMissionSpotId(spot.getId());
             puzzle.setPuzzleType(normalizePuzzleTypeForSave(mission.getPuzzleType(), order));
-            puzzle.setQuestionText(blank(sanitizeCategoryCodes(mission.getQuestionText()), "?? ?? ??"));
+            puzzle.setQuestionText(blank(sanitizeCategoryCodes(mission.getQuestionText()), "문제 검수 필요"));
             puzzle.setAnswer(blank(sanitizeCategoryCodes(mission.getAnswer()), "현장단서"));
             puzzle.setAnswerFormat(validateValue(blank(mission.getAnswerFormat(), "TEXT"), ANSWER_FORMATS, "INVALID_ANSWER_FORMAT", "Unsupported answerFormat."));
             puzzle.setRewardClue(sanitizeCategoryCodes(rewardClueForSave(mission, i)));
@@ -2619,7 +2619,7 @@ public class AdminEpisodeService {
         Episode episode = new Episode();
         episode.setTitle(title);
         episode.setSubtitle(blank(safeRequest.getSubtitle(), "Admin draft"));
-        episode.setEra(blank(safeRequest.getEra(), "?? ?? ??"));
+        episode.setEra(blank(safeRequest.getEra(), "시대 검수 필요"));
         episode.setGenre(requireAllowedGenre(blank(safeRequest.getGenre(), ContentGenre.MISSING_CASE.displayName())));
         episode.setDifficulty(blank(safeRequest.getDifficulty(), "NORMAL"));
         episode.setEstimatedTime(blank(safeRequest.getEstimatedTime(), "90~120분"));
