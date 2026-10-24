@@ -5,8 +5,13 @@ import com.operation.seoul.game.domain.GameSession;
 import com.operation.seoul.game.repository.GameSessionRepository;
 import com.operation.seoul.game.service.GeminiAiService;
 import com.operation.seoul.game.service.VisionAiService;
+import com.operation.seoul.global.exception.ApiException;
+import com.operation.seoul.location.domain.Mission;
+import com.operation.seoul.location.repository.MissionRepository;
+import com.operation.seoul.location.service.MissionService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,6 +30,8 @@ public class GameSessionController {
     private final VisionAiService visionAiService;
     private final GeminiAiService geminiAiService;
     private final CurrentUserResolver currentUserResolver;
+    private final MissionRepository missionRepository;
+    private final MissionService missionService;
 
     /**
      * 현장 힌트 사진을 검증하고 성공 시 GameSession을 CLEARED로 기록합니다.
@@ -52,6 +59,8 @@ public class GameSessionController {
             @RequestBody ChatRequest request) {
 
         Long userId = currentUserResolver.resolveUserId(request.getUserId());
+        Mission mission = missionRepository.findById(missionId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MISSION_NOT_FOUND", "미션을 찾을 수 없습니다."));
 
         GameSession session = sessionRepository.findByUserIdAndMissionId(userId, missionId)
                 .orElseGet(() -> {
@@ -66,10 +75,15 @@ public class GameSessionController {
             session.setStartedAt(LocalDateTime.now());
         }
 
-        boolean isCorrect = geminiAiService.verifyFinalAnswer(missionId, request.getUserAnswer());
+        // 정답 판정은 해금된 최종 미션에서만 한다. 힌트 미션은 정답 키워드가 비어 있어 아무 문장이나 정답이 됐고,
+        // 잠긴 최종 미션도 채팅만으로 클리어할 수 있었다.
+        boolean answerable = mission.isFinal() && missionService.isFinalUnlocked(mission.getRegionId(), userId);
+        boolean alreadyCleared = "CLEARED".equals(session.getStatus());
+        boolean isCorrect = answerable && geminiAiService.verifyFinalAnswer(missionId, request.getUserAnswer());
         boolean isQuestion = !isCorrect && geminiAiService.isHintQuestion(request.getUserAnswer());
 
-        if (isCorrect) {
+        // 이미 클리어한 미션에 다시 정답을 보내도 첫 클리어 시각과 점수는 그대로 둔다.
+        if (isCorrect && !alreadyCleared) {
             session.setStatus("CLEARED");
             session.setClearedAt(LocalDateTime.now());
             session.setElapsedSeconds(resolveElapsedSeconds(session, request.getElapsedSeconds()));

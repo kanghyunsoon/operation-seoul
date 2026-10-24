@@ -34,6 +34,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Service
@@ -48,6 +50,7 @@ public class EpisodePlayService {
     private static final int QUESTION_PENALTY_SECONDS = 60;
     private static final int HYPOTHESIS_PENALTY_SECONDS = 300;
     private static final int WRONG_FINAL_ANSWER_PENALTY_SECONDS = 300;
+    private static final Pattern ANSWER_SLOT_LABEL = Pattern.compile("(?i)^(CULPRIT|WEAPON|MOTIVE|METHOD|범인|흉기|동기|방법|범행방법|사인|사망원인|직접사인)\\s*[:=]\\s*");
     private static final Set<String> ALLOWED_DEDUCTION_ANSWER_TYPES = Set.of(
             "YES", "NO", "RELATED", "NOT_RELATED", "PARTIAL", "UNKNOWN", "AMBIGUOUS", "INSUFFICIENT_CLUE", "REFUSED_DIRECT_REVEAL"
     );
@@ -1388,22 +1391,86 @@ public class EpisodePlayService {
         }
         List<String> requiredKeywords = requiredFinalAnswerKeywords(episode);
         return !requiredKeywords.isEmpty()
-                && requiredKeywords.stream()
-                .allMatch(keyword -> keywordMatchesText(submittedAnswer, keyword));
+                && matchedFinalAnswerSlotCount(episode, submittedAnswer) == requiredKeywords.size();
     }
 
     private int matchedFinalAnswerSlotCount(Episode episode, String submittedAnswer) {
-        List<String> requiredKeywords = requiredFinalAnswerKeywords(episode);
-        if (requiredKeywords.isEmpty()) {
+        List<FinalAnswerSlot> slots = finalAnswerSlots(episode);
+        if (slots.isEmpty()) {
             return isFinalAnswerCorrect(episode, submittedAnswer) ? 4 : 0;
         }
+        int culpritIndex = culpritSlotIndex(slots);
         int matched = 0;
-        for (String keyword : requiredKeywords) {
-            if (keywordMatchesText(submittedAnswer, keyword)) {
+        for (int i = 0; i < slots.size(); i++) {
+            String keyword = slots.get(i).keyword();
+            boolean slotMatched = i == culpritIndex
+                    ? culpritMatches(episode, submittedAnswer, keyword)
+                    : keywordMatchesText(submittedAnswer, keyword);
+            if (slotMatched) {
                 matched++;
             }
         }
         return matched;
+    }
+
+    // 용의자는 3명뿐이라 답안에 세 사람을 모두 적으면 범인 칸이 항상 맞았다.
+    // 답안에 용의자가 여러 명 나오면 처음 지목한 사람만 범인으로 본다. "범인" 표기가 있으면 그 뒤에 나온 첫 사람을 쓴다.
+    private boolean culpritMatches(Episode episode, String submittedAnswer, String culpritKeyword) {
+        List<List<String>> suspects = suspectNameGroups(episode);
+        boolean culpritIsSuspect = suspects.stream()
+                .anyMatch(names -> names.stream().anyMatch(name -> keywordMatchesText(name, culpritKeyword)));
+        if (!culpritIsSuspect) {
+            return keywordMatchesText(submittedAnswer, culpritKeyword);
+        }
+        List<String> accused = accusedSuspect(normalizeAnswer(submittedAnswer), suspects);
+        if (accused == null) {
+            return keywordMatchesText(submittedAnswer, culpritKeyword);
+        }
+        return accused.stream().anyMatch(name -> keywordMatchesText(name, culpritKeyword));
+    }
+
+    private List<String> accusedSuspect(String normalizedAnswer, List<List<String>> suspects) {
+        int labelIndex = normalizedAnswer.indexOf("범인");
+        if (labelIndex >= 0) {
+            List<String> afterLabel = firstMentionedSuspect(normalizedAnswer, suspects, labelIndex + "범인".length());
+            if (afterLabel != null) {
+                return afterLabel;
+            }
+        }
+        return firstMentionedSuspect(normalizedAnswer, suspects, 0);
+    }
+
+    private List<String> firstMentionedSuspect(String normalizedAnswer, List<List<String>> suspects, int fromIndex) {
+        List<String> first = null;
+        int firstIndex = Integer.MAX_VALUE;
+        for (List<String> names : suspects) {
+            for (String name : names) {
+                int index = normalizedAnswer.indexOf(name, fromIndex);
+                if (index >= 0 && index < firstIndex) {
+                    firstIndex = index;
+                    first = names;
+                }
+            }
+        }
+        return first;
+    }
+
+    private List<List<String>> suspectNameGroups(Episode episode) {
+        if (episode == null || episode.getId() == null) {
+            return List.of();
+        }
+        try {
+            return caseFileRepository.findSuspects(episode.getId()).stream()
+                    .map(suspect -> Stream.of(suspect.getDisplayName(), suspect.getAlias())
+                            .map(this::normalizeAnswer)
+                            .filter(value -> value.length() >= 2)
+                            .distinct()
+                            .toList())
+                    .filter(names -> !names.isEmpty())
+                    .toList();
+        } catch (Exception ignored) {
+            return List.of();
+        }
     }
 
     private int totalFinalAnswerSlotCount(Episode episode) {
@@ -1510,6 +1577,12 @@ public class EpisodePlayService {
     }
 
     private List<String> requiredFinalAnswerKeywords(Episode episode) {
+        return finalAnswerSlots(episode).stream()
+                .map(FinalAnswerSlot::keyword)
+                .toList();
+    }
+
+    private List<FinalAnswerSlot> finalAnswerSlots(Episode episode) {
         if (episode.getFinalAnswerAliases() == null) {
             return List.of();
         }
@@ -1517,17 +1590,30 @@ public class EpisodePlayService {
                 .map(String::trim)
                 .filter(value -> value.startsWith("KW:"))
                 .flatMap(value -> Arrays.stream(value.substring(3).split("\\|")))
-                .map(this::stripAnswerSlotLabel)
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
+                .map(this::toFinalAnswerSlot)
+                .filter(slot -> !slot.keyword().isBlank())
                 .toList();
     }
 
-    private String stripAnswerSlotLabel(String value) {
-        if (value == null) {
-            return "";
+    private FinalAnswerSlot toFinalAnswerSlot(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        Matcher matcher = ANSWER_SLOT_LABEL.matcher(trimmed);
+        if (matcher.find()) {
+            return new FinalAnswerSlot(matcher.group(1).toUpperCase(Locale.ROOT), trimmed.substring(matcher.end()).trim());
         }
-        return value.trim().replaceFirst("(?i)^(CULPRIT|WEAPON|MOTIVE|METHOD|범인|흉기|동기|방법|범행방법|사인|사망원인|직접사인)\\s*[:=]\\s*", "");
+        return new FinalAnswerSlot("", trimmed);
+    }
+
+    private int culpritSlotIndex(List<FinalAnswerSlot> slots) {
+        for (int i = 0; i < slots.size(); i++) {
+            String label = slots.get(i).label();
+            if ("CULPRIT".equals(label) || "범인".equals(label)) {
+                return i;
+            }
+        }
+        // 라벨 없는 키워드 계약은 관리자 화면과 같은 순서(범인, 흉기, 동기, 사인)로 저장된다.
+        boolean unlabeled = slots.stream().allMatch(slot -> slot.label().isBlank());
+        return unlabeled ? 0 : -1;
     }
 
     private List<String> allClues(UserEpisodeProgress progress) {
@@ -1605,6 +1691,9 @@ public class EpisodePlayService {
     }
 
     private record DeductionAnswer(String type, String text) {
+    }
+
+    private record FinalAnswerSlot(String label, String keyword) {
     }
 
     private record RewardApplyResult(boolean caseFileUpdated, List<String> rewardTypes, List<Long> evidenceIds,

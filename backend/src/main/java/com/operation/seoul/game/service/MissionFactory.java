@@ -181,8 +181,9 @@ public class MissionFactory {
             return objectMapper.readValue(aiJsonText, AiCourseResponseDto.class);
 
         } catch (Exception e) {
-            log.error("🚨 Gemini 작전 생성 실패 상세 원인: ", e);
-            throw new RuntimeException("AI 시나리오 파싱 오류: " + e.getMessage());
+            // 요청 URL에 Gemini 키가 들어 있어 예외 메시지나 스택을 그대로 남기면 로그와 관리자 응답에 키가 노출된다.
+            log.error("🚨 Gemini 작전 생성 실패 원인: {}", e.getClass().getSimpleName());
+            throw new RuntimeException("AI 시나리오 생성 오류: " + e.getClass().getSimpleName());
         }
     }
 

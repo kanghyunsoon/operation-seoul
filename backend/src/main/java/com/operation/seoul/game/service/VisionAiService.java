@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.operation.seoul.game.domain.GameSession;
 import com.operation.seoul.game.repository.GameSessionRepository;
+import com.operation.seoul.global.exception.ApiException;
 import com.operation.seoul.location.domain.Mission;
 import com.operation.seoul.location.repository.MissionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VisionAiService {
@@ -50,12 +53,23 @@ public class VisionAiService {
      * 관리자는 현장 테스트 편의를 위해 Vision 판정 없이 통과할 수 있습니다.
      */
     public Map<String, Object> verifyAndRecordMission(Long missionId, MultipartFile image, Long userId, boolean isAdmin) {
+        Mission mission = missionRepository.findById(missionId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MISSION_NOT_FOUND", "미션을 찾을 수 없습니다."));
         boolean isSuccess = isAdmin || validateKeyword(missionId, image);
 
         if (!isSuccess) {
             return Map.of(
                     "success", false,
                     "message", "목표 단서를 식별할 수 없습니다. 프레임에 정확히 담아주십시오."
+            );
+        }
+
+        // 최종 미션은 채팅에서 정답을 맞혀야 클리어된다. 사진만으로 CLEARED가 되면 정답 확인과 점수 없이 클리어가 남았다.
+        if (mission.isFinal()) {
+            return Map.of(
+                    "success", true,
+                    "keyword", isAdmin ? "판독 성공 (관리자 프리패스)" : "판독 성공",
+                    "message", "현장 확인 완료. 최종 정답은 채팅으로 제출하십시오."
             );
         }
 
@@ -71,9 +85,12 @@ public class VisionAiService {
         if (session.getStartedAt() == null) {
             session.setStartedAt(LocalDateTime.now());
         }
-        session.setStatus("CLEARED");
-        session.setClearedAt(LocalDateTime.now());
-        gameSessionRepository.save(session);
+        // 이미 클리어한 미션을 다시 찍어도 첫 클리어 시각을 덮어쓰지 않는다.
+        if (!"CLEARED".equals(session.getStatus())) {
+            session.setStatus("CLEARED");
+            session.setClearedAt(LocalDateTime.now());
+            gameSessionRepository.save(session);
+        }
 
         String keywordMsg = isAdmin ? "판독 성공 (관리자 프리패스)" : "판독 성공";
         return Map.of(
@@ -97,13 +114,14 @@ public class VisionAiService {
 
             // 1. Google Vision API로 사진에서 사물/장면 라벨 추출
             String extractedData = getLabelsFromVision(image);
-            System.out.println("🧐 Vision API 추출 라벨: " + extractedData);
+            log.debug("Vision labels missionId={} labels={}", missionId, extractedData);
 
             // 2. Gemini를 이용한 의미론적 비교
             return judgeMatchWithGemini(extractedData, targetKeyword);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            // 요청 URL에 API 키가 들어 있어 예외 메시지나 스택을 그대로 찍으면 키가 로그에 남는다.
+            log.warn("Vision keyword check failed missionId={} reason={}", missionId, e.getClass().getSimpleName());
             return false;
         }
     }

@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MissionService {
 
+    private static final int FINAL_UNLOCK_HINT_COUNT = 3;
+
     private final MissionRepository missionRepository;
     private final GameSessionRepository gameSessionRepository;
 
@@ -40,7 +42,7 @@ public class MissionService {
                 .count();
 
         // 3. 서브 힌트가 3개 이상 클리어되었다면 최종 목적지 해금 처리
-        boolean isFinalUnlocked = (clearedHintsCount >= 3);
+        boolean isFinalUnlocked = (clearedHintsCount >= FINAL_UNLOCK_HINT_COUNT);
 
         // 4. Mission 엔티티를 프론트엔드 전달용 DTO로 변환하여 반환
         return missions.stream().map(mission -> {
@@ -51,6 +53,15 @@ public class MissionService {
 
             return MissionResponse.of(mission, status, unlocked);
         }).collect(Collectors.toList());
+    }
+
+    /** 지도 표시와 최종 정답 제출이 같은 해금 기준(서브 힌트 3개 클리어)을 쓰도록 한 곳에서 계산합니다. */
+    public boolean isFinalUnlocked(Long regionId, Long userId) {
+        long clearedHintsCount = missionRepository.findByRegionId(regionId).stream()
+                .filter(m -> !m.isFinal())
+                .filter(m -> isMissionClearedByUser(m.getId(), userId))
+                .count();
+        return clearedHintsCount >= FINAL_UNLOCK_HINT_COUNT;
     }
 
     /**

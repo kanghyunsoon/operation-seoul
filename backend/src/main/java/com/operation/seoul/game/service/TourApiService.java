@@ -111,7 +111,8 @@ public class TourApiService {
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
-            log.error("TourAPI lookup failed: {}", e.getMessage());
+            // 요청 URL에 serviceKey가 들어 있어 예외 메시지를 그대로 찍으면 키가 로그에 남는다.
+            log.error("TourAPI lookup failed: {}", e.getClass().getSimpleName());
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY,
                     "TOURAPI_REQUEST_FAILED",
