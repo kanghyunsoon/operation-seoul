@@ -25,27 +25,19 @@
 미션 장소 길찾기 버튼에 사용한다.
 
 - 프론트: `VITE_TMAP_APP_KEY`
-- 백엔드/공통 설정: `TMAP_APP_KEY`
 
 모바일에서 앱이 열리는 방식은 실기기로 다시 봐야 한다.
 
-## OpenAI / Gemini
+## Gemini
 
-AI 초안, 답안 계획, 검증 쪽에 사용한다.
+AI 초안, 답안 계획, 최종 추리 질문 응답에 사용한다.
 
 사용 설정:
 
-- `AI_PROVIDER`
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL`
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL`
 
 AI가 실패하거나 이상한 값을 만들 수 있어서 validator와 fallback을 같이 뒀다.
-
-## Google Vision
-
-예전 관광 미션의 사진 인증 쪽에서 사용한다. 설정은 `GOOGLE_VISION_KEY`다.
 
 ## Wikipedia
 
