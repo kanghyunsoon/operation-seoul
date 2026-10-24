@@ -474,11 +474,20 @@ public class GeminiAiService {
         Mission mission = missionRepository.findById(missionId).orElseThrow();
         String answerKeyword = mission.getAnswerKeyword();
         if (answerKeyword == null || answerKeyword.isBlank()) {
-            return true;
+            // 정답이 비어 있는 미션은 판정할 수 없다. 예전에는 어떤 문장이든 정답으로 처리했다.
+            return false;
         }
 
         String normalizedAnswer = normalizeAnswer(userAnswer);
         String normalizedKeyword = normalizeAnswer(answerKeyword);
+        if (normalizedAnswer.isEmpty() || normalizedKeyword.isEmpty()) {
+            return false;
+        }
+        // 후보를 길게 나열하면 포함 비교에 걸리고, 답안이 프롬프트에 그대로 들어가 판정 규칙을 덮어쓸 수도 있었다.
+        // 정답 키워드보다 지나치게 긴 답안은 비교하지 않고 오답으로 본다.
+        if (normalizedAnswer.length() > Math.max(30, normalizedKeyword.length() * 3)) {
+            return false;
+        }
         if (normalizedAnswer.equals(normalizedKeyword) || normalizedAnswer.contains(normalizedKeyword)) {
             return true;
         }
@@ -496,7 +505,7 @@ public class GeminiAiService {
                 단, 정답을 구성하는 일부 단어만 말했거나 넓은 분야/장소/인물/시대 배경만 말한 경우는 FALSE입니다.
                 답변이 애매하면 TRUE로 확장하지 말고 FALSE입니다.
                 TRUE 또는 FALSE만 출력하세요.
-                """, answerKeyword, userAnswer, summarizeForPrompt(mission.getRealStory(), 360));
+                """, answerKeyword, userAnswer.replaceAll("[\\r\\n\"]", " ").trim(), summarizeForPrompt(mission.getRealStory(), 360));
 
         String result = callGeminiStandard(geminiUrl(), prompt);
         return result != null && "TRUE".equalsIgnoreCase(result.trim());
@@ -785,7 +794,8 @@ public class GeminiAiService {
             String text = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
             return text.replace("```json", "").replace("```", "").trim();
         } catch (Exception e) {
-            log.error("Gemini request failed: {}", e.getMessage());
+            // 요청 URL에 API 키가 들어 있어 예외 메시지를 그대로 찍으면 키가 로그에 남는다.
+            log.error("Gemini request failed: {}", e.getClass().getSimpleName());
             return null;
         }
     }
