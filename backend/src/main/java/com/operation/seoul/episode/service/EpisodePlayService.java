@@ -775,6 +775,10 @@ public class EpisodePlayService {
     public FinalAnswerResponse submitFinalAnswer(Long episodeId, FinalAnswerRequest request, User user) {
         Episode episode = requireEpisode(episodeId);
         UserEpisodeProgress progress = requireProgress(user.getId(), episodeId);
+        // 클리어 뒤 다시 제출하면 클리어 시각과 점수가 바뀌어 랭킹과 최근 클리어 순서가 달라진다.
+        if ("CLEARED".equals(progress.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "ALREADY_CLEARED", "이미 클리어한 에피소드입니다.");
+        }
         if (progress.getFinalArrivedSpotId() == null) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FINAL_ARRIVAL_REQUIRED", "최종 장소에 도착한 뒤 최종 정답을 제출할 수 있습니다.");
         }

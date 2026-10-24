@@ -13,6 +13,8 @@ import com.operation.seoul.episode.dto.DeductionAskRequest;
 import com.operation.seoul.episode.dto.DeductionAskResponse;
 import com.operation.seoul.episode.dto.DeductionHypothesisRequest;
 import com.operation.seoul.episode.dto.DeductionHypothesisResponse;
+import com.operation.seoul.episode.dto.FinalAnswerRequest;
+import com.operation.seoul.episode.dto.FinalAnswerResponse;
 import com.operation.seoul.episode.repository.EpisodeRepository;
 import com.operation.seoul.favorite.repository.EpisodeFavoriteRepository;
 import com.operation.seoul.global.exception.ApiException;
@@ -21,13 +23,17 @@ import com.operation.seoul.playeranalysis.service.PlayerAnalysisService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -61,6 +67,47 @@ class EpisodePlayServiceDeductionTest {
         assertEquals(1, response.getQuestionCount());
         assertEquals(60, response.getClearTimePenaltySeconds());
         verifyNoInteractions(deductionAiService);
+    }
+
+    @Test
+    void submitFinalAnswerClearsFinalReadyProgress() {
+        UserEpisodeProgress progress = progress(0, 0);
+        progress.setFinalArrivedSpotId(5L);
+        mockDeductionState(session(0, 0), progress);
+
+        FinalAnswerResponse response = service.submitFinalAnswer(1L, finalAnswer("범인: 이몽룡 / 흉기: 망치 / 동기: 비밀 거래 은폐 / 방법: 교살"), user());
+
+        assertTrue(response.isCorrect());
+        assertEquals("CLEARED", response.getStatus());
+        assertNotNull(progress.getClearedAt());
+    }
+
+    @Test
+    void submitFinalAnswerAfterClearDoesNotChangeClearTimeOrScore() {
+        UserEpisodeProgress progress = progress(0, 0);
+        progress.setFinalArrivedSpotId(5L);
+        progress.setStatus("CLEARED");
+        LocalDateTime clearedAt = LocalDateTime.of(2026, 6, 1, 12, 0);
+        progress.setClearedAt(clearedAt);
+        progress.setScore(1250);
+        mockDeductionState(session(0, 0), progress);
+
+        ApiException correctAgain = assertThrows(ApiException.class,
+                () -> service.submitFinalAnswer(1L, finalAnswer("범인: 이몽룡 / 흉기: 망치 / 동기: 비밀 거래 은폐 / 방법: 교살"), user()));
+        ApiException wrongAfterClear = assertThrows(ApiException.class,
+                () -> service.submitFinalAnswer(1L, finalAnswer("범인: 성춘향"), user()));
+
+        assertEquals("ALREADY_CLEARED", correctAgain.getCode());
+        assertEquals("ALREADY_CLEARED", wrongAfterClear.getCode());
+        assertEquals(clearedAt, progress.getClearedAt());
+        assertEquals(1250, progress.getScore());
+        verify(episodeRepository, never()).updateProgress(any());
+    }
+
+    private FinalAnswerRequest finalAnswer(String answer) {
+        FinalAnswerRequest request = new FinalAnswerRequest();
+        request.setFinalAnswer(answer);
+        return request;
     }
 
     @Test
